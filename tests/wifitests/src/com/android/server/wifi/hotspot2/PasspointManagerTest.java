@@ -69,6 +69,7 @@ import com.android.server.wifi.SIMAccessor;
 import com.android.server.wifi.WifiConfigManager;
 import com.android.server.wifi.WifiConfigStore;
 import com.android.server.wifi.WifiKeyStore;
+import com.android.server.wifi.WifiMetrics;
 import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.hotspot2.anqp.ANQPElement;
 import com.android.server.wifi.hotspot2.anqp.Constants.ANQPElementType;
@@ -128,6 +129,7 @@ public class PasspointManagerTest {
     @Mock WifiConfigManager mWifiConfigManager;
     @Mock WifiConfigStore mWifiConfigStore;
     @Mock PasspointConfigStoreData.DataSource mDataSource;
+    @Mock WifiMetrics mWifiMetrics;
     PasspointManager mManager;
 
     /** Sets up test. */
@@ -139,7 +141,7 @@ public class PasspointManagerTest {
                 .thenReturn(mAnqpRequestManager);
         when(mObjectFactory.makeCertificateVerifier()).thenReturn(mCertVerifier);
         mManager = new PasspointManager(mContext, mWifiNative, mWifiKeyStore, mClock,
-                mSimAccessor, mObjectFactory, mWifiConfigManager, mWifiConfigStore);
+                mSimAccessor, mObjectFactory, mWifiConfigManager, mWifiConfigStore, mWifiMetrics);
         ArgumentCaptor<PasspointEventHandler.Callbacks> callbacks =
                 ArgumentCaptor.forClass(PasspointEventHandler.Callbacks.class);
         verify(mObjectFactory).makePasspointEventHandler(any(WifiNative.class),
@@ -411,6 +413,8 @@ public class PasspointManagerTest {
     @Test
     public void addProviderWithNullConfig() throws Exception {
         assertFalse(mManager.addOrUpdateProvider(null, TEST_CREATOR_UID));
+        verify(mWifiMetrics).incrementNumPasspointProviderInstallation();
+        verify(mWifiMetrics, never()).incrementNumPasspointProviderInstallSuccess();
     }
 
     /**
@@ -421,6 +425,8 @@ public class PasspointManagerTest {
     @Test
     public void addProviderWithEmptyConfig() throws Exception {
         assertFalse(mManager.addOrUpdateProvider(new PasspointConfiguration(), TEST_CREATOR_UID));
+        verify(mWifiMetrics).incrementNumPasspointProviderInstallation();
+        verify(mWifiMetrics, never()).incrementNumPasspointProviderInstallSuccess();
     }
 
     /**
@@ -435,6 +441,8 @@ public class PasspointManagerTest {
         // EAP-TLS not allowed for user credential.
         config.getCredential().getUserCredential().setEapType(EAPConstants.EAP_TLS);
         assertFalse(mManager.addOrUpdateProvider(config, TEST_CREATOR_UID));
+        verify(mWifiMetrics).incrementNumPasspointProviderInstallation();
+        verify(mWifiMetrics, never()).incrementNumPasspointProviderInstallSuccess();
     }
 
     /**
@@ -451,6 +459,9 @@ public class PasspointManagerTest {
         assertTrue(mManager.addOrUpdateProvider(config, TEST_CREATOR_UID));
         verifyInstalledConfig(config);
         verify(mWifiConfigManager).saveToStore(true);
+        verify(mWifiMetrics).incrementNumPasspointProviderInstallation();
+        verify(mWifiMetrics).incrementNumPasspointProviderInstallSuccess();
+        reset(mWifiMetrics);
         reset(mWifiConfigManager);
 
         // Verify content in the data source.
@@ -464,6 +475,8 @@ public class PasspointManagerTest {
         assertTrue(mManager.removeProvider(TEST_FQDN));
         verify(provider).uninstallCertsAndKeys();
         verify(mWifiConfigManager).saveToStore(true);
+        verify(mWifiMetrics).incrementNumPasspointProviderUninstallation();
+        verify(mWifiMetrics).incrementNumPasspointProviderUninstallSuccess();
         assertTrue(mManager.getProviderConfigs().isEmpty());
 
         // Verify content in the data source.
@@ -486,6 +499,9 @@ public class PasspointManagerTest {
         assertTrue(mManager.addOrUpdateProvider(config, TEST_CREATOR_UID));
         verifyInstalledConfig(config);
         verify(mWifiConfigManager).saveToStore(true);
+        verify(mWifiMetrics).incrementNumPasspointProviderInstallation();
+        verify(mWifiMetrics).incrementNumPasspointProviderInstallSuccess();
+        reset(mWifiMetrics);
         reset(mWifiConfigManager);
 
         // Verify content in the data source.
@@ -499,6 +515,8 @@ public class PasspointManagerTest {
         assertTrue(mManager.removeProvider(TEST_FQDN));
         verify(provider).uninstallCertsAndKeys();
         verify(mWifiConfigManager).saveToStore(true);
+        verify(mWifiMetrics).incrementNumPasspointProviderUninstallation();
+        verify(mWifiMetrics).incrementNumPasspointProviderUninstallSuccess();
         assertTrue(mManager.getProviderConfigs().isEmpty());
 
         // Verify content in the data source.
@@ -524,6 +542,9 @@ public class PasspointManagerTest {
         assertTrue(mManager.addOrUpdateProvider(origConfig, TEST_CREATOR_UID));
         verifyInstalledConfig(origConfig);
         verify(mWifiConfigManager).saveToStore(true);
+        verify(mWifiMetrics).incrementNumPasspointProviderInstallation();
+        verify(mWifiMetrics).incrementNumPasspointProviderInstallSuccess();
+        reset(mWifiMetrics);
         reset(mWifiConfigManager);
 
         // Verify data source content.
@@ -541,6 +562,8 @@ public class PasspointManagerTest {
         assertTrue(mManager.addOrUpdateProvider(newConfig, TEST_CREATOR_UID));
         verifyInstalledConfig(newConfig);
         verify(mWifiConfigManager).saveToStore(true);
+        verify(mWifiMetrics).incrementNumPasspointProviderInstallation();
+        verify(mWifiMetrics).incrementNumPasspointProviderInstallSuccess();
 
         // Verify data source content.
         List<PasspointProvider> newProviders = mDataSource.getProviders();
@@ -563,6 +586,8 @@ public class PasspointManagerTest {
         when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore),
                 eq(mSimAccessor), anyLong(), eq(TEST_CREATOR_UID))).thenReturn(provider);
         assertFalse(mManager.addOrUpdateProvider(config, TEST_CREATOR_UID));
+        verify(mWifiMetrics).incrementNumPasspointProviderInstallation();
+        verify(mWifiMetrics, never()).incrementNumPasspointProviderInstallSuccess();
     }
 
     /**
@@ -576,6 +601,8 @@ public class PasspointManagerTest {
         doThrow(new GeneralSecurityException())
                 .when(mCertVerifier).verifyCaCert(any(X509Certificate.class));
         assertFalse(mManager.addOrUpdateProvider(config, TEST_CREATOR_UID));
+        verify(mWifiMetrics).incrementNumPasspointProviderInstallation();
+        verify(mWifiMetrics, never()).incrementNumPasspointProviderInstallSuccess();
     }
 
     /**
@@ -594,6 +621,8 @@ public class PasspointManagerTest {
         assertTrue(mManager.addOrUpdateProvider(config, TEST_CREATOR_UID));
         verify(mCertVerifier, never()).verifyCaCert(any(X509Certificate.class));
         verifyInstalledConfig(config);
+        verify(mWifiMetrics).incrementNumPasspointProviderInstallation();
+        verify(mWifiMetrics).incrementNumPasspointProviderInstallSuccess();
     }
 
     /**
@@ -604,6 +633,8 @@ public class PasspointManagerTest {
     @Test
     public void removeNonExistingProvider() throws Exception {
         assertFalse(mManager.removeProvider(TEST_FQDN));
+        verify(mWifiMetrics).incrementNumPasspointProviderUninstallation();
+        verify(mWifiMetrics, never()).incrementNumPasspointProviderUninstallSuccess();
     }
 
     /**

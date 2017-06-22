@@ -216,7 +216,8 @@ public class WifiInjector {
                 mWifiNetworkScoreCache);
         mSimAccessor = new SIMAccessor(mContext);
         mPasspointManager = new PasspointManager(mContext, mWifiNative, mWifiKeyStore, mClock,
-                mSimAccessor, new PasspointObjectFactory(), mWifiConfigManager, mWifiConfigStore);
+                mSimAccessor, new PasspointObjectFactory(), mWifiConfigManager, mWifiConfigStore,
+                mWifiMetrics);
         mPasspointNetworkEvaluator = new PasspointNetworkEvaluator(
                 mPasspointManager, mWifiConfigManager, mConnectivityLocalLog);
         // mWifiStateMachine has an implicit dependency on mJavaRuntime due to WifiDiagnostics.

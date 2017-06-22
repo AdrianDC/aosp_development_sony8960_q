@@ -237,6 +237,13 @@ public class WifiMetricsTest {
     private static final int NUM_WIFICOND_CRASHES = 12;
     private static final int NUM_WIFI_ON_FAILURE_DUE_TO_HAL = 13;
     private static final int NUM_WIFI_ON_FAILURE_DUE_TO_WIFICOND = 14;
+    private static final int NUM_PASSPOINT_PROVIDERS = 4;
+    private static final int NUM_PASSPOINT_PROVIDER_INSTALLATION = 5;
+    private static final int NUM_PASSPOINT_PROVIDER_INSTALL_SUCCESS = 4;
+    private static final int NUM_PASSPOINT_PROVIDER_UNINSTALLATION = 3;
+    private static final int NUM_PASSPOINT_PROVIDER_UNINSTALL_SUCCESS = 2;
+    private static final int NUM_PASSPOINT_PROVIDERS_SUCCESSFULLY_CONNECTED = 1;
+
 
     private ScanDetail buildMockScanDetail(boolean hidden, NetworkDetail.HSRelease hSRelease,
             String capabilities) {
@@ -288,6 +295,7 @@ public class WifiMetricsTest {
      */
     public void setAndIncrementMetrics() throws Exception {
         mWifiMetrics.updateSavedNetworks(buildSavedNetworkList());
+        mWifiMetrics.updateSavedPasspointProfiles(NUM_PASSPOINT_PROVIDERS);
         mWifiMetrics.setIsLocationEnabled(TEST_VAL_IS_LOCATION_ENABLED);
         mWifiMetrics.setIsScanningAlwaysEnabled(IS_SCANNING_ALWAYS_ENABLED);
 
@@ -420,6 +428,18 @@ public class WifiMetricsTest {
         }
         for (int i = 0; i < NUM_WIFI_ON_FAILURE_DUE_TO_WIFICOND; i++) {
             mWifiMetrics.incrementNumWifiOnFailureDueToWificond();
+        }
+        for (int i = 0; i < NUM_PASSPOINT_PROVIDER_INSTALLATION; i++) {
+            mWifiMetrics.incrementNumPasspointProviderInstallation();
+        }
+        for (int i = 0; i < NUM_PASSPOINT_PROVIDER_INSTALL_SUCCESS; i++) {
+            mWifiMetrics.incrementNumPasspointProviderInstallSuccess();
+        }
+        for (int i = 0; i < NUM_PASSPOINT_PROVIDER_UNINSTALLATION; i++) {
+            mWifiMetrics.incrementNumPasspointProviderUninstallation();
+        }
+        for (int i = 0; i < NUM_PASSPOINT_PROVIDER_UNINSTALL_SUCCESS; i++) {
+            mWifiMetrics.incrementNumPasspointProviderUninstallSuccess();
         }
     }
 
@@ -563,6 +583,15 @@ public class WifiMetricsTest {
                 mDeserializedWifiMetrics.numWifiOnFailureDueToHal);
         assertEquals(NUM_WIFI_ON_FAILURE_DUE_TO_WIFICOND,
                 mDeserializedWifiMetrics.numWifiOnFailureDueToWificond);
+        assertEquals(NUM_PASSPOINT_PROVIDERS, mDeserializedWifiMetrics.numPasspointProviders);
+        assertEquals(NUM_PASSPOINT_PROVIDER_INSTALLATION,
+                mDeserializedWifiMetrics.numPasspointProviderInstallation);
+        assertEquals(NUM_PASSPOINT_PROVIDER_INSTALL_SUCCESS,
+                mDeserializedWifiMetrics.numPasspointProviderInstallSuccess);
+        assertEquals(NUM_PASSPOINT_PROVIDER_UNINSTALLATION,
+                mDeserializedWifiMetrics.numPasspointProviderUninstallation);
+        assertEquals(NUM_PASSPOINT_PROVIDER_UNINSTALL_SUCCESS,
+                mDeserializedWifiMetrics.numPasspointProviderUninstallSuccess);
     }
 
     /**

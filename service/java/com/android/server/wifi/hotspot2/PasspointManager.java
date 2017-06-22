@@ -45,6 +45,7 @@ import com.android.server.wifi.SIMAccessor;
 import com.android.server.wifi.WifiConfigManager;
 import com.android.server.wifi.WifiConfigStore;
 import com.android.server.wifi.WifiKeyStore;
+import com.android.server.wifi.WifiMetrics;
 import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.hotspot2.anqp.ANQPElement;
 import com.android.server.wifi.hotspot2.anqp.Constants;
@@ -97,6 +98,7 @@ public class PasspointManager {
     private final ANQPRequestManager mAnqpRequestManager;
     private final WifiConfigManager mWifiConfigManager;
     private final CertificateVerifier mCertVerifier;
+    private final WifiMetrics mWifiMetrics;
 
     // Counter used for assigning unique identifier to each provider.
     private long mProviderIndex;
@@ -194,7 +196,8 @@ public class PasspointManager {
 
     public PasspointManager(Context context, WifiNative wifiNative, WifiKeyStore keyStore,
             Clock clock, SIMAccessor simAccessor, PasspointObjectFactory objectFactory,
-            WifiConfigManager wifiConfigManager, WifiConfigStore wifiConfigStore) {
+            WifiConfigManager wifiConfigManager, WifiConfigStore wifiConfigStore,
+            WifiMetrics wifiMetrics) {
         mHandler = objectFactory.makePasspointEventHandler(wifiNative,
                 new CallbackHandler(context));
         mKeyStore = keyStore;
@@ -205,6 +208,7 @@ public class PasspointManager {
         mAnqpRequestManager = objectFactory.makeANQPRequestManager(mHandler, clock);
         mCertVerifier = objectFactory.makeCertificateVerifier();
         mWifiConfigManager = wifiConfigManager;
+        mWifiMetrics = wifiMetrics;
         mProviderIndex = 0;
         wifiConfigStore.registerStoreData(objectFactory.makePasspointConfigStoreData(
                 mKeyStore, mSimAccessor, new DataSourceHandler()));
@@ -222,6 +226,7 @@ public class PasspointManager {
      * @return true if provider is added, false otherwise
      */
     public boolean addOrUpdateProvider(PasspointConfiguration config, int uid) {
+        mWifiMetrics.incrementNumPasspointProviderInstallation();
         if (config == null) {
             Log.e(TAG, "Configuration not provided");
             return false;
@@ -266,6 +271,7 @@ public class PasspointManager {
         mWifiConfigManager.saveToStore(true /* forceWrite */);
         Log.d(TAG, "Added/updated Passpoint configuration: " + config.getHomeSp().getFqdn()
                 + " by " + uid);
+        mWifiMetrics.incrementNumPasspointProviderInstallSuccess();
         return true;
     }
 
@@ -276,6 +282,7 @@ public class PasspointManager {
      * @return true if a provider is removed, false otherwise
      */
     public boolean removeProvider(String fqdn) {
+        mWifiMetrics.incrementNumPasspointProviderUninstallation();
         if (!mProviders.containsKey(fqdn)) {
             Log.e(TAG, "Config doesn't exist");
             return false;
@@ -285,6 +292,7 @@ public class PasspointManager {
         mProviders.remove(fqdn);
         mWifiConfigManager.saveToStore(true /* forceWrite */);
         Log.d(TAG, "Removed Passpoint configuration: " + fqdn);
+        mWifiMetrics.incrementNumPasspointProviderUninstallSuccess();
         return true;
     }
 

@@ -1025,6 +1025,41 @@ public class WifiMetrics {
         }
     }
 
+    /**
+     * Increment number of times Passpoint provider being installed.
+     */
+    public void incrementNumPasspointProviderInstallation() {
+        synchronized (mLock) {
+            mWifiLogProto.numPasspointProviderInstallation++;
+        }
+    }
+
+    /**
+     * Increment number of times Passpoint provider is installed successfully.
+     */
+    public void incrementNumPasspointProviderInstallSuccess() {
+        synchronized (mLock) {
+            mWifiLogProto.numPasspointProviderInstallSuccess++;
+        }
+    }
+
+    /**
+     * Increment number of times Passpoint provider being uninstalled.
+     */
+    public void incrementNumPasspointProviderUninstallation() {
+        synchronized (mLock) {
+            mWifiLogProto.numPasspointProviderUninstallation++;
+        }
+    }
+
+    /**
+     * Increment number of times Passpoint provider is uninstalled successfully.
+     */
+    public void incrementNumPasspointProviderUninstallSuccess() {
+        synchronized (mLock) {
+            mWifiLogProto.numPasspointProviderUninstallSuccess++;
+        }
+    }
 
     public static final String PROTO_DUMP_ARG = "wifiMetricsProto";
     public static final String CLEAN_DUMP_ARG = "clean";
@@ -1228,6 +1263,19 @@ public class WifiMetrics {
                     pw.println(staEventToString(event));
                 }
 
+                pw.println("mWifiLogProto.numPasspointProviders="
+                        + mWifiLogProto.numPasspointProviders);
+                pw.println("mWifiLogProto.numPasspointProviderInstallation="
+                        + mWifiLogProto.numPasspointProviderInstallation);
+                pw.println("mWifiLogProto.numPasspointProviderInstallSuccess="
+                        + mWifiLogProto.numPasspointProviderInstallSuccess);
+                pw.println("mWifiLogProto.numPasspointProviderUninstallation="
+                        + mWifiLogProto.numPasspointProviderUninstallation);
+                pw.println("mWifiLogProto.numPasspointProviderUninstallSuccess="
+                        + mWifiLogProto.numPasspointProviderUninstallSuccess);
+                pw.println("mWifiLogProto.numPasspointProvidersSuccessfullyConnected="
+                        + mWifiLogProto.numPasspointProvidersSuccessfullyConnected);
+
                 pw.println("mWifiAwareMetrics:");
                 mWifiAwareMetrics.dump(fd, pw, args);
             }
@@ -1269,6 +1317,17 @@ public class WifiMetrics {
                     mWifiLogProto.numPasspointNetworks++;
                 }
             }
+        }
+    }
+
+    /**
+     * Update number of saved Passpoint profiles.
+     *
+     * @param numSavedProfiles The number of saved Passpoint profiles
+     */
+    public void updateSavedPasspointProfiles(int numSavedProfiles) {
+        synchronized (mLock) {
+            mWifiLogProto.numPasspointProviders = numSavedProfiles;
         }
     }
 

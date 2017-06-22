@@ -6985,6 +6985,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      */
     public void updateWifiMetrics() {
         mWifiMetrics.updateSavedNetworks(mWifiConfigManager.getSavedNetworks());
+        mWifiMetrics.updateSavedPasspointProfiles(mPasspointManager.getProviderConfigs().size());
     }
 
     /**
