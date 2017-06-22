@@ -1321,13 +1321,16 @@ public class WifiMetrics {
     }
 
     /**
-     * Update number of saved Passpoint profiles.
+     * Update metrics for saved Passpoint profiles.
      *
      * @param numSavedProfiles The number of saved Passpoint profiles
+     * @param numConnectedProfiles The number of saved Passpoint profiles that have ever resulted
+     *                             in a successful network connection
      */
-    public void updateSavedPasspointProfiles(int numSavedProfiles) {
+    public void updateSavedPasspointProfiles(int numSavedProfiles, int numConnectedProfiles) {
         synchronized (mLock) {
             mWifiLogProto.numPasspointProviders = numSavedProfiles;
+            mWifiLogProto.numPasspointProvidersSuccessfullyConnected = numConnectedProfiles;
         }
     }
 

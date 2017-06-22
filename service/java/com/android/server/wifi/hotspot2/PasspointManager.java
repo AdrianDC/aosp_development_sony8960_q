@@ -536,6 +536,41 @@ public class PasspointManager {
     }
 
     /**
+     * Invoked when a Passpoint network was successfully connected based on the credentials
+     * provided by the given Passpoint provider (specified by its FQDN).
+     *
+     * @param fqdn The FQDN of the Passpoint provider
+     */
+    public void onPasspointNetworkConnected(String fqdn) {
+        PasspointProvider provider = mProviders.get(fqdn);
+        if (provider == null) {
+            Log.e(TAG, "Passpoint network connected without provider: " + fqdn);
+            return;
+        }
+
+        if (!provider.getHasEverConnected()) {
+            // First successful connection using this provider.
+            provider.setHasEverConnected(true);
+        }
+    }
+
+    /**
+     * Update metrics related to installed Passpoint providers, this includes the number of
+     * installed providers and the number of those providers that results in a successful network
+     * connection.
+     */
+    public void updateMetrics() {
+        int numProviders = mProviders.size();
+        int numConnectedProviders = 0;
+        for (Map.Entry<String, PasspointProvider> entry : mProviders.entrySet()) {
+            if (entry.getValue().getHasEverConnected()) {
+                numConnectedProviders++;
+            }
+        }
+        mWifiMetrics.updateSavedPasspointProfiles(numProviders, numConnectedProviders);
+    }
+
+    /**
      * Dump the current state of PasspointManager to the provided output stream.
      *
      * @param pw The output stream to write to
@@ -595,7 +630,7 @@ public class PasspointManager {
                 mSimAccessor, mProviderIndex++, wifiConfig.creatorUid,
                 enterpriseConfig.getCaCertificateAlias(),
                 enterpriseConfig.getClientCertificateAlias(),
-                enterpriseConfig.getClientCertificateAlias());
+                enterpriseConfig.getClientCertificateAlias(), false);
         mProviders.put(passpointConfig.getHomeSp().getFqdn(), provider);
         return true;
     }

@@ -963,4 +963,27 @@ public class PasspointProviderTest {
 
         assertFalse(mProvider.isSimCredential());
     }
+
+    /**
+     * Verify that hasEverConnected flag is set correctly using
+     * {@link PasspointProvider#setHasEverConnected}.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void setHasEverConnected() throws Exception {
+        PasspointConfiguration config = new PasspointConfiguration();
+        HomeSp homeSp = new HomeSp();
+        homeSp.setFqdn("test1");
+        config.setHomeSp(homeSp);
+        Credential credential = new Credential();
+        credential.setUserCredential(new Credential.UserCredential());
+        config.setCredential(credential);
+        mProvider = createProvider(config);
+        verifyInstalledConfig(config, true);
+
+        assertFalse(mProvider.getHasEverConnected());
+        mProvider.setHasEverConnected(true);
+        assertTrue(mProvider.getHasEverConnected());
+    }
 }

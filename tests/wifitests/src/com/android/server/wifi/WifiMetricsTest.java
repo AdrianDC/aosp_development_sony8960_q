@@ -295,7 +295,8 @@ public class WifiMetricsTest {
      */
     public void setAndIncrementMetrics() throws Exception {
         mWifiMetrics.updateSavedNetworks(buildSavedNetworkList());
-        mWifiMetrics.updateSavedPasspointProfiles(NUM_PASSPOINT_PROVIDERS);
+        mWifiMetrics.updateSavedPasspointProfiles(NUM_PASSPOINT_PROVIDERS,
+                NUM_PASSPOINT_PROVIDERS_SUCCESSFULLY_CONNECTED);
         mWifiMetrics.setIsLocationEnabled(TEST_VAL_IS_LOCATION_ENABLED);
         mWifiMetrics.setIsScanningAlwaysEnabled(IS_SCANNING_ALWAYS_ENABLED);
 
@@ -592,6 +593,8 @@ public class WifiMetricsTest {
                 mDeserializedWifiMetrics.numPasspointProviderUninstallation);
         assertEquals(NUM_PASSPOINT_PROVIDER_UNINSTALL_SUCCESS,
                 mDeserializedWifiMetrics.numPasspointProviderUninstallSuccess);
+        assertEquals(NUM_PASSPOINT_PROVIDERS_SUCCESSFULLY_CONNECTED,
+                mDeserializedWifiMetrics.numPasspointProvidersSuccessfullyConnected);
     }
 
     /**

@@ -1215,4 +1215,62 @@ public class PasspointManagerTest {
 
         assertFalse(PasspointManager.addLegacyPasspointConfig(wifiConfig));
     }
+
+    /**
+     * Verify that the provider's "hasEverConnected" flag will be set to true and the associated
+     * metric is updated after the provider was used to successfully connect to a Passpoint
+     * network for the first time.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void providerNetworkConnectedFirstTime() throws Exception {
+        PasspointProvider provider = addTestProvider();
+        when(provider.getHasEverConnected()).thenReturn(false);
+        mManager.onPasspointNetworkConnected(TEST_FQDN);
+        verify(provider).setHasEverConnected(eq(true));
+    }
+
+    /**
+     * Verify that the provider's "hasEverConnected" flag the associated metric is not updated
+     * after the provider was used to successfully connect to a Passpoint network for non-first
+     * time.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void providerNetworkConnectedNotFirstTime() throws Exception {
+        PasspointProvider provider = addTestProvider();
+        when(provider.getHasEverConnected()).thenReturn(true);
+        mManager.onPasspointNetworkConnected(TEST_FQDN);
+        verify(provider, never()).setHasEverConnected(anyBoolean());
+    }
+
+    /**
+     * Verify that the expected Passpoint metrics are updated when
+     * {@link PasspointManager#updateMetrics} is invoked.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void updateMetrics() throws Exception {
+        PasspointProvider provider = addTestProvider();
+
+        // Provider have not provided a successful network connection.
+        int expectedInstalledProviders = 1;
+        int expectedConnectedProviders = 0;
+        when(provider.getHasEverConnected()).thenReturn(false);
+        mManager.updateMetrics();
+        verify(mWifiMetrics).updateSavedPasspointProfiles(
+                eq(expectedInstalledProviders), eq(expectedConnectedProviders));
+        reset(provider);
+        reset(mWifiMetrics);
+
+        // Provider have provided a successful network connection.
+        expectedConnectedProviders = 1;
+        when(provider.getHasEverConnected()).thenReturn(true);
+        mManager.updateMetrics();
+        verify(mWifiMetrics).updateSavedPasspointProfiles(
+                eq(expectedInstalledProviders), eq(expectedConnectedProviders));
+    }
 }
