@@ -1381,6 +1381,50 @@ public class WifiConfigManagerTest {
     }
 
     /**
+     * Verifies that if the app sends back the masked passwords in an update, we ignore it.
+     */
+    @Test
+    public void testUpdateIgnoresMaskedPasswords() {
+        WifiConfiguration someRandomNetworkWithAllMaskedFields =
+                WifiConfigurationTestUtil.createEapNetwork();
+        someRandomNetworkWithAllMaskedFields.wepKeys = WifiConfigurationTestUtil.TEST_WEP_KEYS;
+        someRandomNetworkWithAllMaskedFields.preSharedKey = WifiConfigurationTestUtil.TEST_PSK;
+        someRandomNetworkWithAllMaskedFields.enterpriseConfig.setPassword(
+                WifiConfigurationTestUtil.TEST_EAP_PASSWORD);
+
+        NetworkUpdateResult result =
+                verifyAddNetworkToWifiConfigManager(someRandomNetworkWithAllMaskedFields);
+
+        // All of these passwords must be masked in this retrieved network config.
+        WifiConfiguration retrievedNetworkWithMaskedPassword =
+                mWifiConfigManager.getConfiguredNetwork(result.getNetworkId());
+        assertPasswordsMaskedInWifiConfiguration(retrievedNetworkWithMaskedPassword);
+        // Ensure that the passwords are present internally.
+        WifiConfiguration retrievedNetworkWithPassword =
+                mWifiConfigManager.getConfiguredNetworkWithPassword(result.getNetworkId());
+        assertEquals(someRandomNetworkWithAllMaskedFields.preSharedKey,
+                retrievedNetworkWithPassword.preSharedKey);
+        assertEquals(someRandomNetworkWithAllMaskedFields.wepKeys,
+                retrievedNetworkWithPassword.wepKeys);
+        assertEquals(someRandomNetworkWithAllMaskedFields.enterpriseConfig.getPassword(),
+                retrievedNetworkWithPassword.enterpriseConfig.getPassword());
+
+        // Now update the same network config using the masked config.
+        verifyUpdateNetworkToWifiConfigManager(retrievedNetworkWithMaskedPassword);
+
+        // Retrieve the network config with password and ensure that they have not been overwritten
+        // with *.
+        retrievedNetworkWithPassword =
+                mWifiConfigManager.getConfiguredNetworkWithPassword(result.getNetworkId());
+        assertEquals(someRandomNetworkWithAllMaskedFields.preSharedKey,
+                retrievedNetworkWithPassword.preSharedKey);
+        assertEquals(someRandomNetworkWithAllMaskedFields.wepKeys,
+                retrievedNetworkWithPassword.wepKeys);
+        assertEquals(someRandomNetworkWithAllMaskedFields.enterpriseConfig.getPassword(),
+                retrievedNetworkWithPassword.enterpriseConfig.getPassword());
+    }
+
+    /**
      * Verifies the ordering of network list generated using
      * {@link WifiConfigManager#retrievePnoNetworkList()}.
      */
