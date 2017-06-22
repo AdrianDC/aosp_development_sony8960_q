@@ -1054,7 +1054,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         private WakeupMessage mSendMessageTimeoutMessage = new WakeupMessage(mContext, getHandler(),
                 HAL_SEND_MESSAGE_TIMEOUT_TAG, MESSAGE_TYPE_SEND_MESSAGE_TIMEOUT);
 
-        private static final long AWARE_WAIT_FOR_DP_CONFIRM_TIMEOUT = 5_000;
+        private static final long AWARE_WAIT_FOR_DP_CONFIRM_TIMEOUT = 20_000;
         private final Map<WifiAwareNetworkSpecifier, WakeupMessage>
                 mDataPathConfirmTimeoutMessages = new ArrayMap<>();
 
