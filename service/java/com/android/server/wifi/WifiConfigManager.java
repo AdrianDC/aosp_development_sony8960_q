@@ -820,8 +820,8 @@ public class WifiConfigManager {
 
         // Copy over the |WifiEnterpriseConfig| parameters if set.
         if (externalConfig.enterpriseConfig != null) {
-            internalConfig.enterpriseConfig =
-                    new WifiEnterpriseConfig(externalConfig.enterpriseConfig);
+            internalConfig.enterpriseConfig.copyFromExternal(
+                    externalConfig.enterpriseConfig, PASSWORD_MASK);
         }
     }
 
