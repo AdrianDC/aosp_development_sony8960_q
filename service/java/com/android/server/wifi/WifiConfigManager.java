@@ -947,6 +947,10 @@ public class WifiConfigManager {
         WifiConfiguration existingInternalConfig = getInternalConfiguredNetwork(config);
         // No existing network found. So, potentially a network add.
         if (existingInternalConfig == null) {
+            if (!WifiConfigurationUtil.validate(config, WifiConfigurationUtil.VALIDATE_FOR_ADD)) {
+                Log.e(TAG, "Cannot add network with invalid config");
+                return new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID);
+            }
             newInternalConfig = createNewInternalWifiConfigurationFromExternal(config, uid);
             // Since the original config provided may have had an empty
             // {@link WifiConfiguration#allowedKeyMgmt} field, check again if we already have a
@@ -955,6 +959,11 @@ public class WifiConfigManager {
         }
         // Existing network found. So, a network update.
         if (existingInternalConfig != null) {
+            if (!WifiConfigurationUtil.validate(
+                    config, WifiConfigurationUtil.VALIDATE_FOR_UPDATE)) {
+                Log.e(TAG, "Cannot update network with invalid config");
+                return new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID);
+            }
             // Check for the app's permission before we let it update this network.
             if (!canModifyNetwork(existingInternalConfig, uid, DISALLOW_LOCKDOWN_CHECK_BYPASS)) {
                 Log.e(TAG, "UID " + uid + " does not have permission to update configuration "
@@ -1046,8 +1055,8 @@ public class WifiConfigManager {
             Log.e(TAG, "UID " + uid + " not visible to the current user");
             return new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID);
         }
-        if (!WifiConfigurationUtil.validate(config)) {
-            Log.e(TAG, "Cannot add/update network with invalid config");
+        if (config == null) {
+            Log.e(TAG, "Cannot add/update network with null config");
             return new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID);
         }
         if (mPendingStoreRead) {
