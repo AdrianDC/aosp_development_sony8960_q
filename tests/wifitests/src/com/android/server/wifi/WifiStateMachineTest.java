@@ -1078,6 +1078,99 @@ public class WifiStateMachineTest {
         assertEquals("DisconnectingState", getCurrentState().getName());
     }
 
+    /**
+     * Verify that the network selection status will be updated with DISABLED_AUTHENTICATION_FAILURE
+     * when wrong password authentication failure is detected and the network had been
+     * connected previously.
+     */
+    @Test
+    public void testWrongPasswordWithPreviouslyConnected() throws Exception {
+        initializeAndAddNetworkAndVerifySuccess();
+
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        mLooper.dispatchAll();
+
+        mLooper.startAutoDispatch();
+        mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true);
+        mLooper.stopAutoDispatch();
+
+        verify(mWifiConfigManager).enableNetwork(eq(0), eq(true), anyInt());
+
+        WifiConfiguration config = new WifiConfiguration();
+        config.getNetworkSelectionStatus().setHasEverConnected(true);
+        when(mWifiConfigManager.getConfiguredNetwork(anyInt())).thenReturn(config);
+
+        mWsm.sendMessage(WifiMonitor.AUTHENTICATION_FAILURE_EVENT, 0,
+                WifiManager.ERROR_AUTH_FAILURE_WRONG_PSWD);
+        mLooper.dispatchAll();
+
+        verify(mWifiConfigManager).updateNetworkSelectionStatus(anyInt(),
+                eq(WifiConfiguration.NetworkSelectionStatus.DISABLED_AUTHENTICATION_FAILURE));
+
+        assertEquals("DisconnectedState", getCurrentState().getName());
+    }
+
+    /**
+     * Verify that the network selection status will be updated with DISABLED_BY_WRONG_PASSWORD
+     * when wrong password authentication failure is detected and the network has never been
+     * connected.
+     */
+    @Test
+    public void testWrongPasswordWithNeverConnected() throws Exception {
+        initializeAndAddNetworkAndVerifySuccess();
+
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        mLooper.dispatchAll();
+
+        mLooper.startAutoDispatch();
+        mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true);
+        mLooper.stopAutoDispatch();
+
+        verify(mWifiConfigManager).enableNetwork(eq(0), eq(true), anyInt());
+
+        WifiConfiguration config = new WifiConfiguration();
+        config.getNetworkSelectionStatus().setHasEverConnected(false);
+        when(mWifiConfigManager.getConfiguredNetwork(anyInt())).thenReturn(config);
+
+        mWsm.sendMessage(WifiMonitor.AUTHENTICATION_FAILURE_EVENT, 0,
+                WifiManager.ERROR_AUTH_FAILURE_WRONG_PSWD);
+        mLooper.dispatchAll();
+
+        verify(mWifiConfigManager).updateNetworkSelectionStatus(anyInt(),
+                eq(WifiConfiguration.NetworkSelectionStatus.DISABLED_BY_WRONG_PASSWORD));
+
+        assertEquals("DisconnectedState", getCurrentState().getName());
+    }
+
+    /**
+     * Verify that the network selection status will be updated with DISABLED_BY_WRONG_PASSWORD
+     * when wrong password authentication failure is detected and the network is unknown.
+     */
+    @Test
+    public void testWrongPasswordWithNullNetwork() throws Exception {
+        initializeAndAddNetworkAndVerifySuccess();
+
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        mLooper.dispatchAll();
+
+        mLooper.startAutoDispatch();
+        mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true);
+        mLooper.stopAutoDispatch();
+
+        verify(mWifiConfigManager).enableNetwork(eq(0), eq(true), anyInt());
+
+        when(mWifiConfigManager.getConfiguredNetwork(anyInt())).thenReturn(null);
+
+        mWsm.sendMessage(WifiMonitor.AUTHENTICATION_FAILURE_EVENT, 0,
+                WifiManager.ERROR_AUTH_FAILURE_WRONG_PSWD);
+        mLooper.dispatchAll();
+
+        verify(mWifiConfigManager).updateNetworkSelectionStatus(anyInt(),
+                eq(WifiConfiguration.NetworkSelectionStatus.DISABLED_BY_WRONG_PASSWORD));
+
+        assertEquals("DisconnectedState", getCurrentState().getName());
+    }
+
     @Test
     public void testBadNetworkEvent() throws Exception {
         initializeAndAddNetworkAndVerifySuccess();
