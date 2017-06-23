@@ -63,6 +63,7 @@ public final class WifiAwareService extends SystemService {
             wifiAwareStateManager.setNative(wifiAwareNativeManager, wifiAwareNativeApi);
             WifiAwareShellCommand wifiAwareShellCommand = new WifiAwareShellCommand();
             wifiAwareShellCommand.register("native_api", wifiAwareNativeApi);
+            wifiAwareShellCommand.register("native_cb", wifiAwareNativeCallback);
             wifiAwareShellCommand.register("state_mgr", wifiAwareStateManager);
 
             HandlerThread awareHandlerThread = wifiInjector.getWifiAwareHandlerThread();
