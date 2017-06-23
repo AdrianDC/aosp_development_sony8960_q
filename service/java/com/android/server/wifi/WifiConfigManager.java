@@ -122,7 +122,8 @@ public class WifiConfigManager {
             1,  //  threshold for DISABLED_AUTHENTICATION_NO_CREDENTIALS
             1,  //  threshold for DISABLED_NO_INTERNET
             1,  //  threshold for DISABLED_BY_WIFI_MANAGER
-            1   //  threshold for DISABLED_BY_USER_SWITCH
+            1,  //  threshold for DISABLED_BY_USER_SWITCH
+            1   //  threshold for DISABLED_BY_WRONG_PASSWORD
     };
     /**
      * Network Selection disable timeout for each kind of error. After the timeout milliseconds,
@@ -143,7 +144,8 @@ public class WifiConfigManager {
             Integer.MAX_VALUE,  // threshold for DISABLED_AUTHENTICATION_NO_CREDENTIALS
             Integer.MAX_VALUE,  // threshold for DISABLED_NO_INTERNET
             Integer.MAX_VALUE,  // threshold for DISABLED_BY_WIFI_MANAGER
-            Integer.MAX_VALUE   // threshold for DISABLED_BY_USER_SWITCH
+            Integer.MAX_VALUE,  // threshold for DISABLED_BY_USER_SWITCH
+            Integer.MAX_VALUE   // threshold for DISABLED_BY_WRONG_PASSWORD
     };
     /**
      * Interface for other modules to listen to the saved network updated
