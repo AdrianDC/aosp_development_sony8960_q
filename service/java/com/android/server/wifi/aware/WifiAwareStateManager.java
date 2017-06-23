@@ -2329,13 +2329,14 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
             int channel, byte[] peer, String interfaceName, byte[] pmk, String passphrase,
             boolean isOutOfBand) {
         if (VDBG) {
-            Log.v(TAG,
-                    "initiateDataPathSetupLocal(): transactionId=" + transactionId
-                            + ", networkSpecifier=" + networkSpecifier + ", peerId=" + peerId
-                            + ", channelRequestType=" + channelRequestType + ", channel=" + channel
-                            + ", peer=" + String.valueOf(HexEncoding.encode(peer))
-                            + ", interfaceName=" + interfaceName + ", pmk=" + pmk
-                            + ", passphrase=" + passphrase + ", isOutOfBand=" + isOutOfBand);
+            Log.v(TAG, "initiateDataPathSetupLocal(): transactionId=" + transactionId
+                    + ", networkSpecifier=" + networkSpecifier + ", peerId=" + peerId
+                    + ", channelRequestType=" + channelRequestType + ", channel=" + channel
+                    + ", peer="
+                    + String.valueOf(HexEncoding.encode(peer)) + ", interfaceName=" + interfaceName
+                    + ", pmk=" + ((pmk == null) ? "" : "*") + ", passphrase=" + (
+                    (passphrase == null) ? "" : "*") + ", isOutOfBand="
+                    + isOutOfBand);
         }
 
         boolean success = mWifiAwareNativeApi.initiateDataPath(transactionId, peerId,
@@ -2354,10 +2355,10 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
             Log.v(TAG,
                     "respondToDataPathRequestLocal(): transactionId=" + transactionId + ", accept="
                             + accept + ", ndpId=" + ndpId + ", interfaceName=" + interfaceName
-                            + ", pmk=" + pmk + ", passphrase=" + passphrase + ", isOutOfBand="
+                            + ", pmk=" + ((pmk == null) ? "" : "*") + ", passphrase="
+                            + ((passphrase == null) ? "" : "*") + ", isOutOfBand="
                             + isOutOfBand);
         }
-
         boolean success = mWifiAwareNativeApi.respondToDataPathRequest(transactionId, accept, ndpId,
                 interfaceName, pmk, passphrase, isOutOfBand, mCapabilities);
         if (!success) {
