@@ -57,6 +57,7 @@ public class WifiAwareNativeManager {
     }
 
     public void start() {
+        mHalDeviceManager.initialize();
         mHalDeviceManager.registerStatusListener(
                 new HalDeviceManager.ManagerStatusListener() {
                     @Override
