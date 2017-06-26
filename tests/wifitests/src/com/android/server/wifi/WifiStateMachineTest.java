@@ -153,32 +153,6 @@ public class WifiStateMachineTest {
         mWsm.enableVerboseLogging(1);
     }
 
-    private class TestIpManager extends IpManager {
-        TestIpManager(Context context, String ifname, IpManager.Callback callback) {
-            // Call dependency-injection superclass constructor.
-            super(context, ifname, callback, mock(INetworkManagementService.class));
-        }
-
-        @Override
-        public void startProvisioning(IpManager.ProvisioningConfiguration config) {}
-
-        @Override
-        public void stop() {}
-
-        @Override
-        public void confirmConfiguration() {}
-
-        void injectDhcpSuccess(DhcpResults dhcpResults) {
-            mCallback.onNewDhcpResults(dhcpResults);
-            mCallback.onProvisioningSuccess(new LinkProperties());
-        }
-
-        void injectDhcpFailure() {
-            mCallback.onNewDhcpResults(null);
-            mCallback.onProvisioningFailure(new LinkProperties());
-        }
-    }
-
     private FrameworkFacade getFrameworkFacade() throws Exception {
         FrameworkFacade facade = mock(FrameworkFacade.class);
 
@@ -212,8 +186,8 @@ public class WifiStateMachineTest {
                 .then(new AnswerWithArguments() {
                     public IpManager answer(
                             Context context, String ifname, IpManager.Callback callback) {
-                        mTestIpManager = new TestIpManager(context, ifname, callback);
-                        return mTestIpManager;
+                        mIpManagerCallback = callback;
+                        return mIpManager;
                     }
                 });
 
@@ -310,9 +284,18 @@ public class WifiStateMachineTest {
         return list;
     }
 
+    private void injectDhcpSuccess(DhcpResults dhcpResults) {
+        mIpManagerCallback.onNewDhcpResults(dhcpResults);
+        mIpManagerCallback.onProvisioningSuccess(new LinkProperties());
+    }
+
+    private void injectDhcpFailure() {
+        mIpManagerCallback.onNewDhcpResults(null);
+        mIpManagerCallback.onProvisioningFailure(new LinkProperties());
+    }
+
     static final String   sSSID = "\"GoogleGuest\"";
     static final WifiSsid sWifiSsid = WifiSsid.createFromAsciiEncoded(sSSID);
-    static final String   sHexSSID = sWifiSsid.getHexString().replace("0x", "").replace("22", "");
     static final String   sBSSID = "01:02:03:04:05:06";
     static final int      sFreq = 2437;
     static final String   WIFI_IFACE_NAME = "mockWlan";
@@ -324,9 +307,9 @@ public class WifiStateMachineTest {
     AsyncChannel  mWsmAsyncChannel;
     TestAlarmManager mAlarmManager;
     MockWifiMonitor mWifiMonitor;
-    TestIpManager mTestIpManager;
     TestLooper mLooper;
     Context mContext;
+    IpManager.Callback mIpManagerCallback;
 
     final ArgumentCaptor<SoftApManager.Listener> mSoftApManagerListenerCaptor =
                     ArgumentCaptor.forClass(SoftApManager.Listener.class);
@@ -354,6 +337,7 @@ public class WifiStateMachineTest {
     @Mock WifiStateTracker mWifiStateTracker;
     @Mock PasspointManager mPasspointManager;
     @Mock SelfRecovery mSelfRecovery;
+    @Mock IpManager mIpManager;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -951,7 +935,7 @@ public class WifiStateMachineTest {
         dhcpResults.addDns("8.8.8.8");
         dhcpResults.setLeaseDuration(3600);
 
-        mTestIpManager.injectDhcpSuccess(dhcpResults);
+        injectDhcpSuccess(dhcpResults);
         mLooper.dispatchAll();
 
         assertEquals("ConnectedState", getCurrentState().getName());
@@ -989,7 +973,7 @@ public class WifiStateMachineTest {
         dhcpResults.addDns("8.8.8.8");
         dhcpResults.setLeaseDuration(3600);
 
-        mTestIpManager.injectDhcpSuccess(dhcpResults);
+        injectDhcpSuccess(dhcpResults);
         mLooper.dispatchAll();
 
         assertEquals("ConnectedState", getCurrentState().getName());
@@ -1072,7 +1056,7 @@ public class WifiStateMachineTest {
 
         assertEquals("ObtainingIpState", getCurrentState().getName());
 
-        mTestIpManager.injectDhcpFailure();
+        injectDhcpFailure();
         mLooper.dispatchAll();
 
         assertEquals("DisconnectingState", getCurrentState().getName());
