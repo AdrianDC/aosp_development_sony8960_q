@@ -2504,6 +2504,8 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
             Log.e(TAG, "onDisableResponseLocal: FAILED!? command=" + command + ", reason="
                     + reason);
         }
+
+        mAwareMetrics.recordDisableAware();
     }
 
     private void onSessionConfigSuccessLocal(Message completedCommand, byte pubSubId,
@@ -2798,6 +2800,8 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
             WifiAwareClientState client = mClients.valueAt(i);
             client.onInterfaceAddressChange(mac);
         }
+
+        mAwareMetrics.recordEnableAware();
     }
 
     private void onClusterChangeLocal(int flag, byte[] clusterId) {
@@ -2810,6 +2814,8 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
             WifiAwareClientState client = mClients.valueAt(i);
             client.onClusterChange(flag, clusterId, mCurrentDiscoveryInterfaceMac);
         }
+
+        mAwareMetrics.recordEnableAware();
     }
 
     private void onMatchLocal(int pubSubId, int requestorInstanceId, byte[] peerMac,
@@ -2889,6 +2895,8 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                         sessions.valueAt(i).isPublishSession());
             }
         }
+        mAwareMetrics.recordDisableAware();
+
         mClients.clear();
         mCurrentAwareConfiguration = null;
         mSm.onAwareDownCleanupSendQueueState();
