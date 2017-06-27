@@ -34,7 +34,6 @@ import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
-import android.os.Binder;
 import android.os.Process;
 import android.os.UserHandle;
 import android.os.UserManager;
@@ -2924,5 +2923,30 @@ public class WifiConfigManager {
      */
     public void setOnSavedNetworkUpdateListener(OnSavedNetworkUpdateListener listener) {
         mListener = listener;
+    }
+
+    /**
+     * Set extra failure reason for given config. Used to surface extra failure details to the UI
+     * @param netId The network ID of the config to set the extra failure reason for
+     * @param reason the WifiConfiguration.ExtraFailureReason failure code representing the most
+     *               recent failure reason
+     */
+    public void setRecentFailureAssociationStatus(int netId, int reason) {
+        WifiConfiguration config = getInternalConfiguredNetwork(netId);
+        if (config == null) {
+            return;
+        }
+        config.recentFailure.setAssociationStatus(reason);
+    }
+
+    /**
+     * @param netId The network ID of the config to clear the extra failure reason from
+     */
+    public void clearRecentFailureReason(int netId) {
+        WifiConfiguration config = getInternalConfiguredNetwork(netId);
+        if (config == null) {
+            return;
+        }
+        config.recentFailure.clear();
     }
 }
