@@ -2072,6 +2072,11 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         }
         mClients.delete(clientId);
         mAwareMetrics.recordAttachSessionDuration(client.getCreationTime());
+        SparseArray<WifiAwareDiscoverySessionState> sessions = client.getSessions();
+        for (int i = 0; i < sessions.size(); ++i) {
+            mAwareMetrics.recordDiscoverySessionDuration(sessions.valueAt(i).getCreationTime(),
+                    sessions.valueAt(i).isPublishSession());
+        }
         client.destroy();
 
         if (mClients.size() == 0) {
@@ -2122,7 +2127,11 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
             return;
         }
 
-        client.terminateSession(sessionId);
+        WifiAwareDiscoverySessionState session = client.terminateSession(sessionId);
+        if (session != null) {
+            mAwareMetrics.recordDiscoverySessionDuration(session.getCreationTime(),
+                    session.isPublishSession());
+        }
     }
 
     private boolean publishLocal(short transactionId, int clientId, PublishConfig publishConfig,
@@ -2145,6 +2154,8 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
             } catch (RemoteException e) {
                 Log.w(TAG, "publishLocal onSessionConfigFail(): RemoteException (FYI): " + e);
             }
+            mAwareMetrics.recordDiscoveryStatus(client.getUid(), NanStatusType.INTERNAL_FAILURE,
+                    true);
         }
 
         return success;
@@ -2170,7 +2181,12 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
             return false;
         }
 
-        return session.updatePublish(transactionId, publishConfig);
+        boolean status = session.updatePublish(transactionId, publishConfig);
+        if (!status) {
+            mAwareMetrics.recordDiscoveryStatus(client.getUid(), NanStatusType.INTERNAL_FAILURE,
+                    true);
+        }
+        return status;
     }
 
     private boolean subscribeLocal(short transactionId, int clientId,
@@ -2193,6 +2209,8 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
             } catch (RemoteException e) {
                 Log.w(TAG, "subscribeLocal onSessionConfigFail(): RemoteException (FYI): " + e);
             }
+            mAwareMetrics.recordDiscoveryStatus(client.getUid(), NanStatusType.INTERNAL_FAILURE,
+                    false);
         }
 
         return success;
@@ -2220,7 +2238,12 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
             return false;
         }
 
-        return session.updateSubscribe(transactionId, subscribeConfig);
+        boolean status = session.updateSubscribe(transactionId, subscribeConfig);
+        if (!status) {
+            mAwareMetrics.recordDiscoveryStatus(client.getUid(), NanStatusType.INTERNAL_FAILURE,
+                    false);
+        }
+        return status;
     }
 
     private boolean sendFollowonMessageLocal(short transactionId, int clientId, int sessionId,
@@ -2512,8 +2535,15 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
             }
 
             WifiAwareDiscoverySessionState session = new WifiAwareDiscoverySessionState(
-                    mWifiAwareNativeApi, sessionId, pubSubId, callback, isPublish);
+                    mWifiAwareNativeApi, sessionId, pubSubId, callback, isPublish,
+                    SystemClock.elapsedRealtime());
             client.addSession(session);
+
+            mAwareMetrics.recordDiscoverySession(client.getUid(),
+                    completedCommand.arg1 == COMMAND_TYPE_PUBLISH, mClients);
+            mAwareMetrics.recordDiscoveryStatus(client.getUid(), NanStatusType.SUCCESS,
+                    completedCommand.arg1 == COMMAND_TYPE_PUBLISH);
+
         } else if (completedCommand.arg1 == COMMAND_TYPE_UPDATE_PUBLISH
                 || completedCommand.arg1 == COMMAND_TYPE_UPDATE_SUBSCRIBE) {
             int clientId = completedCommand.arg2;
@@ -2539,6 +2569,8 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                 Log.e(TAG, "onSessionConfigSuccessLocal: onSessionConfigSuccess() RemoteException="
                         + e);
             }
+            mAwareMetrics.recordDiscoveryStatus(client.getUid(), NanStatusType.SUCCESS,
+                    completedCommand.arg1 == COMMAND_TYPE_UPDATE_PUBLISH);
         } else {
             Log.wtf(TAG,
                     "onSessionConfigSuccessLocal: unexpected completedCommand=" + completedCommand);
@@ -2553,14 +2585,24 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
 
         if (failedCommand.arg1 == COMMAND_TYPE_PUBLISH
                 || failedCommand.arg1 == COMMAND_TYPE_SUBSCRIBE) {
+            int clientId = failedCommand.arg2;
             IWifiAwareDiscoverySessionCallback callback =
                     (IWifiAwareDiscoverySessionCallback) failedCommand.obj;
+
+            WifiAwareClientState client = mClients.get(clientId);
+            if (client == null) {
+                Log.e(TAG, "onSessionConfigFailLocal: no client exists for clientId=" + clientId);
+                return;
+            }
+
             try {
                 callback.onSessionConfigFail(reason);
             } catch (RemoteException e) {
                 Log.w(TAG, "onSessionConfigFailLocal onSessionConfigFail(): RemoteException (FYI): "
                         + e);
             }
+            mAwareMetrics.recordDiscoveryStatus(client.getUid(), reason,
+                    failedCommand.arg1 == COMMAND_TYPE_PUBLISH);
         } else if (failedCommand.arg1 == COMMAND_TYPE_UPDATE_PUBLISH
                 || failedCommand.arg1 == COMMAND_TYPE_UPDATE_SUBSCRIBE) {
             int clientId = failedCommand.arg2;
@@ -2584,6 +2626,8 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
             } catch (RemoteException e) {
                 Log.e(TAG, "onSessionConfigFailLocal: onSessionConfigFail() RemoteException=" + e);
             }
+            mAwareMetrics.recordDiscoveryStatus(client.getUid(), reason,
+                    failedCommand.arg1 == COMMAND_TYPE_UPDATE_PUBLISH);
 
             if (reason == NanStatusType.INVALID_SESSION_ID) {
                 client.removeSession(sessionId);
@@ -2808,6 +2852,8 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                     "onSessionTerminatedLocal onSessionTerminated(): RemoteException (FYI): " + e);
         }
         data.first.removeSession(data.second.getSessionId());
+        mAwareMetrics.recordDiscoverySessionDuration(data.second.getCreationTime(),
+                data.second.isPublishSession());
     }
 
     private void onMessageReceivedLocal(int pubSubId, int requestorInstanceId, byte[] peerMac,
@@ -2836,6 +2882,12 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
 
         for (int i = 0; i < mClients.size(); ++i) {
             mAwareMetrics.recordAttachSessionDuration(mClients.valueAt(i).getCreationTime());
+            SparseArray<WifiAwareDiscoverySessionState> sessions = mClients.valueAt(
+                    i).getSessions();
+            for (int j = 0; j < sessions.size(); ++j) {
+                mAwareMetrics.recordDiscoverySessionDuration(sessions.valueAt(i).getCreationTime(),
+                        sessions.valueAt(i).isPublishSession());
+            }
         }
         mClients.clear();
         mCurrentAwareConfiguration = null;
