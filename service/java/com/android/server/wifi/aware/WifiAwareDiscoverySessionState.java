@@ -45,16 +45,19 @@ public class WifiAwareDiscoverySessionState {
     private byte mPubSubId;
     private IWifiAwareDiscoverySessionCallback mCallback;
     private boolean mIsPublishSession;
+    private final long mCreationTime;
 
     private final SparseArray<String> mMacByRequestorInstanceId = new SparseArray<>();
 
     public WifiAwareDiscoverySessionState(WifiAwareNativeApi wifiAwareNativeApi, int sessionId,
-            byte pubSubId, IWifiAwareDiscoverySessionCallback callback, boolean isPublishSession) {
+            byte pubSubId, IWifiAwareDiscoverySessionCallback callback, boolean isPublishSession,
+            long creationTime) {
         mWifiAwareNativeApi = wifiAwareNativeApi;
         mSessionId = sessionId;
         mPubSubId = pubSubId;
         mCallback = callback;
         mIsPublishSession = isPublishSession;
+        mCreationTime = creationTime;
     }
 
     public int getSessionId() {
@@ -67,6 +70,10 @@ public class WifiAwareDiscoverySessionState {
 
     public boolean isPublishSession() {
         return mIsPublishSession;
+    }
+
+    public long getCreationTime() {
+        return mCreationTime;
     }
 
     public IWifiAwareDiscoverySessionCallback getCallback() {
