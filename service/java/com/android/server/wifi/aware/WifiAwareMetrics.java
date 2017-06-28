@@ -76,9 +76,9 @@ public class WifiAwareMetrics {
     private SparseIntArray mHistogramAttachDuration = new SparseIntArray();
 
     // discovery data
-    private SparseIntArray mMaxPublishByUid = new SparseIntArray();
-    private SparseIntArray mMaxSubscribeByUid = new SparseIntArray();
-    private SparseIntArray mMaxDiscoveryByUid = new SparseIntArray();
+    private int mMaxPublishInApp = 0;
+    private int mMaxSubscribeInApp = 0;
+    private int mMaxDiscoveryInApp = 0;
     private int mMaxPublishInSystem = 0;
     private int mMaxSubscribeInSystem = 0;
     private int mMaxDiscoveryInSystem = 0;
@@ -238,10 +238,10 @@ public class WifiAwareMetrics {
         }
 
         synchronized (mLock) {
-            mMaxPublishByUid.put(uid, Math.max(mMaxPublishByUid.get(uid), numPublishesOnUid));
-            mMaxSubscribeByUid.put(uid, Math.max(mMaxSubscribeByUid.get(uid), numSubscribesOnUid));
-            mMaxDiscoveryByUid.put(uid,
-                    Math.max(mMaxDiscoveryByUid.get(uid), numPublishesOnUid + numSubscribesOnUid));
+            mMaxPublishInApp = Math.max(mMaxPublishInApp, numPublishesOnUid);
+            mMaxSubscribeInApp = Math.max(mMaxSubscribeInApp, numSubscribesOnUid);
+            mMaxDiscoveryInApp = Math.max(mMaxDiscoveryInApp,
+                    numPublishesOnUid + numSubscribesOnUid);
             mMaxPublishInSystem = Math.max(mMaxPublishInSystem, numPublishesInSystem);
             mMaxSubscribeInSystem = Math.max(mMaxSubscribeInSystem, numSubscribesInSystem);
             mMaxDiscoveryInSystem = Math.max(mMaxDiscoveryInSystem,
@@ -313,9 +313,9 @@ public class WifiAwareMetrics {
             log.histogramAttachDurationMs = histogramToProtoArray(mHistogramAttachDuration,
                     DURATION_LOG_HISTOGRAM);
 
-            log.maxConcurrentPublishInApp = max(mMaxPublishByUid);
-            log.maxConcurrentSubscribeInApp = max(mMaxSubscribeByUid);
-            log.maxConcurrentDiscoverySessionsInApp = max(mMaxDiscoveryByUid);
+            log.maxConcurrentPublishInApp = mMaxPublishInApp;
+            log.maxConcurrentSubscribeInApp = mMaxSubscribeInApp;
+            log.maxConcurrentDiscoverySessionsInApp = mMaxDiscoveryInApp;
             log.maxConcurrentPublishInSystem = mMaxPublishInSystem;
             log.maxConcurrentSubscribeInSystem = mMaxSubscribeInSystem;
             log.maxConcurrentDiscoverySessionsInSystem = mMaxDiscoveryInSystem;
@@ -355,9 +355,9 @@ public class WifiAwareMetrics {
             mAttachStatusData.clear();
             mHistogramAttachDuration.clear();
 
-            mMaxPublishByUid.clear();
-            mMaxSubscribeByUid.clear();
-            mMaxDiscoveryByUid.clear();
+            mMaxPublishInApp = 0;
+            mMaxSubscribeInApp = 0;
+            mMaxDiscoveryInApp = 0;
             mMaxPublishInSystem = 0;
             mMaxSubscribeInSystem = 0;
             mMaxDiscoveryInSystem = 0;
@@ -578,13 +578,5 @@ public class WifiAwareMetrics {
                 Log.e(TAG, "Unrecognized NanStatusType: " + nanStatusType);
                 return WifiMetricsProto.WifiAwareLog.UNKNOWN_HAL_STATUS;
         }
-    }
-
-    private int max(SparseIntArray array) {
-        int max = 0;
-        for (int i = 0; i < array.size(); ++i) {
-            max = Math.max(max, array.valueAt(i));
-        }
-        return max;
     }
 }
