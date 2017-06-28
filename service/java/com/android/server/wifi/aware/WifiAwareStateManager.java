@@ -2385,7 +2385,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         boolean success = mWifiAwareNativeApi.respondToDataPathRequest(transactionId, accept, ndpId,
                 interfaceName, pmk, passphrase, isOutOfBand, mCapabilities);
         if (!success) {
-            mDataPathMgr.onRespondToDataPathRequest(ndpId, false);
+            mDataPathMgr.onRespondToDataPathRequest(ndpId, false, NanStatusType.INTERNAL_FAILURE);
         }
         return success;
     }
@@ -2773,7 +2773,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                     + ", success=" + success + ", reasonOnFailure=" + reasonOnFailure);
         }
 
-        mDataPathMgr.onRespondToDataPathRequest(command.arg2, success);
+        mDataPathMgr.onRespondToDataPathRequest(command.arg2, success, reasonOnFailure);
     }
 
     private void onEndPathEndResponseLocal(Message command, boolean success, int reasonOnFailure) {

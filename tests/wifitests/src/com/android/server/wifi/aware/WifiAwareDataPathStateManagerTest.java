@@ -36,6 +36,7 @@ import android.Manifest;
 import android.app.test.TestAlarmManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.hardware.wifi.V1_0.NanStatusType;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.net.NetworkFactory;
@@ -265,13 +266,14 @@ public class WifiAwareDataPathStateManagerTest {
         final byte[] peerDiscoveryMac = HexEncoding.decode("000102030405".toCharArray(), false);
 
         InOrder inOrder = inOrder(mMockNative, mMockCm, mMockCallback, mMockSessionCallback);
+        InOrder inOrderM = inOrder(mAwareMetricsMock);
 
         when(mPermissionsWrapperMock.getUidPermission(eq(Manifest.permission.CONNECTIVITY_INTERNAL),
                 anyInt())).thenReturn(PackageManager.PERMISSION_DENIED);
 
         // (0) initialize
         Pair<Integer, Messenger> res = initDataPathEndPoint(clientId, pubSubId, peerHandle,
-                peerDiscoveryMac, inOrder, false);
+                peerDiscoveryMac, inOrder, inOrderM, false);
 
         // (1) request network
         NetworkRequest nr = getSessionNetworkRequest(clientId, res.first, peerHandle, pmk, null,
@@ -285,7 +287,7 @@ public class WifiAwareDataPathStateManagerTest {
         mMockLooper.dispatchAll();
 
         // failure: no interactions with connectivity manager or native manager
-        verifyNoMoreInteractions(mMockNative, mMockCm);
+        verifyNoMoreInteractions(mMockNative, mMockCm, mAwareMetricsMock);
     }
 
     /*
@@ -503,10 +505,11 @@ public class WifiAwareDataPathStateManagerTest {
         final byte[] peerDiscoveryMac = HexEncoding.decode("000102030405".toCharArray(), false);
 
         InOrder inOrder = inOrder(mMockNative, mMockCm, mMockCallback, mMockSessionCallback);
+        InOrder inOrderM = inOrder(mAwareMetricsMock);
 
         // (0) initialize
         Pair<Integer, Messenger> res = initDataPathEndPoint(clientId, pubSubId, peerHandle,
-                peerDiscoveryMac, inOrder, doPublish);
+                peerDiscoveryMac, inOrder, inOrderM, doPublish);
 
         // (1) request network
         NetworkRequest nr = getSessionNetworkRequest(clientId, res.first, peerHandle, pmk, null,
@@ -545,7 +548,7 @@ public class WifiAwareDataPathStateManagerTest {
                     eq(ndpId), eq(""), eq(null), eq(null), anyBoolean(), any());
         }
 
-        verifyNoMoreInteractions(mMockNative, mMockCm);
+        verifyNoMoreInteractions(mMockNative, mMockCm, mAwareMetricsMock);
     }
 
     private void testDataPathInitiatorResponderInvalidUidUtility(boolean doPublish,
@@ -558,10 +561,11 @@ public class WifiAwareDataPathStateManagerTest {
         final byte[] peerDiscoveryMac = HexEncoding.decode("000102030405".toCharArray(), false);
 
         InOrder inOrder = inOrder(mMockNative, mMockCm, mMockCallback, mMockSessionCallback);
+        InOrder inOrderM = inOrder(mAwareMetricsMock);
 
         // (0) initialize
         Pair<Integer, Messenger> res = initDataPathEndPoint(clientId, pubSubId, peerHandle,
-                peerDiscoveryMac, inOrder, doPublish);
+                peerDiscoveryMac, inOrder, inOrderM, doPublish);
 
         // (1) create network request
         NetworkRequest nr = getSessionNetworkRequest(clientId, res.first, peerHandle, pmk, null,
@@ -601,7 +605,7 @@ public class WifiAwareDataPathStateManagerTest {
                     eq(ndpId), eq(""), eq(null), eq(null), anyBoolean(), any());
         }
 
-        verifyNoMoreInteractions(mMockNative, mMockCm);
+        verifyNoMoreInteractions(mMockNative, mMockCm, mAwareMetricsMock);
     }
 
     private void testDataPathInitiatorUtility(boolean useDirect, boolean provideMac,
@@ -620,6 +624,7 @@ public class WifiAwareDataPathStateManagerTest {
         ArgumentCaptor<Messenger> messengerCaptor = ArgumentCaptor.forClass(Messenger.class);
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         InOrder inOrder = inOrder(mMockNative, mMockCm, mMockCallback, mMockSessionCallback);
+        InOrder inOrderM = inOrder(mAwareMetricsMock);
 
         if (!providePmk) {
             when(mPermissionsWrapperMock.getUidPermission(
@@ -635,7 +640,7 @@ public class WifiAwareDataPathStateManagerTest {
 
         // (0) initialize
         Pair<Integer, Messenger> res = initDataPathEndPoint(clientId, pubSubId, peerHandle,
-                peerDiscoveryMac, inOrder, false);
+                peerDiscoveryMac, inOrder, inOrderM, false);
 
         // (1) request network
         NetworkRequest nr;
@@ -662,7 +667,9 @@ public class WifiAwareDataPathStateManagerTest {
                 eq(providePassphrase ? passphrase : null), eq(useDirect), any());
         if (immediateHalFailure) {
             // short-circuit the rest of this test
-            verifyNoMoreInteractions(mMockNative, mMockCm);
+            inOrderM.verify(mAwareMetricsMock).recordNdpStatus(NanStatusType.INTERNAL_FAILURE,
+                    useDirect);
+            verifyNoMoreInteractions(mMockNative, mMockCm, mAwareMetricsMock);
             return;
         }
 
@@ -676,6 +683,8 @@ public class WifiAwareDataPathStateManagerTest {
             mMockLooper.dispatchAll();
             inOrder.verify(mMockCm).registerNetworkAgent(messengerCaptor.capture(), any(), any(),
                     any(), anyInt(), any());
+            inOrderM.verify(mAwareMetricsMock).recordNdpStatus(NanStatusType.SUCCESS, useDirect);
+            inOrderM.verify(mAwareMetricsMock).recordNdpCreation(anyInt(), any());
         } else {
             assertTrue(mAlarmManager.dispatch(
                     WifiAwareStateManager.HAL_DATA_PATH_CONFIRM_TIMEOUT_TAG));
@@ -683,6 +692,8 @@ public class WifiAwareDataPathStateManagerTest {
             inOrder.verify(mMockNative).endDataPath(transactionId.capture(), eq(ndpId));
             mDut.onEndDataPathResponse(transactionId.getValue(), true, 0);
             mMockLooper.dispatchAll();
+            inOrderM.verify(mAwareMetricsMock).recordNdpStatus(NanStatusType.INTERNAL_FAILURE,
+                    useDirect);
         }
 
         // (3) end data-path (unless didn't get confirmation)
@@ -702,7 +713,7 @@ public class WifiAwareDataPathStateManagerTest {
             mMockLooper.dispatchAll();
         }
 
-        verifyNoMoreInteractions(mMockNative, mMockCm);
+        verifyNoMoreInteractions(mMockNative, mMockCm, mAwareMetricsMock);
     }
 
     private void testDataPathResponderUtility(boolean useDirect, boolean provideMac,
@@ -721,6 +732,7 @@ public class WifiAwareDataPathStateManagerTest {
         ArgumentCaptor<Messenger> messengerCaptor = ArgumentCaptor.forClass(Messenger.class);
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         InOrder inOrder = inOrder(mMockNative, mMockCm, mMockCallback, mMockSessionCallback);
+        InOrder inOrderM = inOrder(mAwareMetricsMock);
 
         if (providePmk) {
             when(mPermissionsWrapperMock.getUidPermission(
@@ -730,7 +742,7 @@ public class WifiAwareDataPathStateManagerTest {
 
         // (0) initialize
         Pair<Integer, Messenger> res = initDataPathEndPoint(clientId, pubSubId, peerHandle,
-                peerDiscoveryMac, inOrder, true);
+                peerDiscoveryMac, inOrder, inOrderM, true);
 
         // (1) request network
         NetworkRequest nr;
@@ -767,6 +779,8 @@ public class WifiAwareDataPathStateManagerTest {
             mMockLooper.dispatchAll();
             inOrder.verify(mMockCm).registerNetworkAgent(messengerCaptor.capture(), any(), any(),
                     any(), anyInt(), any());
+            inOrderM.verify(mAwareMetricsMock).recordNdpStatus(NanStatusType.SUCCESS, useDirect);
+            inOrderM.verify(mAwareMetricsMock).recordNdpCreation(anyInt(), any());
         } else {
             assertTrue(mAlarmManager.dispatch(
                     WifiAwareStateManager.HAL_DATA_PATH_CONFIRM_TIMEOUT_TAG));
@@ -774,6 +788,8 @@ public class WifiAwareDataPathStateManagerTest {
             inOrder.verify(mMockNative).endDataPath(transactionId.capture(), eq(ndpId));
             mDut.onEndDataPathResponse(transactionId.getValue(), true, 0);
             mMockLooper.dispatchAll();
+            inOrderM.verify(mAwareMetricsMock).recordNdpStatus(NanStatusType.INTERNAL_FAILURE,
+                    useDirect);
         }
 
         // (4) end data-path (unless didn't get confirmation)
@@ -793,7 +809,7 @@ public class WifiAwareDataPathStateManagerTest {
             mMockLooper.dispatchAll();
         }
 
-        verifyNoMoreInteractions(mMockNative, mMockCm);
+        verifyNoMoreInteractions(mMockNative, mMockCm, mAwareMetricsMock);
     }
 
     private void installDataPathStateManagerMocks() throws Exception {
@@ -922,7 +938,7 @@ public class WifiAwareDataPathStateManagerTest {
     }
 
     private Pair<Integer, Messenger> initDataPathEndPoint(int clientId, byte pubSubId,
-            PeerHandle peerHandle, byte[] peerDiscoveryMac, InOrder inOrder,
+            PeerHandle peerHandle, byte[] peerDiscoveryMac, InOrder inOrder, InOrder inOrderM,
             boolean doPublish)
             throws Exception {
         final int pid = 2000;
@@ -955,6 +971,7 @@ public class WifiAwareDataPathStateManagerTest {
         // (2) enable usage
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrderM.verify(mAwareMetricsMock).recordEnableUsage();
 
         // (3) create client & session & rx message
         mDut.connect(clientId, Process.myUid(), pid, callingPackage, mMockCallback, configRequest,
@@ -965,6 +982,8 @@ public class WifiAwareDataPathStateManagerTest {
         mDut.onConfigSuccessResponse(transactionId.getValue());
         mMockLooper.dispatchAll();
         inOrder.verify(mMockCallback).onConnectSuccess(clientId);
+        inOrderM.verify(mAwareMetricsMock).recordAttachSession(eq(Process.myUid()), eq(false),
+                any());
 
         inOrder.verify(mMockNative).createAwareNetworkInterface(transactionId.capture(),
                 strCaptor.capture());
@@ -989,6 +1008,11 @@ public class WifiAwareDataPathStateManagerTest {
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), doPublish, pubSubId);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockSessionCallback).onSessionStarted(sessionId.capture());
+        inOrderM.verify(mAwareMetricsMock).recordDiscoverySession(eq(Process.myUid()),
+                eq(doPublish), any());
+        inOrderM.verify(mAwareMetricsMock).recordDiscoveryStatus(Process.myUid(),
+                NanStatusType.SUCCESS, doPublish);
+
         mDut.onMessageReceivedNotification(pubSubId, peerHandle.peerId, peerDiscoveryMac,
                 someMsg.getBytes());
         mMockLooper.dispatchAll();

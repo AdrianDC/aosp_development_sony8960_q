@@ -25,6 +25,7 @@ import static org.mockito.Mockito.when;
 import android.app.AppOpsManager;
 import android.content.Context;
 import android.hardware.wifi.V1_0.NanStatusType;
+import android.net.wifi.aware.WifiAwareNetworkSpecifier;
 import android.util.Log;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
@@ -41,6 +42,8 @@ import org.mockito.MockitoAnnotations;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Unit test harness for WifiAwareMetrics
@@ -369,6 +372,71 @@ public class WifiAwareMetricsTest {
     }
 
     /**
+     * Validate the data-path (NDP & NDI) metrics.
+     */
+    @Test
+    public void testDataPathMetrics() {
+        final int uid1 = 1005;
+        final int uid2 = 1006;
+        final String ndi0 = "aware_data0";
+        final String ndi1 = "aware_data1";
+        Map<WifiAwareNetworkSpecifier, WifiAwareDataPathStateManager.AwareNetworkRequestInformation>
+                networkRequestCache = new HashMap<>();
+        WifiMetricsProto.WifiAwareLog log;
+
+        // uid1: ndp (non-secure) on ndi0
+        addNetworkInfoToCache(networkRequestCache, 10, uid1, ndi0, null);
+        mDut.recordNdpCreation(uid1, networkRequestCache);
+        mDut.recordNdpStatus(NanStatusType.SUCCESS, false);
+
+        // uid2: ndp (non-secure) on ndi0
+        WifiAwareNetworkSpecifier ns = addNetworkInfoToCache(networkRequestCache, 11, uid2, ndi0,
+                null);
+        mDut.recordNdpCreation(uid2, networkRequestCache);
+        mDut.recordNdpStatus(NanStatusType.SUCCESS, false);
+
+        // uid2: ndp (secure) on ndi1 (OOB)
+        addNetworkInfoToCache(networkRequestCache, 12, uid2, ndi1, "passphrase of some kind");
+        mDut.recordNdpCreation(uid2, networkRequestCache);
+        mDut.recordNdpStatus(NanStatusType.SUCCESS, true);
+
+        // uid2: ndp (secure) on ndi0 (OOB)
+        addNetworkInfoToCache(networkRequestCache, 13, uid2, ndi0, "super secret password");
+        mDut.recordNdpCreation(uid2, networkRequestCache);
+        mDut.recordNdpStatus(NanStatusType.SUCCESS, true);
+
+        // uid2: delete the first NDP
+        networkRequestCache.remove(ns);
+
+        // uid2: ndp (non-secure) on ndi0
+        addNetworkInfoToCache(networkRequestCache, 14, uid2, ndi0, null);
+        mDut.recordNdpCreation(uid2, networkRequestCache);
+        mDut.recordNdpStatus(NanStatusType.SUCCESS, false);
+
+        // a few error codes
+        mDut.recordNdpStatus(NanStatusType.INTERNAL_FAILURE, false);
+        mDut.recordNdpStatus(NanStatusType.INTERNAL_FAILURE, false);
+        mDut.recordNdpStatus(NanStatusType.NO_RESOURCES_AVAILABLE, false);
+
+        //verify
+        log = mDut.consolidateProto();
+
+        collector.checkThat("maxConcurrentNdiInApp", log.maxConcurrentNdiInApp, equalTo(2));
+        collector.checkThat("maxConcurrentNdiInSystem", log.maxConcurrentNdiInSystem, equalTo(2));
+        collector.checkThat("maxConcurrentNdpInApp", log.maxConcurrentNdpInApp, equalTo(3));
+        collector.checkThat("maxConcurrentNdpInSystem", log.maxConcurrentNdpInSystem, equalTo(4));
+        collector.checkThat("maxConcurrentSecureNdpInApp", log.maxConcurrentSecureNdpInApp,
+                equalTo(2));
+        collector.checkThat("maxConcurrentSecureNdpInSystem", log.maxConcurrentSecureNdpInSystem,
+                equalTo(2));
+        collector.checkThat("maxConcurrentNdpPerNdi", log.maxConcurrentNdpPerNdi, equalTo(3));
+        collector.checkThat("histogramRequestNdpStatus.length",
+                log.histogramRequestNdpStatus.length, equalTo(3));
+        collector.checkThat("histogramRequestNdpOobStatus.length",
+                log.histogramRequestNdpOobStatus.length, equalTo(1));
+    }
+
+    /**
      * Validate that the histogram configuration is initialized correctly: bucket starting points
      * and sub-bucket widths.
      */
@@ -547,6 +615,24 @@ public class WifiAwareMetricsTest {
             WifiMetricsProto.WifiAwareLog.NanStatusHistogramBucket bucket, int type, int count) {
         collector.checkThat(logPrefix + ": type", bucket.nanStatusType, equalTo(type));
         collector.checkThat(logPrefix + ": count", bucket.count, equalTo(count));
+    }
+
+    private WifiAwareNetworkSpecifier addNetworkInfoToCache(
+            Map<WifiAwareNetworkSpecifier, WifiAwareDataPathStateManager
+                    .AwareNetworkRequestInformation> networkRequestCache,
+            int index, int uid, String interfaceName, String passphrase) {
+        WifiAwareNetworkSpecifier ns = new WifiAwareNetworkSpecifier(0, 0, 0, index, 0, null, null,
+                passphrase, 0);
+        WifiAwareDataPathStateManager.AwareNetworkRequestInformation anri =
+                new WifiAwareDataPathStateManager.AwareNetworkRequestInformation();
+        anri.networkSpecifier = ns;
+        anri.state = WifiAwareDataPathStateManager.AwareNetworkRequestInformation
+                .STATE_RESPONDER_CONFIRMED;
+        anri.uid = uid;
+        anri.interfaceName = interfaceName;
+
+        networkRequestCache.put(ns, anri);
+        return ns;
     }
 
     private void dumpDut(String prefix) {

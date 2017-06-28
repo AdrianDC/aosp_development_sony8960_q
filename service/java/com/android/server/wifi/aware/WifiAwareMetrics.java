@@ -17,6 +17,8 @@
 package com.android.server.wifi.aware;
 
 import android.hardware.wifi.V1_0.NanStatusType;
+import android.net.wifi.aware.WifiAwareNetworkSpecifier;
+import android.text.TextUtils;
 import android.util.Log;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
@@ -27,6 +29,7 @@ import com.android.server.wifi.nano.WifiMetricsProto;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -87,6 +90,17 @@ public class WifiAwareMetrics {
     private SparseIntArray mHistogramPublishDuration = new SparseIntArray();
     private SparseIntArray mHistogramSubscribeDuration = new SparseIntArray();
     private Set<Integer> mAppsWithDiscoverySessionResourceFailure = new HashSet<>();
+
+    // data-path (NDI/NDP) data
+    private int mMaxNdiInApp = 0;
+    private int mMaxNdpInApp = 0;
+    private int mMaxSecureNdpInApp = 0;
+    private int mMaxNdiInSystem = 0;
+    private int mMaxNdpInSystem = 0;
+    private int mMaxSecureNdpInSystem = 0;
+    private int mMaxNdpPerNdi = 0;
+    private SparseIntArray mInBandNdpStatusData = new SparseIntArray();
+    private SparseIntArray mOutOfBandNdpStatusData = new SparseIntArray();
 
     public WifiAwareMetrics(Clock clock) {
         mClock = clock;
@@ -279,6 +293,90 @@ public class WifiAwareMetrics {
     }
 
     /**
+     * Record NDP (and by extension NDI) usage - on successful creation of an NDP.
+     */
+    public void recordNdpCreation(int uid,
+            Map<WifiAwareNetworkSpecifier, WifiAwareDataPathStateManager
+                    .AwareNetworkRequestInformation> networkRequestCache) {
+        int numNdpInApp = 0;
+        int numSecureNdpInApp = 0;
+        int numNdpInSystem = 0;
+        int numSecureNdpInSystem = 0;
+
+        Map<String, Integer> ndpPerNdiMap = new HashMap<>();
+        Set<String> ndiInApp = new HashSet<>();
+        Set<String> ndiInSystem = new HashSet<>();
+
+        for (WifiAwareDataPathStateManager.AwareNetworkRequestInformation anri :
+                networkRequestCache.values()) {
+            if (anri.state
+                    != WifiAwareDataPathStateManager.AwareNetworkRequestInformation
+                    .STATE_INITIATOR_CONFIRMED
+                    && anri.state
+                    != WifiAwareDataPathStateManager.AwareNetworkRequestInformation
+                    .STATE_RESPONDER_CONFIRMED) {
+                continue; // only count completed (up-and-running) NDPs
+            }
+
+            boolean sameUid = anri.uid == uid;
+            boolean isSecure = !TextUtils.isEmpty(anri.networkSpecifier.passphrase) || (
+                    anri.networkSpecifier.pmk != null && anri.networkSpecifier.pmk.length != 0);
+
+            // in-app stats
+            if (sameUid) {
+                numNdpInApp += 1;
+                if (isSecure) {
+                    numSecureNdpInApp += 1;
+                }
+
+                ndiInApp.add(anri.interfaceName);
+            }
+
+            // system stats
+            numNdpInSystem += 1;
+            if (isSecure) {
+                numSecureNdpInSystem += 1;
+            }
+
+            // ndp/ndi stats
+            Integer ndpCount = ndpPerNdiMap.get(anri.interfaceName);
+            if (ndpCount == null) {
+                ndpPerNdiMap.put(anri.interfaceName, 1);
+            } else {
+                ndpPerNdiMap.put(anri.interfaceName, ndpCount + 1);
+            }
+
+            // ndi stats
+            ndiInSystem.add(anri.interfaceName);
+        }
+
+        synchronized (mLock) {
+            mMaxNdiInApp = Math.max(mMaxNdiInApp, ndiInApp.size());
+            mMaxNdpInApp = Math.max(mMaxNdpInApp, numNdpInApp);
+            mMaxSecureNdpInApp = Math.max(mMaxSecureNdpInApp, numSecureNdpInApp);
+            mMaxNdiInSystem = Math.max(mMaxNdiInSystem, ndiInSystem.size());
+            mMaxNdpInSystem = Math.max(mMaxNdpInSystem, numNdpInSystem);
+            mMaxSecureNdpInSystem = Math.max(mMaxSecureNdpInSystem, numSecureNdpInSystem);
+            mMaxNdpPerNdi = Math.max(mMaxNdpPerNdi, Collections.max(ndpPerNdiMap.values()));
+        }
+    }
+
+    /**
+     * Record the completion status of NDP negotiation. There are multiple steps in NDP negotiation
+     * a failure on any aborts the process and is recorded. A success on intermediate stages is
+     * not recorded - only the final success.
+     */
+    public void recordNdpStatus(int status, boolean isOutOfBand) {
+        synchronized (mLock) {
+            if (isOutOfBand) {
+                mOutOfBandNdpStatusData.put(status, mOutOfBandNdpStatusData.get(status) + 1);
+            } else {
+                mInBandNdpStatusData.put(status, mOutOfBandNdpStatusData.get(status) + 1);
+            }
+        }
+    }
+
+    /**
      * Consolidate all metrics into the proto.
      */
     public WifiMetricsProto.WifiAwareLog consolidateProto() {
@@ -327,6 +425,16 @@ public class WifiAwareMetrics {
                     DURATION_LOG_HISTOGRAM);
             log.histogramSubscribeSessionDurationMs = histogramToProtoArray(
                     mHistogramSubscribeDuration, DURATION_LOG_HISTOGRAM);
+
+            log.maxConcurrentNdiInApp = mMaxNdiInApp;
+            log.maxConcurrentNdiInSystem = mMaxNdiInSystem;
+            log.maxConcurrentNdpInApp = mMaxNdpInApp;
+            log.maxConcurrentNdpInSystem = mMaxNdpInSystem;
+            log.maxConcurrentSecureNdpInApp = mMaxSecureNdpInApp;
+            log.maxConcurrentSecureNdpInSystem = mMaxSecureNdpInSystem;
+            log.maxConcurrentNdpPerNdi = mMaxNdpPerNdi;
+            log.histogramRequestNdpStatus = histogramToProtoArray(mInBandNdpStatusData);
+            log.histogramRequestNdpOobStatus = histogramToProtoArray(mOutOfBandNdpStatusData);
         }
         return log;
     }
@@ -366,6 +474,16 @@ public class WifiAwareMetrics {
             mHistogramPublishDuration.clear();
             mHistogramSubscribeDuration.clear();
             mAppsWithDiscoverySessionResourceFailure.clear();
+
+            mMaxNdiInApp = 0;
+            mMaxNdpInApp = 0;
+            mMaxSecureNdpInApp = 0;
+            mMaxNdiInSystem = 0;
+            mMaxNdpInSystem = 0;
+            mMaxSecureNdpInSystem = 0;
+            mMaxNdpPerNdi = 0;
+            mInBandNdpStatusData.clear();
+            mOutOfBandNdpStatusData.clear();
         }
     }
 

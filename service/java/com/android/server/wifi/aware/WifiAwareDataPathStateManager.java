@@ -20,6 +20,7 @@ import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.hardware.wifi.V1_0.NanDataPathChannelCfg;
+import android.hardware.wifi.V1_0.NanStatusType;
 import android.net.ConnectivityManager;
 import android.net.IpPrefix;
 import android.net.LinkAddress;
@@ -276,6 +277,7 @@ public class WifiAwareDataPathStateManager {
         }
 
         mNetworkRequestsCache.remove(networkSpecifier);
+        mAwareMetrics.recordNdpStatus(reason, networkSpecifier.isOutOfBand());
     }
 
 
@@ -354,7 +356,7 @@ public class WifiAwareDataPathStateManager {
      * @param ndpId The ID of the data-path (NDP)
      * @param success Whether or not the 'RespondToDataPathRequest' operation was a success.
      */
-    public void onRespondToDataPathRequest(int ndpId, boolean success) {
+    public void onRespondToDataPathRequest(int ndpId, boolean success, int reasonOnFailure) {
         if (VDBG) {
             Log.v(TAG, "onRespondToDataPathRequest: ndpId=" + ndpId + ", success=" + success);
         }
@@ -385,6 +387,7 @@ public class WifiAwareDataPathStateManager {
                     + " failed responding");
             mMgr.endDataPath(ndpId);
             mNetworkRequestsCache.remove(networkSpecifier);
+            mAwareMetrics.recordNdpStatus(reasonOnFailure, networkSpecifier.isOutOfBand());
             return;
         }
 
@@ -491,12 +494,16 @@ public class WifiAwareDataPathStateManager {
                     networkCapabilities, linkProperties, NETWORK_FACTORY_SCORE_AVAIL,
                     networkSpecifier, ndpId);
             nnri.networkAgent.sendNetworkInfo(networkInfo);
+
+            mAwareMetrics.recordNdpStatus(NanStatusType.SUCCESS, networkSpecifier.isOutOfBand());
+            mAwareMetrics.recordNdpCreation(nnri.uid, mNetworkRequestsCache);
         } else {
             if (DBG) {
                 Log.d(TAG, "onDataPathConfirm: data-path for networkSpecifier=" + networkSpecifier
                         + " rejected - reason=" + reason);
             }
             mNetworkRequestsCache.remove(networkSpecifier);
+            mAwareMetrics.recordNdpStatus(reason, networkSpecifier.isOutOfBand());
         }
 
         return networkSpecifier;
@@ -554,6 +561,8 @@ public class WifiAwareDataPathStateManager {
             }
             return;
         }
+        mAwareMetrics.recordNdpStatus(NanStatusType.INTERNAL_FAILURE,
+                nnri.networkSpecifier.isOutOfBand());
 
         mMgr.endDataPath(nnri.ndpId);
     }
