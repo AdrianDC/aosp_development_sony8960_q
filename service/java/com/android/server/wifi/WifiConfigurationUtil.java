@@ -254,10 +254,17 @@ public class WifiConfigurationUtil {
         return false;
     }
 
-    private static boolean validateSsid(String ssid) {
-        if (ssid == null) {
-            Log.e(TAG, "validateSsid failed: null string");
-            return false;
+    private static boolean validateSsid(String ssid, boolean isAdd) {
+        if (isAdd) {
+            if (ssid == null) {
+                Log.e(TAG, "validateSsid : null string");
+                return false;
+            }
+        } else {
+            if (ssid == null) {
+                // This is an update, so the SSID can be null if that is not being changed.
+                return true;
+            }
         }
         if (ssid.isEmpty()) {
             Log.e(TAG, "validateSsid failed: empty string");
@@ -293,18 +300,25 @@ public class WifiConfigurationUtil {
         return true;
     }
 
-    private static boolean validatePsk(String psk) {
-        if (psk == null) {
-            Log.e(TAG, "validatePsk failed: null string");
-            return false;
+    private static boolean validatePsk(String psk, boolean isAdd) {
+        if (isAdd) {
+            if (psk == null) {
+                Log.e(TAG, "validatePsk: null string");
+                return false;
+            }
+        } else {
+            if (psk == null) {
+                // This is an update, so the psk can be null if that is not being changed.
+                return true;
+            } else if (psk.equals(PASSWORD_MASK)) {
+                // This is an update, so the app might have returned back the masked password, let
+                // it thru. WifiConfigManager will handle it.
+                return true;
+            }
         }
         if (psk.isEmpty()) {
             Log.e(TAG, "validatePsk failed: empty string");
             return false;
-        }
-        // The app returned back the masked password, let it thru. WifiConfigManager will handle it.
-        if (psk.equals(PASSWORD_MASK)) {
-            return true;
         }
         if (psk.startsWith("\"")) {
             // ASCII PSK string
@@ -375,6 +389,12 @@ public class WifiConfigurationUtil {
     }
 
     /**
+     * Enums to specify if the provided config is being validated for add or update.
+     */
+    public static final boolean VALIDATE_FOR_ADD = true;
+    public static final boolean VALIDATE_FOR_UPDATE = false;
+
+    /**
      * Validate the configuration received from an external application.
      *
      * This method checks for the following parameters:
@@ -382,22 +402,23 @@ public class WifiConfigurationUtil {
      * 2. {@link WifiConfiguration#preSharedKey}
      * 3. {@link WifiConfiguration#allowedKeyManagement}
      * 4. {@link WifiConfiguration#getIpConfiguration()}
+     *
      * @param config {@link WifiConfiguration} received from an external application.
+     * @param isAdd {@link #VALIDATE_FOR_ADD} to indicate a network config received for an add,
+     *              {@link #VALIDATE_FOR_UPDATE} for a network config received for an update.
+     *              These 2 cases need to be handled differently because the config received for an
+     *              update could contain only the fields that are being changed.
      * @return true if the parameters are valid, false otherwise.
      */
-    public static boolean validate(WifiConfiguration config) {
-        if (config == null) {
-            Log.e(TAG, "validate failed: null WifiConfiguration");
-            return false;
-        }
-        if (!validateSsid(config.SSID)) {
+    public static boolean validate(WifiConfiguration config, boolean isAdd) {
+        if (!validateSsid(config.SSID, isAdd)) {
             return false;
         }
         if (!validateKeyMgmt(config.allowedKeyManagement)) {
             return false;
         }
         if (config.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_PSK)
-                && !validatePsk(config.preSharedKey)) {
+                && !validatePsk(config.preSharedKey, isAdd)) {
             return false;
         }
         if (!validateIpConfiguration(config.getIpConfiguration())) {
