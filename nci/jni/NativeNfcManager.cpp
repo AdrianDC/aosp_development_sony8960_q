@@ -130,7 +130,7 @@ static jint                 sLfT3tMax = 0;
 #define DEFAULT_TECH_MASK           (NFA_TECHNOLOGY_MASK_A \
                                      | NFA_TECHNOLOGY_MASK_B \
                                      | NFA_TECHNOLOGY_MASK_F \
-                                     | NFA_TECHNOLOGY_MASK_ISO15693 \
+                                     | NFA_TECHNOLOGY_MASK_V \
                                      | NFA_TECHNOLOGY_MASK_B_PRIME \
                                      | NFA_TECHNOLOGY_MASK_A_ACTIVE \
                                      | NFA_TECHNOLOGY_MASK_F_ACTIVE \
@@ -329,16 +329,19 @@ static void nfaConnectionCallback (uint8_t connEvent, tNFA_CONN_EVT_DATA* eventD
                 break;
             }
             sP2pActive = true;
-            ALOGV("%s: NFA_ACTIVATED_EVT; is p2p", __func__);
-            // Disable RF field events in case of p2p
-            uint8_t  nfa_disable_rf_events[] = { 0x00 };
-            ALOGV("%s: Disabling RF field events", __func__);
-            status = NFA_SetConfig(NCI_PARAM_ID_RF_FIELD_INFO, sizeof(nfa_disable_rf_events),
-                    &nfa_disable_rf_events[0]);
-            if (status == NFA_STATUS_OK) {
-                ALOGV("%s: Disabled RF field events", __func__);
-            } else {
-                ALOGE("%s: Failed to disable RF field events", __func__);
+            ALOGD("%s: NFA_ACTIVATED_EVT; is p2p", __func__);
+            if (NFC_GetNCIVersion() == NCI_VERSION_1_0)
+            {
+                // Disable RF field events in case of p2p
+                uint8_t  nfa_disable_rf_events[] = { 0x00 };
+                ALOGD ("%s: Disabling RF field events", __func__);
+                status = NFA_SetConfig(NCI_PARAM_ID_RF_FIELD_INFO, sizeof(nfa_disable_rf_events),
+                        &nfa_disable_rf_events[0]);
+                if (status == NFA_STATUS_OK) {
+                    ALOGD ("%s: Disabled RF field events", __func__);
+                } else {
+                    ALOGE ("%s: Failed to disable RF field events", __func__);
+                }
             }
         }
         else if (pn544InteropIsBusy() == false)
@@ -391,19 +394,22 @@ static void nfaConnectionCallback (uint8_t connEvent, tNFA_CONN_EVT_DATA* eventD
             } else if (sP2pActive) {
                 sP2pActive = false;
                 // Make sure RF field events are re-enabled
-                ALOGV("%s: NFA_DEACTIVATED_EVT; is p2p", __func__);
-                // Disable RF field events in case of p2p
-                uint8_t  nfa_enable_rf_events[] = { 0x01 };
-
-                if (!sIsDisabling && sIsNfaEnabled)
+                ALOGD("%s: NFA_DEACTIVATED_EVT; is p2p", __func__);
+                if (NFC_GetNCIVersion() == NCI_VERSION_1_0)
                 {
-                    ALOGV("%s: Enabling RF field events", __func__);
-                    status = NFA_SetConfig(NCI_PARAM_ID_RF_FIELD_INFO, sizeof(nfa_enable_rf_events),
-                            &nfa_enable_rf_events[0]);
-                    if (status == NFA_STATUS_OK) {
-                        ALOGV("%s: Enabled RF field events", __func__);
-                    } else {
-                        ALOGE("%s: Failed to enable RF field events", __func__);
+                    // Disable RF field events in case of p2p
+                    uint8_t  nfa_enable_rf_events[] = { 0x01 };
+
+                    if (!sIsDisabling && sIsNfaEnabled)
+                    {
+                        ALOGD ("%s: Enabling RF field events", __func__);
+                        status = NFA_SetConfig(NCI_PARAM_ID_RF_FIELD_INFO, sizeof(nfa_enable_rf_events),
+                                &nfa_enable_rf_events[0]);
+                        if (status == NFA_STATUS_OK) {
+                            ALOGD ("%s: Enabled RF field events", __func__);
+                        } else {
+                            ALOGE ("%s: Failed to enable RF field events", __func__);
+                        }
                     }
                 }
             }
