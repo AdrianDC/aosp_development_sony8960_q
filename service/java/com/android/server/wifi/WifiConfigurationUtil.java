@@ -54,7 +54,7 @@ public class WifiConfigurationUtil {
     private static final int SSID_HEX_MAX_LEN = 64;
     private static final int PSK_ASCII_MIN_LEN = 8 + ENCLOSING_QUTOES_LEN;
     private static final int PSK_ASCII_MAX_LEN = 63 + ENCLOSING_QUTOES_LEN;
-    private static final int PSK_HEX_LEN = 128;
+    private static final int PSK_HEX_LEN = 64;
     @VisibleForTesting
     public static final String PASSWORD_MASK = "*";
 
