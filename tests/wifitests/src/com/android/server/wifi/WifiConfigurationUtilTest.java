@@ -217,8 +217,7 @@ public class WifiConfigurationUtilTest {
     public void testValidatePositiveCases_Hex() {
         WifiConfiguration config = WifiConfigurationTestUtil.createPskNetwork();
         config.SSID = "abcd1234555a";
-        config.preSharedKey = "abcd1234551512345567889900345566673323456673223445566767432334454"
-                + "abcd12345515123455678899003455666733234566732234455667674323344";
+        config.preSharedKey = "abcd123455151234556788990034556667332345667322344556676743233445";
         assertTrue(WifiConfigurationUtil.validate(config, WifiConfigurationUtil.VALIDATE_FOR_ADD));
     }
 
