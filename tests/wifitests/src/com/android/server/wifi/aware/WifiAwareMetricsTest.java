@@ -384,26 +384,32 @@ public class WifiAwareMetricsTest {
                 networkRequestCache = new HashMap<>();
         WifiMetricsProto.WifiAwareLog log;
 
+        setTime(5);
+
         // uid1: ndp (non-secure) on ndi0
         addNetworkInfoToCache(networkRequestCache, 10, uid1, ndi0, null);
         mDut.recordNdpCreation(uid1, networkRequestCache);
-        mDut.recordNdpStatus(NanStatusType.SUCCESS, false);
+        setTime(7); // 2ms creation time
+        mDut.recordNdpStatus(NanStatusType.SUCCESS, false, 5);
 
         // uid2: ndp (non-secure) on ndi0
         WifiAwareNetworkSpecifier ns = addNetworkInfoToCache(networkRequestCache, 11, uid2, ndi0,
                 null);
         mDut.recordNdpCreation(uid2, networkRequestCache);
-        mDut.recordNdpStatus(NanStatusType.SUCCESS, false);
+        setTime(10); // 3 ms creation time
+        mDut.recordNdpStatus(NanStatusType.SUCCESS, false, 7);
 
         // uid2: ndp (secure) on ndi1 (OOB)
         addNetworkInfoToCache(networkRequestCache, 12, uid2, ndi1, "passphrase of some kind");
         mDut.recordNdpCreation(uid2, networkRequestCache);
-        mDut.recordNdpStatus(NanStatusType.SUCCESS, true);
+        setTime(25); // 15 ms creation time
+        mDut.recordNdpStatus(NanStatusType.SUCCESS, true, 10);
 
         // uid2: ndp (secure) on ndi0 (OOB)
         addNetworkInfoToCache(networkRequestCache, 13, uid2, ndi0, "super secret password");
         mDut.recordNdpCreation(uid2, networkRequestCache);
-        mDut.recordNdpStatus(NanStatusType.SUCCESS, true);
+        setTime(36); // 11 ms creation time
+        mDut.recordNdpStatus(NanStatusType.SUCCESS, true, 25);
 
         // uid2: delete the first NDP
         networkRequestCache.remove(ns);
@@ -411,12 +417,13 @@ public class WifiAwareMetricsTest {
         // uid2: ndp (non-secure) on ndi0
         addNetworkInfoToCache(networkRequestCache, 14, uid2, ndi0, null);
         mDut.recordNdpCreation(uid2, networkRequestCache);
-        mDut.recordNdpStatus(NanStatusType.SUCCESS, false);
+        setTime(37); // 1 ms creation time!
+        mDut.recordNdpStatus(NanStatusType.SUCCESS, false, 36);
 
         // a few error codes
-        mDut.recordNdpStatus(NanStatusType.INTERNAL_FAILURE, false);
-        mDut.recordNdpStatus(NanStatusType.INTERNAL_FAILURE, false);
-        mDut.recordNdpStatus(NanStatusType.NO_RESOURCES_AVAILABLE, false);
+        mDut.recordNdpStatus(NanStatusType.INTERNAL_FAILURE, false, 0);
+        mDut.recordNdpStatus(NanStatusType.INTERNAL_FAILURE, false, 0);
+        mDut.recordNdpStatus(NanStatusType.NO_RESOURCES_AVAILABLE, false, 0);
 
         //verify
         log = mDut.consolidateProto();
@@ -434,6 +441,18 @@ public class WifiAwareMetricsTest {
                 log.histogramRequestNdpStatus.length, equalTo(3));
         collector.checkThat("histogramRequestNdpOobStatus.length",
                 log.histogramRequestNdpOobStatus.length, equalTo(1));
+
+        collector.checkThat("ndpCreationTimeMsMin", log.ndpCreationTimeMsMin, equalTo(1L));
+        collector.checkThat("ndpCreationTimeMsMax", log.ndpCreationTimeMsMax, equalTo(15L));
+        collector.checkThat("ndpCreationTimeMsSum", log.ndpCreationTimeMsSum, equalTo(32L));
+        collector.checkThat("ndpCreationTimeMsSumOfSq", log.ndpCreationTimeMsSumOfSq,
+                equalTo(360L));
+        collector.checkThat("ndpCreationTimeMsNumSamples", log.ndpCreationTimeMsNumSamples,
+                equalTo(5L));
+        validateProtoHistBucket("Creation[0]", log.histogramNdpCreationTimeMs[0], 1, 2, 1);
+        validateProtoHistBucket("Creation[1]", log.histogramNdpCreationTimeMs[1], 2, 3, 1);
+        validateProtoHistBucket("Creation[2]", log.histogramNdpCreationTimeMs[2], 3, 4, 1);
+        validateProtoHistBucket("Creation[3]", log.histogramNdpCreationTimeMs[3], 10, 20, 2);
     }
 
     /**

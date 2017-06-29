@@ -40,6 +40,7 @@ import android.os.IBinder;
 import android.os.INetworkManagementService;
 import android.os.Looper;
 import android.os.ServiceManager;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.ArrayMap;
 import android.util.Log;
@@ -277,7 +278,7 @@ public class WifiAwareDataPathStateManager {
         }
 
         mNetworkRequestsCache.remove(networkSpecifier);
-        mAwareMetrics.recordNdpStatus(reason, networkSpecifier.isOutOfBand());
+        mAwareMetrics.recordNdpStatus(reason, networkSpecifier.isOutOfBand(), nnri.startTimestamp);
     }
 
 
@@ -344,6 +345,7 @@ public class WifiAwareDataPathStateManager {
         nnri.state = AwareNetworkRequestInformation.STATE_RESPONDER_WAIT_FOR_RESPOND_RESPONSE;
         nnri.ndpId = ndpId;
         nnri.interfaceName = selectInterfaceForRequest(nnri);
+        nnri.startTimestamp = SystemClock.elapsedRealtime();
         mMgr.respondToDataPathRequest(true, ndpId, nnri.interfaceName, nnri.networkSpecifier.pmk,
                 nnri.networkSpecifier.passphrase, nnri.networkSpecifier.isOutOfBand());
 
@@ -387,7 +389,8 @@ public class WifiAwareDataPathStateManager {
                     + " failed responding");
             mMgr.endDataPath(ndpId);
             mNetworkRequestsCache.remove(networkSpecifier);
-            mAwareMetrics.recordNdpStatus(reasonOnFailure, networkSpecifier.isOutOfBand());
+            mAwareMetrics.recordNdpStatus(reasonOnFailure, networkSpecifier.isOutOfBand(),
+                    nnri.startTimestamp);
             return;
         }
 
@@ -495,7 +498,8 @@ public class WifiAwareDataPathStateManager {
                     networkSpecifier, ndpId);
             nnri.networkAgent.sendNetworkInfo(networkInfo);
 
-            mAwareMetrics.recordNdpStatus(NanStatusType.SUCCESS, networkSpecifier.isOutOfBand());
+            mAwareMetrics.recordNdpStatus(NanStatusType.SUCCESS, networkSpecifier.isOutOfBand(),
+                    nnri.startTimestamp);
             mAwareMetrics.recordNdpCreation(nnri.uid, mNetworkRequestsCache);
         } else {
             if (DBG) {
@@ -503,7 +507,8 @@ public class WifiAwareDataPathStateManager {
                         + " rejected - reason=" + reason);
             }
             mNetworkRequestsCache.remove(networkSpecifier);
-            mAwareMetrics.recordNdpStatus(reason, networkSpecifier.isOutOfBand());
+            mAwareMetrics.recordNdpStatus(reason, networkSpecifier.isOutOfBand(),
+                    nnri.startTimestamp);
         }
 
         return networkSpecifier;
@@ -562,7 +567,7 @@ public class WifiAwareDataPathStateManager {
             return;
         }
         mAwareMetrics.recordNdpStatus(NanStatusType.INTERNAL_FAILURE,
-                nnri.networkSpecifier.isOutOfBand());
+                nnri.networkSpecifier.isOutOfBand(), nnri.startTimestamp);
 
         mMgr.endDataPath(nnri.ndpId);
     }
@@ -668,6 +673,7 @@ public class WifiAwareDataPathStateManager {
                         nnri.networkSpecifier.passphrase, nnri.networkSpecifier.isOutOfBand());
                 nnri.state =
                         AwareNetworkRequestInformation.STATE_INITIATOR_WAIT_FOR_REQUEST_RESPONSE;
+                nnri.startTimestamp = SystemClock.elapsedRealtime();
             } else {
                 if (nnri.state != AwareNetworkRequestInformation.STATE_RESPONDER_IDLE) {
                     if (DBG) {
@@ -838,6 +844,7 @@ public class WifiAwareDataPathStateManager {
         public int ndpId;
         public byte[] peerDataMac;
         public WifiAwareNetworkSpecifier networkSpecifier;
+        public long startTimestamp = 0; // request is made (initiator) / get request (responder)
 
         public WifiAwareNetworkAgent networkAgent;
 
@@ -981,7 +988,9 @@ public class WifiAwareDataPathStateManager {
                     peerDiscoveryMac == null ? ""
                             : String.valueOf(HexEncoding.encode(peerDiscoveryMac))).append(
                     ", ndpId=").append(ndpId).append(", peerDataMac=").append(
-                    peerDataMac == null ? "" : String.valueOf(HexEncoding.encode(peerDataMac)));
+                    peerDataMac == null ? ""
+                            : String.valueOf(HexEncoding.encode(peerDataMac))).append(
+                    "startTimestamp=").append(startTimestamp);
             return sb.toString();
         }
     }

@@ -24,6 +24,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyByte;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyShort;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
@@ -667,8 +668,8 @@ public class WifiAwareDataPathStateManagerTest {
                 eq(providePassphrase ? passphrase : null), eq(useDirect), any());
         if (immediateHalFailure) {
             // short-circuit the rest of this test
-            inOrderM.verify(mAwareMetricsMock).recordNdpStatus(NanStatusType.INTERNAL_FAILURE,
-                    useDirect);
+            inOrderM.verify(mAwareMetricsMock).recordNdpStatus(eq(NanStatusType.INTERNAL_FAILURE),
+                    eq(useDirect), anyLong());
             verifyNoMoreInteractions(mMockNative, mMockCm, mAwareMetricsMock);
             return;
         }
@@ -683,7 +684,8 @@ public class WifiAwareDataPathStateManagerTest {
             mMockLooper.dispatchAll();
             inOrder.verify(mMockCm).registerNetworkAgent(messengerCaptor.capture(), any(), any(),
                     any(), anyInt(), any());
-            inOrderM.verify(mAwareMetricsMock).recordNdpStatus(NanStatusType.SUCCESS, useDirect);
+            inOrderM.verify(mAwareMetricsMock).recordNdpStatus(eq(NanStatusType.SUCCESS),
+                    eq(useDirect), anyLong());
             inOrderM.verify(mAwareMetricsMock).recordNdpCreation(anyInt(), any());
         } else {
             assertTrue(mAlarmManager.dispatch(
@@ -692,8 +694,8 @@ public class WifiAwareDataPathStateManagerTest {
             inOrder.verify(mMockNative).endDataPath(transactionId.capture(), eq(ndpId));
             mDut.onEndDataPathResponse(transactionId.getValue(), true, 0);
             mMockLooper.dispatchAll();
-            inOrderM.verify(mAwareMetricsMock).recordNdpStatus(NanStatusType.INTERNAL_FAILURE,
-                    useDirect);
+            inOrderM.verify(mAwareMetricsMock).recordNdpStatus(eq(NanStatusType.INTERNAL_FAILURE),
+                    eq(useDirect), anyLong());
         }
 
         // (3) end data-path (unless didn't get confirmation)
@@ -779,7 +781,8 @@ public class WifiAwareDataPathStateManagerTest {
             mMockLooper.dispatchAll();
             inOrder.verify(mMockCm).registerNetworkAgent(messengerCaptor.capture(), any(), any(),
                     any(), anyInt(), any());
-            inOrderM.verify(mAwareMetricsMock).recordNdpStatus(NanStatusType.SUCCESS, useDirect);
+            inOrderM.verify(mAwareMetricsMock).recordNdpStatus(eq(NanStatusType.SUCCESS),
+                    eq(useDirect), anyLong());
             inOrderM.verify(mAwareMetricsMock).recordNdpCreation(anyInt(), any());
         } else {
             assertTrue(mAlarmManager.dispatch(
@@ -788,8 +791,8 @@ public class WifiAwareDataPathStateManagerTest {
             inOrder.verify(mMockNative).endDataPath(transactionId.capture(), eq(ndpId));
             mDut.onEndDataPathResponse(transactionId.getValue(), true, 0);
             mMockLooper.dispatchAll();
-            inOrderM.verify(mAwareMetricsMock).recordNdpStatus(NanStatusType.INTERNAL_FAILURE,
-                    useDirect);
+            inOrderM.verify(mAwareMetricsMock).recordNdpStatus(eq(NanStatusType.INTERNAL_FAILURE),
+                    eq(useDirect), anyLong());
         }
 
         // (4) end data-path (unless didn't get confirmation)

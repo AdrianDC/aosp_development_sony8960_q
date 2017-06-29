@@ -102,6 +102,13 @@ public class WifiAwareMetrics {
     private SparseIntArray mInBandNdpStatusData = new SparseIntArray();
     private SparseIntArray mOutOfBandNdpStatusData = new SparseIntArray();
 
+    private SparseIntArray mNdpCreationTimeDuration = new SparseIntArray();
+    private long mNdpCreationTimeMin = -1;
+    private long mNdpCreationTimeMax = 0;
+    private long mNdpCreationTimeSum = 0;
+    private long mNdpCreationTimeSumSq = 0;
+    private long mNdpCreationTimeNumSamples = 0;
+
     public WifiAwareMetrics(Clock clock) {
         mClock = clock;
     }
@@ -366,12 +373,24 @@ public class WifiAwareMetrics {
      * a failure on any aborts the process and is recorded. A success on intermediate stages is
      * not recorded - only the final success.
      */
-    public void recordNdpStatus(int status, boolean isOutOfBand) {
+    public void recordNdpStatus(int status, boolean isOutOfBand, long startTimestamp) {
         synchronized (mLock) {
             if (isOutOfBand) {
                 mOutOfBandNdpStatusData.put(status, mOutOfBandNdpStatusData.get(status) + 1);
             } else {
                 mInBandNdpStatusData.put(status, mOutOfBandNdpStatusData.get(status) + 1);
+            }
+
+            if (status == NanStatusType.SUCCESS) {
+                long creationTime = mClock.getElapsedSinceBootMillis() - startTimestamp;
+                addLogValueToHistogram(creationTime, mNdpCreationTimeDuration,
+                        DURATION_LOG_HISTOGRAM);
+                mNdpCreationTimeMin = (mNdpCreationTimeMin == -1) ? creationTime : Math.min(
+                        mNdpCreationTimeMin, creationTime);
+                mNdpCreationTimeMax = Math.max(mNdpCreationTimeMax, creationTime);
+                mNdpCreationTimeSum += creationTime;
+                mNdpCreationTimeSumSq += creationTime * creationTime;
+                mNdpCreationTimeNumSamples += 1;
             }
         }
     }
@@ -435,6 +454,14 @@ public class WifiAwareMetrics {
             log.maxConcurrentNdpPerNdi = mMaxNdpPerNdi;
             log.histogramRequestNdpStatus = histogramToProtoArray(mInBandNdpStatusData);
             log.histogramRequestNdpOobStatus = histogramToProtoArray(mOutOfBandNdpStatusData);
+
+            log.histogramNdpCreationTimeMs = histogramToProtoArray(mNdpCreationTimeDuration,
+                    DURATION_LOG_HISTOGRAM);
+            log.ndpCreationTimeMsMin = mNdpCreationTimeMin;
+            log.ndpCreationTimeMsMax = mNdpCreationTimeMax;
+            log.ndpCreationTimeMsSum = mNdpCreationTimeSum;
+            log.ndpCreationTimeMsSumOfSq = mNdpCreationTimeSumSq;
+            log.ndpCreationTimeMsNumSamples = mNdpCreationTimeNumSamples;
         }
         return log;
     }
@@ -484,6 +511,13 @@ public class WifiAwareMetrics {
             mMaxNdpPerNdi = 0;
             mInBandNdpStatusData.clear();
             mOutOfBandNdpStatusData.clear();
+
+            mNdpCreationTimeDuration.clear();
+            mNdpCreationTimeMin = -1;
+            mNdpCreationTimeMax = 0;
+            mNdpCreationTimeSum = 0;
+            mNdpCreationTimeSumSq = 0;
+            mNdpCreationTimeNumSamples = 0;
         }
     }
 
