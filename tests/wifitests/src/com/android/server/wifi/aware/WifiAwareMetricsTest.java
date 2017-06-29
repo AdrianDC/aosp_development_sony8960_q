@@ -425,6 +425,13 @@ public class WifiAwareMetricsTest {
         mDut.recordNdpStatus(NanStatusType.INTERNAL_FAILURE, false, 0);
         mDut.recordNdpStatus(NanStatusType.NO_RESOURCES_AVAILABLE, false, 0);
 
+        // and some durations
+        setTime(150);
+        mDut.recordNdpSessionDuration(7);   // 143ms
+        mDut.recordNdpSessionDuration(10);  // 140ms
+        mDut.recordNdpSessionDuration(25);  // 125ms
+        mDut.recordNdpSessionDuration(140); // 10ms
+
         //verify
         log = mDut.consolidateProto();
 
@@ -453,6 +460,9 @@ public class WifiAwareMetricsTest {
         validateProtoHistBucket("Creation[1]", log.histogramNdpCreationTimeMs[1], 2, 3, 1);
         validateProtoHistBucket("Creation[2]", log.histogramNdpCreationTimeMs[2], 3, 4, 1);
         validateProtoHistBucket("Creation[3]", log.histogramNdpCreationTimeMs[3], 10, 20, 2);
+
+        validateProtoHistBucket("Duration[0]", log.histogramNdpSessionDurationMs[0], 10, 20, 1);
+        validateProtoHistBucket("Duration[1]", log.histogramNdpSessionDurationMs[1], 100, 200, 3);
     }
 
     /**

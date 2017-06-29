@@ -500,6 +500,7 @@ public class WifiAwareDataPathStateManager {
 
             mAwareMetrics.recordNdpStatus(NanStatusType.SUCCESS, networkSpecifier.isOutOfBand(),
                     nnri.startTimestamp);
+            nnri.startTimestamp = SystemClock.elapsedRealtime(); // update time-stamp for duration
             mAwareMetrics.recordNdpCreation(nnri.uid, mNetworkRequestsCache);
         } else {
             if (DBG) {
@@ -533,6 +534,11 @@ public class WifiAwareDataPathStateManager {
         }
 
         tearDownInterface(nnriE.getValue());
+        if (nnriE.getValue().state == AwareNetworkRequestInformation.STATE_RESPONDER_CONFIRMED
+                || nnriE.getValue().state
+                == AwareNetworkRequestInformation.STATE_INITIATOR_CONFIRMED) {
+            mAwareMetrics.recordNdpSessionDuration(nnriE.getValue().startTimestamp);
+        }
         mNetworkRequestsCache.remove(nnriE.getKey());
     }
 
@@ -990,7 +996,7 @@ public class WifiAwareDataPathStateManager {
                     ", ndpId=").append(ndpId).append(", peerDataMac=").append(
                     peerDataMac == null ? ""
                             : String.valueOf(HexEncoding.encode(peerDataMac))).append(
-                    "startTimestamp=").append(startTimestamp);
+                    ", startTimestamp=").append(startTimestamp);
             return sb.toString();
         }
     }

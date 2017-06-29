@@ -109,6 +109,8 @@ public class WifiAwareMetrics {
     private long mNdpCreationTimeSumSq = 0;
     private long mNdpCreationTimeNumSamples = 0;
 
+    private SparseIntArray mHistogramNdpDuration = new SparseIntArray();
+
     public WifiAwareMetrics(Clock clock) {
         mClock = clock;
     }
@@ -396,6 +398,17 @@ public class WifiAwareMetrics {
     }
 
     /**
+     * Record the duration of the NDP session. The creation time is assumed to be the time at
+     * which a confirm message was received (i.e. the end of the setup negotiation).
+     */
+    public void recordNdpSessionDuration(long creationTime) {
+        synchronized (mLock) {
+            addLogValueToHistogram(mClock.getElapsedSinceBootMillis() - creationTime,
+                    mHistogramNdpDuration, DURATION_LOG_HISTOGRAM);
+        }
+    }
+
+    /**
      * Consolidate all metrics into the proto.
      */
     public WifiMetricsProto.WifiAwareLog consolidateProto() {
@@ -462,6 +475,9 @@ public class WifiAwareMetrics {
             log.ndpCreationTimeMsSum = mNdpCreationTimeSum;
             log.ndpCreationTimeMsSumOfSq = mNdpCreationTimeSumSq;
             log.ndpCreationTimeMsNumSamples = mNdpCreationTimeNumSamples;
+
+            log.histogramNdpSessionDurationMs = histogramToProtoArray(mHistogramNdpDuration,
+                    DURATION_LOG_HISTOGRAM);
         }
         return log;
     }
@@ -518,6 +534,8 @@ public class WifiAwareMetrics {
             mNdpCreationTimeSum = 0;
             mNdpCreationTimeSumSq = 0;
             mNdpCreationTimeNumSamples = 0;
+
+            mHistogramNdpDuration.clear();
         }
     }
 

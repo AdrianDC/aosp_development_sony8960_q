@@ -712,7 +712,9 @@ public class WifiAwareDataPathStateManagerTest {
             mMockLooper.dispatchAll();
             inOrder.verify(mMockNative).endDataPath(transactionId.capture(), eq(ndpId));
             mDut.onEndDataPathResponse(transactionId.getValue(), true, 0);
+            mDut.onDataPathEndNotification(ndpId);
             mMockLooper.dispatchAll();
+            inOrderM.verify(mAwareMetricsMock).recordNdpSessionDuration(anyLong());
         }
 
         verifyNoMoreInteractions(mMockNative, mMockCm, mAwareMetricsMock);
@@ -809,7 +811,9 @@ public class WifiAwareDataPathStateManagerTest {
             mMockLooper.dispatchAll();
             inOrder.verify(mMockNative).endDataPath(transactionId.capture(), eq(ndpId));
             mDut.onEndDataPathResponse(transactionId.getValue(), true, 0);
+            mDut.onDataPathEndNotification(ndpId);
             mMockLooper.dispatchAll();
+            inOrderM.verify(mAwareMetricsMock).recordNdpSessionDuration(anyLong());
         }
 
         verifyNoMoreInteractions(mMockNative, mMockCm, mAwareMetricsMock);
