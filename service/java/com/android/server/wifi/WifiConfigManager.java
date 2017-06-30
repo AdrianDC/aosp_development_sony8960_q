@@ -1207,6 +1207,33 @@ public class WifiConfigManager {
     }
 
     /**
+     * Iterates through the internal list of configured networks and removes any ephemeral or
+     * passpoint network configurations which are transient in nature.
+     *
+     * @return true if a network was removed, false otherwise.
+     */
+    public boolean removeAllEphemeralOrPasspointConfiguredNetworks() {
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "Removing all passpoint or ephemeral configured networks");
+        }
+        boolean didRemove = false;
+        WifiConfiguration[] copiedConfigs =
+                mConfiguredNetworks.valuesForAllUsers().toArray(new WifiConfiguration[0]);
+        for (WifiConfiguration config : copiedConfigs) {
+            if (config.isPasspoint()) {
+                Log.d(TAG, "Removing passpoint network config " + config.configKey());
+                removeNetwork(config.networkId, mSystemUiUid);
+                didRemove = true;
+            } else if (config.ephemeral) {
+                Log.d(TAG, "Removing ephemeral network config " + config.configKey());
+                removeNetwork(config.networkId, mSystemUiUid);
+                didRemove = true;
+            }
+        }
+        return didRemove;
+    }
+
+    /**
      * Helper method to mark a network enabled for network selection.
      */
     private void setNetworkSelectionEnabled(WifiConfiguration config) {

@@ -2715,6 +2715,40 @@ public class WifiConfigManagerTest {
     }
 
     /**
+     * Verifies that all the ephemeral and passpoint networks are removed when
+     * {@link WifiConfigManager#removeAllEphemeralOrPasspointConfiguredNetworks()} is invoked.
+     */
+    @Test
+    public void testRemoveAllEphemeralOrPasspointConfiguredNetworks() throws Exception {
+        WifiConfiguration savedOpenNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+        WifiConfiguration ephemeralNetwork = WifiConfigurationTestUtil.createEphemeralNetwork();
+        WifiConfiguration passpointNetwork = WifiConfigurationTestUtil.createPasspointNetwork();
+
+        verifyAddNetworkToWifiConfigManager(savedOpenNetwork);
+        verifyAddEphemeralNetworkToWifiConfigManager(ephemeralNetwork);
+        verifyAddPasspointNetworkToWifiConfigManager(passpointNetwork);
+
+        List<WifiConfiguration> expectedConfigsBeforeRemove = new ArrayList<WifiConfiguration>() {{
+                add(savedOpenNetwork);
+                add(ephemeralNetwork);
+                add(passpointNetwork);
+            }};
+        WifiConfigurationTestUtil.assertConfigurationsEqualForConfigManagerAddOrUpdate(
+                expectedConfigsBeforeRemove, mWifiConfigManager.getConfiguredNetworks());
+
+        assertTrue(mWifiConfigManager.removeAllEphemeralOrPasspointConfiguredNetworks());
+
+        List<WifiConfiguration> expectedConfigsAfterRemove = new ArrayList<WifiConfiguration>() {{
+                add(savedOpenNetwork);
+            }};
+        WifiConfigurationTestUtil.assertConfigurationsEqualForConfigManagerAddOrUpdate(
+                expectedConfigsAfterRemove, mWifiConfigManager.getConfiguredNetworks());
+
+        // No more ephemeral or passpoint networks to remove now.
+        assertFalse(mWifiConfigManager.removeAllEphemeralOrPasspointConfiguredNetworks());
+    }
+
+    /**
      * Verifies that the modification of a single network using
      * {@link WifiConfigManager#addOrUpdateNetwork(WifiConfiguration, int)} and ensures that any
      * updates to the network config in
