@@ -55,10 +55,16 @@ public class WifiAwareMetrics {
     private final Clock mClock;
 
     // enableUsage/disableUsage data
-    private long mLastEnableUsage = 0;
-    private long mLastEnableUsageInThisLogWindow = 0;
-    private long mAvailableTime = 0;
+    private long mLastEnableUsageMs = 0;
+    private long mLastEnableUsageInThisSampleWindowMs = 0;
+    private long mAvailableTimeMs = 0;
     private SparseIntArray mHistogramAwareAvailableDurationMs = new SparseIntArray();
+
+    // enabled data
+    private long mLastEnableAwareMs = 0;
+    private long mLastEnableAwareInThisSampleWindowMs = 0;
+    private long mEnabledTimeMs = 0;
+    private SparseIntArray mHistogramAwareEnabledDurationMs = new SparseIntArray();
 
     // attach data
     private static class AttachData {
@@ -92,11 +98,11 @@ public class WifiAwareMetrics {
      */
     public void recordEnableUsage() {
         synchronized (mLock) {
-            if (mLastEnableUsage != 0) {
-                Log.w(TAG, "enableUsage: mLastEnableUsage* initialized!?");
+            if (mLastEnableUsageMs != 0) {
+                Log.w(TAG, "enableUsage: mLastEnableUsage*Ms initialized!?");
             }
-            mLastEnableUsage = mClock.getElapsedSinceBootMillis();
-            mLastEnableUsageInThisLogWindow = mLastEnableUsage;
+            mLastEnableUsageMs = mClock.getElapsedSinceBootMillis();
+            mLastEnableUsageInThisSampleWindowMs = mLastEnableUsageMs;
         }
     }
 
@@ -107,17 +113,48 @@ public class WifiAwareMetrics {
 
     public void recordDisableUsage() {
         synchronized (mLock) {
-            if (mLastEnableUsage == 0) {
+            if (mLastEnableUsageMs == 0) {
                 Log.e(TAG, "disableUsage: mLastEnableUsage not initialized!?");
                 return;
             }
 
             long now = mClock.getElapsedSinceBootMillis();
-            addLogValueToHistogram(now - mLastEnableUsage, mHistogramAwareAvailableDurationMs,
+            addLogValueToHistogram(now - mLastEnableUsageMs, mHistogramAwareAvailableDurationMs,
                     DURATION_LOG_HISTOGRAM);
-            mAvailableTime += now - mLastEnableUsageInThisLogWindow;
-            mLastEnableUsage = 0;
-            mLastEnableUsageInThisLogWindow = 0;
+            mAvailableTimeMs += now - mLastEnableUsageInThisSampleWindowMs;
+            mLastEnableUsageMs = 0;
+            mLastEnableUsageInThisSampleWindowMs = 0;
+        }
+    }
+
+    /**
+     * Push usage stats of Aware actually being enabled on-the-air: start
+     */
+    public void recordEnableAware() {
+        synchronized (mLock) {
+            if (mLastEnableAwareMs != 0) {
+                return; // already enabled
+            }
+            mLastEnableAwareMs = mClock.getElapsedSinceBootMillis();
+            mLastEnableAwareInThisSampleWindowMs = mLastEnableAwareMs;
+        }
+    }
+
+    /**
+     * Push usage stats of Aware actually being enabled on-the-air: stop (disable)
+     */
+    public void recordDisableAware() {
+        synchronized (mLock) {
+            if (mLastEnableAwareMs == 0) {
+                return; // already disabled
+            }
+
+            long now = mClock.getElapsedSinceBootMillis();
+            addLogValueToHistogram(now - mLastEnableAwareMs, mHistogramAwareEnabledDurationMs,
+                    DURATION_LOG_HISTOGRAM);
+            mEnabledTimeMs += now - mLastEnableAwareInThisSampleWindowMs;
+            mLastEnableAwareMs = 0;
+            mLastEnableAwareInThisSampleWindowMs = 0;
         }
     }
 
@@ -250,9 +287,16 @@ public class WifiAwareMetrics {
         synchronized (mLock) {
             log.histogramAwareAvailableDurationMs = histogramToProtoArray(
                     mHistogramAwareAvailableDurationMs, DURATION_LOG_HISTOGRAM);
-            log.availableTimeMs = mAvailableTime;
-            if (mLastEnableUsageInThisLogWindow != 0) {
-                log.availableTimeMs += now - mLastEnableUsageInThisLogWindow;
+            log.availableTimeMs = mAvailableTimeMs;
+            if (mLastEnableUsageInThisSampleWindowMs != 0) {
+                log.availableTimeMs += now - mLastEnableUsageInThisSampleWindowMs;
+            }
+
+            log.histogramAwareEnabledDurationMs = histogramToProtoArray(
+                    mHistogramAwareEnabledDurationMs, DURATION_LOG_HISTOGRAM);
+            log.enabledTimeMs = mEnabledTimeMs;
+            if (mLastEnableAwareInThisSampleWindowMs != 0) {
+                log.enabledTimeMs += now - mLastEnableAwareInThisSampleWindowMs;
             }
 
             log.numApps = mAttachDataByUid.size();
@@ -295,9 +339,16 @@ public class WifiAwareMetrics {
         synchronized (mLock) {
             // don't clear mLastEnableUsage since could be valid for next measurement period
             mHistogramAwareAvailableDurationMs.clear();
-            mAvailableTime = 0;
-            if (mLastEnableUsageInThisLogWindow != 0) {
-                mLastEnableUsageInThisLogWindow = now;
+            mAvailableTimeMs = 0;
+            if (mLastEnableUsageInThisSampleWindowMs != 0) {
+                mLastEnableUsageInThisSampleWindowMs = now;
+            }
+
+            // don't clear mLastEnableAware since could be valid for next measurement period
+            mHistogramAwareEnabledDurationMs.clear();
+            mEnabledTimeMs = 0;
+            if (mLastEnableAwareInThisSampleWindowMs != 0) {
+                mLastEnableAwareInThisSampleWindowMs = now;
             }
 
             mAttachDataByUid.clear();
@@ -328,9 +379,10 @@ public class WifiAwareMetrics {
      */
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         synchronized (mLock) {
-            pw.println("mLastEnableUsage:" + mLastEnableUsage);
-            pw.println("mLastEnableUsageInThisLogWindow:" + mLastEnableUsageInThisLogWindow);
-            pw.println("mAvailableTime:" + mAvailableTime);
+            pw.println("mLastEnableUsage:" + mLastEnableUsageMs);
+            pw.println(
+                    "mLastEnableUsageInThisSampleWindow:" + mLastEnableUsageInThisSampleWindowMs);
+            pw.println("mAvailableTime:" + mAvailableTimeMs);
             pw.println("mHistogramAwareAvailableDurationMs:");
             for (int i = 0; i < mHistogramAwareAvailableDurationMs.size(); ++i) {
                 pw.println("  " + mHistogramAwareAvailableDurationMs.keyAt(i) + ": "

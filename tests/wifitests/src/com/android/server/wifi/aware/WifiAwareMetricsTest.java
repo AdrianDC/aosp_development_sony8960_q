@@ -149,6 +149,67 @@ public class WifiAwareMetricsTest {
                 equalTo(0));
     }
 
+    /**
+     * Validates that recordEnableAware() and recordDisableAware() record valid metrics.
+     */
+    @Test
+    public void testEnableDisableAwareMetrics() {
+        WifiMetricsProto.WifiAwareLog log;
+
+        // create 2 records
+        setTime(5);
+        mDut.recordEnableAware();
+        setTime(10);
+        mDut.recordDisableAware();
+        setTime(11);
+        mDut.recordEnableAware();
+        setTime(12);
+        mDut.recordDisableAware();
+
+        setTime(14);
+        log = mDut.consolidateProto();
+        collector.checkThat(countAllHistogramSamples(log.histogramAwareEnabledDurationMs),
+                equalTo(2));
+        validateProtoHistBucket("Duration[0] #1", log.histogramAwareEnabledDurationMs[0], 1, 2,
+                1);
+        validateProtoHistBucket("Duration[1] #1", log.histogramAwareEnabledDurationMs[1], 5, 6,
+                1);
+        collector.checkThat(log.enabledTimeMs, equalTo(6L));
+
+        // create another partial record
+        setTime(15);
+        mDut.recordEnableAware();
+
+        setTime(17);
+        log = mDut.consolidateProto();
+        collector.checkThat(countAllHistogramSamples(log.histogramAwareEnabledDurationMs),
+                equalTo(2));
+        validateProtoHistBucket("Duration[0] #2", log.histogramAwareEnabledDurationMs[0], 1, 2,
+                1);
+        validateProtoHistBucket("Duration[1] #2", log.histogramAwareEnabledDurationMs[1], 5, 6,
+                1);
+        collector.checkThat(log.enabledTimeMs, equalTo(8L)); // the partial record of 2ms
+
+
+        // clear and continue that partial record (verify completed)
+        mDut.clear();
+        setTime(23);
+        mDut.recordDisableAware();
+
+        log = mDut.consolidateProto();
+        collector.checkThat(countAllHistogramSamples(log.histogramAwareEnabledDurationMs),
+                equalTo(1));
+        validateProtoHistBucket("Duration[0] #3", log.histogramAwareEnabledDurationMs[0], 8, 9,
+                1);
+        collector.checkThat(log.enabledTimeMs, equalTo(6L)); // the remnant record of 6ms
+
+        // clear and verify empty records
+        mDut.clear();
+        log = mDut.consolidateProto();
+        collector.checkThat(countAllHistogramSamples(log.histogramAwareEnabledDurationMs),
+                equalTo(0));
+    }
+
     @Test
     public void testAttachSessionMetrics() {
         final int uid1 = 1005;
