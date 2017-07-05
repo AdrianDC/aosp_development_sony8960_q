@@ -549,15 +549,26 @@ public class WifiAwareMetrics {
      */
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         synchronized (mLock) {
-            pw.println("mLastEnableUsage:" + mLastEnableUsageMs);
+            pw.println("mLastEnableUsageMs:" + mLastEnableUsageMs);
             pw.println(
-                    "mLastEnableUsageInThisSampleWindow:" + mLastEnableUsageInThisSampleWindowMs);
-            pw.println("mAvailableTime:" + mAvailableTimeMs);
+                    "mLastEnableUsageInThisSampleWindowMs:" + mLastEnableUsageInThisSampleWindowMs);
+            pw.println("mAvailableTimeMs:" + mAvailableTimeMs);
             pw.println("mHistogramAwareAvailableDurationMs:");
             for (int i = 0; i < mHistogramAwareAvailableDurationMs.size(); ++i) {
                 pw.println("  " + mHistogramAwareAvailableDurationMs.keyAt(i) + ": "
                         + mHistogramAwareAvailableDurationMs.valueAt(i));
             }
+
+            pw.println("mLastEnableAwareMs:" + mLastEnableAwareMs);
+            pw.println(
+                    "mLastEnableAwareInThisSampleWindowMs:" + mLastEnableAwareInThisSampleWindowMs);
+            pw.println("mEnabledTimeMs:" + mEnabledTimeMs);
+            pw.println("mHistogramAwareEnabledDurationMs:");
+            for (int i = 0; i < mHistogramAwareEnabledDurationMs.size(); ++i) {
+                pw.println("  " + mHistogramAwareEnabledDurationMs.keyAt(i) + ": "
+                        + mHistogramAwareEnabledDurationMs.valueAt(i));
+            }
+
             pw.println("mAttachDataByUid:");
             for (Map.Entry<Integer, AttachData> ade: mAttachDataByUid.entrySet()) {
                 pw.println("  " + "uid=" + ade.getKey() + ": identity="
@@ -573,6 +584,72 @@ public class WifiAwareMetrics {
             for (int i = 0; i < mHistogramAttachDuration.size(); ++i) {
                 pw.println("  " + mHistogramAttachDuration.keyAt(i) + ": "
                         + mHistogramAttachDuration.valueAt(i));
+            }
+
+            pw.println("mMaxPublishInApp:" + mMaxPublishInApp);
+            pw.println("mMaxSubscribeInApp:" + mMaxSubscribeInApp);
+            pw.println("mMaxDiscoveryInApp:" + mMaxDiscoveryInApp);
+            pw.println("mMaxPublishInSystem:" + mMaxPublishInSystem);
+            pw.println("mMaxSubscribeInSystem:" + mMaxSubscribeInSystem);
+            pw.println("mMaxDiscoveryInSystem:" + mMaxDiscoveryInSystem);
+            pw.println("mPublishStatusData:");
+            for (int i = 0; i < mPublishStatusData.size(); ++i) {
+                pw.println("  " + mPublishStatusData.keyAt(i) + ": "
+                        + mPublishStatusData.valueAt(i));
+            }
+            pw.println("mSubscribeStatusData:");
+            for (int i = 0; i < mSubscribeStatusData.size(); ++i) {
+                pw.println("  " + mSubscribeStatusData.keyAt(i) + ": "
+                        + mSubscribeStatusData.valueAt(i));
+            }
+            pw.println("mHistogramPublishDuration:");
+            for (int i = 0; i < mHistogramPublishDuration.size(); ++i) {
+                pw.println("  " + mHistogramPublishDuration.keyAt(i) + ": "
+                        + mHistogramPublishDuration.valueAt(i));
+            }
+            pw.println("mHistogramSubscribeDuration:");
+            for (int i = 0; i < mHistogramSubscribeDuration.size(); ++i) {
+                pw.println("  " + mHistogramSubscribeDuration.keyAt(i) + ": "
+                        + mHistogramSubscribeDuration.valueAt(i));
+            }
+            pw.println("mAppsWithDiscoverySessionResourceFailure:");
+            for (Integer uid: mAppsWithDiscoverySessionResourceFailure) {
+                pw.println("  " + uid);
+            }
+
+            pw.println("mMaxNdiInApp:" + mMaxNdiInApp);
+            pw.println("mMaxNdpInApp:" + mMaxNdpInApp);
+            pw.println("mMaxSecureNdpInApp:" + mMaxSecureNdpInApp);
+            pw.println("mMaxNdiInSystem:" + mMaxNdiInSystem);
+            pw.println("mMaxNdpInSystem:" + mMaxNdpInSystem);
+            pw.println("mMaxSecureNdpInSystem:" + mMaxSecureNdpInSystem);
+            pw.println("mMaxNdpPerNdi:" + mMaxNdpPerNdi);
+            pw.println("mInBandNdpStatusData:");
+            for (int i = 0; i < mInBandNdpStatusData.size(); ++i) {
+                pw.println("  " + mInBandNdpStatusData.keyAt(i) + ": "
+                        + mInBandNdpStatusData.valueAt(i));
+            }
+            pw.println("mOutOfBandNdpStatusData:");
+            for (int i = 0; i < mOutOfBandNdpStatusData.size(); ++i) {
+                pw.println("  " + mOutOfBandNdpStatusData.keyAt(i) + ": "
+                        + mOutOfBandNdpStatusData.valueAt(i));
+            }
+
+            pw.println("mNdpCreationTimeDuration:");
+            for (int i = 0; i < mNdpCreationTimeDuration.size(); ++i) {
+                pw.println("  " + mNdpCreationTimeDuration.keyAt(i) + ": "
+                        + mNdpCreationTimeDuration.valueAt(i));
+            }
+            pw.println("mNdpCreationTimeMin:" + mNdpCreationTimeMin);
+            pw.println("mNdpCreationTimeMax:" + mNdpCreationTimeMax);
+            pw.println("mNdpCreationTimeSum:" + mNdpCreationTimeSum);
+            pw.println("mNdpCreationTimeSumSq:" + mNdpCreationTimeSumSq);
+            pw.println("mNdpCreationTimeNumSamples:" + mNdpCreationTimeNumSamples);
+
+            pw.println("mHistogramNdpDuration:");
+            for (int i = 0; i < mHistogramNdpDuration.size(); ++i) {
+                pw.println("  " + mHistogramNdpDuration.keyAt(i) + ": "
+                        + mHistogramNdpDuration.valueAt(i));
             }
         }
     }
