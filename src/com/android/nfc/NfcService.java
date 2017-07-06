@@ -1753,11 +1753,12 @@ public class NfcService implements DeviceHostListener {
         sendMessage(MSG_MOCK_NDEF, msg);
     }
 
-    public void routeAids(String aid, int route) {
+    public void routeAids(String aid, int route, int aidInfo) {
         Message msg = mHandler.obtainMessage();
         msg.what = MSG_ROUTE_AID;
         msg.arg1 = route;
         msg.obj = aid;
+        msg.arg2 = aidInfo;
         mHandler.sendMessage(msg);
     }
 
@@ -1825,8 +1826,9 @@ public class NfcService implements DeviceHostListener {
             switch (msg.what) {
                 case MSG_ROUTE_AID: {
                     int route = msg.arg1;
+                    int aidInfo = msg.arg2;
                     String aid = (String) msg.obj;
-                    mDeviceHost.routeAid(hexStringToBytes(aid), route);
+                    mDeviceHost.routeAid(hexStringToBytes(aid), route, aidInfo);
                     // Restart polling config
                     break;
                 }
