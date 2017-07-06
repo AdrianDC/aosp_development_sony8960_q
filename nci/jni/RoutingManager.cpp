@@ -688,7 +688,7 @@ int RoutingManager::registerT3tIdentifier(uint8_t* t3tId, uint8_t t3tIdLen)
 
     ALOGV("%s: Start to register NFC-F system on DH", fn);
 
-    if (t3tIdLen != (2 + NCI_RF_F_UID_LEN))
+    if (t3tIdLen != (2 + NCI_RF_F_UID_LEN + NCI_T3T_PMM_LEN))
     {
         ALOGE("%s: Invalid length of T3T Identifier", fn);
         return NFA_HANDLE_INVALID;
@@ -699,11 +699,13 @@ int RoutingManager::registerT3tIdentifier(uint8_t* t3tId, uint8_t t3tIdLen)
 
     int systemCode;
     uint8_t nfcid2[NCI_RF_F_UID_LEN];
+    uint8_t t3tPmm[NCI_T3T_PMM_LEN];
 
     systemCode = (((int)t3tId[0] << 8) | ((int)t3tId[1] << 0));
     memcpy(nfcid2, t3tId + 2, NCI_RF_F_UID_LEN);
+    memcpy(t3tPmm, t3tId + 10, NCI_T3T_PMM_LEN);
 
-    tNFA_STATUS nfaStat = NFA_CeRegisterFelicaSystemCodeOnDH (systemCode, nfcid2, nfcFCeCallback);
+    tNFA_STATUS nfaStat = NFA_CeRegisterFelicaSystemCodeOnDH (systemCode, nfcid2, t3tPmm, nfcFCeCallback);
     if (nfaStat == NFA_STATUS_OK)
     {
         mRoutingEvent.wait ();

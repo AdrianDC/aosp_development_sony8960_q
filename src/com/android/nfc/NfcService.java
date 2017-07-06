@@ -1748,11 +1748,11 @@ public class NfcService implements DeviceHostListener {
         sendMessage(MSG_UNROUTE_AID, aid);
     }
 
-    private byte[] getT3tIdentifierBytes(String systemCode, String nfcId2) {
-        ByteBuffer buffer = ByteBuffer.allocate(2 + 8);
+    private byte[] getT3tIdentifierBytes(String systemCode, String nfcId2, String t3tPmm) {
+        ByteBuffer buffer = ByteBuffer.allocate(2 + 8 + 8); /* systemcode + nfcid2 + t3tpmm */
         buffer.put(hexStringToBytes(systemCode));
         buffer.put(hexStringToBytes(nfcId2));
-
+        buffer.put(hexStringToBytes(t3tPmm));
         byte[] t3tIdBytes = new byte[buffer.position()];
         buffer.position(0);
         buffer.get(t3tIdBytes);
@@ -1760,17 +1760,17 @@ public class NfcService implements DeviceHostListener {
         return t3tIdBytes;
     }
 
-    public void registerT3tIdentifier(String systemCode, String nfcId2) {
+    public void registerT3tIdentifier(String systemCode, String nfcId2, String t3tPmm) {
         Log.d(TAG, "request to register LF_T3T_IDENTIFIER");
 
-        byte[] t3tIdentifier = getT3tIdentifierBytes(systemCode, nfcId2);
+        byte[] t3tIdentifier = getT3tIdentifierBytes(systemCode, nfcId2, t3tPmm);
         sendMessage(MSG_REGISTER_T3T_IDENTIFIER, t3tIdentifier);
     }
 
-    public void deregisterT3tIdentifier(String systemCode, String nfcId2) {
+    public void deregisterT3tIdentifier(String systemCode, String nfcId2, String t3tPmm) {
         Log.d(TAG, "request to deregister LF_T3T_IDENTIFIER");
 
-        byte[] t3tIdentifier = getT3tIdentifierBytes(systemCode, nfcId2);
+        byte[] t3tIdentifier = getT3tIdentifierBytes(systemCode, nfcId2, t3tPmm);
         sendMessage(MSG_DEREGISTER_T3T_IDENTIFIER, t3tIdentifier);
     }
 
