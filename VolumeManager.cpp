@@ -218,7 +218,9 @@ void VolumeManager::handleBlockEvent(NetlinkEvent* evt) {
                     // emulator-specific; see Disk.cpp for details) devices are SD,
                     // and that everything else is USB
                     int flags = source->getFlags();
-                    if (major == kMajorBlockMmc || (android::vold::IsRunningInEmulator() &&
+                    if (major == kMajorBlockMmc ||
+                            (eventPath.find("ufs") != std::string::npos) ||
+                            (android::vold::IsRunningInEmulator() &&
                                                     major >= (int)kMajorBlockExperimentalMin &&
                                                     major <= (int)kMajorBlockExperimentalMax)) {
                         flags |= android::vold::Disk::Flags::kSd;
