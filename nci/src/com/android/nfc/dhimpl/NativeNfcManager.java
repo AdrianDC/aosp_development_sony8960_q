@@ -95,7 +95,7 @@ public class NativeNfcManager implements DeviceHost {
     public native boolean sendRawFrame(byte[] data);
 
     @Override
-    public native boolean routeAid(byte[] aid, int route);
+    public native boolean routeAid(byte[] aid, int route, int aidInfo);
 
     @Override
     public native boolean unrouteAid(byte[] aid);
@@ -142,6 +142,12 @@ public class NativeNfcManager implements DeviceHost {
 
     @Override
     public native int getLfT3tMax();
+
+    @Override
+    public native void doSetScreenState(int screen_state_mask);
+
+    @Override
+    public native int getNciVersion();
 
     private native void doEnableDiscovery(int techMask,
                                           boolean enableLowPowerPolling,
