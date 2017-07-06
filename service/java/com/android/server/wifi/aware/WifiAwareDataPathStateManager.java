@@ -470,7 +470,7 @@ public class WifiAwareDataPathStateManager {
                     : AwareNetworkRequestInformation.STATE_RESPONDER_CONFIRMED;
             nnri.peerDataMac = mac;
 
-            NetworkInfo networkInfo = new NetworkInfo(ConnectivityManager.TYPE_WIFI_P2P, 0,
+            NetworkInfo networkInfo = new NetworkInfo(ConnectivityManager.TYPE_NONE, 0,
                     NETWORK_TAG, "");
             NetworkCapabilities networkCapabilities = new NetworkCapabilities(
                     mNetworkCapabilitiesFilter);
@@ -493,7 +493,7 @@ public class WifiAwareDataPathStateManager {
 
             nnri.networkAgent = new WifiAwareNetworkAgent(mLooper, mContext,
                     AGENT_TAG_PREFIX + nnri.ndpId,
-                    new NetworkInfo(ConnectivityManager.TYPE_WIFI_P2P, 0, NETWORK_TAG, ""),
+                    new NetworkInfo(ConnectivityManager.TYPE_NONE, 0, NETWORK_TAG, ""),
                     networkCapabilities, linkProperties, NETWORK_FACTORY_SCORE_AVAIL,
                     networkSpecifier, ndpId);
             nnri.networkAgent.sendNetworkInfo(networkInfo);
