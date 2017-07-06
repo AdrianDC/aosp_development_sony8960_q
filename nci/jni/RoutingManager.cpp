@@ -326,11 +326,11 @@ void RoutingManager::disableRoutingToHost()
     }
 }
 
-bool RoutingManager::addAidRouting(const uint8_t* aid, uint8_t aidLen, int route)
+bool RoutingManager::addAidRouting(const uint8_t* aid, uint8_t aidLen, int route, int aidInfo)
 {
     static const char fn [] = "RoutingManager::addAidRouting";
     ALOGV("%s: enter", fn);
-    tNFA_STATUS nfaStat = NFA_EeAddAidRouting(route, aidLen, (uint8_t*) aid, 0x01);
+    tNFA_STATUS nfaStat = NFA_EeAddAidRouting(route, aidLen, (uint8_t*) aid, 0x01, aidInfo);
     if (nfaStat == NFA_STATUS_OK)
     {
         ALOGV("%s: routed AID", fn);

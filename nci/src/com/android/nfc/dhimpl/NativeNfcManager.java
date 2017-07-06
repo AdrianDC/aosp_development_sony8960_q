@@ -95,7 +95,7 @@ public class NativeNfcManager implements DeviceHost {
     public native boolean sendRawFrame(byte[] data);
 
     @Override
-    public native boolean routeAid(byte[] aid, int route);
+    public native boolean routeAid(byte[] aid, int route, int aidInfo);
 
     @Override
     public native boolean unrouteAid(byte[] aid);
