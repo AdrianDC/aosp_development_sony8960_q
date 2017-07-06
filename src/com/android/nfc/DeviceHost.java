@@ -183,7 +183,7 @@ public interface DeviceHost {
 
     public boolean sendRawFrame(byte[] data);
 
-    public boolean routeAid(byte[] aid, int route);
+    public boolean routeAid(byte[] aid, int route, int aidInfo);
 
     public boolean unrouteAid(byte[] aid);
 
@@ -237,4 +237,8 @@ public interface DeviceHost {
     boolean enableScreenOffSuspend();
 
     boolean disableScreenOffSuspend();
+
+    public void doSetScreenState(int screen_state_mask);
+
+    public int getNciVersion();
 }
