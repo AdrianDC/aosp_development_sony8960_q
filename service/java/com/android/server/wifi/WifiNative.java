@@ -1683,6 +1683,27 @@ public class WifiNative {
         return mWifiVendorHal.configureRoaming(new RoamingConfig());
     }
 
+    /**
+     * Set the TX power limit.
+     * Primarily used for meeting SAR requirements during voice calls.
+     *
+     * @param powerLevelInDbm Power level to set in dBm.
+     * @return true for success; false for failure or if the HAL version does not support this API.
+     */
+    public boolean setTxPowerLimit(int powerLevelInDbm) {
+        return mWifiVendorHal.setTxPowerLimit(powerLevelInDbm);
+    }
+
+    /**
+     * Reset the TX power limit.
+     * Primarily used for meeting SAR requirements during voice calls.
+     *
+     * @return true for success; false for failure or if the HAL version does not support this API.
+     */
+    public boolean resetTxPowerLimit() {
+        return mWifiVendorHal.resetTxPowerLimit();
+    }
+
     /********************************************************
      * JNI operations
      ********************************************************/

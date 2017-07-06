@@ -24,6 +24,7 @@ import android.hardware.wifi.V1_0.IWifiRttController;
 import android.hardware.wifi.V1_0.IWifiRttControllerEventCallback;
 import android.hardware.wifi.V1_0.IWifiStaIface;
 import android.hardware.wifi.V1_0.IWifiStaIfaceEventCallback;
+import android.hardware.wifi.V1_0.IfaceType;
 import android.hardware.wifi.V1_0.RttCapabilities;
 import android.hardware.wifi.V1_0.RttConfig;
 import android.hardware.wifi.V1_0.StaApfPacketFilterCapabilities;
@@ -55,6 +56,7 @@ import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
 import android.net.wifi.WifiWakeReasonAndCounts;
+import android.os.Looper;
 import android.os.RemoteException;
 import android.os.test.TestLooper;
 import android.util.Pair;
@@ -75,8 +77,10 @@ import org.mockito.stubbing.Answer;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 /**
  * Unit tests for {@link com.android.server.wifi.WifiVendorHal}.
@@ -98,6 +102,8 @@ public class WifiVendorHalTest {
     @Mock
     private IWifiChip mIWifiChip;
     @Mock
+    private android.hardware.wifi.V1_1.IWifiChip mIWifiChipV11;
+    @Mock
     private IWifiStaIface mIWifiStaIface;
     @Mock
     private IWifiRttController mIWifiRttController;
@@ -105,6 +111,21 @@ public class WifiVendorHalTest {
     private IWifiChipEventCallback mIWifiChipEventCallback;
     @Mock
     private WifiNative.VendorHalDeathEventHandler mVendorHalDeathHandler;
+
+    /**
+     * Spy used to return the V1_1 IWifiChip mock object to simulate the 1.1 HAL running on the
+     * device.
+     */
+    private class WifiVendorHalSpyV1_1 extends WifiVendorHal {
+        WifiVendorHalSpyV1_1(HalDeviceManager halDeviceManager, Looper looper) {
+            super(halDeviceManager, looper);
+        }
+
+        @Override
+        protected android.hardware.wifi.V1_1.IWifiChip getWifiChipForV1_1Mockable() {
+            return mIWifiChipV11;
+        }
+    }
 
     /**
      * Identity function to supply a type to its argument, which is a lambda
@@ -560,7 +581,7 @@ public class WifiVendorHalTest {
      * driven we don't have to work hard to exercise all of it.
      */
     @Test
-    public void testFeatureMaskTranslation() {
+    public void testStaIfaceFeatureMaskTranslation() {
         int caps = (
                 IWifiStaIface.StaIfaceCapabilityMask.BACKGROUND_SCAN
                 | IWifiStaIface.StaIfaceCapabilityMask.LINK_LAYER_STATS
@@ -569,6 +590,62 @@ public class WifiVendorHalTest {
                 WifiManager.WIFI_FEATURE_SCANNER
                 | WifiManager.WIFI_FEATURE_LINK_LAYER_STATS);
         assertEquals(expected, mWifiVendorHal.wifiFeatureMaskFromStaCapabilities(caps));
+    }
+
+    /**
+     * Test translation to WifiManager.WIFI_FEATURE_*
+     *
+     * Just do a spot-check with a few feature bits here; since the code is table-
+     * driven we don't have to work hard to exercise all of it.
+     */
+    @Test
+    public void testChipFeatureMaskTranslation() {
+        int caps = android.hardware.wifi.V1_1.IWifiChip.ChipCapabilityMask.SET_TX_POWER_LIMIT;
+        int expected = WifiManager.WIFI_FEATURE_TX_POWER_LIMIT;
+        assertEquals(expected, mWifiVendorHal.wifiFeatureMaskFromChipCapabilities(caps));
+    }
+
+    /**
+     * Test get supported features. Tests whether we coalesce information from different sources
+     * (IWifiStaIface, IWifiChip and HalDeviceManager) into the bitmask of supported features
+     * correctly.
+     */
+    @Test
+    public void testGetSupportedFeatures() throws Exception {
+        assertTrue(mWifiVendorHal.startVendorHal(true));
+
+        int staIfaceHidlCaps = (
+                IWifiStaIface.StaIfaceCapabilityMask.BACKGROUND_SCAN
+                        | IWifiStaIface.StaIfaceCapabilityMask.LINK_LAYER_STATS
+        );
+        int chipHidlCaps =
+                android.hardware.wifi.V1_1.IWifiChip.ChipCapabilityMask.SET_TX_POWER_LIMIT;
+        Set<Integer>  halDeviceManagerSupportedIfaces = new HashSet<Integer>() {{
+                add(IfaceType.STA);
+                add(IfaceType.P2P);
+            }};
+        int expectedFeatureSet = (
+                WifiManager.WIFI_FEATURE_SCANNER
+                        | WifiManager.WIFI_FEATURE_LINK_LAYER_STATS
+                        | WifiManager.WIFI_FEATURE_TX_POWER_LIMIT
+                        | WifiManager.WIFI_FEATURE_INFRA
+                        | WifiManager.WIFI_FEATURE_P2P
+        );
+
+        doAnswer(new AnswerWithArguments() {
+            public void answer(IWifiStaIface.getCapabilitiesCallback cb) throws RemoteException {
+                cb.onValues(mWifiStatusSuccess, staIfaceHidlCaps);
+            }
+        }).when(mIWifiStaIface).getCapabilities(any(IWifiStaIface.getCapabilitiesCallback.class));
+        doAnswer(new AnswerWithArguments() {
+            public void answer(IWifiChip.getCapabilitiesCallback cb) throws RemoteException {
+                cb.onValues(mWifiStatusSuccess, chipHidlCaps);
+            }
+        }).when(mIWifiChip).getCapabilities(any(IWifiChip.getCapabilitiesCallback.class));
+        when(mHalDeviceManager.getSupportedIfaceTypes())
+                .thenReturn(halDeviceManagerSupportedIfaces);
+
+        assertEquals(expectedFeatureSet, mWifiVendorHal.getSupportedFeatureSet());
     }
 
     /**
@@ -1756,6 +1833,52 @@ public class WifiVendorHalTest {
         mHalDeviceManagerStatusCallbacks.onStatusChanged();
 
         verify(mVendorHalDeathHandler).onDeath();
+    }
+
+    /**
+     * Test the new setTxPowerLimit HIDL method invocation. This should return failure if the
+     * HAL service is exposing the 1.0 interface.
+     */
+    @Test
+    public void testSetTxPowerLimit() throws RemoteException {
+        int powerLevelInDbm = -45;
+
+        assertTrue(mWifiVendorHal.startVendorHal(true));
+        // Should fail because we exposed the 1.0 IWifiChip.
+        assertFalse(mWifiVendorHal.setTxPowerLimit(powerLevelInDbm));
+        verify(mIWifiChipV11, never()).setTxPowerLimit(eq(powerLevelInDbm));
+        mWifiVendorHal.stopVendorHal();
+
+        // Now expose the 1.1 IWifiChip.
+        mWifiVendorHal = new WifiVendorHalSpyV1_1(mHalDeviceManager, mLooper.getLooper());
+        when(mIWifiChipV11.setTxPowerLimit(anyInt())).thenReturn(mWifiStatusSuccess);
+
+        assertTrue(mWifiVendorHal.startVendorHal(true));
+        assertTrue(mWifiVendorHal.setTxPowerLimit(powerLevelInDbm));
+        verify(mIWifiChipV11).setTxPowerLimit(eq(powerLevelInDbm));
+        mWifiVendorHal.stopVendorHal();
+    }
+
+    /**
+     * Test the new setTxPowerLimit HIDL method invocation. This should return failure if the
+     * HAL service is exposing the 1.0 interface.
+     */
+    @Test
+    public void testResetTxPowerLimit() throws RemoteException {
+        assertTrue(mWifiVendorHal.startVendorHal(true));
+        // Should fail because we exposed the 1.0 IWifiChip.
+        assertFalse(mWifiVendorHal.resetTxPowerLimit());
+        verify(mIWifiChipV11, never()).resetTxPowerLimit();
+        mWifiVendorHal.stopVendorHal();
+
+        // Now expose the 1.1 IWifiChip.
+        mWifiVendorHal = new WifiVendorHalSpyV1_1(mHalDeviceManager, mLooper.getLooper());
+        when(mIWifiChipV11.resetTxPowerLimit()).thenReturn(mWifiStatusSuccess);
+
+        assertTrue(mWifiVendorHal.startVendorHal(true));
+        assertTrue(mWifiVendorHal.resetTxPowerLimit());
+        verify(mIWifiChipV11).resetTxPowerLimit();
+        mWifiVendorHal.stopVendorHal();
     }
 
     private void startBgScan(WifiNative.ScanEventHandler eventHandler) throws Exception {
