@@ -224,7 +224,8 @@ public class WifiInjector {
         mJavaRuntime = Runtime.getRuntime();
         mWifiStateMachine = new WifiStateMachine(mContext, mFrameworkFacade,
                 wifiStateMachineLooper, UserManager.get(mContext),
-                this, mBackupManagerProxy, mCountryCode, mWifiNative);
+                this, mBackupManagerProxy, mCountryCode, mWifiNative,
+                new WrongPasswordNotifier(mContext, mFrameworkFacade));
         mCertManager = new WifiCertManager(mContext);
         mNotificationController = new WifiNotificationController(mContext,
                 mWifiServiceHandlerThread.getLooper(), mFrameworkFacade, null, this);

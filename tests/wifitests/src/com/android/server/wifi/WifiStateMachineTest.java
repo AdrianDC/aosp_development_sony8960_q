@@ -344,6 +344,7 @@ public class WifiStateMachineTest {
     @Mock SelfRecovery mSelfRecovery;
     @Mock IpManager mIpManager;
     @Mock TelephonyManager mTelephonyManager;
+    @Mock WrongPasswordNotifier mWrongPasswordNotifier;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -436,7 +437,8 @@ public class WifiStateMachineTest {
 
     private void initializeWsm() throws Exception {
         mWsm = new WifiStateMachine(mContext, mFrameworkFacade, mLooper.getLooper(),
-                mUserManager, mWifiInjector, mBackupManagerProxy, mCountryCode, mWifiNative);
+                mUserManager, mWifiInjector, mBackupManagerProxy, mCountryCode, mWifiNative,
+                mWrongPasswordNotifier);
         mWsmThread = getWsmHandlerThread(mWsm);
 
         final AsyncChannel channel = new AsyncChannel();
@@ -1113,6 +1115,7 @@ public class WifiStateMachineTest {
                 WifiManager.ERROR_AUTH_FAILURE_WRONG_PSWD);
         mLooper.dispatchAll();
 
+        verify(mWrongPasswordNotifier, never()).onWrongPasswordError(anyString());
         verify(mWifiConfigManager).updateNetworkSelectionStatus(anyInt(),
                 eq(WifiConfiguration.NetworkSelectionStatus.DISABLED_AUTHENTICATION_FAILURE));
 
@@ -1138,6 +1141,7 @@ public class WifiStateMachineTest {
         verify(mWifiConfigManager).enableNetwork(eq(0), eq(true), anyInt());
 
         WifiConfiguration config = new WifiConfiguration();
+        config.SSID = sSSID;
         config.getNetworkSelectionStatus().setHasEverConnected(false);
         when(mWifiConfigManager.getConfiguredNetwork(anyInt())).thenReturn(config);
 
@@ -1145,6 +1149,7 @@ public class WifiStateMachineTest {
                 WifiManager.ERROR_AUTH_FAILURE_WRONG_PSWD);
         mLooper.dispatchAll();
 
+        verify(mWrongPasswordNotifier).onWrongPasswordError(eq(sSSID));
         verify(mWifiConfigManager).updateNetworkSelectionStatus(anyInt(),
                 eq(WifiConfiguration.NetworkSelectionStatus.DISABLED_BY_WRONG_PASSWORD));
 
