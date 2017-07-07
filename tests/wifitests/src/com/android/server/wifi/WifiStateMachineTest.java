@@ -30,6 +30,7 @@ import static com.android.server.wifi.LocalOnlyHotspotRequestInfo.HOTSPOT_NO_ERR
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.*;
@@ -41,7 +42,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.UserInfo;
-import android.content.res.Resources;
 import android.net.ConnectivityManager;
 import android.net.DhcpResults;
 import android.net.LinkProperties;
@@ -80,6 +80,8 @@ import android.os.UserManager;
 import android.os.test.TestLooper;
 import android.provider.Settings;
 import android.security.KeyStore;
+import android.telephony.PhoneStateListener;
+import android.telephony.TelephonyManager;
 import android.test.mock.MockContentProvider;
 import android.test.mock.MockContentResolver;
 import android.test.suitebuilder.annotation.SmallTest;
@@ -202,9 +204,6 @@ public class WifiStateMachineTest {
         Context context = mock(Context.class);
         when(context.getPackageManager()).thenReturn(pkgMgr);
 
-        MockResources resources = new com.android.server.wifi.MockResources();
-        when(context.getResources()).thenReturn(resources);
-
         MockContentResolver mockContentResolver = new MockContentResolver();
         mockContentResolver.addProvider(Settings.AUTHORITY,
                 new MockContentProvider(context) {
@@ -228,9 +227,11 @@ public class WifiStateMachineTest {
         return context;
     }
 
-    private Resources getMockResources() {
+    private MockResources getMockResources() {
         MockResources resources = new MockResources();
         resources.setBoolean(R.bool.config_wifi_enable_wifi_firmware_debugging, false);
+        resources.setBoolean(
+                R.bool.config_wifi_framework_enable_voice_call_sar_tx_power_limit, false);
         return resources;
     }
 
@@ -310,7 +311,10 @@ public class WifiStateMachineTest {
     MockWifiMonitor mWifiMonitor;
     TestLooper mLooper;
     Context mContext;
+    MockResources mResources;
+    FrameworkFacade mFrameworkFacade;
     IpManager.Callback mIpManagerCallback;
+    PhoneStateListener mPhoneStateListener;
 
     final ArgumentCaptor<SoftApManager.Listener> mSoftApManagerListenerCaptor =
                     ArgumentCaptor.forClass(SoftApManager.Listener.class);
@@ -339,6 +343,7 @@ public class WifiStateMachineTest {
     @Mock PasspointManager mPasspointManager;
     @Mock SelfRecovery mSelfRecovery;
     @Mock IpManager mIpManager;
+    @Mock TelephonyManager mTelephonyManager;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -379,6 +384,7 @@ public class WifiStateMachineTest {
         when(mWifiInjector.getWifiMonitor()).thenReturn(mWifiMonitor);
         when(mWifiInjector.getWifiNative()).thenReturn(mWifiNative);
         when(mWifiInjector.getSelfRecovery()).thenReturn(mSelfRecovery);
+        when(mWifiInjector.makeTelephonyManager()).thenReturn(mTelephonyManager);
 
         when(mWifiNative.setupForClientMode())
                 .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mClientInterface));
@@ -391,21 +397,21 @@ public class WifiStateMachineTest {
         when(mWifiNative.getFrameworkNetworkId(anyInt())).thenReturn(0);
 
 
-        FrameworkFacade factory = getFrameworkFacade();
+        mFrameworkFacade = getFrameworkFacade();
         mContext = getContext();
 
-        Resources resources = getMockResources();
-        when(mContext.getResources()).thenReturn(resources);
+        mResources = getMockResources();
+        when(mContext.getResources()).thenReturn(mResources);
 
-        when(factory.getIntegerSetting(mContext,
+        when(mFrameworkFacade.getIntegerSetting(mContext,
                 Settings.Global.WIFI_FREQUENCY_BAND,
                 WifiManager.WIFI_FREQUENCY_BAND_AUTO)).thenReturn(
                 WifiManager.WIFI_FREQUENCY_BAND_AUTO);
 
-        when(factory.makeApConfigStore(eq(mContext), eq(mBackupManagerProxy)))
+        when(mFrameworkFacade.makeApConfigStore(eq(mContext), eq(mBackupManagerProxy)))
                 .thenReturn(mApConfigStore);
 
-        when(factory.makeSupplicantStateTracker(
+        when(mFrameworkFacade.makeSupplicantStateTracker(
                 any(Context.class), any(WifiConfigManager.class),
                 any(Handler.class))).thenReturn(mSupplicantStateTracker);
 
@@ -418,8 +424,19 @@ public class WifiStateMachineTest {
         when(mApInterface.asBinder()).thenReturn(mApInterfaceBinder);
         when(mClientInterface.asBinder()).thenReturn(mClientInterfaceBinder);
 
-        mWsm = new WifiStateMachine(mContext, factory, mLooper.getLooper(),
-            mUserManager, mWifiInjector, mBackupManagerProxy, mCountryCode, mWifiNative);
+        doAnswer(new AnswerWithArguments() {
+            public void answer(PhoneStateListener phoneStateListener, int events)
+                    throws Exception {
+                mPhoneStateListener = phoneStateListener;
+            }
+        }).when(mTelephonyManager).listen(any(PhoneStateListener.class), anyInt());
+
+        initializeWsm();
+    }
+
+    private void initializeWsm() throws Exception {
+        mWsm = new WifiStateMachine(mContext, mFrameworkFacade, mLooper.getLooper(),
+                mUserManager, mWifiInjector, mBackupManagerProxy, mCountryCode, mWifiNative);
         mWsmThread = getWsmHandlerThread(mWsm);
 
         final AsyncChannel channel = new AsyncChannel();
@@ -446,6 +463,10 @@ public class WifiStateMachineTest {
         /* Now channel is supposed to be connected */
 
         mBinderToken = Binder.clearCallingIdentity();
+
+        /* Send the BOOT_COMPLETED message to setup some WSM state. */
+        mWsm.sendMessage(WifiStateMachine.CMD_BOOT_COMPLETED);
+        mLooper.dispatchAll();
     }
 
     @After
@@ -1867,5 +1888,136 @@ public class WifiStateMachineTest {
 
         verify(mWifiNative).setupForClientMode();
         verify(mWifiMetrics).incrementNumWifiOnFailureDueToWificond();
+    }
+
+    /**
+     * Test that we don't register the telephony call state listener on devices which do not support
+     * setting/resetting Tx power limit.
+     */
+    @Test
+    public void testVoiceCallSar_disabledTxPowerLimit_WifiOn() throws Exception {
+        loadComponentsInStaMode();
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
+        assertEquals("DisconnectedState", getCurrentState().getName());
+        assertNull(mPhoneStateListener);
+    }
+
+    /**
+     * Test that we do register the telephony call state listener on devices which do support
+     * setting/resetting Tx power limit.
+     */
+    @Test
+    public void testVoiceCallSar_enabledTxPowerLimit_WifiOn() throws Exception {
+        mResources.setBoolean(
+                R.bool.config_wifi_framework_enable_voice_call_sar_tx_power_limit, true);
+        initializeWsm();
+
+        loadComponentsInStaMode();
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
+        assertEquals("DisconnectedState", getCurrentState().getName());
+        assertNotNull(mPhoneStateListener);
+    }
+
+    /**
+     * Test that we do register the telephony call state listener on devices which do support
+     * setting/resetting Tx power limit and set the tx power level if we're in state
+     * {@link TelephonyManager#CALL_STATE_OFFHOOK}.
+     */
+    @Test
+    public void testVoiceCallSar_enabledTxPowerLimitCallStateOffHook_WhenWifiTurnedOn()
+            throws Exception {
+        int powerLevelInDbm = -45;
+        mResources.setInteger(
+                R.integer.config_wifi_framework_voice_call_sar_tx_power_limit_in_dbm,
+                powerLevelInDbm);
+        mResources.setBoolean(
+                R.bool.config_wifi_framework_enable_voice_call_sar_tx_power_limit, true);
+        initializeWsm();
+
+        when(mTelephonyManager.isOffhook()).thenReturn(true);
+
+        loadComponentsInStaMode();
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
+        assertEquals("DisconnectedState", getCurrentState().getName());
+        assertNotNull(mPhoneStateListener);
+        verify(mWifiNative).setTxPowerLimit(eq(powerLevelInDbm));
+    }
+
+    /**
+     * Test that we do register the telephony call state listener on devices which do support
+     * setting/resetting Tx power limit and set the tx power level if we're in state
+     * {@link TelephonyManager#CALL_STATE_IDLE}.
+     */
+    @Test
+    public void testVoiceCallSar_enabledTxPowerLimitCallStateIdle_WhenWifiTurnedOn()
+            throws Exception {
+        mResources.setBoolean(
+                R.bool.config_wifi_framework_enable_voice_call_sar_tx_power_limit, true);
+        initializeWsm();
+
+        when(mTelephonyManager.isIdle()).thenReturn(true);
+
+        loadComponentsInStaMode();
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
+        assertEquals("DisconnectedState", getCurrentState().getName());
+        assertNotNull(mPhoneStateListener);
+        verify(mWifiNative).resetTxPowerLimit();
+    }
+
+    /**
+     * Test that we invoke the corresponding WifiNative method when
+     * {@link PhoneStateListener#onCallStateChanged(int, String)} is invoked with state
+     * {@link TelephonyManager#CALL_STATE_OFFHOOK}.
+     */
+    @Test
+    public void testVoiceCallSar_enabledTxPowerLimitCallStateOffHook_WhenWifiOn() throws Exception {
+        int powerLevelInDbm = -45;
+        mResources.setInteger(
+                R.integer.config_wifi_framework_voice_call_sar_tx_power_limit_in_dbm,
+                powerLevelInDbm);
+        testVoiceCallSar_enabledTxPowerLimit_WifiOn();
+
+        mPhoneStateListener.onCallStateChanged(TelephonyManager.CALL_STATE_OFFHOOK, "");
+        mLooper.dispatchAll();
+        verify(mWifiNative).setTxPowerLimit(eq(powerLevelInDbm));
+    }
+
+    /**
+     * Test that we invoke the corresponding WifiNative method when
+     * {@link PhoneStateListener#onCallStateChanged(int, String)} is invoked with state
+     * {@link TelephonyManager#CALL_STATE_IDLE}.
+     */
+    @Test
+    public void testVoiceCallSar_enabledTxPowerLimitCallStateIdle_WhenWifiOn() throws Exception {
+        testVoiceCallSar_enabledTxPowerLimit_WifiOn();
+
+        mPhoneStateListener.onCallStateChanged(TelephonyManager.CALL_STATE_IDLE, "");
+        mLooper.dispatchAll();
+        verify(mWifiNative).resetTxPowerLimit();
+    }
+
+    /**
+     * Test that we don't invoke the corresponding WifiNative method when
+     * {@link PhoneStateListener#onCallStateChanged(int, String)} is invoked with state
+     * {@link TelephonyManager#CALL_STATE_IDLE} or {@link TelephonyManager#CALL_STATE_OFFHOOK} when
+     * wifi is off (state machine is not in SupplicantStarted state).
+     */
+    @Test
+    public void testVoiceCallSar_enabledTxPowerLimitCallState_WhenWifiOff() throws Exception {
+        mResources.setBoolean(
+                R.bool.config_wifi_framework_enable_voice_call_sar_tx_power_limit, true);
+        initializeWsm();
+
+        mPhoneStateListener.onCallStateChanged(TelephonyManager.CALL_STATE_OFFHOOK, "");
+        mLooper.dispatchAll();
+        verify(mWifiNative, never()).setTxPowerLimit(anyInt());
+
+        mPhoneStateListener.onCallStateChanged(TelephonyManager.CALL_STATE_IDLE, "");
+        mLooper.dispatchAll();
+        verify(mWifiNative, never()).resetTxPowerLimit();
     }
 }
