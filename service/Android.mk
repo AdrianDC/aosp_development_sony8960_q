@@ -63,6 +63,7 @@ LOCAL_JAVA_LIBRARIES := \
 	services
 LOCAL_STATIC_JAVA_LIBRARIES := \
 	android.hardware.wifi-V1.0-java \
+	android.hardware.wifi-V1.1-java \
 	android.hardware.wifi.supplicant-V1.0-java
 LOCAL_REQUIRED_MODULES := services
 LOCAL_MODULE_TAGS :=
