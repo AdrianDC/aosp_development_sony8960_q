@@ -96,6 +96,7 @@ import android.provider.Settings;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
+import android.util.Pair;
 import android.util.SparseArray;
 
 import com.android.internal.R;
@@ -3721,6 +3722,17 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
     }
 
+    /**
+     * Helper function to increment the appropriate setup failure metrics.
+     */
+    private void incrementMetricsForSetupFailure(int failureReason) {
+        if (failureReason == WifiNative.SETUP_FAILURE_HAL) {
+            mWifiMetrics.incrementNumWifiOnFailureDueToHal();
+        } else if (failureReason == WifiNative.SETUP_FAILURE_WIFICOND) {
+            mWifiMetrics.incrementNumWifiOnFailureDueToWificond();
+        }
+    }
+
     /********************************************************
      * HSM states
      *******************************************************/
@@ -4075,7 +4087,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             logStateAndMessage(message, this);
             switch (message.what) {
                 case CMD_START_SUPPLICANT:
-                    mClientInterface = mWifiNative.setupForClientMode();
+                    Pair<Integer, IClientInterface> statusAndInterface =
+                            mWifiNative.setupForClientMode();
+                    if (statusAndInterface.first == WifiNative.SETUP_SUCCESS) {
+                        mClientInterface = statusAndInterface.second;
+                    } else {
+                        incrementMetricsForSetupFailure(statusAndInterface.first);
+                    }
                     if (mClientInterface == null
                             || !mDeathRecipient.linkToDeath(mClientInterface.asBinder())) {
                         setWifiState(WifiManager.WIFI_STATE_UNKNOWN);
@@ -6772,7 +6790,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             SoftApModeConfiguration config = (SoftApModeConfiguration) message.obj;
             mMode = config.getTargetMode();
 
-            IApInterface apInterface = mWifiNative.setupForSoftApMode();
+            IApInterface apInterface = null;
+            Pair<Integer, IApInterface> statusAndInterface = mWifiNative.setupForSoftApMode();
+            if (statusAndInterface.first == WifiNative.SETUP_SUCCESS) {
+                apInterface = statusAndInterface.second;
+            } else {
+                incrementMetricsForSetupFailure(statusAndInterface.first);
+            }
             if (apInterface == null) {
                 setWifiApState(WIFI_AP_STATE_FAILED,
                         WifiManager.SAP_START_FAILURE_GENERAL, null, mMode);
