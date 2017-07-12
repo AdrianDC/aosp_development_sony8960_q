@@ -262,55 +262,81 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                     break;
                 }
                 case WifiManager.CONNECT_NETWORK: {
-                    WifiConfiguration config = (WifiConfiguration) msg.obj;
-                    int networkId = msg.arg1;
-                    Slog.d("WiFiServiceImpl ", "CONNECT "
-                            + " nid=" + Integer.toString(networkId)
-                            + " uid=" + msg.sendingUid
-                            + " name="
-                            + mContext.getPackageManager().getNameForUid(msg.sendingUid));
-                    if (config != null) {
-                        if (DBG) Slog.d(TAG, "Connect with config " + config);
-                        /* Command is forwarded to state machine */
-                        mWifiStateMachine.sendMessage(Message.obtain(msg));
-                    } else if (config == null
-                            && networkId != WifiConfiguration.INVALID_NETWORK_ID) {
-                        if (DBG) Slog.d(TAG, "Connect with networkId " + networkId);
-                        mWifiStateMachine.sendMessage(Message.obtain(msg));
-                    } else {
-                        Slog.e(TAG, "ClientHandler.handleMessage ignoring invalid msg=" + msg);
-                        replyFailed(msg, WifiManager.CONNECT_NETWORK_FAILED,
-                                WifiManager.INVALID_ARGS);
+                    if (checkChangePermissionAndReplyIfNotAuthorized(
+                            msg, WifiManager.CONNECT_NETWORK_FAILED)) {
+                        WifiConfiguration config = (WifiConfiguration) msg.obj;
+                        int networkId = msg.arg1;
+                        Slog.d(TAG, "CONNECT "
+                                + " nid=" + Integer.toString(networkId)
+                                + " uid=" + msg.sendingUid
+                                + " name="
+                                + mContext.getPackageManager().getNameForUid(msg.sendingUid));
+                        if (config != null) {
+                            if (DBG) Slog.d(TAG, "Connect with config " + config);
+                            /* Command is forwarded to state machine */
+                            mWifiStateMachine.sendMessage(Message.obtain(msg));
+                        } else if (config == null
+                                && networkId != WifiConfiguration.INVALID_NETWORK_ID) {
+                            if (DBG) Slog.d(TAG, "Connect with networkId " + networkId);
+                            mWifiStateMachine.sendMessage(Message.obtain(msg));
+                        } else {
+                            Slog.e(TAG, "ClientHandler.handleMessage ignoring invalid msg=" + msg);
+                            replyFailed(msg, WifiManager.CONNECT_NETWORK_FAILED,
+                                    WifiManager.INVALID_ARGS);
+                        }
                     }
                     break;
                 }
                 case WifiManager.SAVE_NETWORK: {
-                    WifiConfiguration config = (WifiConfiguration) msg.obj;
-                    int networkId = msg.arg1;
-                    Slog.d("WiFiServiceImpl ", "SAVE"
-                            + " nid=" + Integer.toString(networkId)
-                            + " uid=" + msg.sendingUid
-                            + " name="
-                            + mContext.getPackageManager().getNameForUid(msg.sendingUid));
-                    if (config != null) {
-                        if (DBG) Slog.d(TAG, "Save network with config " + config);
-                        /* Command is forwarded to state machine */
-                        mWifiStateMachine.sendMessage(Message.obtain(msg));
-                    } else {
-                        Slog.e(TAG, "ClientHandler.handleMessage ignoring invalid msg=" + msg);
-                        replyFailed(msg, WifiManager.SAVE_NETWORK_FAILED,
-                                WifiManager.INVALID_ARGS);
+                    if (checkChangePermissionAndReplyIfNotAuthorized(
+                            msg, WifiManager.SAVE_NETWORK_FAILED)) {
+                        WifiConfiguration config = (WifiConfiguration) msg.obj;
+                        int networkId = msg.arg1;
+                        Slog.d(TAG, "SAVE"
+                                + " nid=" + Integer.toString(networkId)
+                                + " uid=" + msg.sendingUid
+                                + " name="
+                                + mContext.getPackageManager().getNameForUid(msg.sendingUid));
+                        if (config != null) {
+                            if (DBG) Slog.d(TAG, "Save network with config " + config);
+                            /* Command is forwarded to state machine */
+                            mWifiStateMachine.sendMessage(Message.obtain(msg));
+                        } else {
+                            Slog.e(TAG, "ClientHandler.handleMessage ignoring invalid msg=" + msg);
+                            replyFailed(msg, WifiManager.SAVE_NETWORK_FAILED,
+                                    WifiManager.INVALID_ARGS);
+                        }
                     }
                     break;
                 }
                 case WifiManager.FORGET_NETWORK:
-                    mWifiStateMachine.sendMessage(Message.obtain(msg));
+                    if (checkChangePermissionAndReplyIfNotAuthorized(
+                            msg, WifiManager.FORGET_NETWORK_FAILED)) {
+                        mWifiStateMachine.sendMessage(Message.obtain(msg));
+                    }
                     break;
                 case WifiManager.START_WPS:
+                    if (checkChangePermissionAndReplyIfNotAuthorized(msg, WifiManager.WPS_FAILED)) {
+                        mWifiStateMachine.sendMessage(Message.obtain(msg));
+                    }
+                    break;
                 case WifiManager.CANCEL_WPS:
+                    if (checkChangePermissionAndReplyIfNotAuthorized(
+                            msg, WifiManager.CANCEL_WPS_FAILED)) {
+                        mWifiStateMachine.sendMessage(Message.obtain(msg));
+                    }
+                    break;
                 case WifiManager.DISABLE_NETWORK:
+                    if (checkChangePermissionAndReplyIfNotAuthorized(
+                            msg, WifiManager.DISABLE_NETWORK_FAILED)) {
+                        mWifiStateMachine.sendMessage(Message.obtain(msg));
+                    }
+                    break;
                 case WifiManager.RSSI_PKTCNT_FETCH: {
-                    mWifiStateMachine.sendMessage(Message.obtain(msg));
+                    if (checkChangePermissionAndReplyIfNotAuthorized(
+                            msg, WifiManager.RSSI_PKTCNT_FETCH_FAILED)) {
+                        mWifiStateMachine.sendMessage(Message.obtain(msg));
+                    }
                     break;
                 }
                 default: {
@@ -318,6 +344,25 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                     break;
                 }
             }
+        }
+
+        /**
+         * Helper method to check if the sender of the message holds the
+         * {@link Manifest.permission#CHANGE_WIFI_STATE} permission, and reply with a failure if it
+         * doesn't
+         *
+         * @param msg Incoming message.
+         * @param replyWhat Param to be filled in the {@link Message#what} field of the failure
+         *                  reply.
+         * @return true if the sender holds the permission, false otherwise.
+         */
+        private boolean checkChangePermissionAndReplyIfNotAuthorized(Message msg, int replyWhat) {
+            if (!mWifiPermissionsUtil.checkChangePermission(msg.sendingUid)) {
+                Slog.e(TAG, "ClientHandler.handleMessage ignoring unauthorized msg=" + msg);
+                replyFailed(msg, replyWhat, WifiManager.NOT_AUTHORIZED);
+                return false;
+            }
+            return true;
         }
 
         private void replyFailed(Message msg, int what, int why) {
