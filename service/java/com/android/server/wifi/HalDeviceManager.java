@@ -170,7 +170,7 @@ public class HalDeviceManager {
      *
      * @return A set of IfaceTypes constants (possibly empty, e.g. on error).
      */
-    Set<Integer> getSupportedIfaceTypes() {
+    public Set<Integer> getSupportedIfaceTypes() {
         return getSupportedIfaceTypesInternal(null);
     }
 
@@ -179,7 +179,7 @@ public class HalDeviceManager {
      *
      * @return A set of IfaceTypes constants  (possibly empty, e.g. on error).
      */
-    Set<Integer> getSupportedIfaceTypes(IWifiChip chip) {
+    public Set<Integer> getSupportedIfaceTypes(IWifiChip chip) {
         return getSupportedIfaceTypesInternal(chip);
     }
 
