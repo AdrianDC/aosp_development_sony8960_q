@@ -778,9 +778,35 @@ public class WifiVendorHal {
     }
 
     /**
+     * Translation table used by getSupportedFeatureSet for translating IWifiChip caps
+     */
+    private static final int[][] sChipFeatureCapabilityTranslation = {
+            {WifiManager.WIFI_FEATURE_TX_POWER_LIMIT,
+                    android.hardware.wifi.V1_1.IWifiChip.ChipCapabilityMask.SET_TX_POWER_LIMIT
+            },
+    };
+
+    /**
+     * Feature bit mask translation for Chip
+     *
+     * @param capabilities bitmask defined IWifiChip.ChipCapabilityMask
+     * @return bitmask defined by WifiManager.WIFI_FEATURE_*
+     */
+    @VisibleForTesting
+    int wifiFeatureMaskFromChipCapabilities(int capabilities) {
+        int features = 0;
+        for (int i = 0; i < sChipFeatureCapabilityTranslation.length; i++) {
+            if ((capabilities & sChipFeatureCapabilityTranslation[i][1]) != 0) {
+                features |= sChipFeatureCapabilityTranslation[i][0];
+            }
+        }
+        return features;
+    }
+
+    /**
      * Translation table used by getSupportedFeatureSet for translating IWifiStaIface caps
      */
-    private static final int[][] sFeatureCapabilityTranslation = {
+    private static final int[][] sStaFeatureCapabilityTranslation = {
             {WifiManager.WIFI_FEATURE_INFRA_5G,
                     IWifiStaIface.StaIfaceCapabilityMask.STA_5G
             },
@@ -831,9 +857,9 @@ public class WifiVendorHal {
     @VisibleForTesting
     int wifiFeatureMaskFromStaCapabilities(int capabilities) {
         int features = 0;
-        for (int i = 0; i < sFeatureCapabilityTranslation.length; i++) {
-            if ((capabilities & sFeatureCapabilityTranslation[i][1]) != 0) {
-                features |= sFeatureCapabilityTranslation[i][0];
+        for (int i = 0; i < sStaFeatureCapabilityTranslation.length; i++) {
+            if ((capabilities & sStaFeatureCapabilityTranslation[i][1]) != 0) {
+                features |= sStaFeatureCapabilityTranslation[i][0];
             }
         }
         return features;
@@ -854,10 +880,16 @@ public class WifiVendorHal {
         try {
             final MutableInt feat = new MutableInt(0);
             synchronized (sLock) {
+                if (mIWifiChip != null) {
+                    mIWifiChip.getCapabilities((status, capabilities) -> {
+                        if (!ok(status)) return;
+                        feat.value = wifiFeatureMaskFromChipCapabilities(capabilities);
+                    });
+                }
                 if (mIWifiStaIface != null) {
                     mIWifiStaIface.getCapabilities((status, capabilities) -> {
                         if (!ok(status)) return;
-                        feat.value = wifiFeatureMaskFromStaCapabilities(capabilities);
+                        feat.value |= wifiFeatureMaskFromStaCapabilities(capabilities);
                     });
                 }
             }
@@ -2315,6 +2347,60 @@ public class WifiVendorHal {
                 return false;
             } catch (IllegalArgumentException e) {
                 mLog.err("Illegal argument for roaming configuration").c(e.toString()).flush();
+                return false;
+            }
+            return true;
+        }
+    }
+
+    /**
+     * Method to mock out the V1_1 IWifiChip retrieval in unit tests.
+     *
+     * @return 1.1 IWifiChip object if the device is running the 1.1 wifi hal service, null
+     * otherwise.
+     */
+    protected android.hardware.wifi.V1_1.IWifiChip getWifiChipForV1_1Mockable() {
+        if (mIWifiChip == null) return null;
+        return android.hardware.wifi.V1_1.IWifiChip.castFrom(mIWifiChip);
+    }
+
+    /**
+     * Set the TX power limit.
+     * Primarily used for meeting SAR requirements during voice calls.
+     *
+     * @param powerLevelInDbm Power level to set in dBm.
+     * @return true for success; false for failure or if the HAL version does not support this API.
+     */
+    public boolean setTxPowerLimit(int powerLevelInDbm) {
+        synchronized (sLock) {
+            try {
+                android.hardware.wifi.V1_1.IWifiChip iWifiChipV11 = getWifiChipForV1_1Mockable();
+                if (iWifiChipV11 == null) return boolResult(false);
+                WifiStatus status = iWifiChipV11.setTxPowerLimit(powerLevelInDbm);
+                if (!ok(status)) return false;
+            } catch (RemoteException e) {
+                handleRemoteException(e);
+                return false;
+            }
+            return true;
+        }
+    }
+
+    /**
+     * Reset the TX power limit.
+     * Primarily used for meeting SAR requirements during voice calls.
+     *
+     * @return true for success; false for failure or if the HAL version does not support this API.
+     */
+    public boolean resetTxPowerLimit() {
+        synchronized (sLock) {
+            try {
+                android.hardware.wifi.V1_1.IWifiChip iWifiChipV11 = getWifiChipForV1_1Mockable();
+                if (iWifiChipV11 == null) return boolResult(false);
+                WifiStatus status = iWifiChipV11.resetTxPowerLimit();
+                if (!ok(status)) return false;
+            } catch (RemoteException e) {
+                handleRemoteException(e);
                 return false;
             }
             return true;
