@@ -29,6 +29,7 @@ import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiWakeReasonAndCounts;
 import android.os.SystemClock;
 import android.util.Log;
+import android.util.Pair;
 import android.util.SparseArray;
 
 import com.android.internal.annotations.Immutable;
@@ -90,6 +91,9 @@ public class WifiNative {
    /********************************************************
     * Native Initialization/Deinitialization
     ********************************************************/
+    public static final int SETUP_SUCCESS = 0;
+    public static final int SETUP_FAILURE_HAL = 1;
+    public static final int SETUP_FAILURE_WIFICOND = 2;
 
    /**
     * Setup wifi native for Client mode operations.
@@ -98,15 +102,19 @@ public class WifiNative {
     * 2. Setup Wificond to operate in client mode and retrieve the handle to use for client
     * operations.
     *
-    * @return An IClientInterface as wificond client interface binder handler.
-    * Returns null on failure.
+    * @return Pair of <Integer, IClientInterface> to indicate the status and the associated wificond
+    * client interface binder handler (will be null on failure).
     */
-    public IClientInterface setupForClientMode() {
+    public Pair<Integer, IClientInterface> setupForClientMode() {
         if (!startHalIfNecessary(true)) {
             Log.e(mTAG, "Failed to start HAL for client mode");
-            return null;
+            return Pair.create(SETUP_FAILURE_HAL, null);
         }
-        return mWificondControl.setupDriverForClientMode();
+        IClientInterface iClientInterface = mWificondControl.setupDriverForClientMode();
+        if (iClientInterface == null) {
+            return Pair.create(SETUP_FAILURE_WIFICOND, null);
+        }
+        return Pair.create(SETUP_SUCCESS, iClientInterface);
     }
 
     /**
@@ -115,15 +123,19 @@ public class WifiNative {
      * 1. Starts the Wifi HAL and configures it in AP mode.
      * 2. Setup Wificond to operate in AP mode and retrieve the handle to use for ap operations.
      *
-     * @return An IApInterface as wificond Ap interface binder handler.
-     * Returns null on failure.
+     * @return Pair of <Integer, IApInterface> to indicate the status and the associated wificond
+     * AP interface binder handler (will be null on failure).
      */
-    public IApInterface setupForSoftApMode() {
+    public Pair<Integer, IApInterface> setupForSoftApMode() {
         if (!startHalIfNecessary(false)) {
             Log.e(mTAG, "Failed to start HAL for AP mode");
-            return null;
+            return Pair.create(SETUP_FAILURE_HAL, null);
         }
-        return mWificondControl.setupDriverForSoftApMode();
+        IApInterface iApInterface = mWificondControl.setupDriverForSoftApMode();
+        if (iApInterface == null) {
+            return Pair.create(SETUP_FAILURE_WIFICOND, null);
+        }
+        return Pair.create(SETUP_SUCCESS, iApInterface);
     }
 
     /**
