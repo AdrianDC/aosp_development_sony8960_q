@@ -4727,6 +4727,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             mWifiConfigManager.updateNetworkAfterConnect(mLastNetworkId);
             // On connect, reset wifiScoreReport
             mWifiScoreReport.reset();
+
+            // Notify PasspointManager of Passpoint network connected event.
+            WifiConfiguration currentNetwork = getCurrentWifiConfiguration();
+            if (currentNetwork.isPasspoint()) {
+                mPasspointManager.onPasspointNetworkConnected(currentNetwork.FQDN);
+            }
        }
     }
 
@@ -7009,6 +7015,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      */
     public void updateWifiMetrics() {
         mWifiMetrics.updateSavedNetworks(mWifiConfigManager.getSavedNetworks());
+        mPasspointManager.updateMetrics();
     }
 
     /**
