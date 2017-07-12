@@ -84,6 +84,7 @@ import android.test.mock.MockContentProvider;
 import android.test.mock.MockContentResolver;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Log;
+import android.util.Pair;
 import android.util.SparseArray;
 
 import com.android.internal.R;
@@ -379,8 +380,10 @@ public class WifiStateMachineTest {
         when(mWifiInjector.getWifiNative()).thenReturn(mWifiNative);
         when(mWifiInjector.getSelfRecovery()).thenReturn(mSelfRecovery);
 
-        when(mWifiNative.setupForClientMode()).thenReturn(mClientInterface);
-        when(mWifiNative.setupForSoftApMode()).thenReturn(mApInterface);
+        when(mWifiNative.setupForClientMode())
+                .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mClientInterface));
+        when(mWifiNative.setupForSoftApMode())
+                .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mApInterface));
         when(mApInterface.getInterfaceName()).thenReturn(WIFI_IFACE_NAME);
         when(mWifiNative.getInterfaceName()).thenReturn(WIFI_IFACE_NAME);
         when(mWifiNative.enableSupplicant()).thenReturn(true);
@@ -501,6 +504,7 @@ public class WifiStateMachineTest {
 
         assertEquals("SoftApState", getCurrentState().getName());
 
+        verify(mWifiNative).setupForSoftApMode();
         verify(mSoftApManager).start();
 
         // reset expectations for mContext due to previously sent AP broadcast
@@ -1793,5 +1797,75 @@ public class WifiStateMachineTest {
         boolean succeeded = mWsm.syncDisableNetwork(mWsmAsyncChannel, 0);
         mLooper.stopAutoDispatch();
         assertFalse(succeeded);
+    }
+
+    /**
+     * Test that failure to start HAL in AP mode increments the corresponding metrics.
+     */
+    @Test
+    public void testSetupForSoftApModeHalFailureIncrementsMetrics() throws Exception {
+        when(mWifiNative.setupForSoftApMode())
+                .thenReturn(Pair.create(WifiNative.SETUP_FAILURE_HAL, null));
+
+        SoftApModeConfiguration config = new SoftApModeConfiguration(
+                WifiManager.IFACE_IP_MODE_TETHERED, new WifiConfiguration());
+        mWsm.setHostApRunning(config, true);
+        mLooper.dispatchAll();
+
+        verify(mWifiNative).setupForSoftApMode();
+        verify(mWifiMetrics).incrementNumWifiOnFailureDueToHal();
+    }
+
+    /**
+     * Test that failure to start HAL in AP mode increments the corresponding metrics.
+     */
+    @Test
+    public void testSetupForSoftApModeWificondFailureIncrementsMetrics() throws Exception {
+        when(mWifiNative.setupForSoftApMode())
+                .thenReturn(Pair.create(WifiNative.SETUP_FAILURE_WIFICOND, null));
+
+        SoftApModeConfiguration config = new SoftApModeConfiguration(
+                WifiManager.IFACE_IP_MODE_TETHERED, new WifiConfiguration());
+        mWsm.setHostApRunning(config, true);
+        mLooper.dispatchAll();
+
+        verify(mWifiNative).setupForSoftApMode();
+        verify(mWifiMetrics).incrementNumWifiOnFailureDueToWificond();
+    }
+
+    /**
+     * Test that failure to start HAL in client mode increments the corresponding metrics.
+     */
+    @Test
+    public void testSetupForClientModeHalFailureIncrementsMetrics() throws Exception {
+        when(mWifiNative.setupForClientMode())
+                .thenReturn(Pair.create(WifiNative.SETUP_FAILURE_HAL, null));
+
+        mWsm.setSupplicantRunning(true);
+        mLooper.dispatchAll();
+
+        mWsm.sendMessage(WifiMonitor.SUP_CONNECTION_EVENT);
+        mLooper.dispatchAll();
+
+        verify(mWifiNative).setupForClientMode();
+        verify(mWifiMetrics).incrementNumWifiOnFailureDueToHal();
+    }
+
+    /**
+     * Test that failure to start HAL in client mode increments the corresponding metrics.
+     */
+    @Test
+    public void testSetupForClientModeWificondFailureIncrementsMetrics() throws Exception {
+        when(mWifiNative.setupForClientMode())
+                .thenReturn(Pair.create(WifiNative.SETUP_FAILURE_WIFICOND, null));
+
+        mWsm.setSupplicantRunning(true);
+        mLooper.dispatchAll();
+
+        mWsm.sendMessage(WifiMonitor.SUP_CONNECTION_EVENT);
+        mLooper.dispatchAll();
+
+        verify(mWifiNative).setupForClientMode();
+        verify(mWifiMetrics).incrementNumWifiOnFailureDueToWificond();
     }
 }
