@@ -758,12 +758,12 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
                     capabilities.supportedCipherSuites);
             req.securityConfig.securityType = NanDataPathSecurityType.PASSPHRASE;
             convertNativeByteArrayToArrayList(passphrase.getBytes(), req.securityConfig.passphrase);
+        }
 
-            if (isOutOfBand) { // only relevant when using passphrase
-                convertNativeByteArrayToArrayList(
-                        SERVICE_NAME_FOR_OOB_DATA_PATH.getBytes(StandardCharsets.UTF_8),
-                        req.serviceNameOutOfBand);
-            }
+        if (req.securityConfig.securityType != NanDataPathSecurityType.OPEN && isOutOfBand) {
+            convertNativeByteArrayToArrayList(
+                    SERVICE_NAME_FOR_OOB_DATA_PATH.getBytes(StandardCharsets.UTF_8),
+                    req.serviceNameOutOfBand);
         }
 
         try {
@@ -831,12 +831,12 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
                     capabilities.supportedCipherSuites);
             req.securityConfig.securityType = NanDataPathSecurityType.PASSPHRASE;
             convertNativeByteArrayToArrayList(passphrase.getBytes(), req.securityConfig.passphrase);
+        }
 
-            if (isOutOfBand) { // only relevant when using passphrase
-                convertNativeByteArrayToArrayList(
-                        SERVICE_NAME_FOR_OOB_DATA_PATH.getBytes(StandardCharsets.UTF_8),
-                        req.serviceNameOutOfBand);
-            }
+        if (req.securityConfig.securityType != NanDataPathSecurityType.OPEN && isOutOfBand) {
+            convertNativeByteArrayToArrayList(
+                    SERVICE_NAME_FOR_OOB_DATA_PATH.getBytes(StandardCharsets.UTF_8),
+                    req.serviceNameOutOfBand);
         }
 
         try {
