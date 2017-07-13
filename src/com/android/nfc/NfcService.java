@@ -2353,7 +2353,7 @@ public class NfcService implements DeviceHostListener {
                 mCardEmulationManager.dump(fd, pw, args);
             }
             mNfcDispatcher.dump(fd, pw, args);
-            pw.println(mDeviceHost.dump());
+            mDeviceHost.dump(fd);
         }
     }
 }
