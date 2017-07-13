@@ -635,6 +635,14 @@ public class WifiAwareDataPathStateManager {
                         + " - can't parse network specifier");
                 return false;
             }
+
+            // TODO (b/63635780) support more then a single concurrent NDP
+            if (mNetworkRequestsCache.size() > 0) {
+                Log.e(TAG, "WifiAwareNetworkFactory.acceptRequest: request=" + request
+                        + " - >1 concurrent NDPs aren't supported (yet).");
+                return false;
+            }
+
             mNetworkRequestsCache.put(networkSpecifier, nnri);
 
             return true;

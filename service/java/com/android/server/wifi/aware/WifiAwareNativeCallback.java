@@ -167,6 +167,11 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub imp
                     capabilities.maxSubscribeInterfaceAddresses;
             frameworkCapabilities.supportedCipherSuites = capabilities.supportedCipherSuites;
 
+            // TODO (b/63635780, b/63635857): enable framework support of >1 NDI and >1 NDP per NDI
+            // Until then: force corresponding capabilities to 1.
+            frameworkCapabilities.maxNdiInterfaces = 1;
+            frameworkCapabilities.maxNdpSessions = 1;
+
             mWifiAwareStateManager.onCapabilitiesUpdateResponse(id, frameworkCapabilities);
         } else {
             Log.e(TAG, "notifyCapabilitiesResponse: error code=" + status.status + " ("
