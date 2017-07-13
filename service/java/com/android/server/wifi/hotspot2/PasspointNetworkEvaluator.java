@@ -115,6 +115,13 @@ public class PasspointNetworkEvaluator implements WifiNetworkSelector.NetworkEva
         if (currentNetwork != null && TextUtils.equals(currentNetwork.SSID,
                 ScanResultUtil.createQuotedSSID(bestNetwork.mScanDetail.getSSID()))) {
             localLog("Staying with current Passpoint network " + currentNetwork.SSID);
+
+            // Update current network with the latest scan info.
+            mWifiConfigManager.setNetworkCandidateScanResult(currentNetwork.networkId,
+                    bestNetwork.mScanDetail.getScanResult(), 0);
+            mWifiConfigManager.updateScanDetailForNetwork(currentNetwork.networkId,
+                    bestNetwork.mScanDetail);
+
             connectableNetworks.add(Pair.create(bestNetwork.mScanDetail, currentNetwork));
             return currentNetwork;
         }
