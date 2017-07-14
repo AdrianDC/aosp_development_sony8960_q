@@ -769,6 +769,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private static final int SUSPEND_DUE_TO_HIGH_PERF = 1 << 1;
     private static final int SUSPEND_DUE_TO_SCREEN = 1 << 2;
 
+    /**
+     * Time window in milliseconds for which we send
+     * {@link NetworkAgent#explicitlySelected(boolean)}
+     * after connecting to the network which the user last selected.
+     */
+    @VisibleForTesting
+    public static final int LAST_SELECTED_NETWORK_EXPIRATION_AGE_MILLIS = 30 * 1000;
+
     /* Tracks if user has enabled suspend optimizations through settings */
     private AtomicBoolean mUserWantsSuspendOpt = new AtomicBoolean(true);
 
@@ -6077,13 +6085,29 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
     }
 
+    /**
+     * Helper function to check if we need to invoke
+     * {@link NetworkAgent#explicitlySelected(boolean)} to indicate that we connected to a network
+     * which the user just chose
+     * (i.e less than {@link #LAST_SELECTED_NETWORK_EXPIRATION_AGE_MILLIS) before).
+     */
+    @VisibleForTesting
+    public boolean shouldEvaluateWhetherToSendExplicitlySelected(WifiConfiguration currentConfig) {
+        if (currentConfig == null) {
+            Log.wtf(TAG, "Current WifiConfiguration is null, but IP provisioning just succeeded");
+            return false;
+        }
+        long currentTimeMillis = mClock.getElapsedSinceBootMillis();
+        return (mWifiConfigManager.getLastSelectedNetwork() == currentConfig.networkId
+                && currentTimeMillis - mWifiConfigManager.getLastSelectedTimeStamp()
+                < LAST_SELECTED_NETWORK_EXPIRATION_AGE_MILLIS);
+    }
+
     private void sendConnectedState() {
         // If this network was explicitly selected by the user, evaluate whether to call
         // explicitlySelected() so the system can treat it appropriately.
         WifiConfiguration config = getCurrentWifiConfiguration();
-        if (config == null) {
-            Log.wtf(TAG, "Current WifiConfiguration is null, but IP provisioning just succeeded");
-        } else if (mWifiConfigManager.getLastSelectedNetwork() == config.networkId) {
+        if (shouldEvaluateWhetherToSendExplicitlySelected(config)) {
             boolean prompt =
                     mWifiPermissionsUtil.checkConfigOverridePermission(config.lastConnectUid);
             if (mVerboseLoggingEnabled) {
