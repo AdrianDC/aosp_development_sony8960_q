@@ -342,9 +342,17 @@ public class WifiAwareDataPathStateManager {
             return null;
         }
 
+        nnri.interfaceName = selectInterfaceForRequest(nnri);
+        if (nnri.interfaceName == null) {
+            Log.w(TAG,
+                    "onDataPathRequest: request " + networkSpecifier + " no interface available");
+            mMgr.respondToDataPathRequest(false, ndpId, "", null, null, false);
+            mNetworkRequestsCache.remove(networkSpecifier);
+            return null;
+        }
+
         nnri.state = AwareNetworkRequestInformation.STATE_RESPONDER_WAIT_FOR_RESPOND_RESPONSE;
         nnri.ndpId = ndpId;
-        nnri.interfaceName = selectInterfaceForRequest(nnri);
         nnri.startTimestamp = SystemClock.elapsedRealtime();
         mMgr.respondToDataPathRequest(true, ndpId, nnri.interfaceName, nnri.networkSpecifier.pmk,
                 nnri.networkSpecifier.passphrase, nnri.networkSpecifier.isOutOfBand());
@@ -681,6 +689,13 @@ public class WifiAwareDataPathStateManager {
                 }
 
                 nnri.interfaceName = selectInterfaceForRequest(nnri);
+                if (nnri.interfaceName == null) {
+                    Log.w(TAG, "needNetworkFor: request " + networkSpecifier
+                            + " no interface available");
+                    mNetworkRequestsCache.remove(networkSpecifier);
+                    return;
+                }
+
                 mMgr.initiateDataPathSetup(networkSpecifier, nnri.peerInstanceId,
                         NanDataPathChannelCfg.CHANNEL_NOT_REQUESTED, selectChannelForRequest(nnri),
                         nnri.peerDiscoveryMac, nnri.interfaceName, nnri.networkSpecifier.pmk,
@@ -819,7 +834,7 @@ public class WifiAwareDataPathStateManager {
 
         Log.e(TAG, "selectInterfaceForRequest: req=" + req + " - but no interfaces available!");
 
-        return "";
+        return null;
     }
 
     /**
