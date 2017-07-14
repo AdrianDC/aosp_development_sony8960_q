@@ -48,6 +48,7 @@ import com.android.internal.util.MessageUtils;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 import com.android.internal.util.WakeupMessage;
+import com.android.server.wifi.util.NativeUtil;
 import com.android.server.wifi.util.WifiPermissionsWrapper;
 
 import libcore.util.HexEncoding;
@@ -2332,10 +2333,13 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         for (RttManager.RttParams param : params) {
             String peerIdStr = param.bssid;
             try {
-                param.bssid = session.getMac(Integer.parseInt(peerIdStr), ":");
-                if (param.bssid == null) {
+                WifiAwareDiscoverySessionState.PeerInfo peerInfo = session.getPeerInfo(
+                        Integer.parseInt(peerIdStr));
+                if (peerInfo == null || peerInfo.mMac == null) {
                     Log.d(TAG, "startRangingLocal: no MAC address for peer ID=" + peerIdStr);
                     param.bssid = "";
+                } else {
+                    param.bssid = NativeUtil.macAddressFromByteArray(peerInfo.mMac);
                 }
             } catch (NumberFormatException e) {
                 Log.e(TAG, "startRangingLocal: invalid peer ID specification (in bssid field): '"
