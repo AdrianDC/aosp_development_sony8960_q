@@ -635,6 +635,14 @@ public class WifiAwareDataPathStateManager {
                         + " - can't parse network specifier");
                 return false;
             }
+
+            // TODO (b/63635780) support more then a single concurrent NDP
+            if (mNetworkRequestsCache.size() > 0) {
+                Log.e(TAG, "WifiAwareNetworkFactory.acceptRequest: request=" + request
+                        + " - >1 concurrent NDPs aren't supported (yet).");
+                return false;
+            }
+
             mNetworkRequestsCache.put(networkSpecifier, nnri);
 
             return true;
@@ -673,7 +681,7 @@ public class WifiAwareDataPathStateManager {
                 }
 
                 nnri.interfaceName = selectInterfaceForRequest(nnri);
-                mMgr.initiateDataPathSetup(networkSpecifier, nnri.networkSpecifier.peerId,
+                mMgr.initiateDataPathSetup(networkSpecifier, nnri.peerInstanceId,
                         NanDataPathChannelCfg.CHANNEL_NOT_REQUESTED, selectChannelForRequest(nnri),
                         nnri.peerDiscoveryMac, nnri.interfaceName, nnri.networkSpecifier.pmk,
                         nnri.networkSpecifier.passphrase, nnri.networkSpecifier.isOutOfBand());
@@ -846,6 +854,7 @@ public class WifiAwareDataPathStateManager {
         public int uid;
         public String interfaceName;
         public int pubSubId = 0;
+        public int peerInstanceId = 0;
         public byte[] peerDiscoveryMac = null;
         public int ndpId;
         public byte[] peerDataMac;
@@ -857,6 +866,7 @@ public class WifiAwareDataPathStateManager {
         static AwareNetworkRequestInformation processNetworkSpecifier(WifiAwareNetworkSpecifier ns,
                 WifiAwareStateManager mgr, WifiPermissionsWrapper permissionWrapper) {
             int uid, pubSubId = 0;
+            int peerInstanceId = 0;
             byte[] peerMac = ns.peerMac;
 
             if (VDBG) {
@@ -919,15 +929,17 @@ public class WifiAwareDataPathStateManager {
 
                 if (ns.type == WifiAwareNetworkSpecifier.NETWORK_SPECIFIER_TYPE_IB) {
                     pubSubId = session.getPubSubId();
-                    String peerMacStr = session.getMac(ns.peerId, null);
-                    if (peerMacStr == null) {
+                    WifiAwareDiscoverySessionState.PeerInfo peerInfo = session.getPeerInfo(
+                            ns.peerId);
+                    if (peerInfo == null) {
                         Log.e(TAG, "processNetworkSpecifier: networkSpecifier=" + ns
-                                + " -- no MAC address associated with this peer id -- peerId="
+                                + " -- no peer info associated with this peer id -- peerId="
                                 + ns.peerId);
                         return null;
                     }
+                    peerInstanceId = peerInfo.mInstanceId;
                     try {
-                        peerMac = HexEncoding.decode(peerMacStr.toCharArray(), false);
+                        peerMac = peerInfo.mMac;
                         if (peerMac == null || peerMac.length != 6) {
                             Log.e(TAG, "processNetworkSpecifier: networkSpecifier="
                                     + ns + " -- invalid peer MAC address");
@@ -979,6 +991,7 @@ public class WifiAwareDataPathStateManager {
                     : AwareNetworkRequestInformation.STATE_RESPONDER_IDLE;
             nnri.uid = uid;
             nnri.pubSubId = pubSubId;
+            nnri.peerInstanceId = peerInstanceId;
             nnri.peerDiscoveryMac = peerMac;
             nnri.networkSpecifier = ns;
 
@@ -990,7 +1003,8 @@ public class WifiAwareDataPathStateManager {
             StringBuilder sb = new StringBuilder("AwareNetworkRequestInformation: ");
             sb.append("state=").append(state).append(", ns=").append(networkSpecifier).append(
                     ", uid=").append(uid).append(", interfaceName=").append(interfaceName).append(
-                    ", pubSubId=").append(pubSubId).append(", peerDiscoveryMac=").append(
+                    ", pubSubId=").append(pubSubId).append(", peerInstanceId=").append(
+                    peerInstanceId).append(", peerDiscoveryMac=").append(
                     peerDiscoveryMac == null ? ""
                             : String.valueOf(HexEncoding.encode(peerDiscoveryMac))).append(
                     ", ndpId=").append(ndpId).append(", peerDataMac=").append(
