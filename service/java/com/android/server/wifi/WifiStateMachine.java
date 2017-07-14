@@ -278,7 +278,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 // the rssi thresholds and raised event to host. This would be eggregious if this
                 // value is invalid
                 mWifiInfo.setRssi(curRssi);
-                updateCapabilities(getCurrentWifiConfiguration());
+                updateCapabilities();
                 int ret = startRssiMonitoringOffload(maxRssi, minRssi);
                 Log.d(TAG, "Re-program RSSI thresholds for " + smToString(reason) +
                         ": [" + minRssi + ", " + maxRssi + "], curRssi=" + curRssi + " ret=" + ret);
@@ -2971,13 +2971,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
              */
             int newSignalLevel = WifiManager.calculateSignalLevel(newRssi, WifiManager.RSSI_LEVELS);
             if (newSignalLevel != mLastSignalLevel) {
-                updateCapabilities(getCurrentWifiConfiguration());
+                updateCapabilities();
                 sendRssiChangeBroadcast(newRssi);
             }
             mLastSignalLevel = newSignalLevel;
         } else {
             mWifiInfo.setRssi(WifiInfo.INVALID_RSSI);
-            updateCapabilities(getCurrentWifiConfiguration());
+            updateCapabilities();
         }
 
         if (newLinkSpeed != null) {
@@ -3251,12 +3251,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
 
         mWifiInfo.setBSSID(stateChangeResult.BSSID);
-
         mWifiInfo.setSSID(stateChangeResult.wifiSsid);
-        WifiConfiguration config = getCurrentWifiConfiguration();
+
+        final WifiConfiguration config = getCurrentWifiConfiguration();
         if (config != null) {
-            // Set meteredHint to true if the access network type of the connecting/connected AP
-            // is a chargeable public network.
+            mWifiInfo.setEphemeral(config.ephemeral);
+
+            // Set meteredHint if scan result says network is expensive
             ScanDetailCache scanDetailCache = mWifiConfigManager.getScanDetailCacheForNetwork(
                     config.networkId);
             if (scanDetailCache != null) {
@@ -3269,15 +3270,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                 }
             }
-
-            mWifiInfo.setEphemeral(config.ephemeral);
-            if (!mWifiInfo.getMeteredHint()) { // don't override the value if already set.
-                mWifiInfo.setMeteredHint(config.meteredHint);
-            }
         }
 
         mSupplicantStateTracker.sendMessage(Message.obtain(message));
-
         return state;
     }
 
@@ -3467,11 +3462,20 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         mWifiInfo + " got: " + addr);
             }
         }
+
         mWifiInfo.setInetAddress(addr);
-        if (!mWifiInfo.getMeteredHint()) { // don't override the value if already set.
-            mWifiInfo.setMeteredHint(dhcpResults.hasMeteredHint());
-            updateCapabilities(getCurrentWifiConfiguration());
+
+        final WifiConfiguration config = getCurrentWifiConfiguration();
+        if (config != null) {
+            mWifiInfo.setEphemeral(config.ephemeral);
+
+            // Set meteredHint if DHCP result says network is metered
+            if (dhcpResults.hasMeteredHint()) {
+                mWifiInfo.setMeteredHint(true);
+            }
         }
+
+        updateCapabilities();
     }
 
     private void handleSuccessfulIpConfiguration() {
@@ -3483,7 +3487,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     WifiConfiguration.NetworkSelectionStatus.DISABLED_DHCP_FAILURE);
 
             // Tell the framework whether the newly connected network is trusted or untrusted.
-            updateCapabilities(c);
+            updateCapabilities();
         }
         if (c != null) {
             ScanResult result = getCurrentScanResult();
@@ -5477,28 +5481,28 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
     }
 
-    private void updateCapabilities(WifiConfiguration config) {
-        NetworkCapabilities networkCapabilities = new NetworkCapabilities(mDfltNetworkCapabilities);
-        if (config != null) {
-            if (config.ephemeral) {
-                networkCapabilities.removeCapability(
-                        NetworkCapabilities.NET_CAPABILITY_TRUSTED);
-            } else {
-                networkCapabilities.addCapability(
-                        NetworkCapabilities.NET_CAPABILITY_TRUSTED);
-            }
+    private void updateCapabilities() {
+        final NetworkCapabilities result = new NetworkCapabilities(mDfltNetworkCapabilities);
 
-            networkCapabilities.setSignalStrength(
-                    (mWifiInfo.getRssi() != WifiInfo.INVALID_RSSI)
-                    ? mWifiInfo.getRssi()
-                    : NetworkCapabilities.SIGNAL_STRENGTH_UNSPECIFIED);
+        if (mWifiInfo != null && !mWifiInfo.isEphemeral()) {
+            result.addCapability(NetworkCapabilities.NET_CAPABILITY_TRUSTED);
+        } else {
+            result.removeCapability(NetworkCapabilities.NET_CAPABILITY_TRUSTED);
         }
 
-        if (mWifiInfo.getMeteredHint()) {
-            networkCapabilities.removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
+        if (mWifiInfo != null && !mWifiInfo.getMeteredHint()) {
+            result.addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
+        } else {
+            result.removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
         }
 
-        mNetworkAgent.sendNetworkCapabilities(networkCapabilities);
+        if (mWifiInfo != null && mWifiInfo.getRssi() != WifiInfo.INVALID_RSSI) {
+            result.setSignalStrength(mWifiInfo.getRssi());
+        } else {
+            result.setSignalStrength(NetworkCapabilities.SIGNAL_STRENGTH_UNSPECIFIED);
+        }
+
+        mNetworkAgent.sendNetworkCapabilities(result);
     }
 
     /**

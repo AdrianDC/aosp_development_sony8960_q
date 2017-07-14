@@ -34,6 +34,7 @@ import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
+import android.os.Binder;
 import android.os.Process;
 import android.os.UserHandle;
 import android.os.UserManager;
@@ -652,6 +653,12 @@ public class WifiConfigManager {
      * @param ignoreLockdown Ignore the configuration lockdown checks for connection attempts.
      */
     private boolean canModifyNetwork(WifiConfiguration config, int uid, boolean ignoreLockdown) {
+        // System internals can always update networks; they're typically only
+        // making meteredHint or meteredOverride changes
+        if (uid == Process.SYSTEM_UID) {
+            return true;
+        }
+
         // Passpoint configurations are generated and managed by PasspointManager. They can be
         // added by either PasspointNetworkEvaluator (for auto connection) or Settings app
         // (for manual connection), and need to be removed once the connection is completed.
@@ -710,16 +717,24 @@ public class WifiConfigManager {
     }
 
     /**
-     * Method to check if the provided UID belongs to the current foreground user or some other
-     * app (only SysUI today) running on behalf of the user.
-     * This is used to prevent any background user apps from modifying network configurations.
+     * Check if the given UID belongs to the current foreground user. This is
+     * used to prevent apps running in background users from modifying network
+     * configurations.
+     * <p>
+     * UIDs belonging to system internals (such as SystemUI) are always allowed,
+     * since they always run as {@link UserHandle#USER_SYSTEM}.
      *
      * @param uid uid of the app.
-     * @return true if the UID belongs to the current foreground app or SystemUI, false otherwise.
+     * @return true if the given UID belongs to the current foreground user,
+     *         otherwise false.
      */
     private boolean doesUidBelongToCurrentUser(int uid) {
-        return (WifiConfigurationUtil.doesUidBelongToAnyProfile(
-                uid, mUserManager.getProfiles(mCurrentUserId)) || (uid == mSystemUiUid));
+        if (uid == android.os.Process.SYSTEM_UID || uid == mSystemUiUid) {
+            return true;
+        } else {
+            return WifiConfigurationUtil.doesUidBelongToAnyProfile(
+                    uid, mUserManager.getProfiles(mCurrentUserId));
+        }
     }
 
     /**
@@ -828,6 +843,10 @@ public class WifiConfigManager {
             internalConfig.enterpriseConfig.copyFromExternal(
                     externalConfig.enterpriseConfig, PASSWORD_MASK);
         }
+
+        // Copy over any metered information.
+        internalConfig.meteredHint = externalConfig.meteredHint;
+        internalConfig.meteredOverride = externalConfig.meteredOverride;
     }
 
     /**
@@ -890,7 +909,6 @@ public class WifiConfigManager {
         newInternalConfig.requirePMF = externalConfig.requirePMF;
         newInternalConfig.noInternetAccessExpected = externalConfig.noInternetAccessExpected;
         newInternalConfig.ephemeral = externalConfig.ephemeral;
-        newInternalConfig.meteredHint = externalConfig.meteredHint;
         newInternalConfig.useExternalScores = externalConfig.useExternalScores;
         newInternalConfig.shared = externalConfig.shared;
 

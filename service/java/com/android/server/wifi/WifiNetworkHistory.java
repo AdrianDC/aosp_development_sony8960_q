@@ -17,16 +17,13 @@
 package com.android.server.wifi;
 
 import android.content.Context;
-
 import android.net.wifi.ScanResult;
-
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.net.wifi.WifiSsid;
 import android.os.Environment;
 import android.os.Process;
 import android.text.TextUtils;
-
 import android.util.Log;
 
 import com.android.server.net.DelayedDiskWrite;
@@ -91,6 +88,7 @@ public class WifiNetworkHistory {
     private static final String EPHEMERAL_KEY = "EPHEMERAL";
     private static final String USE_EXTERNAL_SCORES_KEY = "USE_EXTERNAL_SCORES";
     private static final String METERED_HINT_KEY = "METERED_HINT";
+    private static final String METERED_OVERRIDE_KEY = "METERED_OVERRIDE";
     private static final String NUM_ASSOCIATION_KEY = "NUM_ASSOCIATION";
     private static final String DELETED_EPHEMERAL_KEY = "DELETED_EPHEMERAL";
     private static final String CREATOR_NAME_KEY = "CREATOR_NAME";
@@ -213,6 +211,8 @@ public class WifiNetworkHistory {
                             + Boolean.toString(config.ephemeral) + NL);
                     out.writeUTF(METERED_HINT_KEY + SEPARATOR
                             + Boolean.toString(config.meteredHint) + NL);
+                    out.writeUTF(METERED_OVERRIDE_KEY + SEPARATOR
+                            + Integer.toString(config.meteredOverride) + NL);
                     out.writeUTF(USE_EXTERNAL_SCORES_KEY + SEPARATOR
                             + Boolean.toString(config.useExternalScores) + NL);
                     if (config.creationTime != null) {
@@ -426,6 +426,9 @@ public class WifiNetworkHistory {
                             break;
                         case METERED_HINT_KEY:
                             config.meteredHint = Boolean.parseBoolean(value);
+                            break;
+                        case METERED_OVERRIDE_KEY:
+                            config.meteredOverride = Integer.parseInt(value);
                             break;
                         case USE_EXTERNAL_SCORES_KEY:
                             config.useExternalScores = Boolean.parseBoolean(value);
