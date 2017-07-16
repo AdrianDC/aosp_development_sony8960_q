@@ -524,7 +524,7 @@ static void command_timed_out(void* original_wait_entry) {
   hci_timeout_abort_timer = alarm_new("hci.hci_timeout_aborter");
   if (!hci_timeout_abort_timer) {
     LOG_ERROR(LOG_TAG, "%s unable to create an abort timer.", __func__);
-    abort();
+    exit(0);
   }
   alarm_set(hci_timeout_abort_timer, COMMAND_TIMEOUT_RESTART_MS,
             hci_timeout_abort, nullptr);
