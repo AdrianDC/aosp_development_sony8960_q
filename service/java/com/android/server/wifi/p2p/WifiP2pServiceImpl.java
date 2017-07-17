@@ -231,6 +231,9 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
     // the ranges defined in Tethering.java
     private static final String SERVER_ADDRESS = "192.168.49.1";
 
+    // The empty device address set by wpa_supplicant.
+    private static final String EMPTY_DEVICE_ADDRESS = "00:00:00:00:00:00";
+
     /**
      * Error code definition.
      * see the Table.8 in the WiFi Direct specification for the detail.
@@ -1590,7 +1593,11 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         }
                         mGroup = (WifiP2pGroup) message.obj;
                         if (DBG) logd(getName() + " group started");
-
+                        if (mGroup.isGroupOwner()
+                                && EMPTY_DEVICE_ADDRESS.equals(mGroup.getOwner().deviceAddress)) {
+                            // wpa_supplicant doesn't set own device address to go_dev_addr.
+                            mGroup.getOwner().deviceAddress = mThisDevice.deviceAddress;
+                        }
                         // We hit this scenario when a persistent group is reinvoked
                         if (mGroup.getNetworkId() == WifiP2pGroup.PERSISTENT_NET_ID) {
                             mAutonomousGroup = false;
@@ -1923,6 +1930,11 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         }
                         mGroup = (WifiP2pGroup) message.obj;
                         if (DBG) logd(getName() + " group started");
+                        if (mGroup.isGroupOwner()
+                                && EMPTY_DEVICE_ADDRESS.equals(mGroup.getOwner().deviceAddress)) {
+                            // wpa_supplicant doesn't set own device address to go_dev_addr.
+                            mGroup.getOwner().deviceAddress = mThisDevice.deviceAddress;
+                        }
                         if (mGroup.getNetworkId() == WifiP2pGroup.PERSISTENT_NET_ID) {
                              // update cache information and set network id to mGroup.
                             updatePersistentNetworks(RELOAD);
