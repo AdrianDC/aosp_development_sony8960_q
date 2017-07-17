@@ -1925,7 +1925,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         if (DBG) logd(getName() + " group started");
                         if (mGroup.getNetworkId() == WifiP2pGroup.PERSISTENT_NET_ID) {
                              // update cache information and set network id to mGroup.
-                            updatePersistentNetworks(NO_RELOAD);
+                            updatePersistentNetworks(RELOAD);
                             String devAddr = mGroup.getOwner().deviceAddress;
                             mGroup.setNetworkId(mGroups.getNetworkId(devAddr,
                                     mGroup.getNetworkName()));
