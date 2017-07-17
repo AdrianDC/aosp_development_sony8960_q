@@ -2344,12 +2344,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                             int netId = mGroup.getNetworkId();
                             if (netId >= 0) {
                                 if (DBG) logd("Remove unknown client from the list");
-                                if (!removeClientFromList(netId,
-                                        mSavedPeerConfig.deviceAddress, false)) {
-                                    // not found the client on the list
-                                    loge("Already removed the client, ignore");
-                                    break;
-                                }
+                                removeClientFromList(netId, mSavedPeerConfig.deviceAddress, false);
                                 // try invitation.
                                 sendMessage(WifiP2pManager.CONNECT, mSavedPeerConfig);
                             }
