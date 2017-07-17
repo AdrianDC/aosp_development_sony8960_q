@@ -26,6 +26,7 @@ import static org.mockito.ArgumentMatchers.anyByte;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyShort;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -287,6 +288,60 @@ public class WifiAwareDataPathStateManagerTest {
         mMockLooper.dispatchAll();
 
         // failure: no interactions with connectivity manager or native manager
+        verifyNoMoreInteractions(mMockNative, mMockCm, mAwareMetricsMock);
+    }
+
+    /**
+     * Validate that if the data-interfaces are deleted while a data-path is being created, the
+     * process will terminate.
+     */
+    @Test
+    public void testDestroyNdiDuringNdpSetupResponder() throws Exception {
+        final int clientId = 123;
+        final byte pubSubId = 55;
+        final int requestorId = 1341234;
+        final byte[] peerDiscoveryMac = HexEncoding.decode("000102030405".toCharArray(), false);
+        final int ndpId = 3;
+
+        InOrder inOrder = inOrder(mMockNative, mMockCm, mMockCallback, mMockSessionCallback);
+        InOrder inOrderM = inOrder(mAwareMetricsMock);
+
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+
+        // (0) initialize
+        DataPathEndPointInfo res = initDataPathEndPoint(clientId, pubSubId, requestorId,
+                peerDiscoveryMac, inOrder, inOrderM, true);
+
+        // (1) request network
+        NetworkRequest nr = getSessionNetworkRequest(clientId, res.mSessionId, res.mPeerHandle,
+                null, null, true);
+
+        Message reqNetworkMsg = Message.obtain();
+        reqNetworkMsg.what = NetworkFactory.CMD_REQUEST_NETWORK;
+        reqNetworkMsg.obj = nr;
+        reqNetworkMsg.arg1 = 0;
+        res.mMessenger.send(reqNetworkMsg);
+        mMockLooper.dispatchAll();
+
+        // (2) delete interface(s)
+        mDut.deleteAllDataPathInterfaces();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).deleteAwareNetworkInterface(transactionId.capture(),
+                anyString());
+        mDut.onDeleteDataPathInterfaceResponse(transactionId.getValue(), true, 0);
+        mMockLooper.dispatchAll();
+
+        // (3) have responder receive request
+        mDut.onDataPathRequestNotification(pubSubId, peerDiscoveryMac, ndpId);
+        mMockLooper.dispatchAll();
+
+        // (4) verify that responder aborts (i.e. refuses request)
+        inOrder.verify(mMockNative).respondToDataPathRequest(transactionId.capture(), eq(false),
+                eq(ndpId), eq(""), eq(null), eq(null), eq(false), any());
+        mDut.onRespondToDataPathSetupRequestResponse(transactionId.getValue(), true, 0);
+        mMockLooper.dispatchAll();
+
+        // failure if there's further activity
         verifyNoMoreInteractions(mMockNative, mMockCm, mAwareMetricsMock);
     }
 
