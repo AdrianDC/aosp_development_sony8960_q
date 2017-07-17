@@ -2020,4 +2020,15 @@ public class WifiStateMachineTest {
         mLooper.dispatchAll();
         verify(mWifiNative, never()).resetTxPowerLimit();
     }
+
+    /*
+     * Verifies that a network disconnection event will result in WifiStateMachine invoking
+     * {@link WifiConfigManager#removeAllEphemeralOrPasspointConfiguredNetworks()} to remove
+     * any ephemeral or passpoint networks from it's internal database.
+     */
+    @Test
+    public void testDisconnectionRemovesEphemeralAndPasspointNetworks() throws Exception {
+        disconnect();
+        verify(mWifiConfigManager).removeAllEphemeralOrPasspointConfiguredNetworks();
+    }
 }

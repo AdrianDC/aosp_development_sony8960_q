@@ -4810,16 +4810,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     void registerDisconnected() {
         if (mLastNetworkId != WifiConfiguration.INVALID_NETWORK_ID) {
             mWifiConfigManager.updateNetworkAfterDisconnect(mLastNetworkId);
-            // We are switching away from this configuration,
-            // hence record the time we were connected last
-            WifiConfiguration config = mWifiConfigManager.getConfiguredNetwork(mLastNetworkId);
-            if (config != null) {
-                // Remove WifiConfiguration for ephemeral or Passpoint networks, since they're
-                // temporary networks.
-                if (config.ephemeral || config.isPasspoint()) {
-                    mWifiConfigManager.removeNetwork(mLastNetworkId, Process.WIFI_UID);
-                }
-            }
+            // Let's remove any ephemeral or passpoint networks on every disconnect.
+            mWifiConfigManager.removeAllEphemeralOrPasspointConfiguredNetworks();
         }
     }
 

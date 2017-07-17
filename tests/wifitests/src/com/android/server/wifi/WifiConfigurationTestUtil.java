@@ -229,6 +229,12 @@ public class WifiConfigurationTestUtil {
                 null, SECURITY_NONE);
     }
 
+    public static WifiConfiguration createEphemeralNetwork() {
+        WifiConfiguration configuration = createOpenNetwork();
+        configuration.ephemeral = true;
+        return configuration;
+    }
+
     public static WifiConfiguration createOpenHiddenNetwork() {
         WifiConfiguration configuration = createOpenNetwork();
         configuration.hiddenSSID = true;
