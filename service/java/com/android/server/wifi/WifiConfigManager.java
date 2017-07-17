@@ -2310,7 +2310,8 @@ public class WifiConfigManager {
         Iterator<WifiConfiguration> iter = networks.iterator();
         while (iter.hasNext()) {
             WifiConfiguration config = iter.next();
-            if (config.getNetworkSelectionStatus().isNetworkPermanentlyDisabled()) {
+            if (config.ephemeral || config.isPasspoint()
+                    || config.getNetworkSelectionStatus().isNetworkPermanentlyDisabled()) {
                 iter.remove();
             }
         }
