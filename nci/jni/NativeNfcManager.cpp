@@ -1014,6 +1014,8 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
                     }
                 }
 
+                prevScreenState = NFA_SCREEN_STATE_OFF_LOCKED;
+
                 // Do custom NFCA startup configuration.
                 doStartupConfig();
                 goto TheEnd;
@@ -1671,7 +1673,8 @@ static void nfcManager_doSetScreenState (JNIEnv* e, jobject o, jint screen_state
 
     if (sIsDisabling || !sIsNfaEnabled ||(NFC_GetNCIVersion() != NCI_VERSION_2_0))
         return;
-    if (prevScreenState == NFA_SCREEN_STATE_OFF_LOCKED || prevScreenState == NFA_SCREEN_STATE_OFF_UNLOCKED)
+    if (prevScreenState == NFA_SCREEN_STATE_OFF_LOCKED || prevScreenState == NFA_SCREEN_STATE_OFF_UNLOCKED ||
+            prevScreenState == NFA_SCREEN_STATE_ON_LOCKED)
     {
         SyncEventGuard guard (sNfaSetPowerSubState);
         status = NFA_SetPowerSubStateForScreenState(state);
@@ -1716,7 +1719,7 @@ static void nfcManager_doSetScreenState (JNIEnv* e, jobject o, jint screen_state
        return;
    }
 
-   if (prevScreenState == NFA_SCREEN_STATE_ON_LOCKED || prevScreenState == NFA_SCREEN_STATE_ON_UNLOCKED)
+   if (prevScreenState == NFA_SCREEN_STATE_ON_UNLOCKED)
    {
        SyncEventGuard guard (sNfaSetPowerSubState);
        status = NFA_SetPowerSubStateForScreenState(state);
