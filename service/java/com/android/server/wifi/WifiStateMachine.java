@@ -260,7 +260,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         if (mVerboseLoggingEnabled) {
             Log.e(TAG, "onRssiThresholdBreach event. Cur Rssi = " + curRssi);
         }
-        sendMessage(CMD_RSSI_THRESHOLD_BREACH, curRssi);
+        sendMessage(CMD_RSSI_THRESHOLD_BREACHED, curRssi);
     }
 
     public void processRssiThreshold(byte curRssi, int reason) {
@@ -691,7 +691,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     static final int CMD_STOP_RSSI_MONITORING_OFFLOAD                   = BASE + 163;
 
     /* used to indicated RSSI threshold breach in hw */
-    static final int CMD_RSSI_THRESHOLD_BREACH                          = BASE + 164;
+    static final int CMD_RSSI_THRESHOLD_BREACHED                        = BASE + 164;
 
     /* Enable/Disable WifiConnectivityManager */
     static final int CMD_ENABLE_WIFI_CONNECTIVITY_MANAGER               = BASE + 166;
@@ -2710,7 +2710,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 break;
             case CMD_START_RSSI_MONITORING_OFFLOAD:
             case CMD_STOP_RSSI_MONITORING_OFFLOAD:
-            case CMD_RSSI_THRESHOLD_BREACH:
+            case CMD_RSSI_THRESHOLD_BREACHED:
                 sb.append(" rssi=");
                 sb.append(Integer.toString(msg.arg1));
                 sb.append(" thresholds=");
@@ -5937,7 +5937,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                     break;
                 case CMD_START_RSSI_MONITORING_OFFLOAD:
-                case CMD_RSSI_THRESHOLD_BREACH:
+                case CMD_RSSI_THRESHOLD_BREACHED:
                     byte currRssi = (byte) message.arg1;
                     processRssiThreshold(currRssi, message.what);
                     break;
