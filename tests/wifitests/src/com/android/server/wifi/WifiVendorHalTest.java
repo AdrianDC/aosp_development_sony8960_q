@@ -600,8 +600,16 @@ public class WifiVendorHalTest {
      */
     @Test
     public void testChipFeatureMaskTranslation() {
-        int caps = android.hardware.wifi.V1_1.IWifiChip.ChipCapabilityMask.SET_TX_POWER_LIMIT;
-        int expected = WifiManager.WIFI_FEATURE_TX_POWER_LIMIT;
+        int caps = (
+                android.hardware.wifi.V1_1.IWifiChip.ChipCapabilityMask.SET_TX_POWER_LIMIT
+                        | android.hardware.wifi.V1_1.IWifiChip.ChipCapabilityMask.D2D_RTT
+                        | android.hardware.wifi.V1_1.IWifiChip.ChipCapabilityMask.D2AP_RTT
+        );
+        int expected = (
+                WifiManager.WIFI_FEATURE_TX_POWER_LIMIT
+                        | WifiManager.WIFI_FEATURE_D2D_RTT
+                        | WifiManager.WIFI_FEATURE_D2AP_RTT
+        );
         assertEquals(expected, mWifiVendorHal.wifiFeatureMaskFromChipCapabilities(caps));
     }
 
