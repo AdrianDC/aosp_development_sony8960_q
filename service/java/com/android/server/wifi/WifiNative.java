@@ -141,15 +141,15 @@ public class WifiNative {
     /**
      * Teardown all mode configurations in wifi native.
      *
-     * 1. Tears down all the interfaces from Wificond.
-     * 2. Stops the Wifi HAL.
+     * 1. Stops the Wifi HAL.
+     * 2. Tears down all the interfaces from Wificond.
      */
     public void tearDown() {
+        stopHalIfNecessary();
         if (!mWificondControl.tearDownInterfaces()) {
             // TODO(b/34859006): Handle failures.
             Log.e(mTAG, "Failed to teardown interfaces from Wificond");
         }
-        stopHalIfNecessary();
     }
 
     /********************************************************
