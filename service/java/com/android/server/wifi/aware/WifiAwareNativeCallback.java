@@ -183,7 +183,12 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub imp
     public void notifyEnableResponse(short id, WifiNanStatus status) {
         if (VDBG) Log.v(TAG, "notifyEnableResponse: id=" + id + ", status=" + statusString(status));
 
-        if (status.status == NanStatusType.SUCCESS) {
+        if (status.status == NanStatusType.ALREADY_ENABLED) {
+            Log.wtf(TAG, "notifyEnableResponse: id=" + id + ", already enabled!?");
+        }
+
+        if (status.status == NanStatusType.SUCCESS
+                || status.status == NanStatusType.ALREADY_ENABLED) {
             mWifiAwareStateManager.onConfigSuccessResponse(id);
         } else {
             mWifiAwareStateManager.onConfigFailedResponse(id, status.status);
