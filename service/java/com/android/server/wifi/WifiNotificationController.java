@@ -77,7 +77,8 @@ public class WifiNotificationController {
      * notification is not showing.
      */
     private boolean mNotificationShown;
-    /** Wi-Fi connection state from {@link WifiConnectivityManager} */
+    /** Whether the screen is on or not. */
+    private boolean mScreenOn;
 
     private final Context mContext;
     private FrameworkFacade mFrameworkFacade;
@@ -89,6 +90,8 @@ public class WifiNotificationController {
         mContext = context;
         mFrameworkFacade = framework;
         mNotificationBuilder = builder;
+
+        mScreenOn = false;
 
         // Setting is in seconds
         NOTIFICATION_REPEAT_DELAY_MS = mFrameworkFacade.getIntegerSetting(context,
@@ -130,11 +133,21 @@ public class WifiNotificationController {
             clearPendingNotification(false /* resetRepeatDelay */);
             return;
         }
-        if (mNotificationShown) {
+
+        // Do not show or update the notification if screen is off. We want to avoid a race that
+        // could occur between a user picking a network in settings and a network candidate picked
+        // through network selection, which will happen because screen on triggers a new
+        // connectivity scan.
+        if (mNotificationShown || !mScreenOn) {
             return;
         }
 
         setNotificationVisible(true, availableNetworks.size(), false, 0);
+    }
+
+    /** Handles screen state changes. */
+    public void handleScreenStateChanged(boolean screenOn) {
+        mScreenOn = screenOn;
     }
 
     /**

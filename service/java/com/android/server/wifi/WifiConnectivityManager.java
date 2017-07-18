@@ -1034,6 +1034,8 @@ public class WifiConnectivityManager {
 
         mScreenOn = screenOn;
 
+        mWifiNotificationController.handleScreenStateChanged(screenOn);
+
         startConnectivityScan(SCAN_ON_SCHEDULE);
     }
 
