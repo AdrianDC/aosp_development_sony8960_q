@@ -784,6 +784,12 @@ public class WifiVendorHal {
             {WifiManager.WIFI_FEATURE_TX_POWER_LIMIT,
                     android.hardware.wifi.V1_1.IWifiChip.ChipCapabilityMask.SET_TX_POWER_LIMIT
             },
+            {WifiManager.WIFI_FEATURE_D2D_RTT,
+                    android.hardware.wifi.V1_1.IWifiChip.ChipCapabilityMask.D2D_RTT
+            },
+            {WifiManager.WIFI_FEATURE_D2AP_RTT,
+                    android.hardware.wifi.V1_1.IWifiChip.ChipCapabilityMask.D2AP_RTT
+            }
     };
 
     /**
