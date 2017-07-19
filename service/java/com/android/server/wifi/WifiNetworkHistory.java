@@ -73,7 +73,6 @@ public class WifiNetworkHistory {
     private static final String AUTH_KEY = "AUTH";
     private static final String BSSID_STATUS_KEY = "BSSID_STATUS";
     private static final String SELF_ADDED_KEY = "SELF_ADDED";
-    private static final String FAILURE_KEY = "FAILURE";
     private static final String DID_SELF_ADD_KEY = "DID_SELF_ADD";
     private static final String PEER_CONFIGURATION_KEY = "PEER_CONFIGURATION";
     static final String CREATOR_UID_KEY = "CREATOR_UID_KEY";
@@ -289,9 +288,6 @@ public class WifiNetworkHistory {
                             out.writeUTF(BSSID_KEY_END + NL);
                         }
                     }
-                    if (config.lastFailure != null) {
-                        out.writeUTF(FAILURE_KEY + SEPARATOR + config.lastFailure + NL);
-                    }
                     out.writeUTF(HAS_EVER_CONNECTED_KEY + SEPARATOR
                             + Boolean.toString(status.getHasEverConnected()) + NL);
                     out.writeUTF(NL);
@@ -450,9 +446,6 @@ public class WifiNetworkHistory {
                             break;
                         case UPDATE_UID_KEY:
                             config.lastUpdateUid = Integer.parseInt(value);
-                            break;
-                        case FAILURE_KEY:
-                            config.lastFailure = value;
                             break;
                         case PEER_CONFIGURATION_KEY:
                             config.peerWifiConfiguration = value;
