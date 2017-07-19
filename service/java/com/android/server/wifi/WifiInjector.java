@@ -232,7 +232,8 @@ public class WifiInjector {
                 new WrongPasswordNotifier(mContext, mFrameworkFacade));
         mCertManager = new WifiCertManager(mContext);
         mNotificationController = new WifiNotificationController(mContext,
-                mWifiStateMachineHandlerThread.getLooper(), mFrameworkFacade, null);
+                mWifiStateMachineHandlerThread.getLooper(), mFrameworkFacade, null,
+                new OpenNetworkRecommender());
         mLockManager = new WifiLockManager(mContext, BatteryStatsService.getService());
         mWifiController = new WifiController(mContext, mWifiStateMachine, mSettingsStore,
                 mLockManager, mWifiServiceHandlerThread.getLooper(), mFrameworkFacade);

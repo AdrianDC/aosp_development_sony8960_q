@@ -46,12 +46,17 @@ import java.util.List;
  */
 public class WifiNotificationControllerTest {
 
+    private static final String TEST_SSID_1 = "Test SSID 1";
+    private static final int MIN_RSSI_LEVEL = -127;
+
     @Mock private Context mContext;
     @Mock private Resources mResources;
     @Mock private FrameworkFacade mFrameworkFacade;
     @Mock private NotificationManager mNotificationManager;
+    @Mock private OpenNetworkRecommender mOpenNetworkRecommender;
     @Mock private UserManager mUserManager;
     private WifiNotificationController mNotificationController;
+    private ScanResult mDummyNetwork;
 
 
     /** Initialize objects before each test run. */
@@ -65,19 +70,22 @@ public class WifiNotificationControllerTest {
         when(mContext.getSystemService(Context.USER_SERVICE))
                 .thenReturn(mUserManager);
         when(mContext.getResources()).thenReturn(mResources);
+        mDummyNetwork = new ScanResult();
+        mDummyNetwork.SSID = TEST_SSID_1;
+        mDummyNetwork.capabilities = "[ESS]";
+        mDummyNetwork.level = MIN_RSSI_LEVEL;
+        when(mOpenNetworkRecommender.recommendNetwork(any(), any())).thenReturn(mDummyNetwork);
 
         TestLooper mock_looper = new TestLooper();
         mNotificationController = new WifiNotificationController(
                 mContext, mock_looper.getLooper(), mFrameworkFacade,
-                mock(Notification.Builder.class));
+                mock(Notification.Builder.class), mOpenNetworkRecommender);
         mNotificationController.handleScreenStateChanged(true);
     }
 
     private List<ScanDetail> createOpenScanResults() {
         List<ScanDetail> scanResults = new ArrayList<>();
-        ScanResult scanResult = new ScanResult();
-        scanResult.capabilities = "[ESS]";
-        scanResults.add(new ScanDetail(scanResult, null /* networkDetail */));
+        scanResults.add(new ScanDetail(mDummyNetwork, null /* networkDetail */));
         return scanResults;
     }
 
@@ -88,6 +96,7 @@ public class WifiNotificationControllerTest {
     public void handleScanResults_hasOpenNetworks_notificationDisplayed() {
         mNotificationController.handleScanResults(createOpenScanResults());
 
+        verify(mOpenNetworkRecommender).recommendNetwork(any(), any());
         verify(mNotificationManager).notifyAsUser(any(), anyInt(), any(), any());
     }
 
@@ -98,6 +107,7 @@ public class WifiNotificationControllerTest {
     public void handleScanResults_emptyList_notificationNotDisplayed() {
         mNotificationController.handleScanResults(new ArrayList<>());
 
+        verify(mOpenNetworkRecommender, never()).recommendNetwork(any(), any());
         verify(mNotificationManager, never()).notifyAsUser(any(), anyInt(), any(), any());
     }
 
@@ -109,6 +119,7 @@ public class WifiNotificationControllerTest {
     public void handleScanResults_notificationShown_emptyList_notificationCleared() {
         mNotificationController.handleScanResults(createOpenScanResults());
 
+        verify(mOpenNetworkRecommender).recommendNetwork(any(), any());
         verify(mNotificationManager).notifyAsUser(any(), anyInt(), any(), any());
 
         mNotificationController.handleScanResults(new ArrayList<>());
@@ -123,6 +134,7 @@ public class WifiNotificationControllerTest {
     public void handleScanResults_notificationShown_screenOff_emptyList_notificationCleared() {
         mNotificationController.handleScanResults(createOpenScanResults());
 
+        verify(mOpenNetworkRecommender).recommendNetwork(any(), any());
         verify(mNotificationManager).notifyAsUser(any(), anyInt(), any(), any());
 
         mNotificationController.handleScreenStateChanged(false);
@@ -139,6 +151,7 @@ public class WifiNotificationControllerTest {
         mNotificationController.handleScanResults(createOpenScanResults());
         mNotificationController.handleScanResults(createOpenScanResults());
 
+        verify(mOpenNetworkRecommender).recommendNetwork(any(), any());
         verify(mNotificationManager).notifyAsUser(any(), anyInt(), any(), any());
     }
 
@@ -150,6 +163,7 @@ public class WifiNotificationControllerTest {
     public void clearPendingNotification_clearsNotificationIfOneIsShowing() {
         mNotificationController.handleScanResults(createOpenScanResults());
 
+        verify(mOpenNetworkRecommender).recommendNetwork(any(), any());
         verify(mNotificationManager).notifyAsUser(any(), anyInt(), any(), any());
 
         mNotificationController.clearPendingNotification(true);
@@ -177,6 +191,7 @@ public class WifiNotificationControllerTest {
         mNotificationController.handleScreenStateChanged(false);
         mNotificationController.handleScanResults(createOpenScanResults());
 
+        verify(mOpenNetworkRecommender, never()).recommendNetwork(any(), any());
         verify(mNotificationManager, never()).notifyAsUser(any(), anyInt(), any(), any());
     }
 
@@ -188,6 +203,7 @@ public class WifiNotificationControllerTest {
 
         mNotificationController.handleScanResults(createOpenScanResults());
 
+        verify(mOpenNetworkRecommender, never()).recommendNetwork(any(), any());
         verify(mNotificationManager, never()).notifyAsUser(any(), anyInt(), any(), any());
     }
 
@@ -196,6 +212,7 @@ public class WifiNotificationControllerTest {
     public void userHasDisallowConfigWifiRestriction_showingNotificationIsCleared() {
         mNotificationController.handleScanResults(createOpenScanResults());
 
+        verify(mOpenNetworkRecommender).recommendNetwork(any(), any());
         verify(mNotificationManager).notifyAsUser(any(), anyInt(), any(), any());
 
         when(mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_WIFI, UserHandle.CURRENT))

@@ -23,6 +23,7 @@ import android.app.TaskStackBuilder;
 import android.content.Context;
 import android.content.Intent;
 import android.database.ContentObserver;
+import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
 import android.os.Handler;
 import android.os.Looper;
@@ -81,15 +82,19 @@ public class WifiNotificationController {
     private boolean mScreenOn;
 
     private final Context mContext;
-    private FrameworkFacade mFrameworkFacade;
+    private final FrameworkFacade mFrameworkFacade;
+    private final OpenNetworkRecommender mOpenNetworkRecommender;
+    private ScanResult mRecommendedNetwork;
 
     WifiNotificationController(Context context,
                                Looper looper,
                                FrameworkFacade framework,
-                               Notification.Builder builder) {
+                               Notification.Builder builder,
+                               OpenNetworkRecommender recommender) {
         mContext = context;
         mFrameworkFacade = framework;
         mNotificationBuilder = builder;
+        mOpenNetworkRecommender = recommender;
 
         mScreenOn = false;
 
@@ -141,6 +146,9 @@ public class WifiNotificationController {
         if (mNotificationShown || !mScreenOn) {
             return;
         }
+
+        mRecommendedNetwork = mOpenNetworkRecommender.recommendNetwork(
+                availableNetworks, mRecommendedNetwork);
 
         setNotificationVisible(true, availableNetworks.size(), false, 0);
     }
