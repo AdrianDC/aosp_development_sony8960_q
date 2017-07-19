@@ -261,7 +261,7 @@ public class WifiConnectivityManager {
                 mStateMachine.isConnected(), mStateMachine.isDisconnected(),
                 mUntrustedConnectionAllowed);
         mWifiLastResortWatchdog.updateAvailableNetworks(
-                mNetworkSelector.getFilteredScanDetails());
+                mNetworkSelector.getConnectableScanDetails());
         mWifiMetrics.countScanResults(scanDetails);
         if (candidate != null) {
             localLog(listenerName + ":  WNS candidate-" + candidate.SSID);
