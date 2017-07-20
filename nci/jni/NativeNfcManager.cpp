@@ -27,9 +27,9 @@
 #include "PowerSwitch.h"
 #include "JavaClassConstants.h"
 #include "Pn544Interop.h"
-#include <ScopedLocalRef.h>
-#include <ScopedUtfChars.h>
-#include <ScopedPrimitiveArray.h>
+#include <nativehelper/ScopedLocalRef.h>
+#include <nativehelper/ScopedUtfChars.h>
+#include <nativehelper/ScopedPrimitiveArray.h>
 
 extern "C"
 {
