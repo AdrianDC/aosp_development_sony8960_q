@@ -169,7 +169,8 @@ public class WifiInjector {
         mWifiVendorHal =
                 new WifiVendorHal(mHalDeviceManager, mWifiStateMachineHandlerThread.getLooper());
         mSupplicantStaIfaceHal = new SupplicantStaIfaceHal(mContext, mWifiMonitor);
-        mWificondControl = new WificondControl(this, mWifiMonitor);
+        mWificondControl = new WificondControl(this, mWifiMonitor,
+                new CarrierNetworkConfig(mContext));
         mWifiNative = new WifiNative(SystemProperties.get("wifi.interface", "wlan0"),
                 mWifiVendorHal, mSupplicantStaIfaceHal, mWificondControl);
         mWifiP2pMonitor = new WifiP2pMonitor(this);
