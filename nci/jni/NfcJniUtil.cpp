@@ -20,8 +20,8 @@
 
 #include <log/log.h>
 
-#include <JNIHelp.h>
-#include <ScopedLocalRef.h>
+#include <nativehelper/JNIHelp.h>
+#include <nativehelper/ScopedLocalRef.h>
 #include "RoutingManager.h"
 
 /*******************************************************************************
