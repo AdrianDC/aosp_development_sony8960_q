@@ -898,11 +898,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private FrameworkFacade mFacade;
     private WifiStateTracker mWifiStateTracker;
     private final BackupManagerProxy mBackupManagerProxy;
+    private final WrongPasswordNotifier mWrongPasswordNotifier;
 
     public WifiStateMachine(Context context, FrameworkFacade facade, Looper looper,
                             UserManager userManager, WifiInjector wifiInjector,
                             BackupManagerProxy backupManagerProxy, WifiCountryCode countryCode,
-                            WifiNative wifiNative) {
+                            WifiNative wifiNative,
+                            WrongPasswordNotifier wrongPasswordNotifier) {
         super("WifiStateMachine", looper);
         mWifiInjector = wifiInjector;
         mWifiMetrics = mWifiInjector.getWifiMetrics();
@@ -913,6 +915,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mFacade = facade;
         mWifiNative = wifiNative;
         mBackupManagerProxy = backupManagerProxy;
+        mWrongPasswordNotifier = wrongPasswordNotifier;
 
         // TODO refactor WifiNative use of context out into it's own class
         mInterfaceName = mWifiNative.getInterfaceName();
@@ -3404,6 +3407,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mDiagsConnectionStartMillis = mClock.getElapsedSinceBootMillis();
         mWifiDiagnostics.reportConnectionEvent(
                 mDiagsConnectionStartMillis, WifiDiagnostics.CONNECTION_EVENT_STARTED);
+        mWrongPasswordNotifier.onNewConnectionAttempt();
         // TODO(b/35329124): Remove CMD_DIAGS_CONNECT_TIMEOUT, once WifiStateMachine
         // grows a proper CONNECTING state.
         sendMessageDelayed(CMD_DIAGS_CONNECT_TIMEOUT,
@@ -4958,6 +4962,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     if (isPermanentWrongPasswordFailure(mTargetNetworkId, message.arg2)) {
                         disableReason = WifiConfiguration.NetworkSelectionStatus
                                 .DISABLED_BY_WRONG_PASSWORD;
+                        WifiConfiguration targetedNetwork =
+                                mWifiConfigManager.getConfiguredNetwork(mTargetNetworkId);
+                        if (targetedNetwork != null) {
+                            mWrongPasswordNotifier.onWrongPasswordError(
+                                    targetedNetwork.SSID);
+                        }
                     }
                     mWifiConfigManager.updateNetworkSelectionStatus(
                             mTargetNetworkId, disableReason);
