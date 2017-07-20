@@ -21,8 +21,8 @@
 #include "NfcTag.h"
 #include "JavaClassConstants.h"
 #include "config.h"
-#include <ScopedLocalRef.h>
-#include <ScopedPrimitiveArray.h>
+#include <nativehelper/ScopedLocalRef.h>
+#include <nativehelper/ScopedPrimitiveArray.h>
 
 extern "C"
 {
