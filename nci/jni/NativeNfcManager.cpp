@@ -152,6 +152,7 @@ static uint16_t sCurrentConfigLen;
 static uint8_t sConfig[256];
 static int prevScreenState = NFA_SCREEN_STATE_OFF_LOCKED;
 static int NFA_SCREEN_POLLING_TAG_MASK = 0x10;
+static bool gIsDtaEnabled = false;
 /////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////
 
@@ -980,6 +981,17 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
                 /////////////////////////////////////////////////////////////////////////////////
                 // Add extra configuration here (work-arounds, etc.)
 
+                if (gIsDtaEnabled == true)
+                {
+                    uint8_t configData = 0;
+                    configData = 0x01;    /* Poll NFC-DEP : Highest Available Bit Rates */
+                    NFA_SetConfig(NFC_PMID_BITR_NFC_DEP, sizeof(uint8_t), &configData);
+                    configData = 0x0B;    /* Listen NFC-DEP : Waiting Time */
+                    NFA_SetConfig(NFC_PMID_WT, sizeof(uint8_t), &configData);
+                    configData = 0x0F;    /* Specific Parameters for NFC-DEP RF Interface */
+                    NFA_SetConfig(NFC_PMID_NFC_DEP_OP, sizeof(uint8_t), &configData);
+                }
+
                 struct nfc_jni_native_data *nat = getNative(e, o);
 
                 if ( nat )
@@ -1040,7 +1052,15 @@ TheEnd:
     return sIsNfaEnabled ? JNI_TRUE : JNI_FALSE;
 }
 
+static void nfcManager_doEnableDtaMode (JNIEnv*, jobject)
+{
+    gIsDtaEnabled = true;
+}
 
+static void nfcManager_doDisableDtaMode(JNIEnv*, jobject)
+{
+    gIsDtaEnabled = false;
+}
 /*******************************************************************************
 **
 ** Function:        nfcManager_enableDiscovery
@@ -1893,6 +1913,11 @@ static JNINativeMethod gMethods[] =
 
     {"getNciVersion","()I",
              (void *)nfcManager_doGetNciVersion},
+    {"doEnableDtaMode", "()V",
+            (void*) nfcManager_doEnableDtaMode},
+    {"doDisableDtaMode", "()V",
+            (void*) nfcManager_doDisableDtaMode}
+
 };
 
 
