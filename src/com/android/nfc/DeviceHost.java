@@ -241,4 +241,8 @@ public interface DeviceHost {
     public void doSetScreenState(int screen_state_mask);
 
     public int getNciVersion();
+
+    public void enableDtaMode();
+
+    public void disableDtaMode();
 }

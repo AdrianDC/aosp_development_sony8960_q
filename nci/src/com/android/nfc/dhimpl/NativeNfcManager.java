@@ -80,6 +80,21 @@ public class NativeNfcManager implements DeviceHost {
         return doInitialize();
     }
 
+    private native void doEnableDtaMode();
+
+    @Override
+    public void enableDtaMode() {
+        doEnableDtaMode();
+    }
+
+    private native void doDisableDtaMode();
+
+    @Override
+    public void disableDtaMode() {
+        Log.d(TAG,"disableDtaMode : entry");
+        doDisableDtaMode();
+    }
+
     private native boolean doDeinitialize();
 
     @Override
