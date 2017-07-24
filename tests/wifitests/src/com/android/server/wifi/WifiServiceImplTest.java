@@ -400,9 +400,7 @@ public class WifiServiceImplTest {
     public void testSetWifiEnabledFromNetworkSettingsHolderWhenApEnabled() throws Exception {
         when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_ENABLED);
         when(mSettingsStore.handleWifiToggled(eq(true))).thenReturn(true);
-        when(mContext.checkCallingOrSelfPermission(
-                eq(android.Manifest.permission.NETWORK_SETTINGS)))
-                        .thenReturn(PackageManager.PERMISSION_GRANTED);
+        when(mWifiPermissionsUtil.checkNetworkSettingsPermission(anyInt())).thenReturn(true);
         assertTrue(mWifiServiceImpl.setWifiEnabled(SYSUI_PACKAGE_NAME, true));
         verify(mWifiController).sendMessage(eq(CMD_WIFI_TOGGLED));
     }
@@ -413,9 +411,7 @@ public class WifiServiceImplTest {
     @Test
     public void testSetWifiEnabledFromAppFailsWhenApEnabled() throws Exception {
         when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_ENABLED);
-        when(mContext.checkCallingOrSelfPermission(
-                eq(android.Manifest.permission.NETWORK_SETTINGS)))
-                        .thenReturn(PackageManager.PERMISSION_DENIED);
+        when(mWifiPermissionsUtil.checkNetworkSettingsPermission(anyInt())).thenReturn(false);
         assertFalse(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, true));
         verify(mSettingsStore, never()).handleWifiToggled(anyBoolean());
         verify(mWifiController, never()).sendMessage(eq(CMD_WIFI_TOGGLED));
