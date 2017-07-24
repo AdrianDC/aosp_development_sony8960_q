@@ -345,6 +345,7 @@ public class WifiStateMachineTest {
     @Mock IpManager mIpManager;
     @Mock TelephonyManager mTelephonyManager;
     @Mock WrongPasswordNotifier mWrongPasswordNotifier;
+    @Mock Clock mClock;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -386,6 +387,7 @@ public class WifiStateMachineTest {
         when(mWifiInjector.getWifiNative()).thenReturn(mWifiNative);
         when(mWifiInjector.getSelfRecovery()).thenReturn(mSelfRecovery);
         when(mWifiInjector.makeTelephonyManager()).thenReturn(mTelephonyManager);
+        when(mWifiInjector.getClock()).thenReturn(mClock);
 
         when(mWifiNative.setupForClientMode())
                 .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mClientInterface));
@@ -2026,7 +2028,7 @@ public class WifiStateMachineTest {
         verify(mWifiNative, never()).resetTxPowerLimit();
     }
 
-    /*
+    /**
      * Verifies that a network disconnection event will result in WifiStateMachine invoking
      * {@link WifiConfigManager#removeAllEphemeralOrPasspointConfiguredNetworks()} to remove
      * any ephemeral or passpoint networks from it's internal database.
@@ -2035,5 +2037,70 @@ public class WifiStateMachineTest {
     public void testDisconnectionRemovesEphemeralAndPasspointNetworks() throws Exception {
         disconnect();
         verify(mWifiConfigManager).removeAllEphemeralOrPasspointConfiguredNetworks();
+    }
+
+    /**
+     * Test that the helper method
+     * {@link WifiStateMachine#shouldEvaluateWhetherToSendExplicitlySelected(WifiConfiguration)}
+     * returns true when we connect to the last selected network before expiration of
+     * {@link WifiStateMachine#LAST_SELECTED_NETWORK_EXPIRATION_AGE_MILLIS}.
+     */
+    @Test
+    public void testShouldEvaluateWhetherToSendExplicitlySelected_SameNetworkNotExpired() {
+        long lastSelectedTimestamp = 45666743454L;
+        int lastSelectedNetworkId = 5;
+
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(
+                lastSelectedTimestamp
+                        + WifiStateMachine.LAST_SELECTED_NETWORK_EXPIRATION_AGE_MILLIS - 1);
+        when(mWifiConfigManager.getLastSelectedTimeStamp()).thenReturn(lastSelectedTimestamp);
+        when(mWifiConfigManager.getLastSelectedNetwork()).thenReturn(lastSelectedNetworkId);
+
+        WifiConfiguration currentConfig = new WifiConfiguration();
+        currentConfig.networkId = lastSelectedNetworkId;
+        assertTrue(mWsm.shouldEvaluateWhetherToSendExplicitlySelected(currentConfig));
+    }
+
+    /**
+     * Test that the helper method
+     * {@link WifiStateMachine#shouldEvaluateWhetherToSendExplicitlySelected(WifiConfiguration)}
+     * returns false when we connect to the last selected network after expiration of
+     * {@link WifiStateMachine#LAST_SELECTED_NETWORK_EXPIRATION_AGE_MILLIS}.
+     */
+    @Test
+    public void testShouldEvaluateWhetherToSendExplicitlySelected_SameNetworkExpired() {
+        long lastSelectedTimestamp = 45666743454L;
+        int lastSelectedNetworkId = 5;
+
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(
+                lastSelectedTimestamp
+                        + WifiStateMachine.LAST_SELECTED_NETWORK_EXPIRATION_AGE_MILLIS + 1);
+        when(mWifiConfigManager.getLastSelectedTimeStamp()).thenReturn(lastSelectedTimestamp);
+        when(mWifiConfigManager.getLastSelectedNetwork()).thenReturn(lastSelectedNetworkId);
+
+        WifiConfiguration currentConfig = new WifiConfiguration();
+        currentConfig.networkId = lastSelectedNetworkId;
+        assertFalse(mWsm.shouldEvaluateWhetherToSendExplicitlySelected(currentConfig));
+    }
+
+    /**
+     * Test that the helper method
+     * {@link WifiStateMachine#shouldEvaluateWhetherToSendExplicitlySelected(WifiConfiguration)}
+     * returns false when we connect to a different network to the last selected network.
+     */
+    @Test
+    public void testShouldEvaluateWhetherToSendExplicitlySelected_DifferentNetwork() {
+        long lastSelectedTimestamp = 45666743454L;
+        int lastSelectedNetworkId = 5;
+
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(
+                lastSelectedTimestamp
+                        + WifiStateMachine.LAST_SELECTED_NETWORK_EXPIRATION_AGE_MILLIS - 1);
+        when(mWifiConfigManager.getLastSelectedTimeStamp()).thenReturn(lastSelectedTimestamp);
+        when(mWifiConfigManager.getLastSelectedNetwork()).thenReturn(lastSelectedNetworkId);
+
+        WifiConfiguration currentConfig = new WifiConfiguration();
+        currentConfig.networkId = lastSelectedNetworkId - 1;
+        assertFalse(mWsm.shouldEvaluateWhetherToSendExplicitlySelected(currentConfig));
     }
 }
