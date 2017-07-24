@@ -127,6 +127,10 @@ type variableProperties struct {
 			Srcs         []string
 		}
 
+		Has_legacy_camera_hal1 struct {
+			Cflags []string
+		}
+
 		Target_shim_libs struct {
 			Cppflags []string
 		}
@@ -296,6 +300,7 @@ type productVariables struct {
 	ProductHiddenAPIStubsSystem []string `json:",omitempty"`
 	ProductHiddenAPIStubsTest   []string `json:",omitempty"`
 
+	Has_legacy_camera_hal1 *bool `json:",omitempty"`
 	Target_shim_libs *string `json:",omitempty"`
 	Uses_qcom_bsp_legacy *bool `json:",omitempty"`
 }
