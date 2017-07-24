@@ -688,10 +688,10 @@ public class WifiConfigManager {
 
         final boolean isCreator = (config.creatorUid == uid);
 
-        // Check if the |uid| holds the |OVERRIDE_CONFIG_WIFI| permission if the caller asks us to
+        // Check if the |uid| holds the |NETWORK_SETTINGS| permission if the caller asks us to
         // bypass the lockdown checks.
         if (ignoreLockdown) {
-            return mWifiPermissionsUtil.checkConfigOverridePermission(uid);
+            return mWifiPermissionsUtil.checkNetworkSettingsPermission(uid);
         }
 
         // Check if device has DPM capability. If it has and |dpmi| is still null, then we
@@ -706,13 +706,14 @@ public class WifiConfigManager {
         final boolean isConfigEligibleForLockdown = dpmi != null && dpmi.isActiveAdminWithPolicy(
                 config.creatorUid, DeviceAdminInfo.USES_POLICY_DEVICE_OWNER);
         if (!isConfigEligibleForLockdown) {
-            return isCreator || mWifiPermissionsUtil.checkConfigOverridePermission(uid);
+            return isCreator || mWifiPermissionsUtil.checkNetworkSettingsPermission(uid);
         }
 
         final ContentResolver resolver = mContext.getContentResolver();
         final boolean isLockdownFeatureEnabled = Settings.Global.getInt(resolver,
                 Settings.Global.WIFI_DEVICE_OWNER_CONFIGS_LOCKDOWN, 0) != 0;
-        return !isLockdownFeatureEnabled && mWifiPermissionsUtil.checkConfigOverridePermission(uid);
+        return !isLockdownFeatureEnabled
+                && mWifiPermissionsUtil.checkNetworkSettingsPermission(uid);
     }
 
     /**
@@ -996,7 +997,7 @@ public class WifiConfigManager {
         if (WifiConfigurationUtil.hasProxyChanged(existingInternalConfig, newInternalConfig)
                 && !canModifyProxySettings(uid)) {
             Log.e(TAG, "UID " + uid + " does not have permission to modify proxy Settings "
-                    + config.configKey() + ". Must have OVERRIDE_WIFI_CONFIG,"
+                    + config.configKey() + ". Must have NETWORK_SETTINGS,"
                     + " or be device or profile owner.");
             return new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID);
         }
@@ -1542,7 +1543,7 @@ public class WifiConfigManager {
      * @return true if |uid| has the necessary permission to trigger explicit connection to the
      * network, false otherwise.
      * Note: This returns true only for the system settings/sysui app which holds the
-     * {@link android.Manifest.permission#OVERRIDE_WIFI_CONFIG} permission. We don't want to let
+     * {@link android.Manifest.permission#NETWORK_SETTINGS} permission. We don't want to let
      * any other app force connection to a network.
      */
     public boolean checkAndUpdateLastConnectUid(int networkId, int uid) {
@@ -2903,15 +2904,15 @@ public class WifiConfigManager {
                 DeviceAdminInfo.USES_POLICY_PROFILE_OWNER);
         final boolean isUidDeviceOwner = dpmi != null && dpmi.isActiveAdminWithPolicy(uid,
                 DeviceAdminInfo.USES_POLICY_DEVICE_OWNER);
-        final boolean hasConfigOverridePermission =
-                mWifiPermissionsUtil.checkConfigOverridePermission(uid);
+        final boolean hasNetworkSettingsPermission =
+                mWifiPermissionsUtil.checkNetworkSettingsPermission(uid);
         // If |uid| corresponds to the device owner, allow all modifications.
-        if (isUidDeviceOwner || isUidProfileOwner || hasConfigOverridePermission) {
+        if (isUidDeviceOwner || isUidProfileOwner || hasNetworkSettingsPermission) {
             return true;
         }
         if (mVerboseLoggingEnabled) {
             Log.v(TAG, "UID: " + uid + " cannot modify WifiConfiguration proxy settings."
-                    + " ConfigOverride=" + hasConfigOverridePermission
+                    + " ConfigOverride=" + hasNetworkSettingsPermission
                     + " DeviceOwner=" + isUidDeviceOwner
                     + " ProfileOwner=" + isUidProfileOwner);
         }
