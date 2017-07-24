@@ -560,9 +560,11 @@ public class HalDeviceManager {
                                            boolean preexisting) {
                     Log.d(TAG, "IWifi registration notification: fqName=" + fqName
                             + ", name=" + name + ", preexisting=" + preexisting);
-                    mWifi = null; // get rid of old copy!
-                    initIWifiIfNecessary();
-                    stopWifi(); // just in case
+                    synchronized (mLock) {
+                        mWifi = null; // get rid of old copy!
+                        initIWifiIfNecessary();
+                        stopWifi(); // just in case
+                    }
                 }
             };
 
