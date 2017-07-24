@@ -256,4 +256,13 @@ public class WifiPermissionsUtil {
         return (mSettingsStore.getLocationModeSetting(mContext)
                  != Settings.Secure.LOCATION_MODE_OFF);
     }
+
+    /**
+     * Returns true if the |uid| holds NETWORK_SETTINGS permission.
+     */
+    public boolean checkNetworkSettingsPermission(int uid) {
+        return mWifiPermissionsWrapper.getUidPermission(
+                android.Manifest.permission.NETWORK_SETTINGS, uid)
+                == PackageManager.PERMISSION_GRANTED;
+    }
 }
