@@ -27,6 +27,9 @@ import com.android.server.wifi.Clock;
 import com.android.server.wifi.WifiMonitor;
 import com.android.server.wifi.WifiNative;
 
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
+
 /**
  * WifiScanner implementation that takes advantage of the gscan HAL API
  * The gscan API is used to perform background scans and wificond is used for oneshot scans.
@@ -150,5 +153,10 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
         } else {
             return mWificondScannerDelegate.shouldScheduleBackgroundScanForHwPno();
         }
+    }
+
+    @Override
+    protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+        mWificondScannerDelegate.dump(fd, pw, args);
     }
 }
