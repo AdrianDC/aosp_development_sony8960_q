@@ -123,7 +123,7 @@ public class WifiConnectivityManagerTest {
     @Mock private NetworkScoreManager mNetworkScoreManager;
     @Mock private Clock mClock;
     @Mock private WifiLastResortWatchdog mWifiLastResortWatchdog;
-    @Mock private WifiNotificationController mWifiNotificationController;
+    @Mock private OpenNetworkNotifier mOpenNetworkNotifier;
     @Mock private WifiMetrics mWifiMetrics;
     @Mock private WifiNetworkScoreCache mScoreCache;
     @Captor ArgumentCaptor<ScanResult> mCandidateScanResultCaptor;
@@ -294,7 +294,7 @@ public class WifiConnectivityManagerTest {
     WifiConnectivityManager createConnectivityManager() {
         return new WifiConnectivityManager(mContext, mWifiStateMachine, mWifiScanner,
                 mWifiConfigManager, mWifiInfo, mWifiNS, mWifiConnectivityHelper,
-                mWifiLastResortWatchdog, mWifiNotificationController, mWifiMetrics,
+                mWifiLastResortWatchdog, mOpenNetworkNotifier, mWifiMetrics,
                 mLooper.getLooper(), mClock, mLocalLog, true, mFrameworkFacade, null, null, null);
     }
 
@@ -609,7 +609,7 @@ public class WifiConnectivityManagerTest {
     }
 
     /**
-     * {@link WifiNotificationController} handles scan results on network selection.
+     * {@link OpenNetworkNotifier} handles scan results on network selection.
      *
      * Expected behavior: ONA handles scan results
      */
@@ -633,11 +633,11 @@ public class WifiConnectivityManagerTest {
         mWifiConnectivityManager.handleConnectionStateChanged(
                 WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
 
-        verify(mWifiNotificationController).handleScanResults(expectedOpenNetworks);
+        verify(mOpenNetworkNotifier).handleScanResults(expectedOpenNetworks);
     }
 
     /**
-     * When wifi is connected, {@link WifiNotificationController} tries to clear the pending
+     * When wifi is connected, {@link OpenNetworkNotifier} tries to clear the pending
      * notification and does not reset notification repeat delay.
      *
      * Expected behavior: ONA clears pending notification and does not reset repeat delay.
@@ -648,11 +648,11 @@ public class WifiConnectivityManagerTest {
         mWifiConnectivityManager.handleConnectionStateChanged(
                 WifiConnectivityManager.WIFI_STATE_CONNECTED);
 
-        verify(mWifiNotificationController).clearPendingNotification(false /* isRepeatDelayReset*/);
+        verify(mOpenNetworkNotifier).clearPendingNotification(false /* isRepeatDelayReset*/);
     }
 
     /**
-     * When wifi is connected, {@link WifiNotificationController} handles connection state
+     * When wifi is connected, {@link OpenNetworkNotifier} handles connection state
      * change.
      *
      * Expected behavior: ONA does not clear pending notification.
@@ -663,7 +663,7 @@ public class WifiConnectivityManagerTest {
         mWifiConnectivityManager.handleConnectionStateChanged(
                 WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
 
-        verify(mWifiNotificationController, never()).clearPendingNotification(anyBoolean());
+        verify(mOpenNetworkNotifier, never()).clearPendingNotification(anyBoolean());
     }
 
     /**
@@ -675,7 +675,7 @@ public class WifiConnectivityManagerTest {
     public void openNetworkNotificationControllerToggledOnWifiStateChanges() {
         mWifiConnectivityManager.setWifiEnabled(false);
 
-        verify(mWifiNotificationController).clearPendingNotification(true /* isRepeatDelayReset */);
+        verify(mOpenNetworkNotifier).clearPendingNotification(true /* isRepeatDelayReset */);
     }
 
     /**
@@ -685,11 +685,11 @@ public class WifiConnectivityManagerTest {
     public void openNetworkNotificationControllerTracksScreenStateChanges() {
         mWifiConnectivityManager.handleScreenStateChanged(false);
 
-        verify(mWifiNotificationController).handleScreenStateChanged(false);
+        verify(mOpenNetworkNotifier).handleScreenStateChanged(false);
 
         mWifiConnectivityManager.handleScreenStateChanged(true);
 
-        verify(mWifiNotificationController).handleScreenStateChanged(true);
+        verify(mOpenNetworkNotifier).handleScreenStateChanged(true);
     }
 
     /**
@@ -1652,7 +1652,7 @@ public class WifiConnectivityManagerTest {
     /**
      *  Dump ONA controller.
      *
-     * Expected behavior: {@link WifiNotificationController#dump(FileDescriptor, PrintWriter,
+     * Expected behavior: {@link OpenNetworkNotifier#dump(FileDescriptor, PrintWriter,
      * String[])} is invoked.
      */
     @Test
@@ -1661,6 +1661,6 @@ public class WifiConnectivityManagerTest {
         PrintWriter pw = new PrintWriter(sw);
         mWifiConnectivityManager.dump(new FileDescriptor(), pw, new String[]{});
 
-        verify(mWifiNotificationController).dump(any(), any(), any());
+        verify(mOpenNetworkNotifier).dump(any(), any(), any());
     }
 }

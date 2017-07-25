@@ -42,7 +42,7 @@ import java.util.List;
  * Takes care of handling the "open wi-fi network available" notification
  * @hide
  */
-public class WifiNotificationController {
+public class OpenNetworkNotifier {
     /**
      * The icon to show in the 'available networks' notification. This will also
      * be the ID of the Notification given to the NotificationManager.
@@ -52,7 +52,7 @@ public class WifiNotificationController {
     /**
      * When a notification is shown, we wait this amount before possibly showing it again.
      */
-    private final long NOTIFICATION_REPEAT_DELAY_MS;
+    private final long mNotificationRepeatDelay;
 
     /** Whether the user has set the setting to show the 'available networks' notification. */
     private boolean mSettingEnabled;
@@ -86,11 +86,11 @@ public class WifiNotificationController {
     private final OpenNetworkRecommender mOpenNetworkRecommender;
     private ScanResult mRecommendedNetwork;
 
-    WifiNotificationController(Context context,
-                               Looper looper,
-                               FrameworkFacade framework,
-                               Notification.Builder builder,
-                               OpenNetworkRecommender recommender) {
+    OpenNetworkNotifier(Context context,
+                        Looper looper,
+                        FrameworkFacade framework,
+                        Notification.Builder builder,
+                        OpenNetworkRecommender recommender) {
         mContext = context;
         mFrameworkFacade = framework;
         mNotificationBuilder = builder;
@@ -99,7 +99,7 @@ public class WifiNotificationController {
         mScreenOn = false;
 
         // Setting is in seconds
-        NOTIFICATION_REPEAT_DELAY_MS = mFrameworkFacade.getIntegerSetting(context,
+        mNotificationRepeatDelay = mFrameworkFacade.getIntegerSetting(context,
                 Settings.Global.WIFI_NETWORKS_AVAILABLE_REPEAT_DELAY, 900) * 1000L;
         mNotificationEnabledSettingObserver = new NotificationEnabledSettingObserver(
                 new Handler(looper));
@@ -215,7 +215,7 @@ public class WifiNotificationController {
             mNotificationBuilder.setContentTitle(title);
             mNotificationBuilder.setContentText(details);
 
-            mNotificationRepeatTime = System.currentTimeMillis() + NOTIFICATION_REPEAT_DELAY_MS;
+            mNotificationRepeatTime = System.currentTimeMillis() + mNotificationRepeatDelay;
 
             notificationManager.notifyAsUser(null, ICON_NETWORKS_AVAILABLE,
                     mNotificationBuilder.build(), UserHandle.ALL);
@@ -228,7 +228,7 @@ public class WifiNotificationController {
 
     /** Dump ONA controller state. */
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-        pw.println("WifiNotificationController: ");
+        pw.println("OpenNetworkNotifier: ");
         pw.println("mSettingEnabled " + mSettingEnabled);
         pw.println("mNotificationRepeatTime " + mNotificationRepeatTime);
         pw.println("mNotificationShown " + mNotificationShown);

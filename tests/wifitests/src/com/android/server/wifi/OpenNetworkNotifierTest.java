@@ -42,9 +42,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Unit tests for {@link WifiNotificationController}.
+ * Unit tests for {@link OpenNetworkNotifier}.
  */
-public class WifiNotificationControllerTest {
+public class OpenNetworkNotifierTest {
 
     private static final String TEST_SSID_1 = "Test SSID 1";
     private static final int MIN_RSSI_LEVEL = -127;
@@ -55,7 +55,7 @@ public class WifiNotificationControllerTest {
     @Mock private NotificationManager mNotificationManager;
     @Mock private OpenNetworkRecommender mOpenNetworkRecommender;
     @Mock private UserManager mUserManager;
-    private WifiNotificationController mNotificationController;
+    private OpenNetworkNotifier mNotificationController;
     private ScanResult mDummyNetwork;
 
 
@@ -77,7 +77,7 @@ public class WifiNotificationControllerTest {
         when(mOpenNetworkRecommender.recommendNetwork(any(), any())).thenReturn(mDummyNetwork);
 
         TestLooper mock_looper = new TestLooper();
-        mNotificationController = new WifiNotificationController(
+        mNotificationController = new OpenNetworkNotifier(
                 mContext, mock_looper.getLooper(), mFrameworkFacade,
                 mock(Notification.Builder.class), mOpenNetworkRecommender);
         mNotificationController.handleScreenStateChanged(true);
@@ -156,7 +156,7 @@ public class WifiNotificationControllerTest {
     }
 
     /**
-     * When {@link WifiNotificationController#clearPendingNotification(boolean)} is called and a
+     * When {@link OpenNetworkNotifier#clearPendingNotification(boolean)} is called and a
      * notification is shown, clear the notification.
      */
     @Test
@@ -172,7 +172,7 @@ public class WifiNotificationControllerTest {
     }
 
     /**
-     * When {@link WifiNotificationController#clearPendingNotification(boolean)} is called and a
+     * When {@link OpenNetworkNotifier#clearPendingNotification(boolean)} is called and a
      * notification was not previously shown, do not clear the notification.
      */
     @Test

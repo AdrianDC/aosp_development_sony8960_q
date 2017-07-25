@@ -22,7 +22,7 @@ import android.net.wifi.ScanResult;
 import java.util.List;
 
 /**
- * Helps recommend the best available network for {@link WifiNotificationController}.
+ * Helps recommend the best available network for {@link OpenNetworkNotifier}.
  * @hide
  */
 public class OpenNetworkRecommender {
