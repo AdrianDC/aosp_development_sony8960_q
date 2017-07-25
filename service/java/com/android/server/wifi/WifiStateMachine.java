@@ -733,10 +733,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private static final int CMD_DIAGS_CONNECT_TIMEOUT                  = BASE + 252;
 
     /* Used to set the tx power limit for SAR during the start of a phone call. */
-    private static final int CMD_SET_SAR_TX_POWER_LIMIT                 = BASE + 253;
-
-    /* Used to reset the tx power limit for SAR at end of a phone call. */
-    private static final int CMD_RESET_SAR_TX_POWER_LIMIT               = BASE + 254;
+    private static final int CMD_SELECT_TX_POWER_SCENARIO               = BASE + 253;
 
     // For message logging.
     private static final Class[] sMessageClasses = {
@@ -804,7 +801,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private final boolean mEnableChipWakeUpWhenAssociated;
     private final boolean mEnableRssiPollWhenAssociated;
     private final boolean mEnableVoiceCallSarTxPowerLimit;
-    private final int mVoiceCallSarTxPowerLimitInDbm;
 
     int mRunningBeaconCount = 0;
 
@@ -1051,8 +1047,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 R.bool.config_wifi_enable_disconnection_debounce);
         mEnableVoiceCallSarTxPowerLimit = mContext.getResources().getBoolean(
                 R.bool.config_wifi_framework_enable_voice_call_sar_tx_power_limit);
-        mVoiceCallSarTxPowerLimitInDbm = mContext.getResources().getInteger(
-                R.integer.config_wifi_framework_voice_call_sar_tx_power_limit_in_dbm);
         mEnableChipWakeUpWhenAssociated = true;
         mEnableRssiPollWhenAssociated = true;
 
@@ -3782,9 +3776,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         public void onCallStateChanged(int state, String incomingNumber) {
             if (mEnableVoiceCallSarTxPowerLimit) {
                 if (state == CALL_STATE_OFFHOOK) {
-                    sendMessage(CMD_SET_SAR_TX_POWER_LIMIT, mVoiceCallSarTxPowerLimitInDbm);
+                    sendMessage(CMD_SELECT_TX_POWER_SCENARIO,
+                            WifiNative.TX_POWER_SCENARIO_VOICE_CALL);
                 } else if (state == CALL_STATE_IDLE) {
-                    sendMessage(CMD_RESET_SAR_TX_POWER_LIMIT);
+                    sendMessage(CMD_SELECT_TX_POWER_SCENARIO,
+                            WifiNative.TX_POWER_SCENARIO_NORMAL);
                 }
             }
         }
@@ -3942,8 +3938,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_ROAM_WATCHDOG_TIMER:
                 case CMD_DISABLE_P2P_WATCHDOG_TIMER:
                 case CMD_DISABLE_EPHEMERAL_NETWORK:
-                case CMD_SET_SAR_TX_POWER_LIMIT:
-                case CMD_RESET_SAR_TX_POWER_LIMIT:
+                case CMD_SELECT_TX_POWER_SCENARIO:
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
                     break;
                 case CMD_SET_SUSPEND_OPT_ENABLED:
@@ -4336,9 +4331,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             // appropriately.
             if (mEnableVoiceCallSarTxPowerLimit) {
                 if (getTelephonyManager().isOffhook()) {
-                    sendMessage(CMD_SET_SAR_TX_POWER_LIMIT, mVoiceCallSarTxPowerLimitInDbm);
-                } else if (getTelephonyManager().isIdle()) {
-                    sendMessage(CMD_RESET_SAR_TX_POWER_LIMIT);
+                    sendMessage(CMD_SELECT_TX_POWER_SCENARIO,
+                            WifiNative.TX_POWER_SCENARIO_VOICE_CALL);
+                } else {
+                    sendMessage(CMD_SELECT_TX_POWER_SCENARIO,
+                            WifiNative.TX_POWER_SCENARIO_NORMAL);
                 }
             }
 
@@ -4523,17 +4520,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         mWifiConnectivityManager.forceConnectivityScan();
                     }
                     break;
-                case CMD_SET_SAR_TX_POWER_LIMIT:
-                    int txPowerLevelInDbm = message.arg1;
-                    logd("Setting Tx power limit to " + txPowerLevelInDbm);
-                    if (!mWifiNative.setTxPowerLimit(txPowerLevelInDbm)) {
-                        loge("Failed to set TX power limit");
-                    }
-                    break;
-                case CMD_RESET_SAR_TX_POWER_LIMIT:
-                    logd("Resetting Tx power limit");
-                    if (!mWifiNative.resetTxPowerLimit()) {
-                        loge("Failed to reset TX power limit");
+                case CMD_SELECT_TX_POWER_SCENARIO:
+                    int txPowerScenario = message.arg1;
+                    logd("Setting Tx power scenario to " + txPowerScenario);
+                    if (!mWifiNative.selectTxPowerScenario(txPowerScenario)) {
+                        loge("Failed to set TX power scenario");
                     }
                     break;
                 default:
