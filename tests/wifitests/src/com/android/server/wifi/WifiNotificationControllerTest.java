@@ -70,6 +70,7 @@ public class WifiNotificationControllerTest {
         mNotificationController = new WifiNotificationController(
                 mContext, mock_looper.getLooper(), mFrameworkFacade,
                 mock(Notification.Builder.class));
+        mNotificationController.handleScreenStateChanged(true);
     }
 
     private List<ScanDetail> createOpenScanResults() {
@@ -114,6 +115,21 @@ public class WifiNotificationControllerTest {
 
         verify(mNotificationManager).cancelAsUser(any(), anyInt(), any());
     }
+    /**
+     * When a notification is showing, screen is off, and scan results with no open networks are
+     * handled, the notification is cleared.
+     */
+    @Test
+    public void handleScanResults_notificationShown_screenOff_emptyList_notificationCleared() {
+        mNotificationController.handleScanResults(createOpenScanResults());
+
+        verify(mNotificationManager).notifyAsUser(any(), anyInt(), any(), any());
+
+        mNotificationController.handleScreenStateChanged(false);
+        mNotificationController.handleScanResults(new ArrayList<>());
+
+        verify(mNotificationManager).cancelAsUser(any(), anyInt(), any());
+    }
 
     /**
      * If notification is showing, do not post another notification.
@@ -150,6 +166,18 @@ public class WifiNotificationControllerTest {
         mNotificationController.clearPendingNotification(true);
 
         verify(mNotificationManager, never()).cancelAsUser(any(), anyInt(), any());
+    }
+
+    /**
+     * When screen is off and notification is not displayed, notification is not posted on handling
+     * new scan results with open networks.
+     */
+    @Test
+    public void screenOff_handleScanResults_notificationNotDisplayed() {
+        mNotificationController.handleScreenStateChanged(false);
+        mNotificationController.handleScanResults(createOpenScanResults());
+
+        verify(mNotificationManager, never()).notifyAsUser(any(), anyInt(), any(), any());
     }
 
     /** Verifies that {@link UserManager#DISALLOW_CONFIG_WIFI} disables the feature. */
