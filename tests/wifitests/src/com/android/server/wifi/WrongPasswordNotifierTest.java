@@ -22,13 +22,16 @@ import static org.mockito.Mockito.*;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.content.Context;
+import android.content.Intent;
 import android.content.res.Resources;
+import android.provider.Settings;
 
 import com.android.internal.notification.SystemNotificationChannels;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Answers;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -70,6 +73,11 @@ public class WrongPasswordNotifierTest {
                 eq(SystemNotificationChannels.NETWORK_ALERTS))).thenReturn(mNotificationBuilder);
         mWrongPassNotifier.onWrongPasswordError(TEST_SSID);
         verify(mNotificationManager).notify(eq(WrongPasswordNotifier.NOTIFICATION_ID), any());
+        ArgumentCaptor<Intent> intent = ArgumentCaptor.forClass(Intent.class);
+        verify(mFrameworkFacade).getActivity(
+                any(Context.class), anyInt(), intent.capture(), anyInt());
+        assertEquals(Settings.ACTION_WIFI_SETTINGS, intent.getValue().getAction());
+        assertEquals(TEST_SSID, intent.getValue().getStringExtra("wifi_start_connect_ssid"));
     }
 
     /**
