@@ -679,6 +679,20 @@ public class WifiConnectivityManagerTest {
     }
 
     /**
+     * Verify that the ONA controller tracks screen state changes.
+     */
+    @Test
+    public void openNetworkNotificationControllerTracksScreenStateChanges() {
+        mWifiConnectivityManager.handleScreenStateChanged(false);
+
+        verify(mWifiNotificationController).handleScreenStateChanged(false);
+
+        mWifiConnectivityManager.handleScreenStateChanged(true);
+
+        verify(mWifiNotificationController).handleScreenStateChanged(true);
+    }
+
+    /**
      *  Verify that scan interval for screen on and wifi disconnected scenario
      *  is in the exponential backoff fashion.
      *
