@@ -16,18 +16,14 @@
 
 package com.android.server.wifi;
 
+import android.annotation.NonNull;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.TaskStackBuilder;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.database.ContentObserver;
-import android.net.NetworkInfo;
-import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
-import android.net.wifi.WifiScanner;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
@@ -57,12 +53,11 @@ public class WifiNotificationController {
      */
     private final long NOTIFICATION_REPEAT_DELAY_MS;
 
+    /** Whether the user has set the setting to show the 'available networks' notification. */
+    private boolean mSettingEnabled;
+
     /**
-     * Whether the user has set the setting to show the 'available networks' notification.
-     */
-    private boolean mNotificationEnabled;
-    /**
-     * Observes the user setting to keep {@link #mNotificationEnabled} in sync.
+     * Observes the user setting to keep {@link #mSettingEnabled} in sync.
      */
     private NotificationEnabledSettingObserver mNotificationEnabledSettingObserver;
 
@@ -82,93 +77,18 @@ public class WifiNotificationController {
      * notification is not showing.
      */
     private boolean mNotificationShown;
-    /**
-     * The number of continuous scans that must occur before consider the
-     * supplicant in a scanning state. This allows supplicant to associate with
-     * remembered networks that are in the scan results.
-     */
-    private static final int NUM_SCANS_BEFORE_ACTUALLY_SCANNING = 3;
-    /**
-     * The number of scans since the last network state change. When this
-     * exceeds {@link #NUM_SCANS_BEFORE_ACTUALLY_SCANNING}, we consider the
-     * supplicant to actually be scanning. When the network state changes to
-     * something other than scanning, we reset this to 0.
-     */
-    private int mNumScansSinceNetworkStateChange;
+    /** Wi-Fi connection state from {@link WifiConnectivityManager} */
 
     private final Context mContext;
-    private NetworkInfo mNetworkInfo;
-    private NetworkInfo.DetailedState mDetailedState;
-    private volatile int mWifiState;
     private FrameworkFacade mFrameworkFacade;
-    private WifiInjector mWifiInjector;
-    private WifiScanner mWifiScanner;
 
     WifiNotificationController(Context context,
                                Looper looper,
                                FrameworkFacade framework,
-                               Notification.Builder builder,
-                               WifiInjector wifiInjector) {
+                               Notification.Builder builder) {
         mContext = context;
         mFrameworkFacade = framework;
         mNotificationBuilder = builder;
-        mWifiInjector = wifiInjector;
-        mWifiState = WifiManager.WIFI_STATE_UNKNOWN;
-        mDetailedState = NetworkInfo.DetailedState.IDLE;
-
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(WifiManager.WIFI_STATE_CHANGED_ACTION);
-        filter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
-        filter.addAction(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
-
-        mContext.registerReceiver(
-                new BroadcastReceiver() {
-                    @Override
-                    public void onReceive(Context context, Intent intent) {
-                        if (intent.getAction()
-                                .equals(WifiManager.WIFI_STATE_CHANGED_ACTION)) {
-                            mWifiState = intent.getIntExtra(WifiManager.EXTRA_WIFI_STATE,
-                                    WifiManager.WIFI_STATE_UNKNOWN);
-                            resetNotification();
-                        } else if (intent.getAction().equals(
-                                WifiManager.NETWORK_STATE_CHANGED_ACTION)) {
-                            mNetworkInfo = (NetworkInfo) intent.getParcelableExtra(
-                                    WifiManager.EXTRA_NETWORK_INFO);
-                            NetworkInfo.DetailedState detailedState =
-                                    mNetworkInfo.getDetailedState();
-                            if (detailedState != NetworkInfo.DetailedState.SCANNING
-                                    && detailedState != mDetailedState) {
-                                mDetailedState = detailedState;
-                                // reset & clear notification on a network connect & disconnect
-                                switch(mDetailedState) {
-                                    case CONNECTED:
-                                    case DISCONNECTED:
-                                    case CAPTIVE_PORTAL_CHECK:
-                                        resetNotification();
-                                        break;
-
-                                    case IDLE:
-                                    case SCANNING:
-                                    case CONNECTING:
-                                    case AUTHENTICATING:
-                                    case OBTAINING_IPADDR:
-                                    case SUSPENDED:
-                                    case FAILED:
-                                    case BLOCKED:
-                                    case VERIFYING_POOR_LINK:
-                                        break;
-                                }
-                            }
-                        } else if (intent.getAction().equals(
-                                WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)) {
-                            if (mWifiScanner == null) {
-                                mWifiScanner = mWifiInjector.getWifiScanner();
-                            }
-                            checkAndSetNotification(mNetworkInfo,
-                                    mWifiScanner.getSingleScanResults());
-                        }
-                    }
-                }, filter);
 
         // Setting is in seconds
         NOTIFICATION_REPEAT_DELAY_MS = mFrameworkFacade.getIntegerSetting(context,
@@ -178,66 +98,43 @@ public class WifiNotificationController {
         mNotificationEnabledSettingObserver.register();
     }
 
-    private synchronized void checkAndSetNotification(NetworkInfo networkInfo,
-            List<ScanResult> scanResults) {
-
-        // TODO: unregister broadcast so we do not have to check here
-        // If we shouldn't place a notification on available networks, then
-        // don't bother doing any of the following
-        if (!mNotificationEnabled) return;
-        if (mWifiState != WifiManager.WIFI_STATE_ENABLED) return;
-        if (UserManager.get(mContext)
-                .hasUserRestriction(UserManager.DISALLOW_CONFIG_WIFI, UserHandle.CURRENT)) {
-            return;
+    /**
+     * Clears the pending notification. This is called by {@link WifiConnectivityManager} on stop.
+     *
+     * @param resetRepeatDelay resets the time delay for repeated notification if true.
+     */
+    public void clearPendingNotification(boolean resetRepeatDelay) {
+        if (resetRepeatDelay) {
+            mNotificationRepeatTime = 0;
         }
-
-        NetworkInfo.State state = NetworkInfo.State.DISCONNECTED;
-        if (networkInfo != null)
-            state = networkInfo.getState();
-
-        if ((state == NetworkInfo.State.DISCONNECTED)
-                || (state == NetworkInfo.State.UNKNOWN)) {
-            if (scanResults != null) {
-                int numOpenNetworks = 0;
-                for (int i = scanResults.size() - 1; i >= 0; i--) {
-                    ScanResult scanResult = scanResults.get(i);
-
-                    //A capability of [ESS] represents an open access point
-                    //that is available for an STA to connect
-                    if (scanResult.capabilities != null &&
-                            scanResult.capabilities.equals("[ESS]")) {
-                        numOpenNetworks++;
-                    }
-                }
-
-                if (numOpenNetworks > 0) {
-                    if (++mNumScansSinceNetworkStateChange >= NUM_SCANS_BEFORE_ACTUALLY_SCANNING) {
-                        /*
-                         * We've scanned continuously at least
-                         * NUM_SCANS_BEFORE_NOTIFICATION times. The user
-                         * probably does not have a remembered network in range,
-                         * since otherwise supplicant would have tried to
-                         * associate and thus resetting this counter.
-                         */
-                        setNotificationVisible(true, numOpenNetworks, false, 0);
-                    }
-                    return;
-                }
-            }
-        }
-
-        // No open networks in range, remove the notification
         setNotificationVisible(false, 0, false, 0);
     }
 
+    private boolean isControllerEnabled() {
+        return mSettingEnabled && !UserManager.get(mContext)
+                .hasUserRestriction(UserManager.DISALLOW_CONFIG_WIFI, UserHandle.CURRENT);
+    }
+
     /**
-     * Clears variables related to tracking whether a notification has been
-     * shown recently and clears the current notification.
+     * If there are open networks, attempt to post an open network notification.
+     *
+     * @param availableNetworks Available networks from
+     * {@link WifiNetworkSelector.NetworkEvaluator#getFilteredScanDetailsForOpenUnsavedNetworks()}.
      */
-    private synchronized void resetNotification() {
-        mNotificationRepeatTime = 0;
-        mNumScansSinceNetworkStateChange = 0;
-        setNotificationVisible(false, 0, false, 0);
+    public void handleScanResults(@NonNull List<ScanDetail> availableNetworks) {
+        if (!isControllerEnabled()) {
+            clearPendingNotification(true /* resetRepeatDelay */);
+            return;
+        }
+        if (availableNetworks.isEmpty()) {
+            clearPendingNotification(false /* resetRepeatDelay */);
+            return;
+        }
+        if (mNotificationShown) {
+            return;
+        }
+
+        setNotificationVisible(true, availableNetworks.size(), false, 0);
     }
 
     /**
@@ -308,34 +205,30 @@ public class WifiNotificationController {
         mNotificationShown = visible;
     }
 
-    void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-        pw.println("mNotificationEnabled " + mNotificationEnabled);
+    /** Dump ONA controller state. */
+    public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+        pw.println("WifiNotificationController: ");
+        pw.println("mSettingEnabled " + mSettingEnabled);
         pw.println("mNotificationRepeatTime " + mNotificationRepeatTime);
         pw.println("mNotificationShown " + mNotificationShown);
-        pw.println("mNumScansSinceNetworkStateChange " + mNumScansSinceNetworkStateChange);
     }
 
     private class NotificationEnabledSettingObserver extends ContentObserver {
-        public NotificationEnabledSettingObserver(Handler handler) {
+        NotificationEnabledSettingObserver(Handler handler) {
             super(handler);
         }
 
         public void register() {
             mFrameworkFacade.registerContentObserver(mContext, Settings.Global.getUriFor(
                     Settings.Global.WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON), true, this);
-            synchronized (WifiNotificationController.this) {
-                mNotificationEnabled = getValue();
-            }
+            mSettingEnabled = getValue();
         }
 
         @Override
         public void onChange(boolean selfChange) {
             super.onChange(selfChange);
-
-            synchronized (WifiNotificationController.this) {
-                mNotificationEnabled = getValue();
-                resetNotification();
-            }
+            mSettingEnabled = getValue();
+            clearPendingNotification(true /* resetRepeatDelay */);
         }
 
         private boolean getValue() {

@@ -16,7 +16,7 @@
 
 package com.android.server.wifi;
 
-import static org.mockito.Mockito.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -25,23 +25,16 @@ import static org.mockito.Mockito.when;
 
 import android.app.Notification;
 import android.app.NotificationManager;
-import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.IntentFilter;
 import android.content.res.Resources;
-import android.net.NetworkInfo;
 import android.net.wifi.ScanResult;
-import android.net.wifi.WifiManager;
-import android.net.wifi.WifiScanner;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.os.test.TestLooper;
 import android.provider.Settings;
-import android.test.suitebuilder.annotation.SmallTest;
 
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -49,26 +42,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Unit tests for {@link com.android.server.wifi.WifiScanningServiceImpl}.
+ * Unit tests for {@link WifiNotificationController}.
  */
-@SmallTest
 public class WifiNotificationControllerTest {
-    public static final String TAG = "WifiScanningServiceTest";
 
     @Mock private Context mContext;
     @Mock private Resources mResources;
     @Mock private FrameworkFacade mFrameworkFacade;
     @Mock private NotificationManager mNotificationManager;
     @Mock private UserManager mUserManager;
-    @Mock private WifiInjector mWifiInjector;
-    @Mock private WifiScanner mWifiScanner;
-    WifiNotificationController mWifiNotificationController;
+    private WifiNotificationController mNotificationController;
 
-    /**
-     * Internal BroadcastReceiver that WifiNotificationController uses to listen for broadcasts
-     * this is initialized by calling startServiceAndLoadDriver
-     */
-    BroadcastReceiver mBroadcastReceiver;
 
     /** Initialize objects before each test run. */
     @Before
@@ -76,86 +60,121 @@ public class WifiNotificationControllerTest {
         MockitoAnnotations.initMocks(this);
         when(mContext.getSystemService(Context.NOTIFICATION_SERVICE))
                 .thenReturn(mNotificationManager);
-
         when(mFrameworkFacade.getIntegerSetting(mContext,
                 Settings.Global.WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON, 1)).thenReturn(1);
-
         when(mContext.getSystemService(Context.USER_SERVICE))
                 .thenReturn(mUserManager);
         when(mContext.getResources()).thenReturn(mResources);
 
-        when(mWifiInjector.getWifiScanner()).thenReturn(mWifiScanner);
-
         TestLooper mock_looper = new TestLooper();
-        mWifiNotificationController = new WifiNotificationController(
+        mNotificationController = new WifiNotificationController(
                 mContext, mock_looper.getLooper(), mFrameworkFacade,
-                mock(Notification.Builder.class), mWifiInjector);
-        ArgumentCaptor<BroadcastReceiver> broadcastReceiverCaptor =
-                ArgumentCaptor.forClass(BroadcastReceiver.class);
-
-        verify(mContext)
-                .registerReceiver(broadcastReceiverCaptor.capture(), any(IntentFilter.class));
-        mBroadcastReceiver = broadcastReceiverCaptor.getValue();
+                mock(Notification.Builder.class));
     }
 
-    private void setOpenAccessPoint() {
-        List<ScanResult> scanResults = new ArrayList<>();
+    private List<ScanDetail> createOpenScanResults() {
+        List<ScanDetail> scanResults = new ArrayList<>();
         ScanResult scanResult = new ScanResult();
         scanResult.capabilities = "[ESS]";
-        scanResults.add(scanResult);
-        when(mWifiScanner.getSingleScanResults()).thenReturn(scanResults);
+        scanResults.add(new ScanDetail(scanResult, null /* networkDetail */));
+        return scanResults;
     }
 
-    /** Verifies that a notification is displayed (and retracted) given system events. */
+    /**
+     * When scan results with open networks are handled, a notification is posted.
+     */
     @Test
-    public void verifyNotificationDisplayed() throws Exception {
-        TestUtil.sendWifiStateChanged(mBroadcastReceiver, mContext, WifiManager.WIFI_STATE_ENABLED);
-        TestUtil.sendNetworkStateChanged(mBroadcastReceiver, mContext,
-                NetworkInfo.DetailedState.DISCONNECTED);
-        setOpenAccessPoint();
+    public void handleScanResults_hasOpenNetworks_notificationDisplayed() {
+        mNotificationController.handleScanResults(createOpenScanResults());
 
-        // The notification should not be displayed after only two scan results.
-        TestUtil.sendScanResultsAvailable(mBroadcastReceiver, mContext);
-        TestUtil.sendScanResultsAvailable(mBroadcastReceiver, mContext);
-        verify(mNotificationManager, never())
-                .notifyAsUser(any(), anyInt(), any(), any(UserHandle.class));
-
-        // Changing to and from "SCANNING" state should not affect the counter.
-        TestUtil.sendNetworkStateChanged(mBroadcastReceiver, mContext,
-                NetworkInfo.DetailedState.SCANNING);
-        TestUtil.sendNetworkStateChanged(mBroadcastReceiver, mContext,
-                NetworkInfo.DetailedState.DISCONNECTED);
-
-        // The third scan result notification will trigger the notification.
-        TestUtil.sendScanResultsAvailable(mBroadcastReceiver, mContext);
-        verify(mNotificationManager)
-                .notifyAsUser(any(), anyInt(), any(), any(UserHandle.class));
-        verify(mNotificationManager, never())
-                .cancelAsUser(any(), anyInt(), any(UserHandle.class));
-
-        // Changing network state should cause the notification to go away.
-        TestUtil.sendNetworkStateChanged(mBroadcastReceiver, mContext,
-                NetworkInfo.DetailedState.CONNECTED);
-        verify(mNotificationManager)
-                .cancelAsUser(any(), anyInt(), any(UserHandle.class));
+        verify(mNotificationManager).notifyAsUser(any(), anyInt(), any(), any());
     }
 
+    /**
+     * When scan results with no open networks are handled, a notification is not posted.
+     */
     @Test
-    public void verifyNotificationNotDisplayed_userHasDisallowConfigWifiRestriction() {
+    public void handleScanResults_emptyList_notificationNotDisplayed() {
+        mNotificationController.handleScanResults(new ArrayList<>());
+
+        verify(mNotificationManager, never()).notifyAsUser(any(), anyInt(), any(), any());
+    }
+
+    /**
+     * When a notification is showing and scan results with no open networks are handled, the
+     * notification is cleared.
+     */
+    @Test
+    public void handleScanResults_notificationShown_emptyList_notificationCleared() {
+        mNotificationController.handleScanResults(createOpenScanResults());
+
+        verify(mNotificationManager).notifyAsUser(any(), anyInt(), any(), any());
+
+        mNotificationController.handleScanResults(new ArrayList<>());
+
+        verify(mNotificationManager).cancelAsUser(any(), anyInt(), any());
+    }
+
+    /**
+     * If notification is showing, do not post another notification.
+     */
+    @Test
+    public void handleScanResults_notificationShowing_doesNotRepostNotification() {
+        mNotificationController.handleScanResults(createOpenScanResults());
+        mNotificationController.handleScanResults(createOpenScanResults());
+
+        verify(mNotificationManager).notifyAsUser(any(), anyInt(), any(), any());
+    }
+
+    /**
+     * When {@link WifiNotificationController#clearPendingNotification(boolean)} is called and a
+     * notification is shown, clear the notification.
+     */
+    @Test
+    public void clearPendingNotification_clearsNotificationIfOneIsShowing() {
+        mNotificationController.handleScanResults(createOpenScanResults());
+
+        verify(mNotificationManager).notifyAsUser(any(), anyInt(), any(), any());
+
+        mNotificationController.clearPendingNotification(true);
+
+        verify(mNotificationManager).cancelAsUser(any(), anyInt(), any());
+    }
+
+    /**
+     * When {@link WifiNotificationController#clearPendingNotification(boolean)} is called and a
+     * notification was not previously shown, do not clear the notification.
+     */
+    @Test
+    public void clearPendingNotification_doesNotClearNotificationIfNoneShowing() {
+        mNotificationController.clearPendingNotification(true);
+
+        verify(mNotificationManager, never()).cancelAsUser(any(), anyInt(), any());
+    }
+
+    /** Verifies that {@link UserManager#DISALLOW_CONFIG_WIFI} disables the feature. */
+    @Test
+    public void userHasDisallowConfigWifiRestriction_notificationNotDisplayed() {
         when(mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_WIFI, UserHandle.CURRENT))
                 .thenReturn(true);
 
-        TestUtil.sendWifiStateChanged(mBroadcastReceiver, mContext, WifiManager.WIFI_STATE_ENABLED);
-        TestUtil.sendNetworkStateChanged(mBroadcastReceiver, mContext,
-                NetworkInfo.DetailedState.DISCONNECTED);
-        setOpenAccessPoint();
+        mNotificationController.handleScanResults(createOpenScanResults());
 
-        // The notification should be displayed after three scan results.
-        TestUtil.sendScanResultsAvailable(mBroadcastReceiver, mContext);
-        TestUtil.sendScanResultsAvailable(mBroadcastReceiver, mContext);
-        TestUtil.sendScanResultsAvailable(mBroadcastReceiver, mContext);
+        verify(mNotificationManager, never()).notifyAsUser(any(), anyInt(), any(), any());
+    }
 
-        verify(mNotificationManager, never())
-                .notifyAsUser(any(), anyInt(), any(), any(UserHandle.class));
+    /** Verifies that {@link UserManager#DISALLOW_CONFIG_WIFI} clears the showing notification. */
+    @Test
+    public void userHasDisallowConfigWifiRestriction_showingNotificationIsCleared() {
+        mNotificationController.handleScanResults(createOpenScanResults());
+
+        verify(mNotificationManager).notifyAsUser(any(), anyInt(), any(), any());
+
+        when(mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_WIFI, UserHandle.CURRENT))
+                .thenReturn(true);
+
+        mNotificationController.handleScanResults(createOpenScanResults());
+
+        verify(mNotificationManager).cancelAsUser(any(), anyInt(), any());
     }
 }
