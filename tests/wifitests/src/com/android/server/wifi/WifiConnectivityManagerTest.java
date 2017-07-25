@@ -63,6 +63,7 @@ import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 
 /**
  * Unit tests for {@link com.android.server.wifi.WifiConnectivityManager}.
@@ -122,6 +123,7 @@ public class WifiConnectivityManagerTest {
     @Mock private NetworkScoreManager mNetworkScoreManager;
     @Mock private Clock mClock;
     @Mock private WifiLastResortWatchdog mWifiLastResortWatchdog;
+    @Mock private WifiNotificationController mWifiNotificationController;
     @Mock private WifiMetrics mWifiMetrics;
     @Mock private WifiNetworkScoreCache mScoreCache;
     @Captor ArgumentCaptor<ScanResult> mCandidateScanResultCaptor;
@@ -292,8 +294,8 @@ public class WifiConnectivityManagerTest {
     WifiConnectivityManager createConnectivityManager() {
         return new WifiConnectivityManager(mContext, mWifiStateMachine, mWifiScanner,
                 mWifiConfigManager, mWifiInfo, mWifiNS, mWifiConnectivityHelper,
-                mWifiLastResortWatchdog, mWifiMetrics, mLooper.getLooper(), mClock,
-                mLocalLog, true, mFrameworkFacade, null, null, null);
+                mWifiLastResortWatchdog, mWifiNotificationController, mWifiMetrics,
+                mLooper.getLooper(), mClock, mLocalLog, true, mFrameworkFacade, null, null, null);
     }
 
     /**
@@ -604,6 +606,76 @@ public class WifiConnectivityManagerTest {
 
         verify(mWifiMetrics).incrementNumConnectivityWatchdogPnoGood();
         verify(mWifiMetrics, never()).incrementNumConnectivityWatchdogPnoBad();
+    }
+
+    /**
+     * {@link WifiNotificationController} handles scan results on network selection.
+     *
+     * Expected behavior: ONA handles scan results
+     */
+    @Test
+    public void wifiDisconnected_noConnectionCandidate_openNetworkNotificationScanResultsHandled() {
+        // no connection candidate selected
+        when(mWifiNS.selectNetwork(anyObject(), anyObject(), anyObject(), anyBoolean(),
+                anyBoolean(), anyBoolean())).thenReturn(null);
+
+        List<ScanDetail> expectedOpenNetworks = new ArrayList<>();
+        expectedOpenNetworks.add(
+                new ScanDetail(
+                        new ScanResult(WifiSsid.createFromAsciiEncoded(CANDIDATE_SSID),
+                                CANDIDATE_SSID, CANDIDATE_BSSID, 1245, 0, "some caps", -78, 2450,
+                                1025, 22, 33, 20, 0, 0, true), null));
+
+        when(mWifiNS.getFilteredScanDetailsForOpenUnsavedNetworks())
+                .thenReturn(expectedOpenNetworks);
+
+        // Set WiFi to disconnected state to trigger PNO scan
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+
+        verify(mWifiNotificationController).handleScanResults(expectedOpenNetworks);
+    }
+
+    /**
+     * When wifi is connected, {@link WifiNotificationController} tries to clear the pending
+     * notification and does not reset notification repeat delay.
+     *
+     * Expected behavior: ONA clears pending notification and does not reset repeat delay.
+     */
+    @Test
+    public void wifiConnected_openNetworkNotificationClearsPendingNotification() {
+        // Set WiFi to connected state
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_CONNECTED);
+
+        verify(mWifiNotificationController).clearPendingNotification(false /* isRepeatDelayReset*/);
+    }
+
+    /**
+     * When wifi is connected, {@link WifiNotificationController} handles connection state
+     * change.
+     *
+     * Expected behavior: ONA does not clear pending notification.
+     */
+    @Test
+    public void wifiDisconnected_openNetworkNotificationDoesNotClearPendingNotification() {
+        // Set WiFi to disconnected state
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+
+        verify(mWifiNotificationController, never()).clearPendingNotification(anyBoolean());
+    }
+
+    /**
+     * When Wi-Fi is disabled, clear the pending notification and reset notification repeat delay.
+     *
+     * Expected behavior: clear pending notification and reset notification repeat delay
+     * */
+    @Test
+    public void openNetworkNotificationControllerToggledOnWifiStateChanges() {
+        mWifiConnectivityManager.setWifiEnabled(false);
+
+        verify(mWifiNotificationController).clearPendingNotification(true /* isRepeatDelayReset */);
     }
 
     /**
@@ -1561,5 +1633,20 @@ public class WifiConnectivityManagerTest {
         PrintWriter pw = new PrintWriter(sw);
         mWifiConnectivityManager.dump(new FileDescriptor(), pw, new String[]{});
         assertTrue(sw.toString().contains(localLogMessage));
+    }
+
+    /**
+     *  Dump ONA controller.
+     *
+     * Expected behavior: {@link WifiNotificationController#dump(FileDescriptor, PrintWriter,
+     * String[])} is invoked.
+     */
+    @Test
+    public void dumpNotificationController() {
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        mWifiConnectivityManager.dump(new FileDescriptor(), pw, new String[]{});
+
+        verify(mWifiNotificationController).dump(any(), any(), any());
     }
 }
