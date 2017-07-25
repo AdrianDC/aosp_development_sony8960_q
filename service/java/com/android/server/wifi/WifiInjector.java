@@ -228,7 +228,7 @@ public class WifiInjector {
                 new WrongPasswordNotifier(mContext, mFrameworkFacade));
         mCertManager = new WifiCertManager(mContext);
         mNotificationController = new WifiNotificationController(mContext,
-                mWifiServiceHandlerThread.getLooper(), mFrameworkFacade, null, this);
+                mWifiStateMachineHandlerThread.getLooper(), mFrameworkFacade, null);
         mLockManager = new WifiLockManager(mContext, BatteryStatsService.getService());
         mWifiController = new WifiController(mContext, mWifiStateMachine, mSettingsStore,
                 mLockManager, mWifiServiceHandlerThread.getLooper(), mFrameworkFacade);
@@ -302,10 +302,6 @@ public class WifiInjector {
 
     public WifiCertManager getWifiCertManager() {
         return mCertManager;
-    }
-
-    public WifiNotificationController getWifiNotificationController() {
-        return mNotificationController;
     }
 
     public WifiLockManager getWifiLockManager() {
@@ -431,9 +427,10 @@ public class WifiInjector {
                                                                boolean hasConnectionRequests) {
         return new WifiConnectivityManager(mContext, mWifiStateMachine, getWifiScanner(),
                 mWifiConfigManager, wifiInfo, mWifiNetworkSelector, mWifiConnectivityHelper,
-                mWifiLastResortWatchdog, mWifiMetrics, mWifiStateMachineHandlerThread.getLooper(),
-                mClock, mConnectivityLocalLog, hasConnectionRequests, mFrameworkFacade,
-                mSavedNetworkEvaluator, mScoredNetworkEvaluator, mPasspointNetworkEvaluator);
+                mWifiLastResortWatchdog, mNotificationController, mWifiMetrics,
+                mWifiStateMachineHandlerThread.getLooper(), mClock, mConnectivityLocalLog,
+                hasConnectionRequests, mFrameworkFacade, mSavedNetworkEvaluator,
+                mScoredNetworkEvaluator, mPasspointNetworkEvaluator);
     }
 
     public WifiPermissionsUtil getWifiPermissionsUtil() {
