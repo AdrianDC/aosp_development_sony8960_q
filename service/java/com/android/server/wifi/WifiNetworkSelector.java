@@ -30,6 +30,7 @@ import android.util.Pair;
 
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.wifi.util.ScanResultUtil;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -340,9 +341,7 @@ public class WifiNetworkSelector {
         for (ScanDetail scanDetail : mFilteredNetworks) {
             ScanResult scanResult = scanDetail.getScanResult();
 
-            // A capability of [ESS] represents an open access point
-            // that is available for an STA to connect
-            if (scanResult.capabilities == null || !scanResult.capabilities.equals("[ESS]")) {
+            if (!ScanResultUtil.isScanResultForOpenNetwork(scanResult)) {
                 continue;
             }
 
