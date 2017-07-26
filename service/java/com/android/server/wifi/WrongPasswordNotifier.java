@@ -21,11 +21,12 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
-import android.net.wifi.WifiManager;
+import android.provider.Settings;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.messages.nano.SystemMessageProto.SystemMessage;
 import com.android.internal.notification.SystemNotificationChannels;
+import com.android.server.wifi.util.NativeUtil;
 
 /**
  * Responsible for notifying user for wrong password errors.
@@ -78,6 +79,8 @@ public class WrongPasswordNotifier {
      * @param ssid SSID of the Wi-FI network
      */
     private void showNotification(String ssid) {
+        Intent intent = new Intent(Settings.ACTION_WIFI_SETTINGS);
+        intent.putExtra("wifi_start_connect_ssid", NativeUtil.removeEnclosingQuotes(ssid));
         Notification.Builder builder = mFrameworkFacade.makeNotificationBuilder(mContext,
                 SystemNotificationChannels.NETWORK_ALERTS)
                 .setAutoCancel(true)
@@ -87,10 +90,8 @@ public class WrongPasswordNotifier {
                 .setContentTitle(mContext.getString(
                         com.android.internal.R.string.wifi_available_title_failed_to_connect))
                 .setContentText(ssid)
-                // TODO(zqiu): update to point to the new activity when it is ready.
                 .setContentIntent(mFrameworkFacade.getActivity(
-                        mContext, 0, new Intent(WifiManager.ACTION_PICK_WIFI_NETWORK),
-                        PendingIntent.FLAG_UPDATE_CURRENT))
+                        mContext, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT))
                 .setColor(mContext.getResources().getColor(
                         com.android.internal.R.color.system_notification_accent_color));
         mNotificationManager.notify(NOTIFICATION_ID, builder.build());
