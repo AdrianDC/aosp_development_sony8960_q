@@ -85,7 +85,7 @@ public class WifiAwareDataPathStateManager {
     private static final int NETWORK_FACTORY_SIGNAL_STRENGTH_AVAIL = 1;
 
     private final WifiAwareStateManager mMgr;
-    private final NetworkInterfaceWrapper mNiWrapper = new NetworkInterfaceWrapper();
+    public NetworkInterfaceWrapper mNiWrapper = new NetworkInterfaceWrapper();
     private final NetworkCapabilities mNetworkCapabilitiesFilter = new NetworkCapabilities();
     private final Set<String> mInterfaces = new HashSet<>();
     private final Map<WifiAwareNetworkSpecifier, AwareNetworkRequestInformation>
@@ -95,7 +95,7 @@ public class WifiAwareDataPathStateManager {
     private WifiPermissionsWrapper mPermissionsWrapper;
     private Looper mLooper;
     private WifiAwareNetworkFactory mNetworkFactory;
-    private INetworkManagementService mNwService;
+    public INetworkManagementService mNwService;
 
     public WifiAwareDataPathStateManager(WifiAwareStateManager mgr) {
         mMgr = mgr;
@@ -471,14 +471,23 @@ public class WifiAwareDataPathStateManager {
                     mNetworkCapabilitiesFilter);
             LinkProperties linkProperties = new LinkProperties();
 
-            try {
-                mNwService.setInterfaceUp(nnri.interfaceName);
-                mNwService.enableIpv6(nnri.interfaceName);
-            } catch (Exception e) { // NwService throws runtime exceptions for errors
-                Log.e(TAG, "onDataPathConfirm: ACCEPT nnri=" + nnri + ": can't configure network - "
-                        + e);
-                mMgr.endDataPath(ndpId);
-                return networkSpecifier;
+            boolean interfaceUsedByAnotherNdp = isInterfaceUpAndUsedByAnotherNdp(nnri);
+            if (!interfaceUsedByAnotherNdp) {
+                try {
+                    mNwService.setInterfaceUp(nnri.interfaceName);
+                    mNwService.enableIpv6(nnri.interfaceName);
+                } catch (Exception e) { // NwService throws runtime exceptions for errors
+                    Log.e(TAG, "onDataPathConfirm: ACCEPT nnri=" + nnri
+                            + ": can't configure network - "
+                            + e);
+                    mMgr.endDataPath(ndpId);
+                    return networkSpecifier;
+                }
+            } else {
+                if (VDBG) {
+                    Log.v(TAG, "onDataPathConfirm: interface already configured: "
+                            + nnri.interfaceName);
+                }
             }
 
             if (!mNiWrapper.configureAgentProperties(nnri, networkSpecifier, ndpId, networkInfo,
@@ -528,7 +537,7 @@ public class WifiAwareDataPathStateManager {
             return;
         }
 
-        tearDownInterface(nnriE.getValue());
+        tearDownInterfaceIfPossible(nnriE.getValue());
         if (nnriE.getValue().state == AwareNetworkRequestInformation.STATE_CONFIRMED) {
             mAwareMetrics.recordNdpSessionDuration(nnriE.getValue().startTimestamp);
         }
@@ -542,7 +551,7 @@ public class WifiAwareDataPathStateManager {
         if (VDBG) Log.v(TAG, "onAwareDownCleanupDataPaths");
 
         for (AwareNetworkRequestInformation nnri : mNetworkRequestsCache.values()) {
-            tearDownInterface(nnri);
+            tearDownInterfaceIfPossible(nnri);
         }
         mNetworkRequestsCache.clear();
     }
@@ -626,13 +635,6 @@ public class WifiAwareDataPathStateManager {
             if (nnri == null) {
                 Log.e(TAG, "WifiAwareNetworkFactory.acceptRequest: request=" + request
                         + " - can't parse network specifier");
-                return false;
-            }
-
-            // TODO (b/63635780) support more then a single concurrent NDP
-            if (mNetworkRequestsCache.size() > 0) {
-                Log.e(TAG, "WifiAwareNetworkFactory.acceptRequest: request=" + request
-                        + " - >1 concurrent NDPs aren't supported (yet).");
                 return false;
             }
 
@@ -778,21 +780,44 @@ public class WifiAwareDataPathStateManager {
         }
     }
 
-    private void tearDownInterface(AwareNetworkRequestInformation nnri) {
-        if (VDBG) Log.v(TAG, "tearDownInterface: nnri=" + nnri);
+    private void tearDownInterfaceIfPossible(AwareNetworkRequestInformation nnri) {
+        if (VDBG) Log.v(TAG, "tearDownInterfaceIfPossible: nnri=" + nnri);
 
-        if (nnri.interfaceName != null && !nnri.interfaceName.isEmpty()) {
-            try {
-                mNwService.setInterfaceDown(nnri.interfaceName);
-            } catch (Exception e) { // NwService throws runtime exceptions for errors
-                Log.e(TAG,
-                        "tearDownInterface: nnri=" + nnri + ": can't bring interface down - " + e);
+        if (!TextUtils.isEmpty(nnri.interfaceName)) {
+            boolean interfaceUsedByAnotherNdp = isInterfaceUpAndUsedByAnotherNdp(nnri);
+            if (interfaceUsedByAnotherNdp) {
+                if (VDBG) {
+                    Log.v(TAG, "tearDownInterfaceIfPossible: interfaceName=" + nnri.interfaceName
+                            + ", still in use - not turning down");
+                }
+            } else {
+                try {
+                    mNwService.setInterfaceDown(nnri.interfaceName);
+                } catch (Exception e) { // NwService throws runtime exceptions for errors
+                    Log.e(TAG, "tearDownInterfaceIfPossible: nnri=" + nnri
+                            + ": can't bring interface down - " + e);
+                }
             }
         }
 
         if (nnri.networkAgent != null) {
             nnri.networkAgent.reconfigureAgentAsDisconnected();
         }
+    }
+
+    private boolean isInterfaceUpAndUsedByAnotherNdp(AwareNetworkRequestInformation nri) {
+        for (AwareNetworkRequestInformation lnri : mNetworkRequestsCache.values()) {
+            if (lnri == nri) {
+                continue;
+            }
+
+            if (nri.interfaceName.equals(lnri.interfaceName)
+                    && lnri.state == AwareNetworkRequestInformation.STATE_CONFIRMED) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
