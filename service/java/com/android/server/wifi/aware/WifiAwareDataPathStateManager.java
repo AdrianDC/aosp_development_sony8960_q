@@ -247,7 +247,7 @@ public class WifiAwareDataPathStateManager {
             return;
         }
 
-        nnri.state = AwareNetworkRequestInformation.STATE_INITIATOR_WAIT_FOR_CONFIRM;
+        nnri.state = AwareNetworkRequestInformation.STATE_WAIT_FOR_CONFIRM;
         nnri.ndpId = ndpId;
     }
 
@@ -411,7 +411,7 @@ public class WifiAwareDataPathStateManager {
             return;
         }
 
-        nnri.state = AwareNetworkRequestInformation.STATE_RESPONDER_WAIT_FOR_CONFIRM;
+        nnri.state = AwareNetworkRequestInformation.STATE_WAIT_FOR_CONFIRM;
     }
 
     /**
@@ -452,18 +452,8 @@ public class WifiAwareDataPathStateManager {
         AwareNetworkRequestInformation nnri = nnriE.getValue();
 
         // validate state
-        if (nnri.networkSpecifier.role == WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_INITIATOR
-                && nnri.state != AwareNetworkRequestInformation.STATE_INITIATOR_WAIT_FOR_CONFIRM) {
-            Log.w(TAG, "onDataPathConfirm: INITIATOR in invalid state=" + nnri.state);
-            mNetworkRequestsCache.remove(networkSpecifier);
-            if (accept) {
-                mMgr.endDataPath(ndpId);
-            }
-            return networkSpecifier;
-        }
-        if (nnri.networkSpecifier.role == WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_RESPONDER
-                && nnri.state != AwareNetworkRequestInformation.STATE_RESPONDER_WAIT_FOR_CONFIRM) {
-            Log.w(TAG, "onDataPathConfirm: RESPONDER in invalid state=" + nnri.state);
+        if (nnri.state != AwareNetworkRequestInformation.STATE_WAIT_FOR_CONFIRM) {
+            Log.w(TAG, "onDataPathConfirm: invalid state=" + nnri.state);
             mNetworkRequestsCache.remove(networkSpecifier);
             if (accept) {
                 mMgr.endDataPath(ndpId);
@@ -472,10 +462,7 @@ public class WifiAwareDataPathStateManager {
         }
 
         if (accept) {
-            nnri.state = (nnri.networkSpecifier.role
-                    == WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_INITIATOR)
-                    ? AwareNetworkRequestInformation.STATE_INITIATOR_CONFIRMED
-                    : AwareNetworkRequestInformation.STATE_RESPONDER_CONFIRMED;
+            nnri.state = AwareNetworkRequestInformation.STATE_CONFIRMED;
             nnri.peerDataMac = mac;
 
             NetworkInfo networkInfo = new NetworkInfo(ConnectivityManager.TYPE_NONE, 0,
@@ -542,9 +529,7 @@ public class WifiAwareDataPathStateManager {
         }
 
         tearDownInterface(nnriE.getValue());
-        if (nnriE.getValue().state == AwareNetworkRequestInformation.STATE_RESPONDER_CONFIRMED
-                || nnriE.getValue().state
-                == AwareNetworkRequestInformation.STATE_INITIATOR_CONFIRMED) {
+        if (nnriE.getValue().state == AwareNetworkRequestInformation.STATE_CONFIRMED) {
             mAwareMetrics.recordNdpSessionDuration(nnriE.getValue().startTimestamp);
         }
         mNetworkRequestsCache.remove(nnriE.getKey());
@@ -676,18 +661,17 @@ public class WifiAwareDataPathStateManager {
                 return;
             }
 
+            if (nnri.state != AwareNetworkRequestInformation.STATE_IDLE) {
+                if (DBG) {
+                    Log.d(TAG, "WifiAwareNetworkFactory.needNetworkFor: networkRequest="
+                            + networkRequest + " - already in progress");
+                    // TODO: understand how/when can be called again/while in progress (seems
+                    // to be related to score re-calculation after a network agent is created)
+                }
+                return;
+            }
             if (nnri.networkSpecifier.role
                     == WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_INITIATOR) {
-                if (nnri.state != AwareNetworkRequestInformation.STATE_INITIATOR_IDLE) {
-                    if (DBG) {
-                        Log.d(TAG, "WifiAwareNetworkFactory.needNetworkFor: networkRequest="
-                                + networkRequest + " - already in progress");
-                        // TODO: understand how/when can be called again/while in progress (seems
-                        // to be related to score re-calculation after a network agent is created)
-                    }
-                    return;
-                }
-
                 nnri.interfaceName = selectInterfaceForRequest(nnri);
                 if (nnri.interfaceName == null) {
                     Log.w(TAG, "needNetworkFor: request " + networkSpecifier
@@ -704,16 +688,6 @@ public class WifiAwareDataPathStateManager {
                         AwareNetworkRequestInformation.STATE_INITIATOR_WAIT_FOR_REQUEST_RESPONSE;
                 nnri.startTimestamp = SystemClock.elapsedRealtime();
             } else {
-                if (nnri.state != AwareNetworkRequestInformation.STATE_RESPONDER_IDLE) {
-                    if (DBG) {
-                        Log.d(TAG, "WifiAwareNetworkFactory.needNetworkFor: networkRequest="
-                                + networkRequest + " - already in progress");
-                        // TODO: understand how/when can be called again/while in progress (seems
-                        // to be related to score re-calculation after a network agent is created)
-                    }
-                    return;
-                }
-
                 nnri.state = AwareNetworkRequestInformation.STATE_RESPONDER_WAIT_FOR_REQUEST;
             }
         }
@@ -853,16 +827,12 @@ public class WifiAwareDataPathStateManager {
      */
     @VisibleForTesting
     public static class AwareNetworkRequestInformation {
-        static final int STATE_INITIATOR_IDLE = 100;
-        static final int STATE_INITIATOR_WAIT_FOR_REQUEST_RESPONSE = 101;
-        static final int STATE_INITIATOR_WAIT_FOR_CONFIRM = 102;
-        static final int STATE_INITIATOR_CONFIRMED = 103;
-
-        static final int STATE_RESPONDER_IDLE = 200;
-        static final int STATE_RESPONDER_WAIT_FOR_REQUEST = 201;
-        static final int STATE_RESPONDER_WAIT_FOR_RESPOND_RESPONSE = 202;
-        static final int STATE_RESPONDER_WAIT_FOR_CONFIRM = 203;
-        static final int STATE_RESPONDER_CONFIRMED = 204;
+        static final int STATE_IDLE = 100;
+        static final int STATE_WAIT_FOR_CONFIRM = 101;
+        static final int STATE_CONFIRMED = 102;
+        static final int STATE_INITIATOR_WAIT_FOR_REQUEST_RESPONSE = 103;
+        static final int STATE_RESPONDER_WAIT_FOR_REQUEST = 104;
+        static final int STATE_RESPONDER_WAIT_FOR_RESPOND_RESPONSE = 105;
 
         public int state;
 
@@ -1001,9 +971,7 @@ public class WifiAwareDataPathStateManager {
 
             // create container and populate
             AwareNetworkRequestInformation nnri = new AwareNetworkRequestInformation();
-            nnri.state = (ns.role == WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_INITIATOR)
-                    ? AwareNetworkRequestInformation.STATE_INITIATOR_IDLE
-                    : AwareNetworkRequestInformation.STATE_RESPONDER_IDLE;
+            nnri.state = AwareNetworkRequestInformation.STATE_IDLE;
             nnri.uid = uid;
             nnri.pubSubId = pubSubId;
             nnri.peerInstanceId = peerInstanceId;
