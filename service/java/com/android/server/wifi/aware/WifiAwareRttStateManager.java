@@ -74,7 +74,7 @@ public class WifiAwareRttStateManager {
     public void startWithRttService(Context context, Looper looper, IRttManager service) {
         Messenger messenger;
         try {
-            messenger = service.getMessenger();
+            messenger = service.getMessenger(null, new int[1]);
         } catch (RemoteException e) {
             Log.e(TAG, "start(): not able to getMessenger() of WIFI_RTT_SERVICE");
             return;
