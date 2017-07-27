@@ -100,7 +100,7 @@ public class RttServiceTest {
     // Create and connect a bi-directional async channel.
     private BidirectionalAsyncChannel connectChannel(Handler handler) {
         BidirectionalAsyncChannel channel = new BidirectionalAsyncChannel();
-        channel.connect(mLooper.getLooper(), mRttServiceImpl.getMessenger(),
+        channel.connect(mLooper.getLooper(), mRttServiceImpl.getMessenger(null, new int[1]),
                 handler);
         mLooper.dispatchAll();
         channel.assertConnected();
