@@ -23,6 +23,7 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiScanner;
 import android.os.UserHandle;
+import android.text.TextUtils;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
@@ -190,6 +191,12 @@ public class WifiConfigurationUtil {
             }
             if (existingEnterpriseConfig.getPhase2Method()
                     != newEnterpriseConfig.getPhase2Method()) {
+                return true;
+            }
+            if (!TextUtils.equals(existingEnterpriseConfig.getIdentity(),
+                                  newEnterpriseConfig.getIdentity())
+                    || !TextUtils.equals(existingEnterpriseConfig.getAnonymousIdentity(),
+                                         newEnterpriseConfig.getAnonymousIdentity())) {
                 return true;
             }
             X509Certificate[] existingCaCerts = existingEnterpriseConfig.getCaCertificates();
