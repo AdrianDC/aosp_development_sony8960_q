@@ -26,6 +26,7 @@ import android.os.RemoteException;
 import android.util.ArrayMap;
 import android.util.Log;
 import android.util.Slog;
+import android.util.SparseArray;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.util.AsyncChannel;
@@ -50,10 +51,54 @@ public final class RttService extends SystemService {
     private static final String WIFICOND_SERVICE_NAME = "wificond";
 
     static class RttServiceImpl extends IRttManager.Stub {
+        private int mCurrentKey = 100; // increment on each usage
+        private final SparseArray<IBinder> mBinderByKey = new SparseArray<>();
 
         @Override
-        public Messenger getMessenger() {
+        public Messenger getMessenger(IBinder binder, int[] key) {
+            if (key != null && key.length != 0) {
+                final int keyToUse = mCurrentKey++;
+                if (binder != null) {
+                    try {
+                        binder.linkToDeath(() -> {
+                            // clean-up here if didn't get final registration
+                            Slog.d(TAG, "Binder death on key=" + keyToUse);
+                            mBinderByKey.delete(keyToUse);
+                        }, 0);
+                        mBinderByKey.put(keyToUse, binder);
+                    } catch (RemoteException e) {
+                        Slog.e(TAG, "getMessenger: can't link to death on binder: " + e);
+                        return null;
+                    }
+                }
+
+                key[0] = keyToUse;
+            }
             return new Messenger(mClientHandler);
+        }
+
+        private class RttDeathListener implements IBinder.DeathRecipient {
+            private final IBinder mBinder;
+            private final Messenger mReplyTo;
+
+            RttDeathListener(IBinder binder, Messenger replyTo) {
+                mBinder = binder;
+                mReplyTo = replyTo;
+            }
+
+            @Override
+            public void binderDied() {
+                if (DBG) Slog.d(TAG, "binder death for client mReplyTo=" + mReplyTo);
+                synchronized (mLock) {
+                    ClientInfo ci = mClients.remove(mReplyTo);
+                    if (ci != null) {
+                        ci.cleanup();
+                    } else {
+                        Slog.w(TAG,
+                                "ClientInfo not found for terminated app -- mReplyTo=" + mReplyTo);
+                    }
+                }
+            }
         }
 
         private class ClientHandler extends Handler {
@@ -93,6 +138,21 @@ public final class RttService extends SystemService {
                         ac.replyToMessage(msg, AsyncChannel.CMD_CHANNEL_FULLY_CONNECTED,
                                 AsyncChannel.STATUS_SUCCESSFUL);
                         return;
+                    case RttManager.CMD_OP_REG_BINDER: {
+                        int key = msg.arg1;
+                        IBinder binder = mBinderByKey.get(key);
+                        if (binder == null) {
+                            Slog.e(TAG, "Can't find binder registered with key=" + key + " - no "
+                                    + "death listener!");
+                            return;
+                        }
+                        try {
+                            binder.linkToDeath(new RttDeathListener(binder, msg.replyTo), 0);
+                        } catch (RemoteException e) {
+                            Slog.e(TAG, "Can't link to death for binder on key=" + key);
+                        }
+                        return;
+                    }
                 }
 
                 ClientInfo ci;
