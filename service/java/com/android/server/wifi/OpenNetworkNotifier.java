@@ -17,22 +17,21 @@
 package com.android.server.wifi;
 
 import android.annotation.NonNull;
-import android.app.Notification;
 import android.app.NotificationManager;
-import android.app.TaskStackBuilder;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.database.ContentObserver;
 import android.net.wifi.ScanResult;
-import android.net.wifi.WifiManager;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.Message;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
 
-import com.android.internal.notification.SystemNotificationChannels;
+import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.messages.nano.SystemMessageProto.SystemMessage;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -43,68 +42,81 @@ import java.util.List;
  * @hide
  */
 public class OpenNetworkNotifier {
-    /**
-     * The icon to show in the 'available networks' notification. This will also
-     * be the ID of the Notification given to the NotificationManager.
-     */
-    private static final int ICON_NETWORKS_AVAILABLE =
-            com.android.internal.R.drawable.stat_notify_wifi_in_range;
-    /**
-     * When a notification is shown, we wait this amount before possibly showing it again.
-     */
-    private final long mNotificationRepeatDelay;
 
-    /** Whether the user has set the setting to show the 'available networks' notification. */
-    private boolean mSettingEnabled;
+    static final String ACTION_USER_DISMISSED_NOTIFICATION =
+            "com.android.server.wifi.OpenNetworkNotifier.USER_DISMISSED_NOTIFICATION";
+    static final String ACTION_USER_TAPPED_CONTENT =
+            "com.android.server.wifi.OpenNetworkNotifier.USER_TAPPED_CONTENT";
 
     /**
-     * Observes the user setting to keep {@link #mSettingEnabled} in sync.
-     */
-    private NotificationEnabledSettingObserver mNotificationEnabledSettingObserver;
-
-    /**
-     * The {@link System#currentTimeMillis()} must be at least this value for us
+     * The {@link Clock#getWallClockMillis()} must be at least this value for us
      * to show the notification again.
      */
     private long mNotificationRepeatTime;
     /**
-     * The Notification object given to the NotificationManager.
+     * When a notification is shown, we wait this amount before possibly showing it again.
      */
-    private Notification.Builder mNotificationBuilder;
-    /**
-     * Whether the notification is being shown, as set by us. That is, if the
-     * user cancels the notification, we will not receive the callback so this
-     * will still be true. We only guarantee if this is false, then the
-     * notification is not showing.
-     */
+    private final long mNotificationRepeatDelay;
+    /** Default repeat delay in seconds. */
+    @VisibleForTesting
+    static final int DEFAULT_REPEAT_DELAY_SEC = 900;
+
+    /** Whether the user has set the setting to show the 'available networks' notification. */
+    private boolean mSettingEnabled;
+    /** Whether the notification is being shown. */
     private boolean mNotificationShown;
     /** Whether the screen is on or not. */
     private boolean mScreenOn;
 
     private final Context mContext;
+    private final Handler mHandler;
     private final FrameworkFacade mFrameworkFacade;
+    private final Clock mClock;
     private final OpenNetworkRecommender mOpenNetworkRecommender;
+    private final OpenNetworkNotificationBuilder mOpenNetworkNotificationBuilder;
+
     private ScanResult mRecommendedNetwork;
 
-    OpenNetworkNotifier(Context context,
-                        Looper looper,
-                        FrameworkFacade framework,
-                        Notification.Builder builder,
-                        OpenNetworkRecommender recommender) {
+    OpenNetworkNotifier(
+            Context context,
+            Looper looper,
+            FrameworkFacade framework,
+            Clock clock,
+            OpenNetworkRecommender openNetworkRecommender) {
         mContext = context;
+        mHandler = new Handler(looper);
         mFrameworkFacade = framework;
-        mNotificationBuilder = builder;
-        mOpenNetworkRecommender = recommender;
-
+        mClock = clock;
+        mOpenNetworkRecommender = openNetworkRecommender;
+        mOpenNetworkNotificationBuilder = new OpenNetworkNotificationBuilder(context, framework);
         mScreenOn = false;
 
         // Setting is in seconds
         mNotificationRepeatDelay = mFrameworkFacade.getIntegerSetting(context,
-                Settings.Global.WIFI_NETWORKS_AVAILABLE_REPEAT_DELAY, 900) * 1000L;
-        mNotificationEnabledSettingObserver = new NotificationEnabledSettingObserver(
-                new Handler(looper));
-        mNotificationEnabledSettingObserver.register();
+                Settings.Global.WIFI_NETWORKS_AVAILABLE_REPEAT_DELAY,
+                DEFAULT_REPEAT_DELAY_SEC) * 1000L;
+        NotificationEnabledSettingObserver settingObserver = new NotificationEnabledSettingObserver(
+                mHandler);
+        settingObserver.register();
+
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(ACTION_USER_DISMISSED_NOTIFICATION);
+        filter.addAction(ACTION_USER_TAPPED_CONTENT);
+        mContext.registerReceiver(
+                mBroadcastReceiver, filter, null /* broadcastPermission */, mHandler);
     }
+
+    private final BroadcastReceiver mBroadcastReceiver =
+            new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    if (ACTION_USER_TAPPED_CONTENT.equals(intent.getAction())) {
+                        handleUserClickedContentAction();
+                    } else if (ACTION_USER_DISMISSED_NOTIFICATION.equals(intent.getAction())) {
+                        handleUserDismissedAction();
+                    }
+                }
+            };
 
     /**
      * Clears the pending notification. This is called by {@link WifiConnectivityManager} on stop.
@@ -115,7 +127,12 @@ public class OpenNetworkNotifier {
         if (resetRepeatDelay) {
             mNotificationRepeatTime = 0;
         }
-        setNotificationVisible(false, 0, false, 0);
+
+        if (mNotificationShown) {
+            getNotificationManager().cancel(SystemMessage.NOTE_NETWORK_AVAILABLE);
+            mRecommendedNetwork = null;
+            mNotificationShown = false;
+        }
     }
 
     private boolean isControllerEnabled() {
@@ -150,7 +167,7 @@ public class OpenNetworkNotifier {
         mRecommendedNetwork = mOpenNetworkRecommender.recommendNetwork(
                 availableNetworks, mRecommendedNetwork);
 
-        setNotificationVisible(true, availableNetworks.size(), false, 0);
+        postNotification(availableNetworks.size());
     }
 
     /** Handles screen state changes. */
@@ -158,80 +175,44 @@ public class OpenNetworkNotifier {
         mScreenOn = screenOn;
     }
 
-    /**
-     * Display or don't display a notification that there are open Wi-Fi networks.
-     * @param visible {@code true} if notification should be visible, {@code false} otherwise
-     * @param numNetworks the number networks seen
-     * @param force {@code true} to force notification to be shown/not-shown,
-     * even if it is already shown/not-shown.
-     * @param delay time in milliseconds after which the notification should be made
-     * visible or invisible.
-     */
-    private void setNotificationVisible(boolean visible, int numNetworks, boolean force,
-            int delay) {
+    private NotificationManager getNotificationManager() {
+        return (NotificationManager) mContext.getSystemService(Context.NOTIFICATION_SERVICE);
+    }
 
-        // Since we use auto cancel on the notification, when the
-        // mNetworksAvailableNotificationShown is true, the notification may
-        // have actually been canceled.  However, when it is false we know
-        // for sure that it is not being shown (it will not be shown any other
-        // place than here)
-
-        // If it should be hidden and it is already hidden, then noop
-        if (!visible && !mNotificationShown && !force) {
+    private void postNotification(int numNetworks) {
+        // Not enough time has passed to show the notification again
+        if (mClock.getWallClockMillis() < mNotificationRepeatTime) {
             return;
         }
 
-        NotificationManager notificationManager = (NotificationManager) mContext
-                .getSystemService(Context.NOTIFICATION_SERVICE);
+        getNotificationManager().notify(
+                SystemMessage.NOTE_NETWORK_AVAILABLE,
+                mOpenNetworkNotificationBuilder.createOpenNetworkAvailableNotification(
+                        numNetworks));
+        mNotificationShown = true;
+        mNotificationRepeatTime = mClock.getWallClockMillis() + mNotificationRepeatDelay;
+    }
 
-        Message message;
-        if (visible) {
+    /** Opens Wi-Fi picker. */
+    private void handleUserClickedContentAction() {
+        mNotificationShown = false;
+        mContext.startActivity(
+                new Intent(Settings.ACTION_WIFI_SETTINGS)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+    }
 
-            // Not enough time has passed to show the notification again
-            if (System.currentTimeMillis() < mNotificationRepeatTime) {
-                return;
-            }
-
-            if (mNotificationBuilder == null) {
-                // Cache the Notification builder object.
-                mNotificationBuilder = new Notification.Builder(mContext,
-                        SystemNotificationChannels.NETWORK_AVAILABLE)
-                        .setWhen(0)
-                        .setSmallIcon(ICON_NETWORKS_AVAILABLE)
-                        .setAutoCancel(true)
-                        .setContentIntent(TaskStackBuilder.create(mContext)
-                                .addNextIntentWithParentStack(
-                                        new Intent(WifiManager.ACTION_PICK_WIFI_NETWORK))
-                                .getPendingIntent(0, 0, null, UserHandle.CURRENT))
-                        .setColor(mContext.getResources().getColor(
-                                com.android.internal.R.color.system_notification_accent_color));
-            }
-
-            CharSequence title = mContext.getResources().getQuantityText(
-                    com.android.internal.R.plurals.wifi_available, numNetworks);
-            CharSequence details = mContext.getResources().getQuantityText(
-                    com.android.internal.R.plurals.wifi_available_detailed, numNetworks);
-            mNotificationBuilder.setTicker(title);
-            mNotificationBuilder.setContentTitle(title);
-            mNotificationBuilder.setContentText(details);
-
-            mNotificationRepeatTime = System.currentTimeMillis() + mNotificationRepeatDelay;
-
-            notificationManager.notifyAsUser(null, ICON_NETWORKS_AVAILABLE,
-                    mNotificationBuilder.build(), UserHandle.ALL);
-        } else {
-            notificationManager.cancelAsUser(null, ICON_NETWORKS_AVAILABLE, UserHandle.ALL);
-        }
-
-        mNotificationShown = visible;
+    /** A delay is set before the next shown notification after user dismissal. */
+    private void handleUserDismissedAction() {
+        mNotificationShown = false;
     }
 
     /** Dump ONA controller state. */
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         pw.println("OpenNetworkNotifier: ");
         pw.println("mSettingEnabled " + mSettingEnabled);
-        pw.println("mNotificationRepeatTime " + mNotificationRepeatTime);
-        pw.println("mNotificationShown " + mNotificationShown);
+        pw.println("currentTime: " + mClock.getWallClockMillis());
+        pw.println("mNotificationRepeatTime: " + mNotificationRepeatTime);
+        pw.println("mNotificationShown: " + mNotificationShown);
     }
 
     private class NotificationEnabledSettingObserver extends ContentObserver {
