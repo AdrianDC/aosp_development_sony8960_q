@@ -5,13 +5,10 @@ import android.net.wifi.WifiConfiguration;
 import android.os.UserHandle;
 import android.os.UserManager;
 
-import com.android.server.wifi.util.ScanResultUtil;
-
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Objects;
 
 public class ConfigurationMap {
     private final Map<Integer, WifiConfiguration> mPerID = new HashMap<>();
@@ -119,84 +116,5 @@ public class ConfigurationMap {
 
     public Collection<WifiConfiguration> valuesForCurrentUser() {
         return mPerIDForCurrentUser.values();
-    }
-
-    /**
-     * Class to store the info needed to match a scan result to the provided network configuration.
-     */
-    private static class ScanResultMatchInfo {
-        private static final int NETWORK_TYPE_OPEN = 0;
-        private static final int NETWORK_TYPE_WEP = 1;
-        private static final int NETWORK_TYPE_PSK = 2;
-        private static final int NETWORK_TYPE_EAP = 3;
-
-        /**
-         * SSID of the network.
-         */
-        public String networkSsid;
-        /**
-         * Security Type of the network.
-         */
-        public int networkType;
-
-        public static ScanResultMatchInfo fromWifiConfiguration(WifiConfiguration config) {
-            ScanResultMatchInfo info = new ScanResultMatchInfo();
-            info.networkSsid = config.SSID;
-            if (WifiConfigurationUtil.isConfigForPskNetwork(config)) {
-                info.networkType = NETWORK_TYPE_PSK;
-            } else if (WifiConfigurationUtil.isConfigForEapNetwork(config)) {
-                info.networkType = NETWORK_TYPE_EAP;
-            } else if (WifiConfigurationUtil.isConfigForWepNetwork(config)) {
-                info.networkType = NETWORK_TYPE_WEP;
-            } else if (WifiConfigurationUtil.isConfigForOpenNetwork(config)) {
-                info.networkType = NETWORK_TYPE_OPEN;
-            } else {
-                throw new IllegalArgumentException("Invalid WifiConfiguration: " + config);
-            }
-            return info;
-        }
-
-        public static ScanResultMatchInfo fromScanResult(ScanResult scanResult) {
-            ScanResultMatchInfo info = new ScanResultMatchInfo();
-            // Scan result ssid's are not quoted, hence add quotes.
-            // TODO: This matching algo works only if the scan result contains a string SSID.
-            // However, according to our public documentation ths {@link WifiConfiguration#SSID} can
-            // either have a hex string or quoted ASCII string SSID.
-            info.networkSsid = ScanResultUtil.createQuotedSSID(scanResult.SSID);
-            if (ScanResultUtil.isScanResultForPskNetwork(scanResult)) {
-                info.networkType = NETWORK_TYPE_PSK;
-            } else if (ScanResultUtil.isScanResultForEapNetwork(scanResult)) {
-                info.networkType = NETWORK_TYPE_EAP;
-            } else if (ScanResultUtil.isScanResultForWepNetwork(scanResult)) {
-                info.networkType = NETWORK_TYPE_WEP;
-            } else if (ScanResultUtil.isScanResultForOpenNetwork(scanResult)) {
-                info.networkType = NETWORK_TYPE_OPEN;
-            } else {
-                throw new IllegalArgumentException("Invalid ScanResult: " + scanResult);
-            }
-            return info;
-        }
-
-        @Override
-        public boolean equals(Object otherObj) {
-            if (this == otherObj) {
-                return true;
-            } else if (!(otherObj instanceof ScanResultMatchInfo)) {
-                return false;
-            }
-            ScanResultMatchInfo other = (ScanResultMatchInfo) otherObj;
-            return Objects.equals(networkSsid, other.networkSsid)
-                    && networkType == other.networkType;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(networkSsid, networkType);
-        }
-
-        @Override
-        public String toString() {
-            return "ScanResultMatchInfo: " + networkSsid + ", type: " + networkType;
-        }
     }
 }
