@@ -1684,24 +1684,21 @@ public class WifiNative {
     }
 
     /**
-     * Set the TX power limit.
-     * Primarily used for meeting SAR requirements during voice calls.
-     *
-     * @param powerLevelInDbm Power level to set in dBm.
-     * @return true for success; false for failure or if the HAL version does not support this API.
+     * Tx power level scenarios that can be selected.
      */
-    public boolean setTxPowerLimit(int powerLevelInDbm) {
-        return mWifiVendorHal.setTxPowerLimit(powerLevelInDbm);
-    }
+    public static final int TX_POWER_SCENARIO_NORMAL = 0;
+    public static final int TX_POWER_SCENARIO_VOICE_CALL = 1;
 
     /**
-     * Reset the TX power limit.
+     * Select one of the pre-configured TX power level scenarios or reset it back to normal.
      * Primarily used for meeting SAR requirements during voice calls.
      *
+     * @param scenario Should be one {@link #TX_POWER_SCENARIO_NORMAL} or
+     *        {@link #TX_POWER_SCENARIO_VOICE_CALL}.
      * @return true for success; false for failure or if the HAL version does not support this API.
      */
-    public boolean resetTxPowerLimit() {
-        return mWifiVendorHal.resetTxPowerLimit();
+    public boolean selectTxPowerScenario(int scenario) {
+        return mWifiVendorHal.selectTxPowerScenario(scenario);
     }
 
     /********************************************************
