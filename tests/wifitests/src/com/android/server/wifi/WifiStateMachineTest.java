@@ -1902,7 +1902,7 @@ public class WifiStateMachineTest {
      * setting/resetting Tx power limit.
      */
     @Test
-    public void testVoiceCallSar_disabledTxPowerLimit_WifiOn() throws Exception {
+    public void testVoiceCallSar_disabledTxPowerScenario_WifiOn() throws Exception {
         loadComponentsInStaMode();
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
         assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
@@ -1915,7 +1915,7 @@ public class WifiStateMachineTest {
      * setting/resetting Tx power limit.
      */
     @Test
-    public void testVoiceCallSar_enabledTxPowerLimit_WifiOn() throws Exception {
+    public void testVoiceCallSar_enabledTxPowerScenario_WifiOn() throws Exception {
         mResources.setBoolean(
                 R.bool.config_wifi_framework_enable_voice_call_sar_tx_power_limit, true);
         initializeWsm();
@@ -1933,16 +1933,13 @@ public class WifiStateMachineTest {
      * {@link TelephonyManager#CALL_STATE_OFFHOOK}.
      */
     @Test
-    public void testVoiceCallSar_enabledTxPowerLimitCallStateOffHook_WhenWifiTurnedOn()
+    public void testVoiceCallSar_enabledTxPowerScenarioCallStateOffHook_WhenWifiTurnedOn()
             throws Exception {
-        int powerLevelInDbm = -45;
-        mResources.setInteger(
-                R.integer.config_wifi_framework_voice_call_sar_tx_power_limit_in_dbm,
-                powerLevelInDbm);
         mResources.setBoolean(
                 R.bool.config_wifi_framework_enable_voice_call_sar_tx_power_limit, true);
         initializeWsm();
 
+        when(mWifiNative.selectTxPowerScenario(anyInt())).thenReturn(true);
         when(mTelephonyManager.isOffhook()).thenReturn(true);
 
         loadComponentsInStaMode();
@@ -1950,7 +1947,7 @@ public class WifiStateMachineTest {
         assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
         assertEquals("DisconnectedState", getCurrentState().getName());
         assertNotNull(mPhoneStateListener);
-        verify(mWifiNative).setTxPowerLimit(eq(powerLevelInDbm));
+        verify(mWifiNative).selectTxPowerScenario(eq(WifiNative.TX_POWER_SCENARIO_VOICE_CALL));
     }
 
     /**
@@ -1959,12 +1956,13 @@ public class WifiStateMachineTest {
      * {@link TelephonyManager#CALL_STATE_IDLE}.
      */
     @Test
-    public void testVoiceCallSar_enabledTxPowerLimitCallStateIdle_WhenWifiTurnedOn()
+    public void testVoiceCallSar_enabledTxPowerScenarioCallStateIdle_WhenWifiTurnedOn()
             throws Exception {
         mResources.setBoolean(
                 R.bool.config_wifi_framework_enable_voice_call_sar_tx_power_limit, true);
         initializeWsm();
 
+        when(mWifiNative.selectTxPowerScenario(anyInt())).thenReturn(true);
         when(mTelephonyManager.isIdle()).thenReturn(true);
 
         loadComponentsInStaMode();
@@ -1972,7 +1970,30 @@ public class WifiStateMachineTest {
         assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
         assertEquals("DisconnectedState", getCurrentState().getName());
         assertNotNull(mPhoneStateListener);
-        verify(mWifiNative).resetTxPowerLimit();
+    }
+
+    /**
+     * Test that we do register the telephony call state listener on devices which do support
+     * setting/resetting Tx power limit and set the tx power level if we're in state
+     * {@link TelephonyManager#CALL_STATE_OFFHOOK}. This test checks if the
+     * {@link WifiNative#selectTxPowerScenario(int)} failure is handled correctly.
+     */
+    @Test
+    public void testVoiceCallSar_enabledTxPowerScenarioCallStateOffHook_WhenWifiTurnedOn_Fails()
+            throws Exception {
+        mResources.setBoolean(
+                R.bool.config_wifi_framework_enable_voice_call_sar_tx_power_limit, true);
+        initializeWsm();
+
+        when(mWifiNative.selectTxPowerScenario(anyInt())).thenReturn(false);
+        when(mTelephonyManager.isOffhook()).thenReturn(true);
+
+        loadComponentsInStaMode();
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
+        assertEquals("DisconnectedState", getCurrentState().getName());
+        assertNotNull(mPhoneStateListener);
+        verify(mWifiNative).selectTxPowerScenario(eq(WifiNative.TX_POWER_SCENARIO_VOICE_CALL));
     }
 
     /**
@@ -1981,16 +2002,14 @@ public class WifiStateMachineTest {
      * {@link TelephonyManager#CALL_STATE_OFFHOOK}.
      */
     @Test
-    public void testVoiceCallSar_enabledTxPowerLimitCallStateOffHook_WhenWifiOn() throws Exception {
-        int powerLevelInDbm = -45;
-        mResources.setInteger(
-                R.integer.config_wifi_framework_voice_call_sar_tx_power_limit_in_dbm,
-                powerLevelInDbm);
-        testVoiceCallSar_enabledTxPowerLimit_WifiOn();
+    public void testVoiceCallSar_enabledTxPowerScenarioCallStateOffHook_WhenWifiOn()
+            throws Exception {
+        when(mWifiNative.selectTxPowerScenario(anyInt())).thenReturn(true);
+        testVoiceCallSar_enabledTxPowerScenario_WifiOn();
 
         mPhoneStateListener.onCallStateChanged(TelephonyManager.CALL_STATE_OFFHOOK, "");
         mLooper.dispatchAll();
-        verify(mWifiNative).setTxPowerLimit(eq(powerLevelInDbm));
+        verify(mWifiNative).selectTxPowerScenario(eq(WifiNative.TX_POWER_SCENARIO_VOICE_CALL));
     }
 
     /**
@@ -1999,12 +2018,31 @@ public class WifiStateMachineTest {
      * {@link TelephonyManager#CALL_STATE_IDLE}.
      */
     @Test
-    public void testVoiceCallSar_enabledTxPowerLimitCallStateIdle_WhenWifiOn() throws Exception {
-        testVoiceCallSar_enabledTxPowerLimit_WifiOn();
+    public void testVoiceCallSar_enabledTxPowerScenarioCallStateIdle_WhenWifiOn() throws Exception {
+        when(mWifiNative.selectTxPowerScenario(anyInt())).thenReturn(true);
+        testVoiceCallSar_enabledTxPowerScenario_WifiOn();
 
         mPhoneStateListener.onCallStateChanged(TelephonyManager.CALL_STATE_IDLE, "");
         mLooper.dispatchAll();
-        verify(mWifiNative).resetTxPowerLimit();
+        verify(mWifiNative, atLeastOnce())
+                .selectTxPowerScenario(eq(WifiNative.TX_POWER_SCENARIO_NORMAL));
+    }
+
+    /**
+     * Test that we invoke the corresponding WifiNative method when
+     * {@link PhoneStateListener#onCallStateChanged(int, String)} is invoked with state
+     * {@link TelephonyManager#CALL_STATE_OFFHOOK}. This test checks if the
+     * {@link WifiNative#selectTxPowerScenario(int)} failure is handled correctly.
+     */
+    @Test
+    public void testVoiceCallSar_enabledTxPowerScenarioCallStateOffHook_WhenWifiOn_Fails()
+            throws Exception {
+        when(mWifiNative.selectTxPowerScenario(anyInt())).thenReturn(false);
+        testVoiceCallSar_enabledTxPowerScenario_WifiOn();
+
+        mPhoneStateListener.onCallStateChanged(TelephonyManager.CALL_STATE_OFFHOOK, "");
+        mLooper.dispatchAll();
+        verify(mWifiNative).selectTxPowerScenario(eq(WifiNative.TX_POWER_SCENARIO_VOICE_CALL));
     }
 
     /**
@@ -2014,18 +2052,18 @@ public class WifiStateMachineTest {
      * wifi is off (state machine is not in SupplicantStarted state).
      */
     @Test
-    public void testVoiceCallSar_enabledTxPowerLimitCallState_WhenWifiOff() throws Exception {
+    public void testVoiceCallSar_enabledTxPowerScenarioCallState_WhenWifiOff() throws Exception {
         mResources.setBoolean(
                 R.bool.config_wifi_framework_enable_voice_call_sar_tx_power_limit, true);
         initializeWsm();
 
         mPhoneStateListener.onCallStateChanged(TelephonyManager.CALL_STATE_OFFHOOK, "");
         mLooper.dispatchAll();
-        verify(mWifiNative, never()).setTxPowerLimit(anyInt());
+        verify(mWifiNative, never()).selectTxPowerScenario(anyInt());
 
         mPhoneStateListener.onCallStateChanged(TelephonyManager.CALL_STATE_IDLE, "");
         mLooper.dispatchAll();
-        verify(mWifiNative, never()).resetTxPowerLimit();
+        verify(mWifiNative, never()).selectTxPowerScenario(anyInt());
     }
 
     /**

@@ -1844,48 +1844,67 @@ public class WifiVendorHalTest {
     }
 
     /**
-     * Test the new setTxPowerLimit HIDL method invocation. This should return failure if the
+     * Test the new selectTxPowerScenario HIDL method invocation. This should return failure if the
      * HAL service is exposing the 1.0 interface.
      */
     @Test
-    public void testSetTxPowerLimit() throws RemoteException {
-        int powerLevelInDbm = -45;
-
+    public void testSelectTxPowerScenario() throws RemoteException {
         assertTrue(mWifiVendorHal.startVendorHal(true));
         // Should fail because we exposed the 1.0 IWifiChip.
-        assertFalse(mWifiVendorHal.setTxPowerLimit(powerLevelInDbm));
-        verify(mIWifiChipV11, never()).setTxPowerLimit(eq(powerLevelInDbm));
+        assertFalse(
+                mWifiVendorHal.selectTxPowerScenario(WifiNative.TX_POWER_SCENARIO_VOICE_CALL));
+        verify(mIWifiChipV11, never()).selectTxPowerScenario(anyInt());
         mWifiVendorHal.stopVendorHal();
 
         // Now expose the 1.1 IWifiChip.
         mWifiVendorHal = new WifiVendorHalSpyV1_1(mHalDeviceManager, mLooper.getLooper());
-        when(mIWifiChipV11.setTxPowerLimit(anyInt())).thenReturn(mWifiStatusSuccess);
+        when(mIWifiChipV11.selectTxPowerScenario(anyInt())).thenReturn(mWifiStatusSuccess);
 
         assertTrue(mWifiVendorHal.startVendorHal(true));
-        assertTrue(mWifiVendorHal.setTxPowerLimit(powerLevelInDbm));
-        verify(mIWifiChipV11).setTxPowerLimit(eq(powerLevelInDbm));
+        assertTrue(
+                mWifiVendorHal.selectTxPowerScenario(WifiNative.TX_POWER_SCENARIO_VOICE_CALL));
+        verify(mIWifiChipV11).selectTxPowerScenario(
+                eq(android.hardware.wifi.V1_1.IWifiChip.TxPowerScenario.VOICE_CALL));
+        verify(mIWifiChipV11, never()).resetTxPowerScenario();
         mWifiVendorHal.stopVendorHal();
     }
 
     /**
-     * Test the new setTxPowerLimit HIDL method invocation. This should return failure if the
+     * Test the new resetTxPowerScenario HIDL method invocation. This should return failure if the
      * HAL service is exposing the 1.0 interface.
      */
     @Test
-    public void testResetTxPowerLimit() throws RemoteException {
+    public void testResetTxPowerScenario() throws RemoteException {
         assertTrue(mWifiVendorHal.startVendorHal(true));
         // Should fail because we exposed the 1.0 IWifiChip.
-        assertFalse(mWifiVendorHal.resetTxPowerLimit());
-        verify(mIWifiChipV11, never()).resetTxPowerLimit();
+        assertFalse(mWifiVendorHal.selectTxPowerScenario(WifiNative.TX_POWER_SCENARIO_NORMAL));
+        verify(mIWifiChipV11, never()).resetTxPowerScenario();
         mWifiVendorHal.stopVendorHal();
 
         // Now expose the 1.1 IWifiChip.
         mWifiVendorHal = new WifiVendorHalSpyV1_1(mHalDeviceManager, mLooper.getLooper());
-        when(mIWifiChipV11.resetTxPowerLimit()).thenReturn(mWifiStatusSuccess);
+        when(mIWifiChipV11.resetTxPowerScenario()).thenReturn(mWifiStatusSuccess);
 
         assertTrue(mWifiVendorHal.startVendorHal(true));
-        assertTrue(mWifiVendorHal.resetTxPowerLimit());
-        verify(mIWifiChipV11).resetTxPowerLimit();
+        assertTrue(mWifiVendorHal.selectTxPowerScenario(WifiNative.TX_POWER_SCENARIO_NORMAL));
+        verify(mIWifiChipV11).resetTxPowerScenario();
+        verify(mIWifiChipV11, never()).selectTxPowerScenario(anyInt());
+        mWifiVendorHal.stopVendorHal();
+    }
+
+    /**
+     * Test the new selectTxPowerScenario HIDL method invocation with a bad scenario index.
+     */
+    @Test
+    public void testInvalidSelectTxPowerScenario() throws RemoteException {
+        // Expose the 1.1 IWifiChip.
+        mWifiVendorHal = new WifiVendorHalSpyV1_1(mHalDeviceManager, mLooper.getLooper());
+        when(mIWifiChipV11.selectTxPowerScenario(anyInt())).thenReturn(mWifiStatusSuccess);
+
+        assertTrue(mWifiVendorHal.startVendorHal(true));
+        assertFalse(mWifiVendorHal.selectTxPowerScenario(-6));
+        verify(mIWifiChipV11, never()).selectTxPowerScenario(anyInt());
+        verify(mIWifiChipV11, never()).resetTxPowerScenario();
         mWifiVendorHal.stopVendorHal();
     }
 
