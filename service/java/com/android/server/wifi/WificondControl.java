@@ -32,6 +32,7 @@ import android.util.Log;
 import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.util.InformationElementUtil;
 import com.android.server.wifi.util.NativeUtil;
+import com.android.server.wifi.util.ScanResultUtil;
 import com.android.server.wifi.wificond.ChannelSettings;
 import com.android.server.wifi.wificond.HiddenNetwork;
 import com.android.server.wifi.wificond.NativeScanResult;
@@ -52,6 +53,7 @@ public class WificondControl {
     private static final String TAG = "WificondControl";
     private WifiInjector mWifiInjector;
     private WifiMonitor mWifiMonitor;
+    private final CarrierNetworkConfig mCarrierNetworkConfig;
 
     // Cached wificond binder handlers.
     private IWificond mWificond;
@@ -78,9 +80,11 @@ public class WificondControl {
         }
     }
 
-    WificondControl(WifiInjector wifiInjector, WifiMonitor wifiMonitor) {
+    WificondControl(WifiInjector wifiInjector, WifiMonitor wifiMonitor,
+            CarrierNetworkConfig carrierNetworkConfig) {
         mWifiInjector = wifiInjector;
         mWifiMonitor = wifiMonitor;
+        mCarrierNetworkConfig = carrierNetworkConfig;
     }
 
     private class PnoScanEventHandler extends IPnoScanEvent.Stub {
@@ -354,6 +358,16 @@ public class WificondControl {
                 }
                 ScanDetail scanDetail = new ScanDetail(networkDetail, wifiSsid, bssid, flags,
                         result.signalMbm / 100, result.frequency, result.tsf, ies, null);
+                // Update carrier network info if this AP's SSID is associated with a carrier Wi-Fi
+                // network and it uses EAP.
+                if (ScanResultUtil.isScanResultForEapNetwork(scanDetail.getScanResult())
+                        && mCarrierNetworkConfig.isCarrierNetwork(wifiSsid.toString())) {
+                    scanDetail.getScanResult().isCarrierAp = true;
+                    scanDetail.getScanResult().carrierApEapType =
+                            mCarrierNetworkConfig.getNetworkEapType(wifiSsid.toString());
+                    scanDetail.getScanResult().carrierName =
+                            mCarrierNetworkConfig.getCarrierName(wifiSsid.toString());
+                }
                 results.add(scanDetail);
             }
         } catch (RemoteException e1) {

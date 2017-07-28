@@ -23,7 +23,10 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -33,6 +36,8 @@ import android.net.wifi.IPnoScanEvent;
 import android.net.wifi.IScanEvent;
 import android.net.wifi.IWifiScannerImpl;
 import android.net.wifi.IWificond;
+import android.net.wifi.ScanResult;
+import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiScanner;
 import android.test.suitebuilder.annotation.SmallTest;
 
@@ -48,6 +53,7 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatcher;
 
+import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashSet;
@@ -60,6 +66,7 @@ import java.util.Set;
 public class WificondControlTest {
     private WifiInjector mWifiInjector;
     private WifiMonitor mWifiMonitor;
+    private CarrierNetworkConfig mCarrierNetworkConfig;
     private WificondControl mWificondControl;
     private static final String TEST_INTERFACE_NAME = "test_wlan_if";
     private static final byte[] TEST_SSID =
@@ -68,7 +75,7 @@ public class WificondControlTest {
             new byte[] {(byte) 0x12, (byte) 0xef, (byte) 0xa1,
                         (byte) 0x2c, (byte) 0x97, (byte) 0x8b};
     // This the IE buffer which is consistent with TEST_SSID.
-    private static final byte[] TEST_INFO_ELEMENT =
+    private static final byte[] TEST_INFO_ELEMENT_SSID =
             new byte[] {
                     // Element ID for SSID.
                     (byte) 0x00,
@@ -76,6 +83,17 @@ public class WificondControlTest {
                     (byte) 0x0b,
                     // This is string "GoogleGuest"
                     'G', 'o', 'o', 'g', 'l', 'e', 'G', 'u', 'e', 's', 't'};
+    // RSN IE data indicating EAP key management.
+    private static final byte[] TEST_INFO_ELEMENT_RSN =
+            new byte[] {
+                    // Element ID for RSN.
+                    (byte) 0x30,
+                    // Length of the element data.
+                    (byte) 0x18,
+                    (byte) 0x01, (byte) 0x00, (byte) 0x00, (byte) 0x0F, (byte) 0xAC, (byte) 0x02,
+                    (byte) 0x02, (byte) 0x00, (byte) 0x00, (byte) 0x0F, (byte) 0xAC, (byte) 0x04,
+                    (byte) 0x00, (byte) 0x0F, (byte) 0xAC, (byte) 0x02, (byte) 0x01, (byte) 0x00,
+                    (byte) 0x00, (byte) 0x0F, (byte) 0xAC, (byte) 0x01, (byte) 0x00, (byte) 0x00 };
 
     private static final int TEST_FREQUENCY = 2456;
     private static final int TEST_SIGNAL_MBM = -4500;
@@ -86,7 +104,7 @@ public class WificondControlTest {
             new NativeScanResult() {{
                 ssid = TEST_SSID;
                 bssid = TEST_BSSID;
-                infoElement = TEST_INFO_ELEMENT;
+                infoElement = TEST_INFO_ELEMENT_SSID;
                 frequency = TEST_FREQUENCY;
                 signalMbm = TEST_SIGNAL_MBM;
                 capability = TEST_CAPABILITY;
@@ -127,7 +145,8 @@ public class WificondControlTest {
     public void setUp() throws Exception {
         mWifiInjector = mock(WifiInjector.class);
         mWifiMonitor = mock(WifiMonitor.class);
-        mWificondControl = new WificondControl(mWifiInjector, mWifiMonitor);
+        mCarrierNetworkConfig = mock(CarrierNetworkConfig.class);
+        mWificondControl = new WificondControl(mWifiInjector, mWifiMonitor, mCarrierNetworkConfig);
     }
 
     /**
@@ -457,6 +476,10 @@ public class WificondControlTest {
         when(scanner.getScanResults()).thenReturn(mockScanResults);
 
         ArrayList<ScanDetail> returnedScanResults = mWificondControl.getScanResults();
+        // The test IEs {@link #TEST_INFO_ELEMENT} doesn't contained RSN IE, which means non-EAP
+        // AP. So verify carrier network is not checked, since EAP is currently required for a
+        // carrier network.
+        verify(mCarrierNetworkConfig, never()).isCarrierNetwork(anyString());
         assertEquals(mockScanResults.length, returnedScanResults.size());
         // Since NativeScanResult is organized differently from ScanResult, this only checks
         // a few fields.
@@ -468,6 +491,58 @@ public class WificondControlTest {
             assertEquals(mockScanResults[i].tsf,
                          returnedScanResults.get(i).getScanResult().timestamp);
         }
+    }
+
+    /**
+     * Verifies that scan result's carrier network info {@link ScanResult#isCarrierAp} and
+     * {@link ScanResult#getCarrierApEapType} is set appropriated based on the carrier network
+     * config.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testGetScanResultsForCarrierAp() throws Exception {
+        IWifiScannerImpl scanner = setupClientInterfaceAndCreateMockWificondScanner();
+        assertNotNull(scanner);
+
+        // Include RSN IE to indicate EAP key management.
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write(TEST_INFO_ELEMENT_SSID);
+        out.write(TEST_INFO_ELEMENT_RSN);
+        NativeScanResult nativeScanResult = new NativeScanResult(MOCK_NATIVE_SCAN_RESULT);
+        nativeScanResult.infoElement = out.toByteArray();
+        when(scanner.getScanResults()).thenReturn(new NativeScanResult[] {nativeScanResult});
+
+        // AP associated with a carrier network.
+        int eapType = WifiEnterpriseConfig.Eap.SIM;
+        String carrierName = "Test Carrier";
+        when(mCarrierNetworkConfig.isCarrierNetwork(new String(nativeScanResult.ssid)))
+                .thenReturn(true);
+        when(mCarrierNetworkConfig.getNetworkEapType(new String(nativeScanResult.ssid)))
+                .thenReturn(eapType);
+        when(mCarrierNetworkConfig.getCarrierName(new String(nativeScanResult.ssid)))
+                .thenReturn(carrierName);
+        ArrayList<ScanDetail> returnedScanResults = mWificondControl.getScanResults();
+        assertEquals(1, returnedScanResults.size());
+        // Verify returned scan result.
+        ScanResult scanResult = returnedScanResults.get(0).getScanResult();
+        assertArrayEquals(nativeScanResult.ssid, scanResult.SSID.getBytes());
+        assertTrue(scanResult.isCarrierAp);
+        assertEquals(eapType, scanResult.carrierApEapType);
+        assertEquals(carrierName, scanResult.carrierName);
+        reset(mCarrierNetworkConfig);
+
+        // AP not associated with a carrier network.
+        when(mCarrierNetworkConfig.isCarrierNetwork(new String(nativeScanResult.ssid)))
+                .thenReturn(false);
+        returnedScanResults = mWificondControl.getScanResults();
+        assertEquals(1, returnedScanResults.size());
+        // Verify returned scan result.
+        scanResult = returnedScanResults.get(0).getScanResult();
+        assertArrayEquals(nativeScanResult.ssid, scanResult.SSID.getBytes());
+        assertFalse(scanResult.isCarrierAp);
+        assertEquals(ScanResult.UNSPECIFIED, scanResult.carrierApEapType);
+        assertEquals(null, scanResult.carrierName);
     }
 
     /**
