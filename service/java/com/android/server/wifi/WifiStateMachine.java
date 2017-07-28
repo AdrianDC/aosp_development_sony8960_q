@@ -947,7 +947,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 mFacade.makeSupplicantStateTracker(context, mWifiConfigManager, getHandler());
 
         mLinkProperties = new LinkProperties();
-        mPhoneStateListener = new WifiPhoneStateListener();
+        mPhoneStateListener = new WifiPhoneStateListener(looper);
 
         mNetworkInfo.setIsAvailable(false);
         mLastBssid = null;
@@ -3772,6 +3772,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      * Listen for phone call state events to set/reset TX power limits for SAR requirements.
      */
     private class WifiPhoneStateListener extends PhoneStateListener {
+        WifiPhoneStateListener(Looper looper) {
+            super(looper);
+        }
+
         @Override
         public void onCallStateChanged(int state, String incomingNumber) {
             if (mEnableVoiceCallSarTxPowerLimit) {
