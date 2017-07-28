@@ -362,6 +362,7 @@ public class WifiServiceImplTest {
     public void testSetWifiEnabledSuccess() throws Exception {
         when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_DISABLED);
         when(mSettingsStore.handleWifiToggled(eq(true))).thenReturn(true);
+        when(mSettingsStore.isAirplaneModeOn()).thenReturn(false);
         assertTrue(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, true));
         verify(mWifiController).sendMessage(eq(CMD_WIFI_TOGGLED));
     }
@@ -386,8 +387,35 @@ public class WifiServiceImplTest {
         doThrow(new SecurityException()).when(mContext)
                 .enforceCallingOrSelfPermission(eq(android.Manifest.permission.CHANGE_WIFI_STATE),
                                                 eq("WifiService"));
+        when(mSettingsStore.isAirplaneModeOn()).thenReturn(false);
         mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, true);
         verify(mWifiStateMachine, never()).syncGetWifiApState();
+    }
+
+    /**
+     * Verify that a call from an app with the NETWORK_SETTINGS permission can enable wifi if we
+     * are in airplane mode.
+     */
+    @Test
+    public void testSetWifiEnabledFromNetworkSettingsHolderWhenInAirplaneMode() throws Exception {
+        when(mSettingsStore.handleWifiToggled(eq(true))).thenReturn(true);
+        when(mSettingsStore.isAirplaneModeOn()).thenReturn(true);
+        when(mWifiPermissionsUtil.checkNetworkSettingsPermission(anyInt())).thenReturn(true);
+        assertTrue(mWifiServiceImpl.setWifiEnabled(SYSUI_PACKAGE_NAME, true));
+        verify(mWifiController).sendMessage(eq(CMD_WIFI_TOGGLED));
+    }
+
+    /**
+     * Verify that a caller without the NETWORK_SETTINGS permission can't enable wifi
+     * if we are in airplane mode.
+     */
+    @Test
+    public void testSetWifiEnabledFromAppFailsWhenInAirplaneMode() throws Exception {
+        when(mSettingsStore.handleWifiToggled(eq(true))).thenReturn(true);
+        when(mSettingsStore.isAirplaneModeOn()).thenReturn(true);
+        when(mWifiPermissionsUtil.checkNetworkSettingsPermission(anyInt())).thenReturn(false);
+        assertFalse(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, true));
+        verify(mWifiController, never()).sendMessage(eq(CMD_WIFI_TOGGLED));
     }
 
     /**
@@ -399,6 +427,7 @@ public class WifiServiceImplTest {
         when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_ENABLED);
         when(mSettingsStore.handleWifiToggled(eq(true))).thenReturn(true);
         when(mWifiPermissionsUtil.checkNetworkSettingsPermission(anyInt())).thenReturn(true);
+        when(mSettingsStore.isAirplaneModeOn()).thenReturn(false);
         assertTrue(mWifiServiceImpl.setWifiEnabled(SYSUI_PACKAGE_NAME, true));
         verify(mWifiController).sendMessage(eq(CMD_WIFI_TOGGLED));
     }
@@ -410,6 +439,7 @@ public class WifiServiceImplTest {
     public void testSetWifiEnabledFromAppFailsWhenApEnabled() throws Exception {
         when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_ENABLED);
         when(mWifiPermissionsUtil.checkNetworkSettingsPermission(anyInt())).thenReturn(false);
+        when(mSettingsStore.isAirplaneModeOn()).thenReturn(false);
         assertFalse(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, true));
         verify(mSettingsStore, never()).handleWifiToggled(anyBoolean());
         verify(mWifiController, never()).sendMessage(eq(CMD_WIFI_TOGGLED));
