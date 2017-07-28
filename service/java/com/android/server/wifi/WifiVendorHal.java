@@ -2370,40 +2370,42 @@ public class WifiVendorHal {
         return android.hardware.wifi.V1_1.IWifiChip.castFrom(mIWifiChip);
     }
 
-    /**
-     * Set the TX power limit.
-     * Primarily used for meeting SAR requirements during voice calls.
-     *
-     * @param powerLevelInDbm Power level to set in dBm.
-     * @return true for success; false for failure or if the HAL version does not support this API.
-     */
-    public boolean setTxPowerLimit(int powerLevelInDbm) {
-        synchronized (sLock) {
-            try {
-                android.hardware.wifi.V1_1.IWifiChip iWifiChipV11 = getWifiChipForV1_1Mockable();
-                if (iWifiChipV11 == null) return boolResult(false);
-                WifiStatus status = iWifiChipV11.setTxPowerLimit(powerLevelInDbm);
-                if (!ok(status)) return false;
-            } catch (RemoteException e) {
-                handleRemoteException(e);
-                return false;
-            }
-            return true;
+    private int frameworkToHalTxPowerScenario(int scenario) {
+        switch (scenario) {
+            case WifiNative.TX_POWER_SCENARIO_VOICE_CALL:
+                return android.hardware.wifi.V1_1.IWifiChip.TxPowerScenario.VOICE_CALL;
+            default:
+                throw new IllegalArgumentException("bad scenario: " + scenario);
         }
     }
 
     /**
-     * Reset the TX power limit.
+     * Select one of the pre-configured TX power level scenarios or reset it back to normal.
      * Primarily used for meeting SAR requirements during voice calls.
      *
+     * @param scenario Should be one {@link WifiNative#TX_POWER_SCENARIO_NORMAL} or
+     *        {@link WifiNative#TX_POWER_SCENARIO_VOICE_CALL}.
      * @return true for success; false for failure or if the HAL version does not support this API.
      */
-    public boolean resetTxPowerLimit() {
+    public boolean selectTxPowerScenario(int scenario) {
         synchronized (sLock) {
             try {
                 android.hardware.wifi.V1_1.IWifiChip iWifiChipV11 = getWifiChipForV1_1Mockable();
                 if (iWifiChipV11 == null) return boolResult(false);
-                WifiStatus status = iWifiChipV11.resetTxPowerLimit();
+                WifiStatus status;
+                if (scenario != WifiNative.TX_POWER_SCENARIO_NORMAL) {
+                    int halScenario;
+                    try {
+                        halScenario = frameworkToHalTxPowerScenario(scenario);
+                    } catch (IllegalArgumentException e) {
+                        mLog.err("Illegal argument for select tx power scenario")
+                                .c(e.toString()).flush();
+                        return false;
+                    }
+                    status = iWifiChipV11.selectTxPowerScenario(halScenario);
+                } else {
+                    status = iWifiChipV11.resetTxPowerScenario();
+                }
                 if (!ok(status)) return false;
             } catch (RemoteException e) {
                 handleRemoteException(e);
