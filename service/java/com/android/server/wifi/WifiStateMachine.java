@@ -31,6 +31,7 @@ import static android.telephony.TelephonyManager.CALL_STATE_OFFHOOK;
 
 import android.Manifest;
 import android.app.ActivityManager;
+import android.app.AppGlobals;
 import android.app.PendingIntent;
 import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
@@ -82,6 +83,7 @@ import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.net.wifi.p2p.IWifiP2pManager;
 import android.os.BatteryStats;
 import android.os.Binder;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.INetworkManagementService;
@@ -364,7 +366,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private final Object mDhcpResultsLock = new Object();
     private DhcpResults mDhcpResults;
 
-    // NOTE: Do not return to clients - use #getWiFiInfoForUid(int)
+    // NOTE: Do not return to clients - see syncRequestConnectionInfo()
     private final WifiInfo mWifiInfo;
     private NetworkInfo mNetworkInfo;
     private final NetworkCapabilities mDfltNetworkCapabilities;
@@ -1755,7 +1757,35 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      * @return a {@link WifiInfo} object containing information about the current connection
      */
     public WifiInfo syncRequestConnectionInfo() {
-        return getWiFiInfoForUid(Binder.getCallingUid());
+        int uid = Binder.getCallingUid();
+        if (uid == Process.myUid()) return mWifiInfo;
+        boolean hideBssidAndSsid = true;
+        WifiInfo result = new WifiInfo(mWifiInfo);
+        result.setMacAddress(WifiInfo.DEFAULT_MAC_ADDRESS);
+
+        IPackageManager packageManager = AppGlobals.getPackageManager();
+
+        try {
+            if (packageManager.checkUidPermission(Manifest.permission.LOCAL_MAC_ADDRESS,
+                    uid) == PackageManager.PERMISSION_GRANTED) {
+                result.setMacAddress(mWifiInfo.getMacAddress());
+            }
+            if (mWifiPermissionsUtil.canAccessScanResults(
+                    packageManager.getNameForUid(uid),
+                    uid,
+                    Build.VERSION_CODES.O)) {
+                hideBssidAndSsid = false;
+            }
+        } catch (RemoteException e) {
+            Log.e(TAG, "Error checking receiver permission", e);
+        } catch (SecurityException e) {
+            Log.e(TAG, "Security exception checking receiver permission", e);
+        }
+        if (hideBssidAndSsid) {
+            result.setBSSID(WifiInfo.DEFAULT_MAC_ADDRESS);
+            result.setSSID(WifiSsid.createFromHex(null));
+        }
+        return result;
     }
 
     public WifiInfo getWifiInfo() {
@@ -3136,29 +3166,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             intent.putExtra(WifiManager.EXTRA_WIFI_INFO, sentWifiInfo);
         }
         mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
-    }
-
-    private WifiInfo getWiFiInfoForUid(int uid) {
-        if (Binder.getCallingUid() == Process.myUid()) {
-            return mWifiInfo;
-        }
-
-        WifiInfo result = new WifiInfo(mWifiInfo);
-        result.setMacAddress(WifiInfo.DEFAULT_MAC_ADDRESS);
-
-        IBinder binder = mFacade.getService("package");
-        IPackageManager packageManager = IPackageManager.Stub.asInterface(binder);
-
-        try {
-            if (packageManager.checkUidPermission(Manifest.permission.LOCAL_MAC_ADDRESS,
-                    uid) == PackageManager.PERMISSION_GRANTED) {
-                result.setMacAddress(mWifiInfo.getMacAddress());
-            }
-        } catch (RemoteException e) {
-            Log.e(TAG, "Error checking receiver permission", e);
-        }
-
-        return result;
     }
 
     private void sendLinkConfigurationChangedBroadcast() {
