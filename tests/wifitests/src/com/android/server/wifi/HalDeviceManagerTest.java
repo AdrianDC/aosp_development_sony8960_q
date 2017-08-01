@@ -164,6 +164,22 @@ public class HalDeviceManagerTest {
     }
 
     /**
+     * Test the service manager notification coming in after
+     * {@link HalDeviceManager#initIWifiIfNecessary()} is already invoked as a part of
+     * {@link HalDeviceManager#initialize()}.
+     */
+    @Test
+    public void testServiceRegisterationAfterInitialize() throws Exception {
+        mInOrder = inOrder(mServiceManagerMock, mWifiMock, mManagerStatusListenerMock);
+        executeAndValidateInitializationSequence();
+
+        // This should now be ignored since IWifi is already non-null.
+        mServiceNotificationCaptor.getValue().onRegistration(IWifi.kInterfaceName, "", true);
+
+        verifyNoMoreInteractions(mManagerStatusListenerMock, mWifiMock, mServiceManagerMock);
+    }
+
+    /**
      * Validate that multiple callback registrations are called and that duplicate ones are
      * only called once.
      */
@@ -221,7 +237,7 @@ public class HalDeviceManagerTest {
 
         // verify: service and callback calls
         mInOrder.verify(mWifiMock).start();
-        mInOrder.verify(mManagerStatusListenerMock, times(3)).onStatusChanged();
+        mInOrder.verify(mManagerStatusListenerMock, times(2)).onStatusChanged();
 
         verifyNoMoreInteractions(mManagerStatusListenerMock);
     }
@@ -1097,12 +1113,13 @@ public class HalDeviceManagerTest {
         mInOrder.verify(mServiceManagerMock).registerForNotifications(eq(IWifi.kInterfaceName),
                 eq(""), mServiceNotificationCaptor.capture());
 
-        // act: get the service started (which happens even when service was already up)
-        mServiceNotificationCaptor.getValue().onRegistration(IWifi.kInterfaceName, "", true);
+        // The service should already be up at this point.
 
         // verify: wifi initialization sequence
         mInOrder.verify(mWifiMock).linkToDeath(mDeathRecipientCaptor.capture(), anyLong());
         mInOrder.verify(mWifiMock).registerEventCallback(mWifiEventCallbackCaptor.capture());
+        // verify: onStop called as a part of initialize.
+        mInOrder.verify(mWifiMock).stop();
         collector.checkThat("isReady is true", mDut.isReady(), equalTo(true));
     }
 
