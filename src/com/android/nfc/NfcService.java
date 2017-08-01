@@ -67,6 +67,7 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemClock;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
@@ -590,6 +591,7 @@ public class NfcService implements DeviceHostListener {
                         mPrefsEditor.putBoolean(PREF_FIRST_BOOT, false);
                         mPrefsEditor.apply();
                     }
+                    SystemProperties.set("nfc.initialized", "true");
                     break;
             }
 
