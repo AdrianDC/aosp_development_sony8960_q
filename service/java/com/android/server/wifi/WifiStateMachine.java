@@ -3139,11 +3139,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     private WifiInfo getWiFiInfoForUid(int uid) {
+        WifiInfo result = new WifiInfo(mWifiInfo);
         if (Binder.getCallingUid() == Process.myUid()) {
-            return mWifiInfo;
+            return result;
         }
 
-        WifiInfo result = new WifiInfo(mWifiInfo);
         result.setMacAddress(WifiInfo.DEFAULT_MAC_ADDRESS);
 
         IBinder binder = mFacade.getService("package");
