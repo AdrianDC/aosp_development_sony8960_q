@@ -133,6 +133,8 @@ public class WifiStateMachineTest {
             (ActivityManager.isLowRamDeviceStatic()
                     ? WifiStateMachine.NUM_LOG_RECS_VERBOSE_LOW_MEMORY
                     : WifiStateMachine.NUM_LOG_RECS_VERBOSE);
+    private static final int FRAMEWORK_NETWORK_ID = 7;
+    private static final int TEST_RSSI = -54;
     private static final int WPS_SUPPLICANT_NETWORK_ID = 5;
     private static final int WPS_FRAMEWORK_NETWORK_ID = 10;
     private static final String DEFAULT_TEST_SSID = "\"GoogleGuest\"";
@@ -266,11 +268,11 @@ public class WifiStateMachineTest {
         Log.d(TAG, "WifiStateMachine state -" + stream.toString());
     }
 
-    private static ScanDetail getGoogleGuestScanDetail(int rssi) {
+    private static ScanDetail getGoogleGuestScanDetail(int rssi, String bssid, int freq) {
         ScanResult.InformationElement ie[] = new ScanResult.InformationElement[1];
         ie[0] = ScanResults.generateSsidIe(sSSID);
         NetworkDetail nd = new NetworkDetail(sBSSID, ie, new ArrayList<String>(), sFreq);
-        ScanDetail detail = new ScanDetail(nd, sWifiSsid, sBSSID, "", rssi, sFreq,
+        ScanDetail detail = new ScanDetail(nd, sWifiSsid, bssid, "", rssi, freq,
                 Long.MAX_VALUE, /* needed so that scan results aren't rejected because
                                    there older than scan start */
                 ie, new ArrayList<String>());
@@ -281,8 +283,7 @@ public class WifiStateMachineTest {
         ScanResults sr = ScanResults.create(0, 2412, 2437, 2462, 5180, 5220, 5745, 5825);
         ArrayList<ScanDetail> list = sr.getScanDetailArrayList();
 
-        int rssi = -65;
-        list.add(getGoogleGuestScanDetail(rssi));
+        list.add(getGoogleGuestScanDetail(TEST_RSSI, sBSSID, sFreq));
         return list;
     }
 
@@ -299,7 +300,9 @@ public class WifiStateMachineTest {
     static final String   sSSID = "\"GoogleGuest\"";
     static final WifiSsid sWifiSsid = WifiSsid.createFromAsciiEncoded(sSSID);
     static final String   sBSSID = "01:02:03:04:05:06";
+    static final String   sBSSID1 = "02:01:04:03:06:05";
     static final int      sFreq = 2437;
+    static final int      sFreq1 = 5240;
     static final String   WIFI_IFACE_NAME = "mockWlan";
 
     WifiStateMachine mWsm;
@@ -346,6 +349,7 @@ public class WifiStateMachineTest {
     @Mock TelephonyManager mTelephonyManager;
     @Mock WrongPasswordNotifier mWrongPasswordNotifier;
     @Mock Clock mClock;
+    @Mock ScanDetailCache mScanDetailCache;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -816,6 +820,7 @@ public class WifiStateMachineTest {
 
     private void addNetworkAndVerifySuccess(boolean isHidden) throws Exception {
         WifiConfiguration config = new WifiConfiguration();
+        config.networkId = FRAMEWORK_NETWORK_ID;
         config.SSID = sSSID;
         config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
         config.hiddenSSID = isHidden;
@@ -948,6 +953,13 @@ public class WifiStateMachineTest {
 
         verify(mWifiConfigManager).enableNetwork(eq(0), eq(true), anyInt());
         verify(mWifiConnectivityManager).setUserConnectChoice(eq(0));
+        when(mWifiConfigManager.getScanDetailCacheForNetwork(FRAMEWORK_NETWORK_ID))
+                .thenReturn(mScanDetailCache);
+
+        when(mScanDetailCache.getScanDetail(sBSSID)).thenReturn(
+                getGoogleGuestScanDetail(TEST_RSSI, sBSSID, sFreq));
+        when(mScanDetailCache.get(sBSSID)).thenReturn(
+                getGoogleGuestScanDetail(TEST_RSSI, sBSSID, sFreq).getScanResult());
 
         mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, sBSSID);
         mLooper.dispatchAll();
@@ -966,6 +978,12 @@ public class WifiStateMachineTest {
 
         injectDhcpSuccess(dhcpResults);
         mLooper.dispatchAll();
+
+        WifiInfo wifiInfo = mWsm.getWifiInfo();
+        assertNotNull(wifiInfo);
+        assertEquals(sBSSID, wifiInfo.getBSSID());
+        assertEquals(sFreq, wifiInfo.getFrequency());
+        assertTrue(sWifiSsid.equals(wifiInfo.getWifiSsid()));
 
         assertEquals("ConnectedState", getCurrentState().getName());
     }
@@ -1225,7 +1243,7 @@ public class WifiStateMachineTest {
     public void disconnect() throws Exception {
         connect();
 
-        mWsm.sendMessage(WifiMonitor.NETWORK_DISCONNECTION_EVENT, -1, 3, "01:02:03:04:05:06");
+        mWsm.sendMessage(WifiMonitor.NETWORK_DISCONNECTION_EVENT, -1, 3, sBSSID);
         mLooper.dispatchAll();
         mWsm.sendMessage(WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0, 0,
                 new StateChangeResult(0, sWifiSsid, sBSSID, SupplicantState.DISCONNECTED));
@@ -1715,6 +1733,61 @@ public class WifiStateMachineTest {
         assertEquals(DEFAULT_TEST_SSID, wifiConfigCaptor.getValue().SSID);
         verify(mWifiConfigManager).enableNetwork(eq(WPS_FRAMEWORK_NETWORK_ID), anyBoolean(),
                 anyInt());
+    }
+
+    /**
+     * Verifies that WifiInfo is updated upon SUPPLICANT_STATE_CHANGE_EVENT.
+     */
+    @Test
+    public void testWifiInfoUpdatedUponSupplicantStateChangedEvent() throws Exception {
+        // Connect to network with |sBSSID|, |sFreq|.
+        connect();
+
+        // Set the scan detail cache for roaming target.
+        when(mWifiConfigManager.getScanDetailCacheForNetwork(FRAMEWORK_NETWORK_ID))
+                .thenReturn(mScanDetailCache);
+        when(mScanDetailCache.getScanDetail(sBSSID1)).thenReturn(
+                getGoogleGuestScanDetail(TEST_RSSI, sBSSID1, sFreq1));
+        when(mScanDetailCache.get(sBSSID1)).thenReturn(
+                getGoogleGuestScanDetail(TEST_RSSI, sBSSID1, sFreq1).getScanResult());
+
+        // This simulates the behavior of roaming to network with |sBSSID1|, |sFreq1|.
+        // Send a SUPPLICANT_STATE_CHANGE_EVENT, verify WifiInfo is updated.
+        mWsm.sendMessage(WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0, 0,
+                new StateChangeResult(0, sWifiSsid, sBSSID1, SupplicantState.COMPLETED));
+        mLooper.dispatchAll();
+
+        WifiInfo wifiInfo = mWsm.getWifiInfo();
+        assertEquals(sBSSID1, wifiInfo.getBSSID());
+        assertEquals(sFreq1, wifiInfo.getFrequency());
+        assertEquals(SupplicantState.COMPLETED, wifiInfo.getSupplicantState());
+    }
+
+    /**
+     * Verifies that WifiInfo is updated upon CMD_ASSOCIATED_BSSID event.
+     */
+    @Test
+    public void testWifiInfoUpdatedUponAssociatedBSSIDEvent() throws Exception {
+        // Connect to network with |sBSSID|, |sFreq|.
+        connect();
+
+        // Set the scan detail cache for roaming target.
+        when(mWifiConfigManager.getScanDetailCacheForNetwork(FRAMEWORK_NETWORK_ID))
+                .thenReturn(mScanDetailCache);
+        when(mScanDetailCache.getScanDetail(sBSSID1)).thenReturn(
+                getGoogleGuestScanDetail(TEST_RSSI, sBSSID1, sFreq1));
+        when(mScanDetailCache.get(sBSSID1)).thenReturn(
+                getGoogleGuestScanDetail(TEST_RSSI, sBSSID1, sFreq1).getScanResult());
+
+        // This simulates the behavior of roaming to network with |sBSSID1|, |sFreq1|.
+        // Send a CMD_ASSOCIATED_BSSID, verify WifiInfo is updated.
+        mWsm.sendMessage(WifiStateMachine.CMD_ASSOCIATED_BSSID, 0, 0, sBSSID1);
+        mLooper.dispatchAll();
+
+        WifiInfo wifiInfo = mWsm.getWifiInfo();
+        assertEquals(sBSSID1, wifiInfo.getBSSID());
+        assertEquals(sFreq1, wifiInfo.getFrequency());
+        assertEquals(SupplicantState.COMPLETED, wifiInfo.getSupplicantState());
     }
 
     /**

@@ -3267,6 +3267,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             if (scanDetailCache != null) {
                 ScanDetail scanDetail = scanDetailCache.getScanDetail(stateChangeResult.BSSID);
                 if (scanDetail != null) {
+                    mWifiInfo.setFrequency(scanDetail.getScanResult().frequency);
                     NetworkDetail networkDetail = scanDetail.getNetworkDetail();
                     if (networkDetail != null
                             && networkDetail.getAnt() == NetworkDetail.Ant.ChargeablePublic) {
@@ -5395,6 +5396,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     if (config != null) {
                         mWifiInfo.setBSSID(mLastBssid);
                         mWifiInfo.setNetworkId(mLastNetworkId);
+
+                        ScanDetailCache scanDetailCache =
+                                mWifiConfigManager.getScanDetailCacheForNetwork(config.networkId);
+                        if (scanDetailCache != null && mLastBssid != null) {
+                            ScanResult scanResult = scanDetailCache.get(mLastBssid);
+                            if (scanResult != null) {
+                                mWifiInfo.setFrequency(scanResult.frequency);
+                            }
+                        }
                         mWifiConnectivityManager.trackBssid(mLastBssid, true, reasonCode);
                         // We need to get the updated pseudonym from supplicant for EAP-SIM/AKA/AKA'
                         if (config.enterpriseConfig != null
@@ -5937,7 +5947,18 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mLastBssid = (String) message.obj;
                     if (mLastBssid != null && (mWifiInfo.getBSSID() == null
                             || !mLastBssid.equals(mWifiInfo.getBSSID()))) {
-                        mWifiInfo.setBSSID((String) message.obj);
+                        mWifiInfo.setBSSID(mLastBssid);
+                        WifiConfiguration config = getCurrentWifiConfiguration();
+                        if (config != null) {
+                            ScanDetailCache scanDetailCache = mWifiConfigManager
+                                    .getScanDetailCacheForNetwork(config.networkId);
+                            if (scanDetailCache != null) {
+                                ScanResult scanResult = scanDetailCache.get(mLastBssid);
+                                if (scanResult != null) {
+                                    mWifiInfo.setFrequency(scanResult.frequency);
+                                }
+                            }
+                        }
                         sendNetworkStateChangeBroadcast(mLastBssid);
                     }
                     break;
