@@ -1791,20 +1791,30 @@ public class WifiStateMachineTest {
     }
 
     /**
-     * Test that the process uid has full wifiInfo access
+     * Test that the process uid has full wifiInfo access.
+     * Also tests that {@link WifiStateMachine#syncRequestConnectionInfo()} always
+     * returns a copy of WifiInfo.
      */
     @Test
     public void testConnectedIdsAreVisibleFromOwnUid() throws Exception {
         assertEquals(Process.myUid(), Binder.getCallingUid());
         WifiInfo wifiInfo = mWsm.getWifiInfo();
+        wifiInfo.setBSSID(sBSSID);
+        wifiInfo.setSSID(WifiSsid.createFromAsciiEncoded(sSSID));
+
         connect();
         WifiInfo connectionInfo = mWsm.syncRequestConnectionInfo();
-        assertEquals(wifiInfo, connectionInfo);
+
+        assertNotEquals(wifiInfo, connectionInfo);
+        assertEquals(wifiInfo.getSSID(), connectionInfo.getSSID());
+        assertEquals(wifiInfo.getBSSID(), connectionInfo.getBSSID());
     }
 
     /**
      * Test that connected SSID and BSSID are not exposed to an app that does not have the
      * appropriate permissions.
+     * Also tests that {@link WifiStateMachine#syncRequestConnectionInfo()} always
+     * returns a copy of WifiInfo.
      */
     @Test
     public void testConnectedIdsAreHiddenFromRandomApp() throws Exception {
@@ -1836,6 +1846,8 @@ public class WifiStateMachineTest {
     /**
      * Test that connected SSID and BSSID are not exposed to an app that does not have the
      * appropriate permissions, when canAccessScanResults raises a SecurityException.
+     * Also tests that {@link WifiStateMachine#syncRequestConnectionInfo()} always
+     * returns a copy of WifiInfo.
      */
     @Test
     public void testConnectedIdsAreHiddenOnSecurityException() throws Exception {
