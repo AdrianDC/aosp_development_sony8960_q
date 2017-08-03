@@ -2156,6 +2156,9 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             }
             pw.println();
         }
+        if (mScannerImpl != null) {
+            mScannerImpl.dump(fd, pw, args);
+        }
     }
 
     void logScanRequest(String request, ClientInfo ci, int id, WorkSource workSource,
