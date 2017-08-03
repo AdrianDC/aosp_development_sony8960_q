@@ -42,4 +42,6 @@
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"<xliff:g id="NETWORK_SSID">%1$s</xliff:g> എന്ന നെറ്റ്‌വർക്കിലേക്ക് കണക്‌റ്റുചെയ്യണോ?"</string>
     <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Android ബീമിന്, NFC പ്രവർത്തനക്ഷമമാക്കേണ്ടതുണ്ട്. നിങ്ങൾക്കത് പ്രവർത്തനക്ഷമമാക്കണോ?"</string>
     <string name="android_beam" msgid="1666446406999492763">"Android ബീം"</string>
+    <!-- no translation found for beam_requires_external_storage_permission (8798337545702206901) -->
+    <skip />
 </resources>
