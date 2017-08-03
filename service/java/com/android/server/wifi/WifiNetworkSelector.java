@@ -25,11 +25,11 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.text.TextUtils;
 import android.util.LocalLog;
-import android.util.Log;
 import android.util.Pair;
 
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.wifi.util.ScanResultUtil;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -61,6 +61,8 @@ public class WifiNetworkSelector {
     private final int mThresholdQualifiedRssi5;
     private final int mThresholdMinimumRssi24;
     private final int mThresholdMinimumRssi5;
+    private final int mStayOnNetworkMinimumTxRate;
+    private final int mStayOnNetworkMinimumRxRate;
     private final boolean mEnableAutoJoinWhenAssociated;
 
     /**
@@ -146,6 +148,18 @@ public class WifiNetworkSelector {
                     + " , ID: " + network.networkId);
         }
 
+        int currentRssi = wifiInfo.getRssi();
+        boolean hasQualifiedRssi =
+                (wifiInfo.is24GHz() && (currentRssi > mThresholdQualifiedRssi24))
+                        || (wifiInfo.is5GHz() && (currentRssi > mThresholdQualifiedRssi5));
+        // getTxSuccessRate() and getRxSuccessRate() returns the packet rate in per 5 seconds unit.
+        boolean hasActiveStream = (wifiInfo.getTxSuccessRatePps() > mStayOnNetworkMinimumTxRate)
+                || (wifiInfo.getRxSuccessRatePps() > mStayOnNetworkMinimumRxRate);
+        if (hasQualifiedRssi && hasActiveStream) {
+            localLog("Stay on current network because of good RSSI and ongoing traffic");
+            return true;
+        }
+
         // Ephemeral network is not qualified.
         if (network.ephemeral) {
             localLog("Current network is an ephemeral one.");
@@ -158,28 +172,15 @@ public class WifiNetworkSelector {
             return false;
         }
 
-        int currentRssi = wifiInfo.getRssi();
         if (wifiInfo.is24GHz()) {
             // 2.4GHz networks is not qualified whenever 5GHz is available
             if (is5GHzNetworkAvailable(scanDetails)) {
                 localLog("Current network is 2.4GHz. 5GHz networks available.");
                 return false;
             }
-            // When 5GHz is not available, we go through normal 2.4GHz qualification
-            if (currentRssi < mThresholdQualifiedRssi24) {
-                localLog("Current network band=2.4GHz, RSSI["
-                        + currentRssi + "]-acceptable but not qualified.");
-                return false;
-            }
-        } else if (wifiInfo.is5GHz()) {
-            // Must be 5GHz, so we always apply qualification checks
-            if (currentRssi < mThresholdQualifiedRssi5) {
-                localLog("Current network band=5GHz, RSSI["
-                        + currentRssi + "]-acceptable but not qualified.");
-                return false;
-            }
-        } else {
-            Log.e(TAG, "We're on a wifi network that's neither 2.4 or 5GHz... aliens!");
+        }
+        if (!hasQualifiedRssi) {
+            localLog("Current network RSSI[" + currentRssi + "]-acceptable but not qualified.");
             return false;
         }
 
@@ -340,9 +341,7 @@ public class WifiNetworkSelector {
         for (ScanDetail scanDetail : mFilteredNetworks) {
             ScanResult scanResult = scanDetail.getScanResult();
 
-            // A capability of [ESS] represents an open access point
-            // that is available for an STA to connect
-            if (scanResult.capabilities == null || !scanResult.capabilities.equals("[ESS]")) {
+            if (!ScanResultUtil.isScanResultForOpenNetwork(scanResult)) {
                 continue;
             }
 
@@ -580,5 +579,9 @@ public class WifiNetworkSelector {
                             R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_5GHz);
         mEnableAutoJoinWhenAssociated = context.getResources().getBoolean(
                             R.bool.config_wifi_framework_enable_associated_network_selection);
+        mStayOnNetworkMinimumTxRate = context.getResources().getInteger(
+                R.integer.config_wifi_framework_min_tx_rate_for_staying_on_network);
+        mStayOnNetworkMinimumRxRate = context.getResources().getInteger(
+                R.integer.config_wifi_framework_min_rx_rate_for_staying_on_network);
     }
 }

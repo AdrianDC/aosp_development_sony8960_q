@@ -74,11 +74,6 @@ LOCAL_DEX_PREOPT_APP_IMAGE := false
 LOCAL_DEX_PREOPT_GENERATE_PROFILE := true
 LOCAL_DEX_PREOPT_PROFILE_CLASS_LISTING := frameworks/base/services/art-profile
 
-ifeq ($(EMMA_INSTRUMENT_FRAMEWORK),true)
-LOCAL_EMMA_INSTRUMENT := true
-endif
-
-LOCAL_JACK_COVERAGE_INCLUDE_FILTER := com.android.server.wifi.*
 
 include $(BUILD_JAVA_LIBRARY)
 
