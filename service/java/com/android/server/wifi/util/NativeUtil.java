@@ -30,6 +30,7 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 /**
  * Provide utility functions for native interfacing modules.
@@ -329,5 +330,17 @@ public class NativeUtil {
             throw new IllegalArgumentException("null hex bytes");
         }
         return new String(HexEncoding.encode(bytes)).toLowerCase();
+    }
+
+    /**
+     * Converts an 8 byte array to a WPS device type string
+     * { 0, 1, 2, -1, 4, 5, 6, 7 } --> "1-02FF0405-1543";
+     */
+    public static String wpsDevTypeStringFromByteArray(byte[] devType) {
+        byte[] a = devType;
+        int x = ((a[0] & 0xFF) << 8) | (a[1] & 0xFF);
+        String y = new String(HexEncoding.encode(Arrays.copyOfRange(devType, 2, 6)));
+        int z = ((a[6] & 0xFF) << 8) | (a[7] & 0xFF);
+        return String.format("%d-%s-%d", x, y, z);
     }
 }
