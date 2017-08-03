@@ -495,6 +495,31 @@ public class WifiConfigurationUtilTest {
         assertFalse(WifiConfigurationUtil.isSameNetwork(network, network1));
     }
 
+    /**
+     * Verify that WifiConfigurationUtil.isSameNetwork returns false when two WifiConfiguration
+     * objects have the different EAP identity.
+     */
+    @Test
+    public void testIsSameNetworkReturnsFalseOnDifferentEapIdentity() {
+        WifiConfiguration network1 = WifiConfigurationTestUtil.createEapNetwork(TEST_SSID);
+        WifiConfiguration network2 = WifiConfigurationTestUtil.createEapNetwork(TEST_SSID);
+        network1.enterpriseConfig.setIdentity("Identity1");
+        network2.enterpriseConfig.setIdentity("Identity2");
+        assertFalse(WifiConfigurationUtil.isSameNetwork(network1, network2));
+    }
+
+    /**
+     * Verify that WifiConfigurationUtil.isSameNetwork returns false when two WifiConfiguration
+     * objects have the different EAP anonymous identity.
+     */
+    @Test
+    public void testIsSameNetworkReturnsFalseOnDifferentEapAnonymousIdentity() {
+        WifiConfiguration network1 = WifiConfigurationTestUtil.createEapNetwork(TEST_SSID);
+        WifiConfiguration network2 = WifiConfigurationTestUtil.createEapNetwork(TEST_SSID);
+        network1.enterpriseConfig.setAnonymousIdentity("Identity1");
+        network2.enterpriseConfig.setAnonymousIdentity("Identity2");
+        assertFalse(WifiConfigurationUtil.isSameNetwork(network1, network2));
+    }
 
     /**
      * Verify the instance of {@link android.net.wifi.WifiScanner.PnoSettings.PnoNetwork} created
