@@ -1758,9 +1758,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      */
     public WifiInfo syncRequestConnectionInfo() {
         int uid = Binder.getCallingUid();
-        if (uid == Process.myUid()) return mWifiInfo;
-        boolean hideBssidAndSsid = true;
         WifiInfo result = new WifiInfo(mWifiInfo);
+        if (uid == Process.myUid()) return result;
+        boolean hideBssidAndSsid = true;
         result.setMacAddress(WifiInfo.DEFAULT_MAC_ADDRESS);
 
         IPackageManager packageManager = AppGlobals.getPackageManager();
