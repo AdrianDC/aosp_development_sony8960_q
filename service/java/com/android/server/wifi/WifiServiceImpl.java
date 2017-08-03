@@ -1737,14 +1737,14 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * @return the Wi-Fi information, contained in {@link WifiInfo}.
      */
     @Override
-    public WifiInfo getConnectionInfo() {
+    public WifiInfo getConnectionInfo(String callingPackage) {
         enforceAccessPermission();
         mLog.trace("getConnectionInfo uid=%").c(Binder.getCallingUid()).flush();
         /*
          * Make sure we have the latest information, by sending
          * a status request to the supplicant.
          */
-        return mWifiStateMachine.syncRequestConnectionInfo();
+        return mWifiStateMachine.syncRequestConnectionInfo(callingPackage);
     }
 
     /**
