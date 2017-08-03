@@ -37,8 +37,12 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.InOrder;
 
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Unit tests for {@link com.android.server.wifi.scanner.WificondScannerImpl}.
@@ -551,6 +555,28 @@ public class WificondScannerTest extends BaseWifiScannerImplTest {
         expectSuccessfulBackgroundScan(order, eventHandler, expectedPeriods2[0], 0);
 
         verifyNoMoreInteractions(eventHandler);
+    }
+
+    /**
+     * Test that dump() of WificondScannerImpl dumps native scan results.
+     */
+    @Test
+    public void dumpContainsNativeScanResults() {
+        assertDumpContainsRequestLog("Latest native scan results:");
+    }
+
+    private void assertDumpContainsRequestLog(String log) {
+        String objectDump = dumpObject();
+        Pattern logLineRegex = Pattern.compile(".*" + log + ".*");
+        assertTrue("dump did not contain log = " + log + "\n " + objectDump + "\n",
+                logLineRegex.matcher(objectDump).find());
+    }
+
+    private String dumpObject() {
+        StringWriter stringWriter = new StringWriter();
+        mScanner.dump(new FileDescriptor(), new PrintWriter(stringWriter),
+                new String[0]);
+        return stringWriter.toString();
     }
 
     /**
