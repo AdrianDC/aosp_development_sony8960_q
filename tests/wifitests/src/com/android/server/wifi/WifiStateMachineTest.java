@@ -140,6 +140,7 @@ public class WifiStateMachineTest {
     private static final int WPS_SUPPLICANT_NETWORK_ID = 5;
     private static final int WPS_FRAMEWORK_NETWORK_ID = 10;
     private static final String DEFAULT_TEST_SSID = "\"GoogleGuest\"";
+    private static final String OP_PACKAGE_NAME = "com.xxx";
 
     private long mBinderToken;
 
@@ -227,6 +228,8 @@ public class WifiStateMachineTest {
 
         when(context.getSystemService(Context.CONNECTIVITY_SERVICE)).thenReturn(
                 mock(ConnectivityManager.class));
+
+        when(context.getOpPackageName()).thenReturn(OP_PACKAGE_NAME);
 
         return context;
     }
@@ -1792,7 +1795,7 @@ public class WifiStateMachineTest {
 
     /**
      * Test that the process uid has full wifiInfo access.
-     * Also tests that {@link WifiStateMachine#syncRequestConnectionInfo()} always
+     * Also tests that {@link WifiStateMachine#syncRequestConnectionInfo(String)} always
      * returns a copy of WifiInfo.
      */
     @Test
@@ -1803,7 +1806,7 @@ public class WifiStateMachineTest {
         wifiInfo.setSSID(WifiSsid.createFromAsciiEncoded(sSSID));
 
         connect();
-        WifiInfo connectionInfo = mWsm.syncRequestConnectionInfo();
+        WifiInfo connectionInfo = mWsm.syncRequestConnectionInfo(mContext.getOpPackageName());
 
         assertNotEquals(wifiInfo, connectionInfo);
         assertEquals(wifiInfo.getSSID(), connectionInfo.getSSID());
@@ -1813,7 +1816,7 @@ public class WifiStateMachineTest {
     /**
      * Test that connected SSID and BSSID are not exposed to an app that does not have the
      * appropriate permissions.
-     * Also tests that {@link WifiStateMachine#syncRequestConnectionInfo()} always
+     * Also tests that {@link WifiStateMachine#syncRequestConnectionInfo(String)} always
      * returns a copy of WifiInfo.
      */
     @Test
@@ -1833,7 +1836,7 @@ public class WifiStateMachineTest {
             when(mWifiPermissionsUtil.canAccessScanResults(anyString(), eq(fakeUid), anyInt()))
                     .thenReturn(false);
 
-            WifiInfo connectionInfo = mWsm.syncRequestConnectionInfo();
+            WifiInfo connectionInfo = mWsm.syncRequestConnectionInfo(mContext.getOpPackageName());
 
             assertNotEquals(wifiInfo, connectionInfo);
             assertEquals(WifiSsid.NONE, connectionInfo.getSSID());
@@ -1846,7 +1849,7 @@ public class WifiStateMachineTest {
     /**
      * Test that connected SSID and BSSID are not exposed to an app that does not have the
      * appropriate permissions, when canAccessScanResults raises a SecurityException.
-     * Also tests that {@link WifiStateMachine#syncRequestConnectionInfo()} always
+     * Also tests that {@link WifiStateMachine#syncRequestConnectionInfo(String)} always
      * returns a copy of WifiInfo.
      */
     @Test
@@ -1866,7 +1869,7 @@ public class WifiStateMachineTest {
             when(mWifiPermissionsUtil.canAccessScanResults(anyString(), eq(fakeUid), anyInt()))
                     .thenThrow(new SecurityException());
 
-            WifiInfo connectionInfo = mWsm.syncRequestConnectionInfo();
+            WifiInfo connectionInfo = mWsm.syncRequestConnectionInfo(mContext.getOpPackageName());
 
             assertNotEquals(wifiInfo, connectionInfo);
             assertEquals(WifiSsid.NONE, connectionInfo.getSSID());
@@ -1896,7 +1899,7 @@ public class WifiStateMachineTest {
             when(mWifiPermissionsUtil.canAccessScanResults(anyString(), eq(fakeUid), anyInt()))
                     .thenReturn(true);
 
-            WifiInfo connectionInfo = mWsm.syncRequestConnectionInfo();
+            WifiInfo connectionInfo = mWsm.syncRequestConnectionInfo(mContext.getOpPackageName());
 
             assertNotEquals(wifiInfo, connectionInfo);
             assertEquals(wifiInfo.getSSID(), connectionInfo.getSSID());
