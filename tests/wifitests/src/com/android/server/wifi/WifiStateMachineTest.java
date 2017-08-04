@@ -2141,4 +2141,20 @@ public class WifiStateMachineTest {
         currentConfig.networkId = lastSelectedNetworkId - 1;
         assertFalse(mWsm.shouldEvaluateWhetherToSendExplicitlySelected(currentConfig));
     }
+
+    /**
+     * Test that {@link WifiStateMachine#syncRequestConnectionInfo()} always returns a copy of
+     * WifiInfo.
+     */
+    @Test
+    public void testSyncRequestConnectionInfoDoesNotReturnLocalReference() {
+        WifiInfo wifiInfo = mWsm.getWifiInfo();
+        wifiInfo.setBSSID(sBSSID);
+        wifiInfo.setSSID(WifiSsid.createFromAsciiEncoded(sSSID));
+
+        WifiInfo syncWifiInfo = mWsm.syncRequestConnectionInfo();
+        assertEquals(wifiInfo.getSSID(), syncWifiInfo.getSSID());
+        assertEquals(wifiInfo.getBSSID(), syncWifiInfo.getBSSID());
+        assertFalse(wifiInfo == syncWifiInfo);
+    }
 }
