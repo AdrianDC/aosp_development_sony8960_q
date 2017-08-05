@@ -532,7 +532,6 @@ public class HalDeviceManager {
 
     private void initializeInternal() {
         initIServiceManagerIfNecessary();
-        initIWifiIfNecessary();
     }
 
     private void teardownInternal() {
@@ -562,7 +561,9 @@ public class HalDeviceManager {
                     Log.d(TAG, "IWifi registration notification: fqName=" + fqName
                             + ", name=" + name + ", preexisting=" + preexisting);
                     synchronized (mLock) {
+                        mWifi = null; // get rid of old copy!
                         initIWifiIfNecessary();
+                        stopWifi(); // just in case
                     }
                 }
             };
@@ -672,8 +673,7 @@ public class HalDeviceManager {
                     mWifi = null;
                     return;
                 }
-                // Stopping wifi just in case. This would also trigger the status callback.
-                stopWifi();
+                managerStatusListenerDispatch();
             } catch (RemoteException e) {
                 Log.e(TAG, "Exception while operating on IWifi: " + e);
             }
