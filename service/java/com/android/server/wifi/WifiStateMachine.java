@@ -949,7 +949,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 mFacade.makeSupplicantStateTracker(context, mWifiConfigManager, getHandler());
 
         mLinkProperties = new LinkProperties();
-        mPhoneStateListener = new WifiPhoneStateListener();
+        mPhoneStateListener = new WifiPhoneStateListener(looper);
 
         mNetworkInfo.setIsAvailable(false);
         mLastBssid = null;
@@ -1756,7 +1756,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      *
      * @return a {@link WifiInfo} object containing information about the current connection
      */
-    public WifiInfo syncRequestConnectionInfo() {
+    public WifiInfo syncRequestConnectionInfo(String callingPackage) {
         int uid = Binder.getCallingUid();
         WifiInfo result = new WifiInfo(mWifiInfo);
         if (uid == Process.myUid()) return result;
@@ -1771,7 +1771,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 result.setMacAddress(mWifiInfo.getMacAddress());
             }
             if (mWifiPermissionsUtil.canAccessScanResults(
-                    packageManager.getNameForUid(uid),
+                    callingPackage,
                     uid,
                     Build.VERSION_CODES.O)) {
                 hideBssidAndSsid = false;
@@ -3783,6 +3783,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      * Listen for phone call state events to set/reset TX power limits for SAR requirements.
      */
     private class WifiPhoneStateListener extends PhoneStateListener {
+        WifiPhoneStateListener(Looper looper) {
+            super(looper);
+        }
+
         @Override
         public void onCallStateChanged(int state, String incomingNumber) {
             if (mEnableVoiceCallSarTxPowerLimit) {
