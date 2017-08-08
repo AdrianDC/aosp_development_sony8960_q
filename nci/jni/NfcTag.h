@@ -22,10 +22,8 @@
 #include "SyncEvent.h"
 #include "NfcJniUtil.h"
 #include <vector>
-extern "C"
-{
-    #include "nfa_rw_api.h"
-}
+
+#include "nfa_rw_api.h"
 
 
 class NfcTag
