@@ -24,13 +24,9 @@
 #include <nativehelper/ScopedLocalRef.h>
 #include <nativehelper/ScopedPrimitiveArray.h>
 
-extern "C"
-{
-    #include "rw_int.h"
-    #include "nfc_brcm_defs.h"
-    #include "phNxpExtns.h"
-}
-
+#include "rw_int.h"
+#include "nfc_brcm_defs.h"
+#include "phNxpExtns.h"
 
 /*******************************************************************************
 **

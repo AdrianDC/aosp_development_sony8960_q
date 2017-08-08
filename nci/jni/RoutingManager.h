@@ -22,11 +22,9 @@
 #include "NfcJniUtil.h"
 #include "RouteDataSet.h"
 #include <vector>
-extern "C"
-{
-    #include "nfa_api.h"
-    #include "nfa_ee_api.h"
-}
+
+#include "nfa_api.h"
+#include "nfa_ee_api.h"
 
 class RoutingManager
 {
