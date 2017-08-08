@@ -25,12 +25,9 @@
 #include "config.h"
 #include "JavaClassConstants.h"
 #include "RoutingManager.h"
+#include "nfa_ee_api.h"
+#include "nfa_ce_api.h"
 
-extern "C"
-{
-    #include "nfa_ee_api.h"
-    #include "nfa_ce_api.h"
-}
 extern bool gActivated;
 extern SyncEvent gDeactivatedEvent;
 

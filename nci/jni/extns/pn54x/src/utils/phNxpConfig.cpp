@@ -814,7 +814,7 @@ CNxpNfcParam::CNxpNfcParam (const char* name, unsigned long value) :
 ** Returns:     True if found, otherwise False.
 **
 *******************************************************************************/
-extern "C" int GetNxpStrValue (const char* name, char* pValue, unsigned long len)
+extern int GetNxpStrValue (const char* name, char* pValue, unsigned long len)
 {
     CNxpNfcConfig& rConfig = CNxpNfcConfig::GetInstance ();
 
@@ -837,7 +837,7 @@ extern "C" int GetNxpStrValue (const char* name, char* pValue, unsigned long len
 ** Returns:     TRUE[1] if config param name is found in the config file, else FALSE[0]
 **
 *******************************************************************************/
-extern "C" int GetNxpByteArrayValue (const char* name, char* pValue, long bufflen, long *len)
+extern int GetNxpByteArrayValue (const char* name, char* pValue, long bufflen, long *len)
 {
     CNxpNfcConfig& rConfig = CNxpNfcConfig::GetInstance ();
 
@@ -853,7 +853,7 @@ extern "C" int GetNxpByteArrayValue (const char* name, char* pValue, long buffle
 ** Returns:     true, if successful
 **
 *******************************************************************************/
-extern "C" int GetNxpNumValue (const char* name, void* pValue, unsigned long len)
+extern int GetNxpNumValue (const char* name, void* pValue, unsigned long len)
 {
     if (!pValue)
         return false;
@@ -900,7 +900,7 @@ extern "C" int GetNxpNumValue (const char* name, void* pValue, unsigned long len
 ** Returns:     none
 **
 *******************************************************************************/
-extern "C" void resetNxpConfig ()
+extern void resetNxpConfig ()
 {
     CNxpNfcConfig& rConfig = CNxpNfcConfig::GetInstance ();
 
@@ -942,7 +942,7 @@ void readOptionalConfig (const char* extra)
 ** Returns:     0 if not modified, 1 otherwise.
 **
 *******************************************************************************/
-extern "C" int isNxpConfigModified ()
+extern int isNxpConfigModified ()
 {
     CNxpNfcConfig& rConfig = CNxpNfcConfig::GetInstance ();
     return rConfig.checkTimestamp ();
