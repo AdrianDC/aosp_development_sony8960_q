@@ -321,7 +321,10 @@ public class WifiConnectivityManager {
                     mWaitForFullBandScanResults = false;
                 }
             }
-
+            if (results.length > 0) {
+                mWifiMetrics.incrementAvailableNetworksHistograms(mScanDetails,
+                        results[0].isAllChannelsScanned());
+            }
             boolean wasConnectAttempted = handleScanResults(mScanDetails, "AllSingleScanListener");
             clearScanDetails();
 
