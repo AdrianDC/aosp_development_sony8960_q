@@ -22,10 +22,6 @@
 #include <errno.h>
 #include <phNfcStatus.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /*
  * TLV structure
  * For simple TLV, type[0] == 0x00
