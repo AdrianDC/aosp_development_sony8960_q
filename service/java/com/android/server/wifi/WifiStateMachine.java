@@ -6285,7 +6285,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     class ConnectedState extends State {
         @Override
         public void enter() {
-            updateDefaultRouteMacAddress(1000);
+            // TODO: b/64349637 Investigate getting default router IP/MAC address info from
+            // IpManager
+            //updateDefaultRouteMacAddress(1000);
             if (mVerboseLoggingEnabled) {
                 log("Enter ConnectedState "
                        + " mScreenOn=" + mScreenOn);
