@@ -31,16 +31,13 @@
 #include <nativehelper/ScopedUtfChars.h>
 #include <nativehelper/ScopedPrimitiveArray.h>
 
-extern "C"
-{
-    #include "nfa_api.h"
-    #include "nfa_p2p_api.h"
-    #include "rw_api.h"
-    #include "nfa_ee_api.h"
-    #include "nfc_brcm_defs.h"
-    #include "ce_api.h"
-    #include "phNxpExtns.h"
-}
+#include "nfa_api.h"
+#include "nfa_p2p_api.h"
+#include "rw_api.h"
+#include "nfa_ee_api.h"
+#include "nfc_brcm_defs.h"
+#include "ce_api.h"
+#include "phNxpExtns.h"
 
 extern const uint8_t nfca_version_string [];
 extern const uint8_t nfa_version_string [];
