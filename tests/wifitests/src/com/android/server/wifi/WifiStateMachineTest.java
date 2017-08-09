@@ -1553,31 +1553,29 @@ public class WifiStateMachineTest {
     }
 
     /**
-     * Verify successful Wps PBC network connection.
+     * Sunny-day scenario for WPS connections. Verifies that after a START_WPS and
+     * NETWORK_CONNECTION_EVENT command, WifiStateMachine will have transitioned to ObtainingIpState
      */
     @Test
     public void wpsPbcConnectSuccess() throws Exception {
         loadComponentsInStaMode();
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
         mLooper.dispatchAll();
+        assertEquals("DisconnectedState", getCurrentState().getName());
 
-        when(mWifiNative.startWpsPbc(eq(sBSSID))).thenReturn(true);
         WpsInfo wpsInfo = new WpsInfo();
         wpsInfo.setup = WpsInfo.PBC;
         wpsInfo.BSSID = sBSSID;
-
+        when(mWifiNative.removeAllNetworks()).thenReturn(true);
+        when(mWifiNative.startWpsPbc(anyString())).thenReturn(true);
         mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
         mLooper.dispatchAll();
-        verify(mWifiNative).startWpsPbc(eq(sBSSID));
-
         assertEquals("WpsRunningState", getCurrentState().getName());
 
         setupMocksForWpsNetworkMigration();
-
         mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, null);
         mLooper.dispatchAll();
-
-        assertEquals("DisconnectedState", getCurrentState().getName());
+        assertEquals("ObtainingIpState", getCurrentState().getName());
         verifyMocksForWpsNetworkMigration();
     }
 
@@ -1600,6 +1598,68 @@ public class WifiStateMachineTest {
         verify(mWifiNative).startWpsPbc(eq(sBSSID));
 
         assertFalse("WpsRunningState".equals(getCurrentState().getName()));
+    }
+
+    /**
+     * Verify that if Supplicant generates multiple networks for a WPS configuration,
+     * WifiStateMachine cycles into DisconnectedState
+     */
+    @Test
+    public void wpsPbcConnectFailure_tooManyConfigs() throws Exception {
+        loadComponentsInStaMode();
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        mLooper.dispatchAll();
+        assertEquals("DisconnectedState", getCurrentState().getName());
+
+        WpsInfo wpsInfo = new WpsInfo();
+        wpsInfo.setup = WpsInfo.PBC;
+        wpsInfo.BSSID = sBSSID;
+        when(mWifiNative.removeAllNetworks()).thenReturn(true);
+        when(mWifiNative.startWpsPbc(anyString())).thenReturn(true);
+        mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
+        mLooper.dispatchAll();
+        assertEquals("WpsRunningState", getCurrentState().getName());
+
+        setupMocksForWpsNetworkMigration();
+        doAnswer(new AnswerWithArguments() {
+            public boolean answer(Map<String, WifiConfiguration> configs,
+                                  SparseArray<Map<String, String>> networkExtras) throws Exception {
+                configs.put("dummy1", new WifiConfiguration());
+                configs.put("dummy2", new WifiConfiguration());
+                return true;
+            }
+        }).when(mWifiNative).migrateNetworksFromSupplicant(any(Map.class), any(SparseArray.class));
+        mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, null);
+        mLooper.dispatchAll();
+        assertTrue("DisconnectedState".equals(getCurrentState().getName()));
+    }
+
+    /**
+     * Verify that when supplicant fails to load networks during WPS, WifiStateMachine cycles into
+     * DisconnectedState
+     */
+    @Test
+    public void wpsPbcConnectFailure_migrateNetworksFailure() throws Exception {
+        loadComponentsInStaMode();
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        mLooper.dispatchAll();
+        assertEquals("DisconnectedState", getCurrentState().getName());
+
+        WpsInfo wpsInfo = new WpsInfo();
+        wpsInfo.setup = WpsInfo.PBC;
+        wpsInfo.BSSID = sBSSID;
+        when(mWifiNative.removeAllNetworks()).thenReturn(true);
+        when(mWifiNative.startWpsPbc(anyString())).thenReturn(true);
+        mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
+        mLooper.dispatchAll();
+        assertEquals("WpsRunningState", getCurrentState().getName());
+
+        setupMocksForWpsNetworkMigration();
+        when(mWifiNative.migrateNetworksFromSupplicant(any(Map.class), any(SparseArray.class)))
+                .thenReturn(false);
+        mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, null);
+        mLooper.dispatchAll();
+        assertEquals("DisconnectedState", getCurrentState().getName());
     }
 
     /**
@@ -1627,7 +1687,7 @@ public class WifiStateMachineTest {
         mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, null);
         mLooper.dispatchAll();
 
-        assertEquals("DisconnectedState", getCurrentState().getName());
+        assertEquals("ObtainingIpState", getCurrentState().getName());
         verifyMocksForWpsNetworkMigration();
     }
 
@@ -1700,13 +1760,12 @@ public class WifiStateMachineTest {
     }
 
     private void setupMocksForWpsNetworkMigration() {
-        // Now trigger the network connection event for adding the WPS network.
+        WifiConfiguration config = new WifiConfiguration();
+        config.networkId = WPS_SUPPLICANT_NETWORK_ID;
+        config.SSID = DEFAULT_TEST_SSID;
         doAnswer(new AnswerWithArguments() {
             public boolean answer(Map<String, WifiConfiguration> configs,
                                   SparseArray<Map<String, String>> networkExtras) throws Exception {
-                WifiConfiguration config = new WifiConfiguration();
-                config.networkId = WPS_SUPPLICANT_NETWORK_ID;
-                config.SSID = DEFAULT_TEST_SSID;
                 configs.put("dummy", config);
                 return true;
             }
@@ -1715,6 +1774,10 @@ public class WifiStateMachineTest {
                 .thenReturn(new NetworkUpdateResult(WPS_FRAMEWORK_NETWORK_ID));
         when(mWifiConfigManager.enableNetwork(eq(WPS_FRAMEWORK_NETWORK_ID), anyBoolean(), anyInt()))
                 .thenReturn(true);
+        when(mWifiNative.getFrameworkNetworkId(eq(WPS_FRAMEWORK_NETWORK_ID))).thenReturn(
+                WPS_FRAMEWORK_NETWORK_ID);
+        when(mWifiConfigManager.getConfiguredNetwork(eq(WPS_FRAMEWORK_NETWORK_ID))).thenReturn(
+                config);
     }
 
     private void verifyMocksForWpsNetworkMigration() {
