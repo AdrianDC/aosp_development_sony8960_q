@@ -559,9 +559,9 @@ public class WifiConnectivityManager {
         mConnectionAttemptTimeStamps = new LinkedList<>();
 
         mMin5GHzRssi = context.getResources().getInteger(
-                R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_5GHz);
+                R.integer.config_wifi_framework_wifi_score_entry_rssi_threshold_5GHz);
         mMin24GHzRssi = context.getResources().getInteger(
-                R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_24GHz);
+                R.integer.config_wifi_framework_wifi_score_entry_rssi_threshold_24GHz);
         mBand5GHzBonus = context.getResources().getInteger(
                 R.integer.config_wifi_framework_5GHz_preference_boost_factor);
         mCurrentConnectionBonus = context.getResources().getInteger(
