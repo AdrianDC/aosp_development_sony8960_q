@@ -259,6 +259,14 @@ public class WifiNetworkSelector {
         return (network.SSID + ":" + network.networkId);
     }
 
+    /**
+     * Compares ScanResult level against the minimum threshold for its band, returns true if lower
+     */
+    public boolean isSignalTooWeak(ScanResult scanResult) {
+        return ((scanResult.is24GHz() && scanResult.level < mThresholdMinimumRssi24)
+                || (scanResult.is5GHz() && scanResult.level < mThresholdMinimumRssi5));
+    }
+
     private List<ScanDetail> filterScanResults(List<ScanDetail> scanDetails,
                 HashSet<String> bssidBlacklist, boolean isConnected, String currentBssid) {
         ArrayList<NetworkKey> unscoredNetworks = new ArrayList<NetworkKey>();
@@ -289,10 +297,7 @@ public class WifiNetworkSelector {
             }
 
             // Skip network with too weak signals.
-            if ((scanResult.is24GHz() && scanResult.level
-                    < mThresholdMinimumRssi24)
-                    || (scanResult.is5GHz() && scanResult.level
-                    < mThresholdMinimumRssi5)) {
+            if (isSignalTooWeak(scanResult)) {
                 lowRssi.append(scanId).append("(")
                     .append(scanResult.is24GHz() ? "2.4GHz" : "5GHz")
                     .append(")").append(scanResult.level).append(" / ");
