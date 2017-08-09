@@ -42,5 +42,5 @@
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"ਕੀ <xliff:g id="NETWORK_SSID">%1$s</xliff:g> ਨੈੱਟਵਰਕ ਨਾਲ ਕਨੈਕਟ ਕਰਨਾ ਹੈ?"</string>
     <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Android ਬੀਮ ਲਈ NFC ਨੂੰ ਸਮਰਥਿਤ ਕਰਨ ਦੀ ਲੋੜ ਹੈ। ਕੀ ਤੁਸੀਂ ਇਸਨੂੰ ਸਮਰੱਥ ਬਣਾਉਣਾ ਚਾਹੁੰਦੇ ਹੋ?"</string>
     <string name="android_beam" msgid="1666446406999492763">"Android ਬੀਮ"</string>
-    <string name="beam_requires_external_storage_permission" msgid="8798337545702206901">"ਐਪਲੀਕੇਸ਼ਨ ਕੋਲ ਬਾਹਰੀ ਸਟੋਰੇਜ ਦੀ ਇਜਾਜ਼ਤ ਨਹੀਂ ਹੈ। ਇਹ ਫ਼ਾਈਲ ਬੀਮ ਕਰਨ ਲਈ ਇਹ ਲੋੜੀਂਦੀ ਹੈ"</string>
+    <string name="beam_requires_external_storage_permission" msgid="8798337545702206901">"ਐਪਲੀਕੇਸ਼ਨ ਕੋਲ ਬਾਹਰੀ ਸਟੋਰੇਜ ਦੀ ਇਜਾਜ਼ਤ ਨਹੀਂ ਹੈ। ਫ਼ਾਈਲ ਬੀਮ ਕਰਨ ਲਈ ਇਸਦੀ ਲੋੜ ਹੈ"</string>
 </resources>
