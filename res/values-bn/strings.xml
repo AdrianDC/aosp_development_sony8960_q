@@ -42,6 +42,5 @@
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"<xliff:g id="NETWORK_SSID">%1$s</xliff:g> নেটওয়ার্কে সংযোগ করবেন?"</string>
     <string name="beam_requires_nfc_enabled" msgid="2800366967218600534">"Android Beam সক্ষম করতে NFC আবশ্যক। আপনি কি এটি সক্ষম করতে চান?"</string>
     <string name="android_beam" msgid="1666446406999492763">"Android বীম"</string>
-    <!-- no translation found for beam_requires_external_storage_permission (8798337545702206901) -->
-    <skip />
+    <string name="beam_requires_external_storage_permission" msgid="8798337545702206901">"ডিভাইসের বাইরের মেমরি ব্যবহার করার অনুমতি এই অ্যাপ্লিকেশানটিকে দেওয়া হয়নি। এই ফাইলটি বিম করার জন্য অনুমতিটি প্রয়োজন"</string>
 </resources>
