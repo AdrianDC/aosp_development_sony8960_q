@@ -67,12 +67,24 @@ public class ScanDetailCache {
         mMap.put(scanDetail.getBSSIDString(), scanDetail);
     }
 
-    ScanResult get(String bssid) {
+    /**
+     * Get ScanResult object corresponding to the provided BSSID.
+     *
+     * @param bssid provided BSSID
+     * @return {@code null} if no match ScanResult is found.
+     */
+    public ScanResult get(String bssid) {
         ScanDetail scanDetail = getScanDetail(bssid);
         return scanDetail == null ? null : scanDetail.getScanResult();
     }
 
-    ScanDetail getScanDetail(String bssid) {
+    /**
+     * Get ScanDetail object corresponding to the provided BSSID.
+     *
+     * @param bssid provided BSSID
+     * @return {@code null} if no match ScanDetail is found.
+     */
+    public ScanDetail getScanDetail(String bssid) {
         return mMap.get(bssid);
     }
 
