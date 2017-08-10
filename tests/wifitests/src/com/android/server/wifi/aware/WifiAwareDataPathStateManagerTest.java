@@ -452,6 +452,124 @@ public class WifiAwareDataPathStateManagerTest {
         verifyNoMoreInteractions(mMockNative, mMockCm, mAwareMetricsMock, mMockNwMgt);
     }
 
+    /**
+     * Validate that multiple NDP requests which resolve to the same canonical request are treated
+     * as one.
+     */
+    @Test
+    public void testMultipleIdenticalRequests() throws Exception {
+        final int numRequestsPre = 6;
+        final int numRequestsPost = 5;
+        final int clientId = 123;
+        final int ndpId = 5;
+        final byte[] peerDiscoveryMac = HexEncoding.decode("000102030405".toCharArray(), false);
+        final byte[] peerDataPathMac = HexEncoding.decode("0A0B0C0D0E0F".toCharArray(), false);
+        NetworkRequest[] nrs = new NetworkRequest[numRequestsPre + numRequestsPost];
+
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        ArgumentCaptor<Messenger> agentMessengerCaptor = ArgumentCaptor.forClass(Messenger.class);
+
+        InOrder inOrder = inOrder(mMockNative, mMockCm, mMockCallback, mMockSessionCallback,
+                mMockNwMgt);
+        InOrder inOrderM = inOrder(mAwareMetricsMock);
+
+        // (1) initialize all clients
+        Messenger messenger = initOobDataPathEndPoint(true, clientId, inOrder, inOrderM);
+        for (int i = 1; i < numRequestsPre + numRequestsPost; ++i) {
+            initOobDataPathEndPoint(false, clientId + i, inOrder, inOrderM);
+        }
+
+        // (2) make 3 network requests (all identical under the hood)
+        for (int i = 0; i < numRequestsPre; ++i) {
+            nrs[i] = getDirectNetworkRequest(clientId + i,
+                    WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_INITIATOR, peerDiscoveryMac, null,
+                    null);
+
+            Message reqNetworkMsg = Message.obtain();
+            reqNetworkMsg.what = NetworkFactory.CMD_REQUEST_NETWORK;
+            reqNetworkMsg.obj = nrs[i];
+            reqNetworkMsg.arg1 = 0;
+            messenger.send(reqNetworkMsg);
+        }
+        mMockLooper.dispatchAll();
+
+        // (3) verify the start NDP HAL request
+        inOrder.verify(mMockNative).initiateDataPath(transactionId.capture(), eq(0),
+                eq(CHANNEL_NOT_REQUESTED), anyInt(), eq(peerDiscoveryMac),
+                eq(sAwareInterfacePrefix + "0"), eq(null), eq(null), eq(true), any());
+
+        // (4) unregister request #0 (the primary)
+        Message endNetworkReqMsg = Message.obtain();
+        endNetworkReqMsg.what = NetworkFactory.CMD_CANCEL_REQUEST;
+        endNetworkReqMsg.obj = nrs[0];
+        messenger.send(endNetworkReqMsg);
+        mMockLooper.dispatchAll();
+
+        // (5) respond to the registration request
+        mDut.onInitiateDataPathResponseSuccess(transactionId.getValue(), ndpId);
+        mMockLooper.dispatchAll();
+
+        // (6) unregister request #1
+        endNetworkReqMsg = Message.obtain();
+        endNetworkReqMsg.what = NetworkFactory.CMD_CANCEL_REQUEST;
+        endNetworkReqMsg.obj = nrs[1];
+        messenger.send(endNetworkReqMsg);
+        mMockLooper.dispatchAll();
+
+        // (7) confirm the NDP creation
+        mDut.onDataPathConfirmNotification(ndpId, peerDataPathMac, true, 0, null);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mMockNwMgt).setInterfaceUp(anyString());
+        inOrder.verify(mMockNwMgt).enableIpv6(anyString());
+        inOrder.verify(mMockCm).registerNetworkAgent(agentMessengerCaptor.capture(), any(), any(),
+                any(), anyInt(), any());
+        inOrderM.verify(mAwareMetricsMock).recordNdpStatus(eq(NanStatusType.SUCCESS),
+                eq(true), anyLong());
+        inOrderM.verify(mAwareMetricsMock).recordNdpCreation(anyInt(), any());
+
+        // (8) execute 'post' requests
+        for (int i = numRequestsPre; i < numRequestsPre + numRequestsPost; ++i) {
+            nrs[i] = getDirectNetworkRequest(clientId + i,
+                    WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_INITIATOR, peerDiscoveryMac, null,
+                    null);
+
+            Message reqNetworkMsg = Message.obtain();
+            reqNetworkMsg.what = NetworkFactory.CMD_REQUEST_NETWORK;
+            reqNetworkMsg.obj = nrs[i];
+            reqNetworkMsg.arg1 = 0;
+            messenger.send(reqNetworkMsg);
+        }
+        mMockLooper.dispatchAll();
+
+        // (9) unregister all requests
+        for (int i = 2; i < numRequestsPre + numRequestsPost; ++i) {
+            endNetworkReqMsg = Message.obtain();
+            endNetworkReqMsg.what = NetworkFactory.CMD_CANCEL_REQUEST;
+            endNetworkReqMsg.obj = nrs[i];
+            messenger.send(endNetworkReqMsg);
+            mMockLooper.dispatchAll();
+        }
+
+        Message endNetworkUsageMsg = Message.obtain();
+        endNetworkUsageMsg.what = AsyncChannel.CMD_CHANNEL_DISCONNECTED;
+        agentMessengerCaptor.getValue().send(endNetworkUsageMsg);
+        mMockLooper.dispatchAll();
+
+        // (10) verify that NDP torn down
+        inOrder.verify(mMockNative).endDataPath(transactionId.capture(), eq(ndpId));
+
+        mDut.onEndDataPathResponse(transactionId.getValue(), true, 0);
+        mDut.onDataPathEndNotification(ndpId);
+        mMockLooper.dispatchAll();
+
+        inOrder.verify(mMockNwMgt).setInterfaceDown(anyString());
+        inOrderM.verify(mAwareMetricsMock).recordNdpSessionDuration(anyLong());
+
+        verifyNoMoreInteractions(mMockNative, mMockCm, mMockCallback, mMockSessionCallback,
+                mAwareMetricsMock, mMockNwMgt);
+    }
+
     /*
      * Initiator tests
      */
@@ -1109,60 +1227,17 @@ public class WifiAwareDataPathStateManagerTest {
             byte pubSubId, int requestorId, byte[] peerDiscoveryMac, InOrder inOrder,
             InOrder inOrderM, boolean doPublish)
             throws Exception {
-        final int pid = 2000;
-        final String callingPackage = "com.android.somePackage";
         final String someMsg = "some arbitrary message from peer";
-        final ConfigRequest configRequest = new ConfigRequest.Builder().build();
         final PublishConfig publishConfig = new PublishConfig.Builder().build();
         final SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
-
-        Capabilities capabilities = new Capabilities();
-        capabilities.maxNdiInterfaces = 1;
 
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         ArgumentCaptor<Integer> sessionId = ArgumentCaptor.forClass(Integer.class);
         ArgumentCaptor<Integer> peerIdCaptor = ArgumentCaptor.forClass(Integer.class);
-        ArgumentCaptor<Messenger> messengerCaptor = ArgumentCaptor.forClass(Messenger.class);
-        ArgumentCaptor<String> strCaptor = ArgumentCaptor.forClass(String.class);
 
+        Messenger messenger = null;
         if (isFirstIteration) {
-            // (0) start/registrations
-            inOrder.verify(mMockCm).registerNetworkFactory(messengerCaptor.capture(),
-                    strCaptor.capture());
-            collector.checkThat("factory name", "WIFI_AWARE_FACTORY",
-                    equalTo(strCaptor.getValue()));
-
-            // (1) get capabilities
-            mDut.queryCapabilities();
-            mMockLooper.dispatchAll();
-            inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
-            mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), capabilities);
-            mMockLooper.dispatchAll();
-
-            // (2) enable usage
-            mDut.enableUsage();
-            mMockLooper.dispatchAll();
-            inOrderM.verify(mAwareMetricsMock).recordEnableUsage();
-
-            // (3) create client & session & rx message
-            mDut.connect(clientId, Process.myUid(), pid, callingPackage, mMockCallback,
-                    configRequest,
-                    false);
-            mMockLooper.dispatchAll();
-            inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(),
-                    eq(configRequest), eq(false), eq(true), eq(true), eq(false));
-            mDut.onConfigSuccessResponse(transactionId.getValue());
-            mMockLooper.dispatchAll();
-            inOrder.verify(mMockCallback).onConnectSuccess(clientId);
-            inOrderM.verify(mAwareMetricsMock).recordAttachSession(eq(Process.myUid()), eq(false),
-                    any());
-
-            inOrder.verify(mMockNative).createAwareNetworkInterface(transactionId.capture(),
-                    strCaptor.capture());
-            collector.checkThat("interface created -- 0", sAwareInterfacePrefix + 0,
-                    equalTo(strCaptor.getValue()));
-            mDut.onCreateDataPathInterfaceResponse(transactionId.getValue(), true, 0);
-            mMockLooper.dispatchAll();
+            messenger = initOobDataPathEndPoint(true, clientId, inOrder, inOrderM);
         }
 
         if (doPublish) {
@@ -1193,7 +1268,70 @@ public class WifiAwareDataPathStateManagerTest {
                 eq(someMsg.getBytes()));
 
         return new DataPathEndPointInfo(sessionId.getValue(), peerIdCaptor.getValue(),
-                isFirstIteration ? messengerCaptor.getValue() : null);
+                isFirstIteration ? messenger : null);
+    }
+
+    private Messenger initOobDataPathEndPoint(boolean startUpSequence, int clientId,
+            InOrder inOrder, InOrder inOrderM) throws Exception {
+        final int pid = 2000;
+        final String callingPackage = "com.android.somePackage";
+        final ConfigRequest configRequest = new ConfigRequest.Builder().build();
+
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        ArgumentCaptor<Messenger> messengerCaptor = ArgumentCaptor.forClass(Messenger.class);
+        ArgumentCaptor<String> strCaptor = ArgumentCaptor.forClass(String.class);
+
+        Capabilities capabilities = new Capabilities();
+        capabilities.maxNdiInterfaces = 1;
+
+        if (startUpSequence) {
+            // (0) start/registrations
+            inOrder.verify(mMockCm).registerNetworkFactory(messengerCaptor.capture(),
+                    strCaptor.capture());
+            collector.checkThat("factory name", "WIFI_AWARE_FACTORY",
+                    equalTo(strCaptor.getValue()));
+
+            // (1) get capabilities
+            mDut.queryCapabilities();
+            mMockLooper.dispatchAll();
+            inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
+            mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), capabilities);
+            mMockLooper.dispatchAll();
+
+            // (2) enable usage
+            mDut.enableUsage();
+            mMockLooper.dispatchAll();
+            inOrderM.verify(mAwareMetricsMock).recordEnableUsage();
+        }
+
+        // (3) create client
+        mDut.connect(clientId, Process.myUid(), pid, callingPackage, mMockCallback,
+                configRequest,
+                false);
+        mMockLooper.dispatchAll();
+
+        if (startUpSequence) {
+            inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(),
+                    eq(configRequest), eq(false), eq(true), eq(true), eq(false));
+            mDut.onConfigSuccessResponse(transactionId.getValue());
+            mMockLooper.dispatchAll();
+        }
+
+        inOrder.verify(mMockCallback).onConnectSuccess(clientId);
+        inOrderM.verify(mAwareMetricsMock).recordAttachSession(eq(Process.myUid()), eq(false),
+                any());
+
+        if (startUpSequence) {
+            inOrder.verify(mMockNative).createAwareNetworkInterface(transactionId.capture(),
+                    strCaptor.capture());
+            collector.checkThat("interface created -- 0", sAwareInterfacePrefix + 0,
+                    equalTo(strCaptor.getValue()));
+            mDut.onCreateDataPathInterfaceResponse(transactionId.getValue(), true, 0);
+            mMockLooper.dispatchAll();
+            return messengerCaptor.getValue();
+        }
+
+        return null;
     }
 
     private static class DataPathEndPointInfo {
