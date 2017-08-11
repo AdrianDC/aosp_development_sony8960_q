@@ -105,6 +105,7 @@ LOCAL_JNI_SHARED_LIBRARIES := \
 	libwifi-system \
 	libui \
 	libunwind \
+	libunwindstack \
 	libutils \
 	libvndksupport \
 
