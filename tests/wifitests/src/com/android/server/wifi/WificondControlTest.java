@@ -830,7 +830,7 @@ public class WificondControlTest {
         config.allowedKeyManagement.set(WPA_PSK);
         config.preSharedKey = new String(TEST_PSK, StandardCharsets.UTF_8);
         config.hiddenSSID = false;
-        config.apChannel = TEST_FREQUENCY;
+        config.apBand = WifiConfiguration.AP_BAND_2GHZ;
 
         when(mApInterface.writeHostapdConfig(
                 any(byte[].class), anyBoolean(), anyInt(), anyInt(), any(byte[].class)))
@@ -840,7 +840,7 @@ public class WificondControlTest {
         assertTrue(mWificondControl.startSoftAp(
                 TEST_INTERFACE_NAME, config, mSoftApListener));
         verify(mApInterface).writeHostapdConfig(
-                eq(TEST_SSID), eq(false), eq(TEST_FREQUENCY),
+                eq(TEST_SSID), eq(false), eq(IApInterface.BAND_2G),
                 eq(IApInterface.ENCRYPTION_TYPE_WPA), eq(TEST_PSK));
         verify(mApInterface).startHostapd(any());
     }
@@ -855,7 +855,7 @@ public class WificondControlTest {
         config.SSID = new String(TEST_SSID, StandardCharsets.UTF_8);
         config.allowedKeyManagement.set(NONE);
         config.hiddenSSID = true;
-        config.apChannel = TEST_FREQUENCY;
+        config.apBand = WifiConfiguration.AP_BAND_5GHZ;
 
         when(mApInterface.writeHostapdConfig(
                 any(byte[].class), anyBoolean(), anyInt(), anyInt(), any(byte[].class)))
@@ -865,7 +865,7 @@ public class WificondControlTest {
         assertTrue(mWificondControl.startSoftAp(
                 TEST_INTERFACE_NAME, config, mSoftApListener));
         verify(mApInterface).writeHostapdConfig(
-                eq(TEST_SSID), eq(true), eq(TEST_FREQUENCY),
+                eq(TEST_SSID), eq(true), eq(IApInterface.BAND_5G),
                 eq(IApInterface.ENCRYPTION_TYPE_NONE), eq(new byte[0]));
         verify(mApInterface).startHostapd(any());
     }
@@ -912,6 +912,17 @@ public class WificondControlTest {
         verify(mApInterface, never()).writeHostapdConfig(
                 any(byte[].class), anyBoolean(), anyInt(), anyInt(), any(byte[].class));
         verify(mApInterface, never()).startHostapd(any());
+    }
+
+    @Test
+    public void testStartSoftApFailsForInvalidApBand() throws Exception {
+        testSetupInterfaceForSoftApMode();
+
+        WifiConfiguration config = new WifiConfiguration();
+        config.SSID = new String(TEST_SSID, StandardCharsets.UTF_8);
+        config.apBand = 123456;
+        assertFalse(mWificondControl.startSoftAp(
+                TEST_INTERFACE_NAME, config, mSoftApListener));
     }
 
     /**

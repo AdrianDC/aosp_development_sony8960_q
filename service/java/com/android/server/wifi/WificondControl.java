@@ -752,6 +752,13 @@ public class WificondControl implements IBinder.DeathRecipient {
             return false;
         }
         int encryptionType = getIApInterfaceEncryptionType(config);
+        int bandType;
+        try {
+            bandType = getIApInterfaceBandType(config);
+        } catch (IllegalArgumentException e) {
+            Log.e(TAG, "Unrecognized apBand " + config.apBand);
+            return false;
+        }
         try {
             // TODO(b/67745880) Note that config.SSID is intended to be either a
             // hex string or "double quoted".
@@ -759,7 +766,7 @@ public class WificondControl implements IBinder.DeathRecipient {
             // this convention.
             boolean success = iface.writeHostapdConfig(
                     config.SSID.getBytes(StandardCharsets.UTF_8), config.hiddenSSID,
-                    config.apChannel, encryptionType,
+                    bandType, encryptionType,
                     (config.preSharedKey != null)
                             ? config.preSharedKey.getBytes(StandardCharsets.UTF_8)
                             : new byte[0]);
@@ -805,6 +812,17 @@ public class WificondControl implements IBinder.DeathRecipient {
         }
         mApInterfaceListeners.remove(ifaceName);
         return true;
+    }
+
+    private static int getIApInterfaceBandType(WifiConfiguration localConfig) {
+        switch (localConfig.apBand) {
+            case WifiConfiguration.AP_BAND_2GHZ:
+                return IApInterface.BAND_2G;
+            case WifiConfiguration.AP_BAND_5GHZ:
+                return IApInterface.BAND_5G;
+            default:
+                throw new IllegalArgumentException();
+        }
     }
 
     private static int getIApInterfaceEncryptionType(WifiConfiguration localConfig) {
