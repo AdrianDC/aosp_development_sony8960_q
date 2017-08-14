@@ -268,7 +268,9 @@ public class WifiApConfigStoreTest {
         assertFalse(WifiApConfigStore.validateApWifiConfiguration(config));
 
         // now check a valid SSID with a random length
-        config.SSID = generateRandomString(mRandom.nextInt(WifiApConfigStore.SSID_MAX_LEN + 1));
+        int validLength = WifiApConfigStore.SSID_MAX_LEN - WifiApConfigStore.SSID_MIN_LEN;
+        config.SSID = generateRandomString(
+                mRandom.nextInt(validLength) + WifiApConfigStore.SSID_MIN_LEN);
         assertTrue(WifiApConfigStore.validateApWifiConfiguration(config));
     }
 
