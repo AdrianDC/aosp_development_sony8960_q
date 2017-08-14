@@ -2001,9 +2001,7 @@ public class WifiStateMachineTest {
     @Test
     public void testStartWps_nullWpsInfo() throws Exception {
         loadComponentsInStaMode();
-        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
-        assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
-        assertEquals("DisconnectedState", getCurrentState().getName());
+
         mLooper.startAutoDispatch();
         Message reply = mWsmAsyncChannel.sendMessageSynchronously(WifiManager.START_WPS, 0, 0,
                 null);
@@ -2018,9 +2016,6 @@ public class WifiStateMachineTest {
     @Test
     public void testSyncDisableNetwork_failure() throws Exception {
         loadComponentsInStaMode();
-        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
-        assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
-        assertEquals("DisconnectedState", getCurrentState().getName());
         when(mWifiConfigManager.disableNetwork(anyInt(), anyInt())).thenReturn(false);
 
         mLooper.startAutoDispatch();
