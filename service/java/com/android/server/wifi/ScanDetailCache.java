@@ -16,6 +16,7 @@
 
 package com.android.server.wifi;
 
+import android.annotation.NonNull;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.os.SystemClock;
@@ -73,7 +74,7 @@ public class ScanDetailCache {
      * @param bssid provided BSSID
      * @return {@code null} if no match ScanResult is found.
      */
-    public ScanResult get(String bssid) {
+    public ScanResult getScanResult(String bssid) {
         ScanDetail scanDetail = getScanDetail(bssid);
         return scanDetail == null ? null : scanDetail.getScanResult();
     }
@@ -84,11 +85,11 @@ public class ScanDetailCache {
      * @param bssid provided BSSID
      * @return {@code null} if no match ScanDetail is found.
      */
-    public ScanDetail getScanDetail(String bssid) {
+    public ScanDetail getScanDetail(@NonNull String bssid) {
         return mMap.get(bssid);
     }
 
-    void remove(String bssid) {
+    void remove(@NonNull String bssid) {
         mMap.remove(bssid);
     }
 

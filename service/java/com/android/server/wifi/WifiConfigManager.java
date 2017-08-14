@@ -1927,7 +1927,7 @@ public class WifiConfigManager {
         }
 
         // Adding a new BSSID
-        ScanResult result = scanDetailCache.get(scanResult.BSSID);
+        ScanResult result = scanDetailCache.getScanResult(scanResult.BSSID);
         if (result != null) {
             // transfer the black list status
             scanResult.blackListTimestamp = result.blackListTimestamp;
