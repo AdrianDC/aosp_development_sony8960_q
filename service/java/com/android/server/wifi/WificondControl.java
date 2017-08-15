@@ -352,10 +352,6 @@ public class WificondControl {
                 NetworkDetail networkDetail =
                         new NetworkDetail(bssid, ies, null, result.frequency);
 
-                if (!wifiSsid.toString().equals(networkDetail.getTrimmedSSID())) {
-                    Log.e(TAG, "Inconsistent SSID on BSSID: " + bssid);
-                    continue;
-                }
                 ScanDetail scanDetail = new ScanDetail(networkDetail, wifiSsid, bssid, flags,
                         result.signalMbm / 100, result.frequency, result.tsf, ies, null);
                 // Update carrier network info if this AP's SSID is associated with a carrier Wi-Fi
