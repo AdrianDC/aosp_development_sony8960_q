@@ -99,6 +99,18 @@ public class WificondControl {
             Log.d(TAG, "Pno Scan failed event");
             // Nothing to do for now.
         }
+
+        @Override
+        public void OnPnoScanOverOffloadStarted() {
+            Log.d(TAG, "Pno scan over offload started");
+            // Update metrics
+        }
+
+        @Override
+        public void OnPnoScanOverOffloadFailed(int reason) {
+            Log.d(TAG, "Pno scan over offload failed");
+            // Update metrics
+        }
     }
 
     /** Enable or disable verbose logging of WificondControl.
