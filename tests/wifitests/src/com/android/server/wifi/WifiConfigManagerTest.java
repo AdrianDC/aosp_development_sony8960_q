@@ -2555,6 +2555,7 @@ public class WifiConfigManagerTest {
                 new WifiConfigStoreDataLegacy(networks, deletedEphermalSSIDs);
 
         when(mWifiConfigStoreLegacy.areStoresPresent()).thenReturn(true);
+        when(mWifiConfigStore.areStoresPresent()).thenReturn(false);
         when(mWifiConfigStoreLegacy.read()).thenReturn(storeData);
 
         // Now trigger the migration from legacy store. This should populate the in memory list with
@@ -2585,6 +2586,24 @@ public class WifiConfigManagerTest {
 
         verify(mWifiConfigStoreLegacy, never()).read();
         verify(mWifiConfigStoreLegacy, never()).removeStores();
+    }
+
+    /**
+     * Verifies the loading of networks using {@link WifiConfigManager#migrateFromLegacyStore()} ()}
+     * does not attempt to migrate data from legacy stores when the new store files are present
+     * (i.e migration was already done once).
+     */
+    @Test
+    public void testNewStoreFilesPresentNoMigrationFromLegacyStore() throws Exception {
+        when(mWifiConfigStore.areStoresPresent()).thenReturn(true);
+        when(mWifiConfigStoreLegacy.areStoresPresent()).thenReturn(true);
+
+        // Now trigger a migration from legacy store.
+        assertTrue(mWifiConfigManager.migrateFromLegacyStore());
+
+        verify(mWifiConfigStoreLegacy, never()).read();
+        // Verify that we went ahead and deleted the old store files.
+        verify(mWifiConfigStoreLegacy).removeStores();
     }
 
     /**
