@@ -301,24 +301,20 @@ public class WifiConfigStoreLegacy {
         // First remove all networks from wpa_supplicant and save configuration.
         if (!mWifiNative.removeAllNetworks()) {
             Log.e(TAG, "Removing networks from wpa_supplicant failed");
-            return false;
         }
 
         // Now remove the ipconfig.txt file.
         if (!IP_CONFIG_FILE.delete()) {
             Log.e(TAG, "Removing ipconfig.txt failed");
-            return false;
         }
 
         // Now finally remove network history.txt
         if (!NETWORK_HISTORY_FILE.delete()) {
             Log.e(TAG, "Removing networkHistory.txt failed");
-            return false;
         }
 
         if (!PPS_FILE.delete()) {
             Log.e(TAG, "Removing PerProviderSubscription.conf failed");
-            return false;
         }
 
         Log.i(TAG, "All legacy stores removed!");
