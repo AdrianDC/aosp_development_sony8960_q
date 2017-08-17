@@ -87,7 +87,7 @@ public class WifiInjector {
     private final WifiStateMachine mWifiStateMachine;
     private final WifiSettingsStore mSettingsStore;
     private final WifiCertManager mCertManager;
-    private final WifiNotificationController mNotificationController;
+    private final OpenNetworkNotifier mOpenNetworkNotifier;
     private final WifiLockManager mLockManager;
     private final WifiController mWifiController;
     private final WificondControl mWificondControl;
@@ -231,8 +231,9 @@ public class WifiInjector {
                 this, mBackupManagerProxy, mCountryCode, mWifiNative,
                 new WrongPasswordNotifier(mContext, mFrameworkFacade));
         mCertManager = new WifiCertManager(mContext);
-        mNotificationController = new WifiNotificationController(mContext,
-                mWifiStateMachineHandlerThread.getLooper(), mFrameworkFacade, null);
+        mOpenNetworkNotifier = new OpenNetworkNotifier(mContext,
+                mWifiStateMachineHandlerThread.getLooper(), mFrameworkFacade, mClock,
+                new OpenNetworkRecommender());
         mLockManager = new WifiLockManager(mContext, BatteryStatsService.getService());
         mWifiController = new WifiController(mContext, mWifiStateMachine, mSettingsStore,
                 mLockManager, mWifiServiceHandlerThread.getLooper(), mFrameworkFacade);
@@ -431,7 +432,7 @@ public class WifiInjector {
                                                                boolean hasConnectionRequests) {
         return new WifiConnectivityManager(mContext, mWifiStateMachine, getWifiScanner(),
                 mWifiConfigManager, wifiInfo, mWifiNetworkSelector, mWifiConnectivityHelper,
-                mWifiLastResortWatchdog, mNotificationController, mWifiMetrics,
+                mWifiLastResortWatchdog, mOpenNetworkNotifier, mWifiMetrics,
                 mWifiStateMachineHandlerThread.getLooper(), mClock, mConnectivityLocalLog,
                 hasConnectionRequests, mFrameworkFacade, mSavedNetworkEvaluator,
                 mScoredNetworkEvaluator, mPasspointNetworkEvaluator);

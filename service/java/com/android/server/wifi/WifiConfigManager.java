@@ -2698,8 +2698,8 @@ public class WifiConfigManager {
 
     /**
      * Migrate data from legacy store files. The function performs the following operations:
-     * 1. Check if the legacy store files are present.
-     * 2. If yes, read all the data from the store files.
+     * 1. Check if the legacy store files are present and the new store files are absent on device.
+     * 2. Read all the data from the store files.
      * 3. Save it to the new store files.
      * 4. Delete the legacy store file.
      *
@@ -2708,6 +2708,12 @@ public class WifiConfigManager {
     public boolean migrateFromLegacyStore() {
         if (!mWifiConfigStoreLegacy.areStoresPresent()) {
             Log.d(TAG, "Legacy store files not found. No migration needed!");
+            return true;
+        }
+        if (mWifiConfigStore.areStoresPresent()) {
+            Log.d(TAG, "New store files found. No migration needed!"
+                    + " Remove legacy store files");
+            mWifiConfigStoreLegacy.removeStores();
             return true;
         }
         WifiConfigStoreDataLegacy storeData = mWifiConfigStoreLegacy.read();
