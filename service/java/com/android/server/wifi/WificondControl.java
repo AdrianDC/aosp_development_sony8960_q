@@ -51,6 +51,13 @@ public class WificondControl {
     private boolean mVerboseLoggingEnabled = false;
 
     private static final String TAG = "WificondControl";
+
+    /* Get scan results for a single scan */
+    public static final int SCAN_TYPE_SINGLE_SCAN = 0;
+
+    /* Get scan results for Pno Scan */
+    public static final int SCAN_TYPE_PNO_SCAN = 1;
+
     private WifiInjector mWifiInjector;
     private WifiMonitor mWifiMonitor;
     private final CarrierNetworkConfig mCarrierNetworkConfig;
@@ -334,14 +341,19 @@ public class WificondControl {
     * @return Returns an ArrayList of ScanDetail.
     * Returns an empty ArrayList on failure.
     */
-    public ArrayList<ScanDetail> getScanResults() {
+    public ArrayList<ScanDetail> getScanResults(int scanType) {
         ArrayList<ScanDetail> results = new ArrayList<>();
         if (mWificondScanner == null) {
             Log.e(TAG, "No valid wificond scanner interface handler");
             return results;
         }
         try {
-            NativeScanResult[] nativeResults = mWificondScanner.getScanResults();
+            NativeScanResult[] nativeResults;
+            if (scanType == SCAN_TYPE_SINGLE_SCAN) {
+                nativeResults = mWificondScanner.getScanResults();
+            } else {
+                nativeResults = mWificondScanner.getPnoScanResults();
+            }
             for (NativeScanResult result : nativeResults) {
                 WifiSsid wifiSsid = WifiSsid.createFromByteArray(result.ssid);
                 String bssid;
