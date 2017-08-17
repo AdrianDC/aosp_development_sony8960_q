@@ -23,12 +23,12 @@ import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
 import android.content.Context;
-import android.content.res.Resources;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.net.wifi.WifiInfo;
 import android.os.SystemClock;
+import android.test.mock.MockResources;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.LocalLog;
 import android.util.Pair;
@@ -41,6 +41,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.mockito.Spy;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -51,6 +52,8 @@ import java.util.List;
  */
 @SmallTest
 public class WifiNetworkSelectorTest {
+
+    private static final int RSSI_BUMP = 1;
 
     /** Sets up test. */
     @Before
@@ -68,22 +71,6 @@ public class WifiNetworkSelectorTest {
         mDummyEvaluator.setEvaluatorToSelectCandidate(true);
         when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime());
 
-        mThresholdMinimumRssi2G = mResource.getInteger(
-                R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_24GHz);
-        mThresholdMinimumRssi5G = mResource.getInteger(
-                R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_5GHz);
-        mThresholdQualifiedRssi2G = mResource.getInteger(
-                R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_24GHz);
-        mThresholdQualifiedRssi5G = mResource.getInteger(
-                R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_5GHz);
-        mStayOnNetworkMinimumTxRate = mResource.getInteger(
-                R.integer.config_wifi_framework_min_tx_rate_for_staying_on_network);
-        mStayOnNetworkMinimumRxRate = mResource.getInteger(
-                R.integer.config_wifi_framework_min_rx_rate_for_staying_on_network);
-        mThresholdSaturatedRssi2G = mResource.getInteger(
-                R.integer.config_wifi_framework_wifi_score_good_rssi_threshold_24GHz);
-        mThresholdSaturatedRssi5G = mResource.getInteger(
-                R.integer.config_wifi_framework_wifi_score_good_rssi_threshold_5GHz);
     }
 
     /** Cleans up test. */
@@ -145,7 +132,11 @@ public class WifiNetworkSelectorTest {
     private DummyNetworkEvaluator mDummyEvaluator = new DummyNetworkEvaluator();
     @Mock private WifiConfigManager mWifiConfigManager;
     @Mock private Context mContext;
-    @Mock private Resources mResource;
+
+    // For simulating the resources, we use a Spy on a MockResource
+    // (which is really more of a stub than a mock, in spite if its name).
+    // This is so that we get errors on any calls that we have not explicitly set up.
+    @Spy private MockResources mResource = new MockResources();
     @Mock private WifiInfo mWifiInfo;
     @Mock private Clock mClock;
     private LocalLog mLocalLog;
@@ -155,40 +146,32 @@ public class WifiNetworkSelectorTest {
     private int mThresholdQualifiedRssi5G;
     private int mStayOnNetworkMinimumTxRate;
     private int mStayOnNetworkMinimumRxRate;
-    private int mThresholdSaturatedRssi2G;
-    private int mThresholdSaturatedRssi5G;
 
     private void setupContext() {
         when(mContext.getResources()).thenReturn(mResource);
     }
 
+    private int setupIntegerResource(int resourceName, int value) {
+        doReturn(value).when(mResource).getInteger(resourceName);
+        return value;
+    }
+
     private void setupResources() {
-        when(mResource.getBoolean(
-                R.bool.config_wifi_framework_enable_associated_network_selection)).thenReturn(true);
-        when(mResource.getInteger(
-                R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_5GHz))
-                .thenReturn(-70);
-        when(mResource.getInteger(
-                R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_24GHz))
-                .thenReturn(-73);
-        when(mResource.getInteger(
-                R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_5GHz))
-                .thenReturn(-82);
-        when(mResource.getInteger(
-                R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_24GHz))
-                .thenReturn(-85);
-        when(mResource.getInteger(
-                R.integer.config_wifi_framework_max_tx_rate_for_full_scan))
-                .thenReturn(8);
-        when(mResource.getInteger(
-                R.integer.config_wifi_framework_max_rx_rate_for_full_scan))
-                .thenReturn(8);
-        when(mResource.getInteger(
-                R.integer.config_wifi_framework_wifi_score_good_rssi_threshold_5GHz))
-                .thenReturn(-57);
-        when(mResource.getInteger(
-                R.integer.config_wifi_framework_wifi_score_good_rssi_threshold_24GHz))
-                .thenReturn(-60);
+        doReturn(true).when(mResource).getBoolean(
+                R.bool.config_wifi_framework_enable_associated_network_selection);
+
+        mThresholdMinimumRssi2G = setupIntegerResource(
+                R.integer.config_wifi_framework_wifi_score_entry_rssi_threshold_24GHz, -79);
+        mThresholdMinimumRssi5G = setupIntegerResource(
+                R.integer.config_wifi_framework_wifi_score_entry_rssi_threshold_5GHz, -76);
+        mThresholdQualifiedRssi2G = setupIntegerResource(
+                R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_24GHz, -73);
+        mThresholdQualifiedRssi5G = setupIntegerResource(
+                R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_5GHz, -70);
+        mStayOnNetworkMinimumTxRate = setupIntegerResource(
+                R.integer.config_wifi_framework_min_tx_rate_for_staying_on_network, 16);
+        mStayOnNetworkMinimumRxRate = setupIntegerResource(
+                R.integer.config_wifi_framework_min_rx_rate_for_staying_on_network, 16);
     }
 
     private void setupWifiInfo() {
@@ -279,7 +262,7 @@ public class WifiNetworkSelectorTest {
         String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
         int[] freqs = {2437, 5180};
         String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS]"};
-        int[] levels = {mThresholdMinimumRssi2G + 1, mThresholdMinimumRssi5G + 1};
+        int[] levels = {mThresholdMinimumRssi2G + RSSI_BUMP, mThresholdMinimumRssi5G + RSSI_BUMP};
         int[] securities = {SECURITY_PSK, SECURITY_PSK};
 
         // Make a network selection.
@@ -318,7 +301,7 @@ public class WifiNetworkSelectorTest {
         String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
         int[] freqs = {2437, 5180};
         String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS]"};
-        int[] levels = {mThresholdMinimumRssi2G + 1, mThresholdMinimumRssi5G + 1};
+        int[] levels = {mThresholdMinimumRssi2G + RSSI_BUMP, mThresholdMinimumRssi5G + RSSI_BUMP};
         int[] securities = {SECURITY_PSK, SECURITY_PSK};
 
         // Make a network selection.
@@ -483,7 +466,7 @@ public class WifiNetworkSelectorTest {
         String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
         int[] freqs = {2437, 2457};
         String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS]"};
-        int[] levels = {mThresholdMinimumRssi2G + 20, mThresholdMinimumRssi2G + 1};
+        int[] levels = {mThresholdMinimumRssi2G + 20, mThresholdMinimumRssi2G + RSSI_BUMP};
         int[] securities = {SECURITY_PSK, SECURITY_PSK};
 
         // Make a network selection to connect to test1.
@@ -534,8 +517,8 @@ public class WifiNetworkSelectorTest {
         String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4", "6c:f3:7f:ae:8c:f5"};
         int[] freqs = {2437, 5180, 5181};
         String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS]"};
-        int[] levels = {mThresholdMinimumRssi2G + 1, mThresholdMinimumRssi5G + 1,
-                mThresholdMinimumRssi5G + 1};
+        int[] levels = {mThresholdMinimumRssi2G + RSSI_BUMP, mThresholdMinimumRssi5G + RSSI_BUMP,
+                mThresholdMinimumRssi5G + RSSI_BUMP};
         int[] securities = {SECURITY_PSK, SECURITY_PSK, SECURITY_PSK};
 
         ScanDetailsAndWifiConfigs scanDetailsAndConfigs =
@@ -581,7 +564,7 @@ public class WifiNetworkSelectorTest {
         String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
         int[] freqs = {2437, 5180};
         String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS]"};
-        int[] levels = {mThresholdMinimumRssi2G + 1, mThresholdMinimumRssi5G + 1};
+        int[] levels = {mThresholdMinimumRssi2G + RSSI_BUMP, mThresholdMinimumRssi5G + RSSI_BUMP};
         int[] securities = {SECURITY_PSK, SECURITY_PSK};
 
         ScanDetailsAndWifiConfigs scanDetailsAndConfigs =
@@ -961,7 +944,7 @@ public class WifiNetworkSelectorTest {
         String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
         int[] freqs = {2437, 5180};
         String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[ESS]"};
-        int[] levels = {mThresholdMinimumRssi2G + 1, mThresholdMinimumRssi5G + 1};
+        int[] levels = {mThresholdMinimumRssi2G + RSSI_BUMP, mThresholdMinimumRssi5G + RSSI_BUMP};
         mDummyEvaluator.setEvaluatorToSelectCandidate(false);
 
         List<ScanDetail> scanDetails = WifiNetworkSelectorTestUtil.buildScanDetails(
@@ -990,7 +973,7 @@ public class WifiNetworkSelectorTest {
         String[] bssids = {"6c:f3:7f:ae:8c:f3"};
         int[] freqs = {2437, 5180};
         String[] caps = {"[ESS]"};
-        int[] levels = {mThresholdMinimumRssi2G + 1};
+        int[] levels = {mThresholdMinimumRssi2G + RSSI_BUMP};
         int[] securities = {SECURITY_NONE};
         mDummyEvaluator.setEvaluatorToSelectCandidate(false);
 
@@ -1027,7 +1010,7 @@ public class WifiNetworkSelectorTest {
         String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
         int[] freqs = {2437, 5180};
         String[] caps = {"[ESS]", "[ESS]"};
-        int[] levels = {mThresholdMinimumRssi2G + 1, mThresholdMinimumRssi5G + 1};
+        int[] levels = {mThresholdMinimumRssi2G + RSSI_BUMP, mThresholdMinimumRssi5G + RSSI_BUMP};
         mDummyEvaluator.setEvaluatorToSelectCandidate(false);
 
         List<ScanDetail> scanDetails = WifiNetworkSelectorTestUtil.buildScanDetails(
@@ -1055,7 +1038,7 @@ public class WifiNetworkSelectorTest {
         String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
         int[] freqs = {2437, 5180};
         String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[WPA2-EAP-CCMP][ESS]"};
-        int[] levels = {mThresholdMinimumRssi2G + 1, mThresholdMinimumRssi5G + 1};
+        int[] levels = {mThresholdMinimumRssi2G + RSSI_BUMP, mThresholdMinimumRssi5G + RSSI_BUMP};
         mDummyEvaluator.setEvaluatorToSelectCandidate(false);
 
         List<ScanDetail> scanDetails = WifiNetworkSelectorTestUtil.buildScanDetails(
