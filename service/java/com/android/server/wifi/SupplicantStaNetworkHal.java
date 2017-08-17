@@ -199,7 +199,7 @@ public class SupplicantStaNetworkHal {
             for (int i = 0; i < 4; i++) {
                 config.wepKeys[i] = null;
                 if (getWepKey(i) && !ArrayUtils.isEmpty(mWepKey)) {
-                    config.wepKeys[i] = NativeUtil.bytesToHexOrQuotedAsciiString(mWepKey);
+                    config.wepKeys[i] = NativeUtil.bytesToHexOrQuotedString(mWepKey);
                 }
             }
             /** PSK pass phrase */
@@ -293,7 +293,7 @@ public class SupplicantStaNetworkHal {
                 for (int i = 0; i < config.wepKeys.length; i++) {
                     if (config.wepKeys[i] != null) {
                         if (!setWepKey(
-                                i, NativeUtil.hexOrQuotedAsciiStringToBytes(config.wepKeys[i]))) {
+                                i, NativeUtil.hexOrQuotedStringToBytes(config.wepKeys[i]))) {
                             Log.e(TAG, "failed to set wep_key " + i);
                             return false;
                         }
