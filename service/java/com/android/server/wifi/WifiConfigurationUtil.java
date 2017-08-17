@@ -345,7 +345,7 @@ public class WifiConfigurationUtil {
             }
         }
         try {
-            NativeUtil.hexOrQuotedAsciiStringToBytes(psk);
+            NativeUtil.hexOrQuotedStringToBytes(psk);
         } catch (IllegalArgumentException e) {
             Log.e(TAG, "validatePsk failed: malformed string: " + psk);
             return false;
