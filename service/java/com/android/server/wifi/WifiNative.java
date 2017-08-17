@@ -227,7 +227,16 @@ public class WifiNative {
      * Returns an empty ArrayList on failure.
      */
     public ArrayList<ScanDetail> getScanResults() {
-        return mWificondControl.getScanResults();
+        return mWificondControl.getScanResults(WificondControl.SCAN_TYPE_SINGLE_SCAN);
+    }
+
+    /**
+     * Fetch the latest scan result from kernel via wificond.
+     * @return Returns an ArrayList of ScanDetail.
+     * Returns an empty ArrayList on failure.
+     */
+    public ArrayList<ScanDetail> getPnoScanResults() {
+        return mWificondControl.getScanResults(WificondControl.SCAN_TYPE_PNO_SCAN);
     }
 
     /**
