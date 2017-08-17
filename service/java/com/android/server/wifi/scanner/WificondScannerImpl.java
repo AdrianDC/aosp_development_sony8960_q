@@ -538,7 +538,7 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
                  // got a scan before we started scanning or after scan was canceled
                 return;
             }
-            mNativeScanResults = mWifiNative.getScanResults();
+            mNativeScanResults = mWifiNative.getPnoScanResults();
             List<ScanResult> hwPnoScanResults = new ArrayList<>();
             int numFilteredScanResults = 0;
             for (int i = 0; i < mNativeScanResults.size(); ++i) {
