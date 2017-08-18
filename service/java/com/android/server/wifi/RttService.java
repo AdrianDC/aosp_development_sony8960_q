@@ -131,7 +131,9 @@ public final class RttService extends SystemService {
                     case AsyncChannel.CMD_CHANNEL_FULL_CONNECTION:
                         AsyncChannel ac = new AsyncChannel();
                         ac.connected(mContext, this, msg.replyTo);
-                        ClientInfo client = new ClientInfo(ac, msg.sendingUid);
+                        String packageName = msg.obj != null
+                                ? ((RttManager.RttClient) msg.obj).getPackageName() : null;
+                        ClientInfo client = new ClientInfo(ac, msg.sendingUid, packageName);
                         synchronized (mLock) {
                             mClients.put(msg.replyTo, client);
                         }
@@ -169,6 +171,12 @@ public final class RttService extends SystemService {
                             "Client doesn't have LOCATION_HARDWARE permission");
                     return;
                 }
+                if (!checkLocationPermission(ci)) {
+                    replyFailed(msg, RttManager.REASON_PERMISSION_DENIED,
+                            "Client doesn't have ACCESS_COARSE_LOCATION or "
+                                    + "ACCESS_FINE_LOCATION permission");
+                    return;
+                }
                 final int validCommands[] = {
                         RttManager.CMD_OP_START_RANGING,
                         RttManager.CMD_OP_STOP_RANGING,
@@ -201,9 +209,10 @@ public final class RttService extends SystemService {
         private final WifiNative mWifiNative;
         private final Context mContext;
         private final Looper mLooper;
+        private final WifiInjector mWifiInjector;
+
         private RttStateMachine mStateMachine;
         private ClientHandler mClientHandler;
-        private WifiInjector mWifiInjector;
 
         RttServiceImpl(Context context, Looper looper, WifiInjector wifiInjector) {
             mContext = context;
@@ -252,14 +261,16 @@ public final class RttService extends SystemService {
         private class ClientInfo {
             private final AsyncChannel mChannel;
             private final int mUid;
+            private final String mPackageName;
 
             ArrayMap<Integer, RttRequest> mRequests = new ArrayMap<>();
             // Client keys of all outstanding responders.
             Set<Integer> mResponderRequests = new HashSet<>();
 
-            ClientInfo(AsyncChannel channel, int uid) {
+            ClientInfo(AsyncChannel channel, int uid, String packageName) {
                 mChannel = channel;
                 mUid = uid;
+                mPackageName = packageName;
             }
 
             void addResponderRequest(int key) {
@@ -594,8 +605,10 @@ public final class RttService extends SystemService {
                             break;
                         case CMD_RTT_RESPONSE:
                             if (DBG) Log.d(TAG, "Received an RTT response from: " + msg.arg2);
-                            mOutstandingRequest.ci.reportResult(
-                                    mOutstandingRequest, (RttManager.RttResult[])msg.obj);
+                            if (checkLocationPermission(mOutstandingRequest.ci)) {
+                                mOutstandingRequest.ci.reportResult(
+                                        mOutstandingRequest, (RttManager.RttResult[]) msg.obj);
+                            }
                             mOutstandingRequest = null;
                             sendMessage(CMD_ISSUE_NEXT_REQUEST);
                             break;
@@ -719,7 +732,7 @@ public final class RttService extends SystemService {
             }
         }
 
-        boolean enforcePermissionCheck(Message msg) {
+        private boolean enforcePermissionCheck(Message msg) {
             try {
                 mContext.enforcePermission(Manifest.permission.LOCATION_HARDWARE,
                          -1, msg.sendingUid, "LocationRTT");
@@ -728,6 +741,15 @@ public final class RttService extends SystemService {
                 return false;
             }
             return true;
+        }
+
+        // Returns whether the client has location permission.
+        private boolean checkLocationPermission(ClientInfo clientInfo) {
+            if (clientInfo.mPackageName == null) {
+                return false;
+            }
+            return mWifiInjector.getWifiPermissionsUtil().checkCallersLocationPermission(
+                    clientInfo.mPackageName, clientInfo.mUid);
         }
 
         @Override
@@ -777,8 +799,11 @@ public final class RttService extends SystemService {
             if (DBG) Log.d(TAG, "No more requests left");
             return null;
         }
+
         @Override
         public RttManager.RttCapabilities getRttCapabilities() {
+            mContext.enforceCallingPermission(android.Manifest.permission.LOCATION_HARDWARE,
+                    "Location Hardware permission not granted to access rtt capabilities");
             return mWifiNative.getRttCapabilities();
         }
     }
