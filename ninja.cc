@@ -546,7 +546,14 @@ class NinjaGenerator {
                  bool use_local_pool, ostringstream* o) {
     const DepNode* node = nn->node;
     string target = EscapeBuildTarget(node->output);
-    *o << "build " << target << ": " << rule_name;
+    *o << "build " << target;
+    if (!node->implicit_outputs.empty()) {
+      *o << " |";
+      for (Symbol output : node->implicit_outputs) {
+        *o << " " << EscapeBuildTarget(output);
+      }
+    }
+    *o << ": " << rule_name;
     vector<Symbol> order_onlys;
     if (node->is_phony) {
       *o << " _kati_always_build_";
