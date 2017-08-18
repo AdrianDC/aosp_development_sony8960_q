@@ -114,6 +114,25 @@ public class WifiPermissionsUtil {
         }
     }
 
+
+    /**
+     * Checks that calling process has android.Manifest.permission.ACCESS_COARSE_LOCATION
+     * and a corresponding app op is allowed for this package and uid.
+     *
+     * @param pkgName PackageName of the application requesting access
+     * @param uid The uid of the package
+     */
+    public boolean checkCallersLocationPermission(String pkgName, int uid) {
+        // Coarse Permission implies Fine permission
+        if ((mWifiPermissionsWrapper.getUidPermission(
+                Manifest.permission.ACCESS_COARSE_LOCATION, uid)
+                == PackageManager.PERMISSION_GRANTED)
+                && checkAppOpAllowed(AppOpsManager.OP_COARSE_LOCATION, pkgName, uid)) {
+            return true;
+        }
+        return false;
+    }
+
     /**
      * API to determine if the caller has permissions to get
      * scan results.
@@ -243,20 +262,6 @@ public class WifiPermissionsUtil {
         return pkgName.equals(mWifiPermissionsWrapper.getTopPkgName());
     }
 
-    /**
-     * Checks that calling process has android.Manifest.permission.ACCESS_COARSE_LOCATION
-     * and a corresponding app op is allowed for this package and uid.
-     */
-    private boolean checkCallersLocationPermission(String pkgName, int uid) {
-        // Coarse Permission implies Fine permission
-        if ((mWifiPermissionsWrapper.getUidPermission(
-                Manifest.permission.ACCESS_COARSE_LOCATION, uid)
-                == PackageManager.PERMISSION_GRANTED)
-                && checkAppOpAllowed(AppOpsManager.OP_COARSE_LOCATION, pkgName, uid)) {
-            return true;
-        }
-        return false;
-    }
     private boolean isLocationModeEnabled(String pkgName) {
         // Location mode check on applications that are later than version.
         return (mSettingsStore.getLocationModeSetting(mContext)
