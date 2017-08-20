@@ -210,13 +210,13 @@ public class NativeUtil {
     /**
      * Converts an string to an arraylist of UTF_8 byte values.
      * These forms are acceptable:
-     * a) ASCII String encapsulated in quotes, or
+     * a) UTF-8 String encapsulated in quotes, or
      * b) Hex string with no delimiters.
      *
      * @param str String to be converted.
      * @throws IllegalArgumentException for null string.
      */
-    public static ArrayList<Byte> hexOrQuotedAsciiStringToBytes(String str) {
+    public static ArrayList<Byte> hexOrQuotedStringToBytes(String str) {
         if (str == null) {
             throw new IllegalArgumentException("null string");
         }
@@ -232,21 +232,21 @@ public class NativeUtil {
     /**
      * Converts an ArrayList<Byte> of UTF_8 byte values to string.
      * The string will either be:
-     * a) ASCII String encapsulated in quotes (if all the bytes are ASCII encodeable and non null),
+     * a) UTF-8 String encapsulated in quotes (if all the bytes are UTF-8 encodeable and non null),
      * or
      * b) Hex string with no delimiters.
      *
      * @param bytes List of bytes for ssid.
      * @throws IllegalArgumentException for null bytes.
      */
-    public static String bytesToHexOrQuotedAsciiString(ArrayList<Byte> bytes) {
+    public static String bytesToHexOrQuotedString(ArrayList<Byte> bytes) {
         if (bytes == null) {
             throw new IllegalArgumentException("null ssid bytes");
         }
         byte[] byteArray = byteArrayFromArrayList(bytes);
         // Check for 0's in the byte stream in which case we cannot convert this into a string.
         if (!bytes.contains(Byte.valueOf((byte) 0))) {
-            CharsetDecoder decoder = StandardCharsets.US_ASCII.newDecoder();
+            CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder();
             try {
                 CharBuffer decoded = decoder.decode(ByteBuffer.wrap(byteArray));
                 return "\"" + decoded.toString() + "\"";
@@ -259,20 +259,20 @@ public class NativeUtil {
     /**
      * Converts an ssid string to an arraylist of UTF_8 byte values.
      * These forms are acceptable:
-     * a) ASCII String encapsulated in quotes, or
+     * a) UTF-8 String encapsulated in quotes, or
      * b) Hex string with no delimiters.
      *
      * @param ssidStr String to be converted.
      * @throws IllegalArgumentException for null string.
      */
     public static ArrayList<Byte> decodeSsid(String ssidStr) {
-        return hexOrQuotedAsciiStringToBytes(ssidStr);
+        return hexOrQuotedStringToBytes(ssidStr);
     }
 
     /**
      * Converts an ArrayList<Byte> of UTF_8 byte values to ssid string.
      * The string will either be:
-     * a) ASCII String encapsulated in quotes (if all the bytes are ASCII encodeable and non null),
+     * a) UTF-8 String encapsulated in quotes (if all the bytes are UTF-8 encodeable and non null),
      * or
      * b) Hex string with no delimiters.
      *
@@ -280,7 +280,7 @@ public class NativeUtil {
      * @throws IllegalArgumentException for null bytes.
      */
     public static String encodeSsid(ArrayList<Byte> ssidBytes) {
-        return bytesToHexOrQuotedAsciiString(ssidBytes);
+        return bytesToHexOrQuotedString(ssidBytes);
     }
 
     /**

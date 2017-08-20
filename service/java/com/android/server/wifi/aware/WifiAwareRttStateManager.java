@@ -50,6 +50,7 @@ public class WifiAwareRttStateManager {
 
     private final SparseArray<WifiAwareClientState> mPendingOperations = new SparseArray<>();
     private AsyncChannel mAsyncChannel;
+    private Context mContext;
 
     /**
      * Initializes the connection to the RTT service.
@@ -82,6 +83,7 @@ public class WifiAwareRttStateManager {
 
         mAsyncChannel = new AsyncChannel();
         mAsyncChannel.connect(context, new AwareRttHandler(looper), messenger);
+        mContext = context;
     }
 
     private WifiAwareClientState getAndRemovePendingOperationClient(int rangingId) {
@@ -125,7 +127,8 @@ public class WifiAwareRttStateManager {
             switch (msg.what) {
                 case AsyncChannel.CMD_CHANNEL_HALF_CONNECTED:
                     if (msg.arg1 == AsyncChannel.STATUS_SUCCESSFUL) {
-                        mAsyncChannel.sendMessage(AsyncChannel.CMD_CHANNEL_FULL_CONNECTION);
+                        mAsyncChannel.sendMessage(AsyncChannel.CMD_CHANNEL_FULL_CONNECTION,
+                                new RttManager.RttClient(mContext.getPackageName()));
                     } else {
                         Log.e(TAG, "Failed to set up channel connection to RTT service");
                         mAsyncChannel = null;

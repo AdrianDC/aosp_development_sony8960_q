@@ -460,7 +460,8 @@ public class WificondControlTest {
         assertTrue(mWificondControl.tearDownInterfaces());
 
         // getScanResults should fail.
-        assertEquals(0, mWificondControl.getScanResults().size());
+        assertEquals(0,
+                mWificondControl.getScanResults(WificondControl.SCAN_TYPE_SINGLE_SCAN).size());
     }
 
     /**
@@ -475,7 +476,8 @@ public class WificondControlTest {
         NativeScanResult[] mockScanResults = {MOCK_NATIVE_SCAN_RESULT};
         when(scanner.getScanResults()).thenReturn(mockScanResults);
 
-        ArrayList<ScanDetail> returnedScanResults = mWificondControl.getScanResults();
+        ArrayList<ScanDetail> returnedScanResults = mWificondControl.getScanResults(
+                WificondControl.SCAN_TYPE_SINGLE_SCAN);
         // The test IEs {@link #TEST_INFO_ELEMENT} doesn't contained RSN IE, which means non-EAP
         // AP. So verify carrier network is not checked, since EAP is currently required for a
         // carrier network.
@@ -522,7 +524,8 @@ public class WificondControlTest {
                 .thenReturn(eapType);
         when(mCarrierNetworkConfig.getCarrierName(new String(nativeScanResult.ssid)))
                 .thenReturn(carrierName);
-        ArrayList<ScanDetail> returnedScanResults = mWificondControl.getScanResults();
+        ArrayList<ScanDetail> returnedScanResults = mWificondControl.getScanResults(
+                WificondControl.SCAN_TYPE_SINGLE_SCAN);
         assertEquals(1, returnedScanResults.size());
         // Verify returned scan result.
         ScanResult scanResult = returnedScanResults.get(0).getScanResult();
@@ -535,7 +538,8 @@ public class WificondControlTest {
         // AP not associated with a carrier network.
         when(mCarrierNetworkConfig.isCarrierNetwork(new String(nativeScanResult.ssid)))
                 .thenReturn(false);
-        returnedScanResults = mWificondControl.getScanResults();
+        returnedScanResults = mWificondControl.getScanResults(
+                WificondControl.SCAN_TYPE_SINGLE_SCAN);
         assertEquals(1, returnedScanResults.size());
         // Verify returned scan result.
         scanResult = returnedScanResults.get(0).getScanResult();
