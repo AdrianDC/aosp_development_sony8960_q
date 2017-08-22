@@ -745,9 +745,6 @@ public final class RttService extends SystemService {
 
         // Returns whether the client has location permission.
         private boolean checkLocationPermission(ClientInfo clientInfo) {
-            if (clientInfo.mPackageName == null) {
-                return false;
-            }
             return mWifiInjector.getWifiPermissionsUtil().checkCallersLocationPermission(
                     clientInfo.mPackageName, clientInfo.mUid);
         }
