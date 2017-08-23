@@ -2154,6 +2154,12 @@ public class NfcService implements DeviceHostListener {
                 case MSG_APPLY_SCREEN_STATE:
                     mScreenState = (Integer)msg.obj;
 
+                    // If NFC is turning off, we shouldn't need any changes here
+                    synchronized (NfcService.this) {
+                        if (mState == NfcAdapter.STATE_TURNING_OFF)
+                            return;
+                    }
+
                     if (mScreenState == ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED) {
                       applyRouting(false);
                     }
