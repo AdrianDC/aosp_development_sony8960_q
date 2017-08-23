@@ -1545,26 +1545,6 @@ public class WifiNative {
     }
 
     /**
-     * Set the PNO settings & the network list in HAL to start PNO.
-     * @param settings PNO settings and network list.
-     * @param eventHandler Handler to receive notifications back during PNO scan.
-     * @return true if success, false otherwise
-     */
-    public boolean setPnoList(PnoSettings settings, PnoEventHandler eventHandler) {
-        Log.e(mTAG, "setPnoList not supported");
-        return false;
-    }
-
-    /**
-     * Reset the PNO settings in HAL to stop PNO.
-     * @return true if success, false otherwise
-     */
-    public boolean resetPnoList() {
-        Log.e(mTAG, "resetPnoList not supported");
-        return false;
-    }
-
-    /**
      * Start sending the specified keep alive packets periodically.
      *
      * @param slot Integer used to identify each request.
