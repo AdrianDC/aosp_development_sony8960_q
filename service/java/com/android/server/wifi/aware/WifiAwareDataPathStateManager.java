@@ -514,7 +514,7 @@ public class WifiAwareDataPathStateManager {
                     AGENT_TAG_PREFIX + nnri.ndpId,
                     new NetworkInfo(ConnectivityManager.TYPE_NONE, 0, NETWORK_TAG, ""),
                     networkCapabilities, linkProperties, NETWORK_FACTORY_SCORE_AVAIL,
-                    networkSpecifier, ndpId);
+                    nnri);
             nnri.networkAgent.sendNetworkInfo(networkInfo);
 
             mAwareMetrics.recordNdpStatus(NanStatusType.SUCCESS, networkSpecifier.isOutOfBand(),
@@ -553,10 +553,13 @@ public class WifiAwareDataPathStateManager {
         }
 
         tearDownInterfaceIfPossible(nnriE.getValue());
-        if (nnriE.getValue().state == AwareNetworkRequestInformation.STATE_CONFIRMED) {
+        if (nnriE.getValue().state == AwareNetworkRequestInformation.STATE_CONFIRMED
+                || nnriE.getValue().state == AwareNetworkRequestInformation.STATE_TERMINATING) {
             mAwareMetrics.recordNdpSessionDuration(nnriE.getValue().startTimestamp);
         }
         mNetworkRequestsCache.remove(nnriE.getKey());
+
+        mNetworkFactory.tickleConnectivityIfWaiting();
     }
 
     /**
@@ -597,8 +600,20 @@ public class WifiAwareDataPathStateManager {
     }
 
     private class WifiAwareNetworkFactory extends NetworkFactory {
+        // Request received while waiting for confirmation that a canonically identical data-path
+        // (NDP) is in the process of being terminated
+        private boolean mWaitingForTermination = false;
+
         WifiAwareNetworkFactory(Looper looper, Context context, NetworkCapabilities filter) {
             super(looper, context, NETWORK_TAG, filter);
+        }
+
+        public void tickleConnectivityIfWaiting() {
+            if (mWaitingForTermination) {
+                if (VDBG) Log.v(TAG, "tickleConnectivityIfWaiting: was waiting!");
+                mWaitingForTermination = false;
+                reevaluateAllRequests();
+            }
         }
 
         @Override
@@ -638,7 +653,12 @@ public class WifiAwareDataPathStateManager {
             if (nnri != null) {
                 if (DBG) {
                     Log.d(TAG, "WifiAwareNetworkFactory.acceptRequest: request=" + request
-                            + " - already in cache!?");
+                            + " - already in cache with state=" + nnri.state);
+                }
+
+                if (nnri.state == AwareNetworkRequestInformation.STATE_TERMINATING) {
+                    mWaitingForTermination = true;
+                    return false;
                 }
 
                 // seems to happen after a network agent is created - trying to rematch all
@@ -660,9 +680,16 @@ public class WifiAwareDataPathStateManager {
             if (primaryRequest != null) {
                 if (VDBG) {
                     Log.v(TAG, "WifiAwareNetworkFactory.acceptRequest: request=" + request
-                            + ", already has a primary request=" + primaryRequest.getKey());
+                            + ", already has a primary request=" + primaryRequest.getKey()
+                            + " with state=" + primaryRequest.getValue().state);
                 }
-                primaryRequest.getValue().updateToSupportNewRequest(networkSpecifier);
+
+                if (primaryRequest.getValue().state
+                        == AwareNetworkRequestInformation.STATE_TERMINATING) {
+                    mWaitingForTermination = true;
+                } else {
+                    primaryRequest.getValue().updateToSupportNewRequest(networkSpecifier);
+                }
                 return false;
             }
 
@@ -780,27 +807,25 @@ public class WifiAwareDataPathStateManager {
 
     private class WifiAwareNetworkAgent extends NetworkAgent {
         private NetworkInfo mNetworkInfo;
-        private WifiAwareNetworkSpecifier mNetworkSpecifier;
-        private int mNdpId;
+        private AwareNetworkRequestInformation mAwareNetworkRequestInfo;
 
         WifiAwareNetworkAgent(Looper looper, Context context, String logTag, NetworkInfo ni,
                 NetworkCapabilities nc, LinkProperties lp, int score,
-                WifiAwareNetworkSpecifier networkSpecifier, int ndpId) {
+                AwareNetworkRequestInformation anri) {
             super(looper, context, logTag, ni, nc, lp, score);
 
             mNetworkInfo = ni;
-            mNetworkSpecifier = networkSpecifier;
-            mNdpId = ndpId;
+            mAwareNetworkRequestInfo = anri;
         }
 
         @Override
         protected void unwanted() {
             if (VDBG) {
-                Log.v(TAG, "WifiAwareNetworkAgent.unwanted: networkSpecifier=" + mNetworkSpecifier
-                        + ", ndpId=" + mNdpId);
+                Log.v(TAG, "WifiAwareNetworkAgent.unwanted: request=" + mAwareNetworkRequestInfo);
             }
 
-            mMgr.endDataPath(mNdpId);
+            mMgr.endDataPath(mAwareNetworkRequestInfo.ndpId);
+            mAwareNetworkRequestInfo.state = AwareNetworkRequestInformation.STATE_TERMINATING;
 
             // Will get a callback (on both initiator and responder) when data-path actually
             // terminated. At that point will inform the agent and will clear the cache.
@@ -808,8 +833,8 @@ public class WifiAwareDataPathStateManager {
 
         void reconfigureAgentAsDisconnected() {
             if (VDBG) {
-                Log.v(TAG, "WifiAwareNetworkAgent.reconfigureAgentAsDisconnected: networkSpecifier="
-                        + mNetworkSpecifier + ", ndpId=" + mNdpId);
+                Log.v(TAG, "WifiAwareNetworkAgent.reconfigureAgentAsDisconnected: request="
+                        + mAwareNetworkRequestInfo);
             }
 
             mNetworkInfo.setDetailedState(NetworkInfo.DetailedState.DISCONNECTED, null, "");
@@ -848,8 +873,9 @@ public class WifiAwareDataPathStateManager {
                 continue;
             }
 
-            if (nri.interfaceName.equals(lnri.interfaceName)
-                    && lnri.state == AwareNetworkRequestInformation.STATE_CONFIRMED) {
+            if (nri.interfaceName.equals(lnri.interfaceName) && (
+                    lnri.state == AwareNetworkRequestInformation.STATE_CONFIRMED
+                            || lnri.state == AwareNetworkRequestInformation.STATE_TERMINATING)) {
                 return true;
             }
         }
