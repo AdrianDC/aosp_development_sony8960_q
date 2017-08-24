@@ -9,7 +9,7 @@
     <string name="beam_outgoing" msgid="4679536649779123495">"বীম হচ্ছে..."</string>
     <string name="beam_complete" msgid="477026736424637435">"বীম সম্পূর্ণ"</string>
     <string name="beam_failed" msgid="5116241718189888630">"বীম সস্পূর্ণ হয়নি"</string>
-    <string name="beam_canceled" msgid="5425192751826544741">"বীম বাতিল হয়েছে"</string>
+    <string name="beam_canceled" msgid="5425192751826544741">"বিম বাতিল হয়েছে"</string>
     <string name="cancel" msgid="61873902552555096">"বাতিল"</string>
     <string name="beam_tap_to_view" msgid="7430394753262448349">"দেখতে আলতো চাপ দিন"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"রিসিভার এর ডিভাইস বীমের মাধ্যমে বড় ফাইল স্থানান্তর সমর্থন করে না।"</string>
