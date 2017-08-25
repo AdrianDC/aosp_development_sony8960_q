@@ -1144,7 +1144,7 @@ public class WifiConfigManagerTest {
         ScanDetailCache retrievedScanDetailCache =
                 mWifiConfigManager.getScanDetailCacheForNetwork(result.getNetworkId());
         assertEquals(1, retrievedScanDetailCache.size());
-        ScanResult retrievedScanResult = retrievedScanDetailCache.get(scanResult.BSSID);
+        ScanResult retrievedScanResult = retrievedScanDetailCache.getScanResult(scanResult.BSSID);
 
         ScanTestUtil.assertScanResultEquals(scanResult, retrievedScanResult);
     }
@@ -3990,7 +3990,7 @@ public class WifiConfigManagerTest {
         ScanDetailCache retrievedScanDetailCache =
                 mWifiConfigManager.getScanDetailCacheForNetwork(network.networkId);
         assertEquals(1, retrievedScanDetailCache.size());
-        ScanResult retrievedScanResult = retrievedScanDetailCache.get(scanResult.BSSID);
+        ScanResult retrievedScanResult = retrievedScanDetailCache.getScanResult(scanResult.BSSID);
 
         ScanTestUtil.assertScanResultEquals(scanResult, retrievedScanResult);
     }
