@@ -24,8 +24,12 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.database.ContentObserver;
 import android.net.wifi.ScanResult;
+import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiManager;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Message;
+import android.os.Messenger;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
@@ -34,6 +38,7 @@ import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.messages.nano.SystemMessageProto.SystemMessage;
+import com.android.server.wifi.util.ScanResultUtil;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -54,6 +59,8 @@ public class OpenNetworkNotifier {
             "com.android.server.wifi.OpenNetworkNotifier.USER_DISMISSED_NOTIFICATION";
     static final String ACTION_USER_TAPPED_CONTENT =
             "com.android.server.wifi.OpenNetworkNotifier.USER_TAPPED_CONTENT";
+    static final String ACTION_CONNECT_TO_NETWORK =
+            "com.android.server.wifi.OpenNetworkNotifier.CONNECT_TO_NETWORK";
 
     /** Identifier of the {@link SsidSetStoreData}. */
     private static final String STORE_DATA_IDENTIFIER = "OpenNetworkNotifierBlacklist";
@@ -85,6 +92,8 @@ public class OpenNetworkNotifier {
     private final FrameworkFacade mFrameworkFacade;
     private final Clock mClock;
     private final WifiConfigManager mConfigManager;
+    private final WifiStateMachine mWifiStateMachine;
+    private final Messenger mSrcMessenger;
     private final OpenNetworkRecommender mOpenNetworkRecommender;
     private final OpenNetworkNotificationBuilder mOpenNetworkNotificationBuilder;
 
@@ -97,15 +106,18 @@ public class OpenNetworkNotifier {
             Clock clock,
             WifiConfigManager wifiConfigManager,
             WifiConfigStore wifiConfigStore,
+            WifiStateMachine wifiStateMachine,
             OpenNetworkRecommender openNetworkRecommender) {
         mContext = context;
         mHandler = new Handler(looper);
         mFrameworkFacade = framework;
         mClock = clock;
         mConfigManager = wifiConfigManager;
+        mWifiStateMachine = wifiStateMachine;
         mOpenNetworkRecommender = openNetworkRecommender;
         mOpenNetworkNotificationBuilder = new OpenNetworkNotificationBuilder(context, framework);
         mScreenOn = false;
+        mSrcMessenger = new Messenger(new Handler(looper, mConnectionStateCallback));
 
         mBlacklistedSsids = new ArraySet<>();
         wifiConfigStore.registerStoreData(new SsidSetStoreData(
@@ -122,6 +134,7 @@ public class OpenNetworkNotifier {
         IntentFilter filter = new IntentFilter();
         filter.addAction(ACTION_USER_DISMISSED_NOTIFICATION);
         filter.addAction(ACTION_USER_TAPPED_CONTENT);
+        filter.addAction(ACTION_CONNECT_TO_NETWORK);
         mContext.registerReceiver(
                 mBroadcastReceiver, filter, null /* broadcastPermission */, mHandler);
     }
@@ -130,13 +143,37 @@ public class OpenNetworkNotifier {
             new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context context, Intent intent) {
-                    if (ACTION_USER_TAPPED_CONTENT.equals(intent.getAction())) {
-                        handleUserClickedContentAction();
-                    } else if (ACTION_USER_DISMISSED_NOTIFICATION.equals(intent.getAction())) {
-                        handleUserDismissedAction();
+                    switch (intent.getAction()) {
+                        case ACTION_USER_TAPPED_CONTENT:
+                            handleUserClickedContentAction();
+                            break;
+                        case ACTION_USER_DISMISSED_NOTIFICATION:
+                            handleUserDismissedAction();
+                            break;
+                        case ACTION_CONNECT_TO_NETWORK:
+                            handleConnectToNetworkAction();
+                            break;
+                        default:
+                            Log.e(TAG, "Unknown action " + intent.getAction());
                     }
                 }
             };
+
+    private final Handler.Callback mConnectionStateCallback = (Message msg) -> {
+        switch (msg.what) {
+            // Success here means that an attempt to connect to the network has been initiated.
+            // Successful connection updates are received via the
+            // WifiConnectivityManager#handleConnectionStateChanged() callback.
+            case WifiManager.CONNECT_NETWORK_SUCCEEDED:
+                break;
+            case WifiManager.CONNECT_NETWORK_FAILED:
+                handleConnectionFailure();
+                break;
+            default:
+                Log.e(TAG, "Unknown message " + msg.what);
+        }
+        return true;
+    };
 
     /**
      * Clears the pending notification. This is called by {@link WifiConnectivityManager} on stop.
@@ -211,6 +248,27 @@ public class OpenNetworkNotifier {
                         numNetworks));
         mNotificationShown = true;
         mNotificationRepeatTime = mClock.getWallClockMillis() + mNotificationRepeatDelay;
+    }
+
+    private void handleConnectToNetworkAction() {
+        if (mRecommendedNetwork == null) {
+            return;
+        }
+        Log.d(TAG, "User initiated connection to recommended network: " + mRecommendedNetwork.SSID);
+        WifiConfiguration network = ScanResultUtil.createNetworkFromScanResult(mRecommendedNetwork);
+        Message msg = Message.obtain();
+        msg.what = WifiManager.CONNECT_NETWORK;
+        msg.arg1 = WifiConfiguration.INVALID_NETWORK_ID;
+        msg.obj = network;
+        msg.replyTo = mSrcMessenger;
+        mWifiStateMachine.sendMessage(msg);
+    }
+
+    /**
+     * Handles when a Wi-Fi connection attempt failed.
+     */
+    public void handleConnectionFailure() {
+        // Stub. Should post connection failure notification once implemented.
     }
 
     /** Opens Wi-Fi picker. */
