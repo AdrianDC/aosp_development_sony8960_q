@@ -713,6 +713,11 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         }
     }
 
+    private boolean checkNetworkSettingsPermission(int pid, int uid) {
+        return mContext.checkPermission(android.Manifest.permission.NETWORK_SETTINGS, pid, uid)
+                == PackageManager.PERMISSION_GRANTED;
+    }
+
     private void enforceNetworkSettingsPermission() {
         mContext.enforceCallingOrSelfPermission(android.Manifest.permission.NETWORK_SETTINGS,
                 "WifiService");
@@ -780,8 +785,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mLog.info("setWifiEnabled package=% uid=% enable=%").c(packageName)
                 .c(Binder.getCallingUid()).c(enable).flush();
 
-        boolean isFromSettings =
-                mWifiPermissionsUtil.checkNetworkSettingsPermission(Binder.getCallingUid());
+        boolean isFromSettings = checkNetworkSettingsPermission(
+                Binder.getCallingPid(), Binder.getCallingUid());
 
         // If Airplane mode is enabled, only Settings is allowed to toggle Wifi
         if (mSettingsStore.isAirplaneModeOn() && !isFromSettings) {
