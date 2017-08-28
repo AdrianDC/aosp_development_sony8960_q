@@ -969,7 +969,7 @@ public class WifiStateMachineTest {
 
         when(mScanDetailCache.getScanDetail(sBSSID)).thenReturn(
                 getGoogleGuestScanDetail(TEST_RSSI, sBSSID, sFreq));
-        when(mScanDetailCache.get(sBSSID)).thenReturn(
+        when(mScanDetailCache.getScanResult(sBSSID)).thenReturn(
                 getGoogleGuestScanDetail(TEST_RSSI, sBSSID, sFreq).getScanResult());
 
         mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, sBSSID);
@@ -1822,7 +1822,7 @@ public class WifiStateMachineTest {
                 .thenReturn(mScanDetailCache);
         when(mScanDetailCache.getScanDetail(sBSSID1)).thenReturn(
                 getGoogleGuestScanDetail(TEST_RSSI, sBSSID1, sFreq1));
-        when(mScanDetailCache.get(sBSSID1)).thenReturn(
+        when(mScanDetailCache.getScanResult(sBSSID1)).thenReturn(
                 getGoogleGuestScanDetail(TEST_RSSI, sBSSID1, sFreq1).getScanResult());
 
         // This simulates the behavior of roaming to network with |sBSSID1|, |sFreq1|.
@@ -1850,7 +1850,7 @@ public class WifiStateMachineTest {
                 .thenReturn(mScanDetailCache);
         when(mScanDetailCache.getScanDetail(sBSSID1)).thenReturn(
                 getGoogleGuestScanDetail(TEST_RSSI, sBSSID1, sFreq1));
-        when(mScanDetailCache.get(sBSSID1)).thenReturn(
+        when(mScanDetailCache.getScanResult(sBSSID1)).thenReturn(
                 getGoogleGuestScanDetail(TEST_RSSI, sBSSID1, sFreq1).getScanResult());
 
         // This simulates the behavior of roaming to network with |sBSSID1|, |sFreq1|.
