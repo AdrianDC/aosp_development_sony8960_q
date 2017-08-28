@@ -67,7 +67,18 @@ public class MatrixTest {
     }
 
     /**
-     * Test multiplication.
+     * Test scalar multiplication.
+     */
+    @Test
+    public void testScalarMultiplication() throws Exception {
+        Matrix m1 = new Matrix(2, new double[]{1, 2, 3, 4});
+        double x = 1001;
+        Matrix m2 = new Matrix(2, new double[]{x * 1, x * 2, x * 3, x * 4});
+        assertEquals(m2, m1.times(x));
+    }
+
+    /**
+     * Test matrix multiplication.
      */
     @Test
     public void testMultiplication() throws Exception {
@@ -101,6 +112,24 @@ public class MatrixTest {
     public void testSingularity() throws Exception {
         Matrix m1 = new Matrix(3, new double[]{10, 1, -1, 0, 0, 0, 0, 0, 0});
         Matrix m2 = m1.inverse();
+    }
+
+    /**
+     * Test multiplication by a transpose
+     */
+    public void testMultiplicationByTranspose() throws Exception {
+        Matrix m1 = new Matrix(2, new double[]{1, 2, 3, 4, 5, 6});
+        Matrix m2 = new Matrix(2, new double[]{1, 2, 3, 4, 5, 6, 7, 8});
+        assertEquals(m1.dot(m2.transpose()), m1.dotTranspose(m2));
+    }
+
+    /**
+     * Test that exception is thrown for non-conformable dotTranspose
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testMultiplicationByBadlyShapedTranspose() throws Exception {
+        Matrix m1 = new Matrix(2, new double[]{1, 2, 3, 4, 5, 6});
+        m1.dotTranspose(m1.transpose());
     }
 
     /**
