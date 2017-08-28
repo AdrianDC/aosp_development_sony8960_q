@@ -48,6 +48,18 @@ public class WifiScoreReportTest {
 
     private static final int CELLULAR_THRESHOLD_SCORE = 50;
 
+    class FakeClock extends Clock {
+        long mWallClockMillis = 1500000000000L;
+        int mStepMillis = 1001;
+
+        @Override
+        public long getWallClockMillis() {
+            mWallClockMillis += mStepMillis;
+            return mWallClockMillis;
+        }
+    }
+
+    FakeClock mClock;
     WifiConfiguration mWifiConfiguration;
     WifiScoreReport mWifiScoreReport;
     ScanDetailCache mScanDetailCache;
@@ -122,7 +134,8 @@ public class WifiScoreReportTest {
         when(mWifiConfigManager.getScanDetailCacheForNetwork(anyInt()))
                 .thenReturn(mScanDetailCache);
         when(mContext.getResources()).thenReturn(mResources);
-        mWifiScoreReport = new WifiScoreReport(mContext, mWifiConfigManager, new Clock());
+        mClock = new FakeClock();
+        mWifiScoreReport = new WifiScoreReport(mContext, mWifiConfigManager, mClock);
     }
 
     /**
