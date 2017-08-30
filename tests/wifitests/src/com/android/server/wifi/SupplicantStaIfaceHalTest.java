@@ -1063,7 +1063,7 @@ public class SupplicantStaIfaceHalTest {
         executeAndValidateInitializationSequence();
         assertNotNull(mISupplicantStaIfaceCallback);
 
-        int reasonCode = 17; // IEEE 802.11i WLAN_REASON_IE_IN_4WAY_DIFFERS
+        int reasonCode = ISupplicantStaIfaceCallback.ReasonCode.IE_IN_4WAY_DIFFERS;
 
         mISupplicantStaIfaceCallback.onStateChanged(
                 ISupplicantStaIfaceCallback.State.FOURWAY_HANDSHAKE,
@@ -1075,6 +1075,20 @@ public class SupplicantStaIfaceHalTest {
         verify(mWifiMonitor, times(0)).broadcastAuthenticationFailureEvent(any(), anyInt());
     }
 
+    /**
+     * Tests the handling of eap failure during disconnect.
+     */
+    @Test
+    public void testEapFailure() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertNotNull(mISupplicantStaIfaceCallback);
+
+        int reasonCode = ISupplicantStaIfaceCallback.ReasonCode.IEEE_802_1X_AUTH_FAILED;
+        mISupplicantStaIfaceCallback.onDisconnected(
+                NativeUtil.macAddressToByteArray(BSSID), false, reasonCode);
+        verify(mWifiMonitor).broadcastAuthenticationFailureEvent(eq(WLAN_IFACE_NAME),
+                eq(WifiManager.ERROR_AUTH_FAILURE_EAP_FAILURE));
+    }
 
     /**
      * Tests the handling of association rejection notification.

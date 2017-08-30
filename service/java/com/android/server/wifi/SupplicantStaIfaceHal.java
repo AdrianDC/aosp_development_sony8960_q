@@ -1938,7 +1938,6 @@ public class SupplicantStaIfaceHal {
     }
 
     private class SupplicantStaIfaceHalCallback extends ISupplicantStaIfaceCallback.Stub {
-        private static final int WLAN_REASON_IE_IN_4WAY_DIFFERS = 17; // IEEE 802.11i
         private boolean mStateIsFourway = false; // Used to help check for PSK password mismatch
 
         /**
@@ -2083,9 +2082,13 @@ public class SupplicantStaIfaceHal {
                             + " reasonCode=" + reasonCode);
                 }
                 if (mStateIsFourway
-                        && (!locallyGenerated || reasonCode != WLAN_REASON_IE_IN_4WAY_DIFFERS)) {
+                        && (!locallyGenerated || reasonCode != ReasonCode.IE_IN_4WAY_DIFFERS)) {
                     mWifiMonitor.broadcastAuthenticationFailureEvent(
                             mIfaceName, WifiManager.ERROR_AUTH_FAILURE_WRONG_PSWD);
+                }
+                if (reasonCode == ReasonCode.IEEE_802_1X_AUTH_FAILED) {
+                    mWifiMonitor.broadcastAuthenticationFailureEvent(
+                            mIfaceName, WifiManager.ERROR_AUTH_FAILURE_EAP_FAILURE);
                 }
                 mWifiMonitor.broadcastNetworkDisconnectionEvent(
                         mIfaceName, locallyGenerated ? 1 : 0, reasonCode,
