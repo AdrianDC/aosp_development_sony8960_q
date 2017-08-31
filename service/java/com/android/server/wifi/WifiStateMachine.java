@@ -3482,14 +3482,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         final WifiConfiguration config = getCurrentWifiConfiguration();
         if (config != null) {
             mWifiInfo.setEphemeral(config.ephemeral);
-
-            // Set meteredHint if DHCP result says network is metered
-            if (dhcpResults.hasMeteredHint()) {
-                mWifiInfo.setMeteredHint(true);
-            }
         }
 
-        updateCapabilities();
+        // Set meteredHint if DHCP result says network is metered
+        if (dhcpResults.hasMeteredHint()) {
+            mWifiInfo.setMeteredHint(true);
+        }
+
+        updateCapabilities(config);
     }
 
     private void handleSuccessfulIpConfiguration() {
@@ -3501,7 +3501,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     WifiConfiguration.NetworkSelectionStatus.DISABLED_DHCP_FAILURE);
 
             // Tell the framework whether the newly connected network is trusted or untrusted.
-            updateCapabilities();
+            updateCapabilities(c);
         }
         if (c != null) {
             ScanResult result = getCurrentScanResult();
@@ -5507,7 +5507,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
     }
 
-    private void updateCapabilities() {
+    public void updateCapabilities() {
+        updateCapabilities(getCurrentWifiConfiguration());
+    }
+
+    private void updateCapabilities(WifiConfiguration config) {
         final NetworkCapabilities result = new NetworkCapabilities(mDfltNetworkCapabilities);
 
         if (mWifiInfo != null && !mWifiInfo.isEphemeral()) {
@@ -5516,7 +5520,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             result.removeCapability(NetworkCapabilities.NET_CAPABILITY_TRUSTED);
         }
 
-        if (mWifiInfo != null && !mWifiInfo.getMeteredHint()) {
+        if (mWifiInfo != null && !WifiConfiguration.isMetered(config, mWifiInfo)) {
             result.addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
         } else {
             result.removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);

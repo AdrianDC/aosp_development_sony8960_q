@@ -512,6 +512,8 @@ public class WifiConnectivityManager {
         }
         @Override
         public void onSavedNetworkUpdated(int networkId) {
+            // User might have changed meteredOverride, so update capabilties
+            mStateMachine.updateCapabilities();
             updatePnoScan();
         }
         @Override
