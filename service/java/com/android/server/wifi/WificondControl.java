@@ -99,24 +99,25 @@ public class WificondControl {
         public void OnPnoNetworkFound() {
             Log.d(TAG, "Pno scan result event");
             mWifiMonitor.broadcastPnoScanResultEvent(mClientInterfaceName);
+            mWifiInjector.getWifiMetrics().incrementPnoFoundNetworkEventCount();
         }
 
         @Override
         public void OnPnoScanFailed() {
             Log.d(TAG, "Pno Scan failed event");
-            // Nothing to do for now.
+            mWifiInjector.getWifiMetrics().incrementPnoScanFailedCount();
         }
 
         @Override
         public void OnPnoScanOverOffloadStarted() {
             Log.d(TAG, "Pno scan over offload started");
-            // Update metrics
+            mWifiInjector.getWifiMetrics().incrementPnoScanStartedOverOffloadCount();
         }
 
         @Override
         public void OnPnoScanOverOffloadFailed(int reason) {
             Log.d(TAG, "Pno scan over offload failed");
-            // Update metrics
+            mWifiInjector.getWifiMetrics().incrementPnoScanFailedOverOffloadCount();
         }
     }
 
@@ -475,9 +476,14 @@ public class WificondControl {
         }
 
         try {
-            return mWificondScanner.startPnoScan(settings);
+            boolean success = mWificondScanner.startPnoScan(settings);
+            mWifiInjector.getWifiMetrics().incrementPnoScanStartAttempCount();
+            if (!success) {
+                mWifiInjector.getWifiMetrics().incrementPnoScanFailedCount();
+            }
+            return success;
         } catch (RemoteException e1) {
-            Log.e(TAG, "Failed to stop pno scan due to remote exception");
+            Log.e(TAG, "Failed to start pno scan due to remote exception");
         }
         return false;
     }

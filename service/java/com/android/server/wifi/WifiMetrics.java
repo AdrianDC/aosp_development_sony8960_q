@@ -37,6 +37,7 @@ import com.android.server.wifi.hotspot2.PasspointManager;
 import com.android.server.wifi.hotspot2.PasspointMatch;
 import com.android.server.wifi.hotspot2.PasspointProvider;
 import com.android.server.wifi.nano.WifiMetricsProto;
+import com.android.server.wifi.nano.WifiMetricsProto.PnoScanMetrics;
 import com.android.server.wifi.nano.WifiMetricsProto.StaEvent;
 import com.android.server.wifi.nano.WifiMetricsProto.StaEvent.ConfigInfo;
 import com.android.server.wifi.util.InformationElementUtil;
@@ -86,6 +87,7 @@ public class WifiMetrics {
     private boolean mScreenOn;
     private int mWifiState;
     private WifiAwareMetrics mWifiAwareMetrics;
+    private final PnoScanMetrics mPnoScanMetrics = new PnoScanMetrics();
     private Handler mHandler;
     private WifiConfigManager mWifiConfigManager;
     private WifiNetworkSelector mWifiNetworkSelector;
@@ -405,6 +407,51 @@ public class WifiMetrics {
     /** Sets internal PasspointManager member */
     public void setPasspointManager(PasspointManager passpointManager) {
         mPasspointManager = passpointManager;
+    }
+
+    /**
+     * Increment total number of attempts to start a pno scan
+     */
+    public void incrementPnoScanStartAttempCount() {
+        synchronized (mLock) {
+            mPnoScanMetrics.numPnoScanAttempts++;
+        }
+    }
+
+    /**
+     * Increment total number of attempts with pno scan failed
+     */
+    public void incrementPnoScanFailedCount() {
+        synchronized (mLock) {
+            mPnoScanMetrics.numPnoScanFailed++;
+        }
+    }
+
+    /**
+     * Increment number of pno scans started successfully over offload
+     */
+    public void incrementPnoScanStartedOverOffloadCount() {
+        synchronized (mLock) {
+            mPnoScanMetrics.numPnoScanStartedOverOffload++;
+        }
+    }
+
+    /**
+     * Increment number of pno scans failed over offload
+     */
+    public void incrementPnoScanFailedOverOffloadCount() {
+        synchronized (mLock) {
+            mPnoScanMetrics.numPnoScanFailedOverOffload++;
+        }
+    }
+
+    /**
+     * Increment number of times pno scan found a result
+     */
+    public void incrementPnoFoundNetworkEventCount() {
+        synchronized (mLock) {
+            mPnoScanMetrics.numPnoFoundNetworkEvents++;
+        }
     }
 
     // Values used for indexing SystemStateEntries
@@ -1430,6 +1477,17 @@ public class WifiMetrics {
                         + mWifiLogProto.fullBandAllSingleScanListenerResults);
                 pw.println("mWifiAwareMetrics:");
                 mWifiAwareMetrics.dump(fd, pw, args);
+
+                pw.println("mPnoScanMetrics.numPnoScanAttempts="
+                        + mPnoScanMetrics.numPnoScanAttempts);
+                pw.println("mPnoScanMetrics.numPnoScanFailed="
+                        + mPnoScanMetrics.numPnoScanFailed);
+                pw.println("mPnoScanMetrics.numPnoScanStartedOverOffload="
+                        + mPnoScanMetrics.numPnoScanStartedOverOffload);
+                pw.println("mPnoScanMetrics.numPnoScanFailedOverOffload="
+                        + mPnoScanMetrics.numPnoScanFailedOverOffload);
+                pw.println("mPnoScanMetrics.numPnoFoundNetworkEvents="
+                        + mPnoScanMetrics.numPnoFoundNetworkEvents);
             }
         }
     }
@@ -1631,6 +1689,8 @@ public class WifiMetrics {
                     mAvailableSavedPasspointProviderBssidsInScanHistogram);
             mWifiLogProto.staEventList = mStaEventList.toArray(mWifiLogProto.staEventList);
             mWifiLogProto.wifiAwareLog = mWifiAwareMetrics.consolidateProto();
+
+            mWifiLogProto.pnoScanMetrics = mPnoScanMetrics;
         }
     }
 
@@ -1679,6 +1739,7 @@ public class WifiMetrics {
             mAvailableOpenOrSavedBssidsInScanHistogram.clear();
             mAvailableSavedPasspointProviderProfilesInScanHistogram.clear();
             mAvailableSavedPasspointProviderBssidsInScanHistogram.clear();
+            mPnoScanMetrics.clear();
         }
     }
 
