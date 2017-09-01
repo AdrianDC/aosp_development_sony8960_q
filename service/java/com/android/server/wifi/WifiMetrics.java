@@ -1435,8 +1435,8 @@ public class WifiMetrics {
                 pw.println("mWifiLogProto.numWifiOnFailureDueToWificond="
                         + mWifiLogProto.numWifiOnFailureDueToWificond);
                 pw.println("StaEventList:");
-                for (StaEvent event : mStaEventList) {
-                    pw.println(staEventToString(event));
+                for (StaEventWithTime event : mStaEventList) {
+                    pw.println(event);
                 }
 
                 pw.println("mWifiLogProto.numPasspointProviders="
@@ -1663,6 +1663,14 @@ public class WifiMetrics {
                 mWifiLogProto.softApReturnCode[sapCode].count =
                         mSoftApManagerReturnCodeCounts.valueAt(sapCode);
             }
+
+            /**
+             * Convert StaEventList to array of StaEvents
+             */
+            mWifiLogProto.staEventList = new StaEvent[mStaEventList.size()];
+            for (int i = 0; i < mStaEventList.size(); i++) {
+                mWifiLogProto.staEventList[i] = mStaEventList.get(i).staEvent;
+            }
             mWifiLogProto.totalSsidsInScanHistogram =
                     makeNumConnectableNetworksBucketArray(mTotalSsidsInScanHistogram);
             mWifiLogProto.totalBssidsInScanHistogram =
@@ -1687,7 +1695,6 @@ public class WifiMetrics {
             mWifiLogProto.availableSavedPasspointProviderBssidsInScanHistogram =
                     makeNumConnectableNetworksBucketArray(
                     mAvailableSavedPasspointProviderBssidsInScanHistogram);
-            mWifiLogProto.staEventList = mStaEventList.toArray(mWifiLogProto.staEventList);
             mWifiLogProto.wifiAwareLog = mWifiAwareMetrics.consolidateProto();
 
             mWifiLogProto.pnoScanMetrics = mPnoScanMetrics;
@@ -1887,7 +1894,7 @@ public class WifiMetrics {
         mLastPollRssi = -127;
         mLastPollFreq = -1;
         mLastPollLinkSpeed = -1;
-        mStaEventList.add(staEvent);
+        mStaEventList.add(new StaEventWithTime(staEvent, mClock.getWallClockMillis()));
         // Prune StaEventList if it gets too long
         if (mStaEventList.size() > MAX_STA_EVENTS) mStaEventList.remove();
     }
@@ -1964,7 +1971,7 @@ public class WifiMetrics {
 
     private static String supplicantStateChangesBitmaskToString(int mask) {
         StringBuilder sb = new StringBuilder();
-        sb.append("SUPPLICANT_STATE_CHANGE_EVENTS: {");
+        sb.append("supplicantStateChangeEvents: {");
         if ((mask & (1 << StaEvent.STATE_DISCONNECTED)) > 0) sb.append(" DISCONNECTED");
         if ((mask & (1 << StaEvent.STATE_INTERFACE_DISABLED)) > 0) sb.append(" INTERFACE_DISABLED");
         if ((mask & (1 << StaEvent.STATE_INACTIVE)) > 0) sb.append(" INACTIVE");
@@ -1989,58 +1996,56 @@ public class WifiMetrics {
     public static String staEventToString(StaEvent event) {
         if (event == null) return "<NULL>";
         StringBuilder sb = new StringBuilder();
-        Long time = event.startTimeMillis;
-        sb.append(String.format("%9d ", time.longValue())).append(" ");
         switch (event.type) {
             case StaEvent.TYPE_ASSOCIATION_REJECTION_EVENT:
-                sb.append("ASSOCIATION_REJECTION_EVENT:")
+                sb.append("ASSOCIATION_REJECTION_EVENT")
                         .append(" timedOut=").append(event.associationTimedOut)
                         .append(" status=").append(event.status).append(":")
                         .append(ISupplicantStaIfaceCallback.StatusCode.toString(event.status));
                 break;
             case StaEvent.TYPE_AUTHENTICATION_FAILURE_EVENT:
-                sb.append("AUTHENTICATION_FAILURE_EVENT: reason=").append(event.authFailureReason)
+                sb.append("AUTHENTICATION_FAILURE_EVENT reason=").append(event.authFailureReason)
                         .append(":").append(authFailureReasonToString(event.authFailureReason));
                 break;
             case StaEvent.TYPE_NETWORK_CONNECTION_EVENT:
-                sb.append("NETWORK_CONNECTION_EVENT:");
+                sb.append("NETWORK_CONNECTION_EVENT");
                 break;
             case StaEvent.TYPE_NETWORK_DISCONNECTION_EVENT:
-                sb.append("NETWORK_DISCONNECTION_EVENT:")
+                sb.append("NETWORK_DISCONNECTION_EVENT")
                         .append(" local_gen=").append(event.localGen)
                         .append(" reason=").append(event.reason).append(":")
                         .append(ISupplicantStaIfaceCallback.ReasonCode.toString(
                                 (event.reason >= 0 ? event.reason : -1 * event.reason)));
                 break;
             case StaEvent.TYPE_CMD_ASSOCIATED_BSSID:
-                sb.append("CMD_ASSOCIATED_BSSID:");
+                sb.append("CMD_ASSOCIATED_BSSID");
                 break;
             case StaEvent.TYPE_CMD_IP_CONFIGURATION_SUCCESSFUL:
-                sb.append("CMD_IP_CONFIGURATION_SUCCESSFUL:");
+                sb.append("CMD_IP_CONFIGURATION_SUCCESSFUL");
                 break;
             case StaEvent.TYPE_CMD_IP_CONFIGURATION_LOST:
-                sb.append("CMD_IP_CONFIGURATION_LOST:");
+                sb.append("CMD_IP_CONFIGURATION_LOST");
                 break;
             case StaEvent.TYPE_CMD_IP_REACHABILITY_LOST:
-                sb.append("CMD_IP_REACHABILITY_LOST:");
+                sb.append("CMD_IP_REACHABILITY_LOST");
                 break;
             case StaEvent.TYPE_CMD_TARGET_BSSID:
-                sb.append("CMD_TARGET_BSSID:");
+                sb.append("CMD_TARGET_BSSID");
                 break;
             case StaEvent.TYPE_CMD_START_CONNECT:
-                sb.append("CMD_START_CONNECT:");
+                sb.append("CMD_START_CONNECT");
                 break;
             case StaEvent.TYPE_CMD_START_ROAM:
-                sb.append("CMD_START_ROAM:");
+                sb.append("CMD_START_ROAM");
                 break;
             case StaEvent.TYPE_CONNECT_NETWORK:
-                sb.append("CONNECT_NETWORK:");
+                sb.append("CONNECT_NETWORK");
                 break;
             case StaEvent.TYPE_NETWORK_AGENT_VALID_NETWORK:
-                sb.append("NETWORK_AGENT_VALID_NETWORK:");
+                sb.append("NETWORK_AGENT_VALID_NETWORK");
                 break;
             case StaEvent.TYPE_FRAMEWORK_DISCONNECT:
-                sb.append("FRAMEWORK_DISCONNECT:")
+                sb.append("FRAMEWORK_DISCONNECT")
                         .append(" reason=")
                         .append(frameworkDisconnectReasonToString(event.frameworkDisconnectReason));
                 break;
@@ -2052,11 +2057,11 @@ public class WifiMetrics {
         if (event.lastFreq != -1) sb.append(" lastFreq=").append(event.lastFreq);
         if (event.lastLinkSpeed != -1) sb.append(" lastLinkSpeed=").append(event.lastLinkSpeed);
         if (event.supplicantStateChangesBitmask != 0) {
-            sb.append("\n             ").append(supplicantStateChangesBitmaskToString(
+            sb.append(", ").append(supplicantStateChangesBitmaskToString(
                     event.supplicantStateChangesBitmask));
         }
         if (event.configInfo != null) {
-            sb.append("\n             ").append(configInfoToString(event.configInfo));
+            sb.append(", ").append(configInfoToString(event.configInfo));
         }
 
         return sb.toString();
@@ -2114,7 +2119,7 @@ public class WifiMetrics {
     }
 
     public static final int MAX_STA_EVENTS = 512;
-    private LinkedList<StaEvent> mStaEventList = new LinkedList<StaEvent>();
+    private LinkedList<StaEventWithTime> mStaEventList = new LinkedList<StaEventWithTime>();
     private int mLastPollRssi = -127;
     private int mLastPollLinkSpeed = -1;
     private int mLastPollFreq = -1;
@@ -2145,5 +2150,28 @@ public class WifiMetrics {
     private void increment(SparseIntArray sia, int element) {
         int count = sia.get(element);
         sia.put(element, count + 1);
+    }
+
+    private static class StaEventWithTime {
+        public StaEvent staEvent;
+        public long wallClockMillis;
+
+        StaEventWithTime(StaEvent event, long wallClockMillis) {
+            staEvent = event;
+            this.wallClockMillis = wallClockMillis;
+        }
+
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            Calendar c = Calendar.getInstance();
+            c.setTimeInMillis(wallClockMillis);
+            if (wallClockMillis != 0) {
+                sb.append(String.format("%tm-%td %tH:%tM:%tS.%tL", c, c, c, c, c, c));
+            } else {
+                sb.append("                  ");
+            }
+            sb.append(" ").append(staEventToString(staEvent));
+            return sb.toString();
+        }
     }
 }
