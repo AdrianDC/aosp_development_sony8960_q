@@ -16,6 +16,7 @@
 package com.android.server.wifi;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.*;
 
@@ -37,6 +38,7 @@ import com.android.server.wifi.hotspot2.PasspointManager;
 import com.android.server.wifi.hotspot2.PasspointMatch;
 import com.android.server.wifi.hotspot2.PasspointProvider;
 import com.android.server.wifi.nano.WifiMetricsProto;
+import com.android.server.wifi.nano.WifiMetricsProto.PnoScanMetrics;
 import com.android.server.wifi.nano.WifiMetricsProto.StaEvent;
 
 import org.junit.Before;
@@ -252,6 +254,11 @@ public class WifiMetricsTest {
     private static final int NUM_PASSPOINT_PROVIDER_UNINSTALL_SUCCESS = 2;
     private static final int NUM_PASSPOINT_PROVIDERS_SUCCESSFULLY_CONNECTED = 1;
     private static final int NUM_PARTIAL_SCAN_RESULTS = 73;
+    private static final int NUM_PNO_SCAN_ATTEMPTS = 20;
+    private static final int NUM_PNO_SCAN_FAILED = 5;
+    private static final int NUM_PNO_SCAN_STARTED_OVER_OFFLOAD = 17;
+    private static final int NUM_PNO_SCAN_FAILED_OVER_OFFLOAD = 8;
+    private static final int NUM_PNO_FOUND_NETWORK_EVENTS = 10;
 
     private ScanDetail buildMockScanDetail(boolean hidden, NetworkDetail.HSRelease hSRelease,
             String capabilities) {
@@ -474,6 +481,23 @@ public class WifiMetricsTest {
         for (int i = 0; i < NUM_PASSPOINT_PROVIDER_UNINSTALL_SUCCESS; i++) {
             mWifiMetrics.incrementNumPasspointProviderUninstallSuccess();
         }
+
+        // increment pno scan metrics
+        for (int i = 0; i < NUM_PNO_SCAN_ATTEMPTS; i++) {
+            mWifiMetrics.incrementPnoScanStartAttempCount();
+        }
+        for (int i = 0; i < NUM_PNO_SCAN_FAILED; i++) {
+            mWifiMetrics.incrementPnoScanFailedCount();
+        }
+        for (int i = 0; i < NUM_PNO_SCAN_STARTED_OVER_OFFLOAD; i++) {
+            mWifiMetrics.incrementPnoScanStartedOverOffloadCount();
+        }
+        for (int i = 0; i < NUM_PNO_SCAN_FAILED_OVER_OFFLOAD; i++) {
+            mWifiMetrics.incrementPnoScanFailedOverOffloadCount();
+        }
+        for (int i = 0; i < NUM_PNO_FOUND_NETWORK_EVENTS; i++) {
+            mWifiMetrics.incrementPnoFoundNetworkEventCount();
+        }
     }
 
     /**
@@ -618,6 +642,14 @@ public class WifiMetricsTest {
                 mDecodedProto.numPasspointProviderUninstallSuccess);
         assertEquals(NUM_PASSPOINT_PROVIDERS_SUCCESSFULLY_CONNECTED,
                 mDecodedProto.numPasspointProvidersSuccessfullyConnected);
+
+        PnoScanMetrics pno_metrics = mDecodedProto.pnoScanMetrics;
+        assertNotNull(pno_metrics);
+        assertEquals(NUM_PNO_SCAN_ATTEMPTS, pno_metrics.numPnoScanAttempts);
+        assertEquals(NUM_PNO_SCAN_FAILED, pno_metrics.numPnoScanFailed);
+        assertEquals(NUM_PNO_SCAN_STARTED_OVER_OFFLOAD, pno_metrics.numPnoScanStartedOverOffload);
+        assertEquals(NUM_PNO_SCAN_FAILED_OVER_OFFLOAD, pno_metrics.numPnoScanFailedOverOffload);
+        assertEquals(NUM_PNO_FOUND_NETWORK_EVENTS, pno_metrics.numPnoFoundNetworkEvents);
     }
 
     /**
