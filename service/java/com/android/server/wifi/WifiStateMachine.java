@@ -5532,7 +5532,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             result.setSignalStrength(NetworkCapabilities.SIGNAL_STRENGTH_UNSPECIFIED);
         }
 
-        mNetworkAgent.sendNetworkCapabilities(result);
+        if (mNetworkAgent != null) {
+            mNetworkAgent.sendNetworkCapabilities(result);
+        }
     }
 
     /**
@@ -6147,7 +6149,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 if (mVerboseLoggingEnabled) {
                     log("explictlySelected acceptUnvalidated=" + config.noInternetAccessExpected);
                 }
-                mNetworkAgent.explicitlySelected(config.noInternetAccessExpected);
+                if (mNetworkAgent != null) {
+                    mNetworkAgent.explicitlySelected(config.noInternetAccessExpected);
+                }
             }
         }
 
@@ -6519,13 +6523,17 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         dstMac = NativeUtil.macAddressToByteArray(dstMacStr);
                     } catch (NullPointerException | IllegalArgumentException e) {
                         loge("Can't find MAC address for next hop to " + pkt.dstAddress);
-                        mNetworkAgent.onPacketKeepaliveEvent(slot,
-                                ConnectivityManager.PacketKeepalive.ERROR_INVALID_IP_ADDRESS);
+                        if (mNetworkAgent != null) {
+                            mNetworkAgent.onPacketKeepaliveEvent(slot,
+                                    ConnectivityManager.PacketKeepalive.ERROR_INVALID_IP_ADDRESS);
+                        }
                         break;
                     }
                     pkt.dstMac = dstMac;
                     int result = startWifiIPPacketOffload(slot, pkt, intervalSeconds);
-                    mNetworkAgent.onPacketKeepaliveEvent(slot, result);
+                    if (mNetworkAgent != null) {
+                        mNetworkAgent.onPacketKeepaliveEvent(slot, result);
+                    }
                     break;
                 }
                 default:
