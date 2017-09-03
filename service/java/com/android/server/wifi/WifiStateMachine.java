@@ -3482,14 +3482,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         final WifiConfiguration config = getCurrentWifiConfiguration();
         if (config != null) {
             mWifiInfo.setEphemeral(config.ephemeral);
-
-            // Set meteredHint if DHCP result says network is metered
-            if (dhcpResults.hasMeteredHint()) {
-                mWifiInfo.setMeteredHint(true);
-            }
         }
 
-        updateCapabilities();
+        // Set meteredHint if DHCP result says network is metered
+        if (dhcpResults.hasMeteredHint()) {
+            mWifiInfo.setMeteredHint(true);
+        }
+
+        updateCapabilities(config);
     }
 
     private void handleSuccessfulIpConfiguration() {
@@ -3501,7 +3501,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     WifiConfiguration.NetworkSelectionStatus.DISABLED_DHCP_FAILURE);
 
             // Tell the framework whether the newly connected network is trusted or untrusted.
-            updateCapabilities();
+            updateCapabilities(c);
         }
         if (c != null) {
             ScanResult result = getCurrentScanResult();
@@ -5507,7 +5507,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
     }
 
-    private void updateCapabilities() {
+    public void updateCapabilities() {
+        updateCapabilities(getCurrentWifiConfiguration());
+    }
+
+    private void updateCapabilities(WifiConfiguration config) {
         final NetworkCapabilities result = new NetworkCapabilities(mDfltNetworkCapabilities);
 
         if (mWifiInfo != null && !mWifiInfo.isEphemeral()) {
@@ -5516,7 +5520,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             result.removeCapability(NetworkCapabilities.NET_CAPABILITY_TRUSTED);
         }
 
-        if (mWifiInfo != null && !mWifiInfo.getMeteredHint()) {
+        if (mWifiInfo != null && !WifiConfiguration.isMetered(config, mWifiInfo)) {
             result.addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
         } else {
             result.removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
@@ -5528,7 +5532,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             result.setSignalStrength(NetworkCapabilities.SIGNAL_STRENGTH_UNSPECIFIED);
         }
 
-        mNetworkAgent.sendNetworkCapabilities(result);
+        if (mNetworkAgent != null) {
+            mNetworkAgent.sendNetworkCapabilities(result);
+        }
     }
 
     /**
@@ -6143,7 +6149,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 if (mVerboseLoggingEnabled) {
                     log("explictlySelected acceptUnvalidated=" + config.noInternetAccessExpected);
                 }
-                mNetworkAgent.explicitlySelected(config.noInternetAccessExpected);
+                if (mNetworkAgent != null) {
+                    mNetworkAgent.explicitlySelected(config.noInternetAccessExpected);
+                }
             }
         }
 
@@ -6515,13 +6523,17 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         dstMac = NativeUtil.macAddressToByteArray(dstMacStr);
                     } catch (NullPointerException | IllegalArgumentException e) {
                         loge("Can't find MAC address for next hop to " + pkt.dstAddress);
-                        mNetworkAgent.onPacketKeepaliveEvent(slot,
-                                ConnectivityManager.PacketKeepalive.ERROR_INVALID_IP_ADDRESS);
+                        if (mNetworkAgent != null) {
+                            mNetworkAgent.onPacketKeepaliveEvent(slot,
+                                    ConnectivityManager.PacketKeepalive.ERROR_INVALID_IP_ADDRESS);
+                        }
                         break;
                     }
                     pkt.dstMac = dstMac;
                     int result = startWifiIPPacketOffload(slot, pkt, intervalSeconds);
-                    mNetworkAgent.onPacketKeepaliveEvent(slot, result);
+                    if (mNetworkAgent != null) {
+                        mNetworkAgent.onPacketKeepaliveEvent(slot, result);
+                    }
                     break;
                 }
                 default:

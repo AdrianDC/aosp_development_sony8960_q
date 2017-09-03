@@ -66,6 +66,7 @@ import java.util.Set;
 public class WificondControlTest {
     private WifiInjector mWifiInjector;
     private WifiMonitor mWifiMonitor;
+    private WifiMetrics mWifiMetrics;
     private CarrierNetworkConfig mCarrierNetworkConfig;
     private WificondControl mWificondControl;
     private static final String TEST_INTERFACE_NAME = "test_wlan_if";
@@ -145,6 +146,8 @@ public class WificondControlTest {
     public void setUp() throws Exception {
         mWifiInjector = mock(WifiInjector.class);
         mWifiMonitor = mock(WifiMonitor.class);
+        mWifiMetrics = mock(WifiMetrics.class);
+        when(mWifiInjector.getWifiMetrics()).thenReturn(mWifiMetrics);
         mCarrierNetworkConfig = mock(CarrierNetworkConfig.class);
         mWificondControl = new WificondControl(mWifiInjector, mWifiMonitor, mCarrierNetworkConfig);
     }
@@ -660,7 +663,7 @@ public class WificondControlTest {
 
     /**
      * Verifies that WificondControl can invoke WifiMonitor broadcast methods upon pno scan
-     * reuslt event.
+     * result event.
      */
     @Test
     public void testPnoScanResultEvent() throws Exception {
@@ -671,8 +674,45 @@ public class WificondControlTest {
         IPnoScanEvent pnoScanEvent = messageCaptor.getValue();
         assertNotNull(pnoScanEvent);
         pnoScanEvent.OnPnoNetworkFound();
-
         verify(mWifiMonitor).broadcastPnoScanResultEvent(any(String.class));
+    }
+
+    /**
+     * Verifies that WificondControl can invoke WifiMetrics pno scan count methods upon pno event.
+     */
+    @Test
+    public void testPnoScanEventsForMetrics() throws Exception {
+        IWifiScannerImpl scanner = setupClientInterfaceAndCreateMockWificondScanner();
+
+        ArgumentCaptor<IPnoScanEvent> messageCaptor = ArgumentCaptor.forClass(IPnoScanEvent.class);
+        verify(scanner).subscribePnoScanEvents(messageCaptor.capture());
+        IPnoScanEvent pnoScanEvent = messageCaptor.getValue();
+        assertNotNull(pnoScanEvent);
+
+        pnoScanEvent.OnPnoNetworkFound();
+        verify(mWifiMetrics).incrementPnoFoundNetworkEventCount();
+
+        pnoScanEvent.OnPnoScanFailed();
+        verify(mWifiMetrics).incrementPnoScanFailedCount();
+
+        pnoScanEvent.OnPnoScanOverOffloadStarted();
+        verify(mWifiMetrics).incrementPnoScanStartedOverOffloadCount();
+
+        pnoScanEvent.OnPnoScanOverOffloadFailed(0);
+        verify(mWifiMetrics).incrementPnoScanFailedOverOffloadCount();
+    }
+
+    /**
+     * Verifies that startPnoScan() can invoke WifiMetrics pno scan count methods correctly.
+     */
+    @Test
+    public void testStartPnoScanForMetrics() throws Exception {
+        IWifiScannerImpl scanner = setupClientInterfaceAndCreateMockWificondScanner();
+
+        when(scanner.startPnoScan(any(PnoSettings.class))).thenReturn(false);
+        assertFalse(mWificondControl.startPnoScan(TEST_PNO_SETTINGS));
+        verify(mWifiMetrics).incrementPnoScanStartAttempCount();
+        verify(mWifiMetrics).incrementPnoScanFailedCount();
     }
 
     /**
