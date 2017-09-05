@@ -234,7 +234,8 @@ public class WifiInjector {
         mOpenNetworkNotifier = new OpenNetworkNotifier(mContext,
                 mWifiStateMachineHandlerThread.getLooper(), mFrameworkFacade, mClock,
                 mWifiConfigManager, mWifiConfigStore, mWifiStateMachine,
-                new OpenNetworkRecommender());
+                new OpenNetworkRecommender(),
+                new ConnectToNetworkNotificationBuilder(mContext, mFrameworkFacade));
         mLockManager = new WifiLockManager(mContext, BatteryStatsService.getService());
         mWifiController = new WifiController(mContext, mWifiStateMachine, mSettingsStore,
                 mLockManager, mWifiServiceHandlerThread.getLooper(), mFrameworkFacade);
