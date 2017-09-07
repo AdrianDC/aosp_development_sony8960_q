@@ -1071,7 +1071,7 @@ public class WifiConnectivityManager {
         mWifiState = state;
 
         if (mWifiState == WIFI_STATE_CONNECTED) {
-            mOpenNetworkNotifier.clearPendingNotification(false /* resetRepeatDelay */);
+            mOpenNetworkNotifier.handleWifiConnected();
         }
 
         // Reset BSSID of last connection attempt and kick off

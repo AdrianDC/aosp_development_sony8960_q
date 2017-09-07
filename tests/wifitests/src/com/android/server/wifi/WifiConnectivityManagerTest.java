@@ -637,18 +637,17 @@ public class WifiConnectivityManagerTest {
     }
 
     /**
-     * When wifi is connected, {@link OpenNetworkNotifier} tries to clear the pending
-     * notification and does not reset notification repeat delay.
+     * When wifi is connected, {@link OpenNetworkNotifier} handles the Wi-Fi connected behavior.
      *
-     * Expected behavior: ONA clears pending notification and does not reset repeat delay.
+     * Expected behavior: ONA handles connected behavior
      */
     @Test
-    public void wifiConnected_openNetworkNotifierClearsPendingNotification() {
+    public void wifiConnected_openNetworkNotifierHandlesConnection() {
         // Set WiFi to connected state
         mWifiConnectivityManager.handleConnectionStateChanged(
                 WifiConnectivityManager.WIFI_STATE_CONNECTED);
 
-        verify(mOpenNetworkNotifier).clearPendingNotification(false /* resetRepeatDelay*/);
+        verify(mOpenNetworkNotifier).handleWifiConnected();
     }
 
     /**
