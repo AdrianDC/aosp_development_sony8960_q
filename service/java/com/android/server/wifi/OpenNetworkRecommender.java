@@ -20,9 +20,12 @@ import android.annotation.NonNull;
 import android.net.wifi.ScanResult;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * Helps recommend the best available network for {@link OpenNetworkNotifier}.
+ *
+ * NOTE: These API's are not thread safe and should only be used from WifiStateMachine thread.
  * @hide
  */
 public class OpenNetworkRecommender {
@@ -32,31 +35,24 @@ public class OpenNetworkRecommender {
      *
      * @param networks List of scan details to pick a recommendation. This list should not be null
      *                 or empty.
-     * @param currentRecommendation The currently recommended network.
+     * @param blacklistedSsids The list of SSIDs that should not be recommended.
      */
-    public ScanResult recommendNetwork(
-            @NonNull List<ScanDetail> networks, ScanResult currentRecommendation) {
-        ScanResult currentUpdatedRecommendation = null;
+    public ScanResult recommendNetwork(@NonNull List<ScanDetail> networks,
+                                       @NonNull Set<String> blacklistedSsids) {
         ScanResult result = null;
         int highestRssi = Integer.MIN_VALUE;
         for (ScanDetail scanDetail : networks) {
             ScanResult scanResult = scanDetail.getScanResult();
-
-            if (currentRecommendation != null
-                    && currentRecommendation.SSID.equals(scanResult.SSID)) {
-                currentUpdatedRecommendation = scanResult;
-            }
 
             if (scanResult.level > highestRssi) {
                 result = scanResult;
                 highestRssi = scanResult.level;
             }
         }
-        if (currentUpdatedRecommendation != null
-                && currentUpdatedRecommendation.level >= result.level) {
-            return currentUpdatedRecommendation;
-        } else {
-            return result;
+
+        if (result != null && blacklistedSsids.contains(result.SSID)) {
+            result = null;
         }
+        return result;
     }
 }
