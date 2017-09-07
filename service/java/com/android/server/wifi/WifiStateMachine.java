@@ -1843,9 +1843,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     public List<WifiConfiguration> syncGetConfiguredNetworks(int uuid, AsyncChannel channel) {
         Message resultMsg = channel.sendMessageSynchronously(CMD_GET_CONFIGURED_NETWORKS, uuid);
-        List<WifiConfiguration> result = (List<WifiConfiguration>) resultMsg.obj;
-        resultMsg.recycle();
-        return result;
+        if (resultMsg == null) { // an error has occurred
+            return null;
+        } else {
+            List<WifiConfiguration> result = (List<WifiConfiguration>) resultMsg.obj;
+            resultMsg.recycle();
+            return result;
+        }
     }
 
     public List<WifiConfiguration> syncGetPrivilegedConfiguredNetwork(AsyncChannel channel) {
