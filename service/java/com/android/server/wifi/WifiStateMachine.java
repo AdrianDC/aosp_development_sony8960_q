@@ -4274,10 +4274,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mLastSignalLevel = -1;
 
                     mWifiInfo.setMacAddress(mWifiNative.getMacAddress());
-                    // Attempt to migrate data out of legacy store.
-                    if (!mWifiConfigManager.migrateFromLegacyStore()) {
-                        Log.e(TAG, "Failed to migrate from legacy config store");
-                    }
                     initializeWpsDetails();
                     sendSupplicantConnectionChangedBroadcast(true);
                     transitionTo(mSupplicantStartedState);
