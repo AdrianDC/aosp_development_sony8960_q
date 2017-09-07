@@ -22,6 +22,6 @@
     <option name="test-tag" value="FrameworksWifiTests" />
     <test class="com.android.tradefed.testtype.InstrumentationTest" >
         <option name="package" value="com.android.server.wifi.test" />
-        <option name="runner" value="android.support.test.runner.AndroidJUnitRunner" />
+        <option name="runner" value="com.android.server.wifi.CustomTestRunner" />
     </test>
 </configuration>
