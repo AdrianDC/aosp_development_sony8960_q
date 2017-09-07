@@ -1088,6 +1088,17 @@ public class WifiConnectivityManager {
     }
 
     /**
+     * Handler when a WiFi connection attempt ended.
+     *
+     * @param failureCode {@link WifiMetrics.ConnectionEvent} failure code.
+     */
+    public void handleConnectionAttemptEnded(int failureCode) {
+        if (failureCode != WifiMetrics.ConnectionEvent.FAILURE_NONE) {
+            mOpenNetworkNotifier.handleConnectionFailure();
+        }
+    }
+
+    /**
      * Handler when user toggles whether untrusted connection is allowed
      */
     public void setUntrustedConnectionAllowed(boolean allowed) {
