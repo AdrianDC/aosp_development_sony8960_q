@@ -33,6 +33,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
 import android.net.wifi.ScanResult;
+import android.os.Message;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.os.test.TestLooper;
@@ -66,6 +67,7 @@ public class OpenNetworkNotifierTest {
     @Mock private WifiConfigManager mWifiConfigManager;
     @Mock(answer = Answers.RETURNS_DEEP_STUBS) private Notification.Builder mNotificationBuilder;
     @Mock private NotificationManager mNotificationManager;
+    @Mock private WifiStateMachine mWifiStateMachine;
     @Mock private OpenNetworkRecommender mOpenNetworkRecommender;
     @Mock private UserManager mUserManager;
     private OpenNetworkNotifier mNotificationController;
@@ -103,7 +105,7 @@ public class OpenNetworkNotifierTest {
         TestLooper mock_looper = new TestLooper();
         mNotificationController = new OpenNetworkNotifier(
                 mContext, mock_looper.getLooper(), mFrameworkFacade, mClock, mWifiConfigManager,
-                mWifiConfigStore, mOpenNetworkRecommender);
+                mWifiConfigStore, mWifiStateMachine, mOpenNetworkRecommender);
         ArgumentCaptor<BroadcastReceiver> broadcastReceiverCaptor =
                 ArgumentCaptor.forClass(BroadcastReceiver.class);
         verify(mContext).registerReceiver(broadcastReceiverCaptor.capture(), any(), any(), any());
@@ -347,5 +349,33 @@ public class OpenNetworkNotifierTest {
         mNotificationController.handleScanResults(mOpenNetworks);
 
         verify(mNotificationManager).cancel(anyInt());
+    }
+
+    /**
+     * {@link OpenNetworkNotifier#ACTION_CONNECT_TO_NETWORK} does not connect to any network if
+     * there is no current recommendation.
+     */
+    @Test
+    public void actionConnectToNetwork_currentRecommendationIsNull_doesNothing() {
+        mBroadcastReceiver.onReceive(mContext,
+                new Intent(OpenNetworkNotifier.ACTION_CONNECT_TO_NETWORK));
+
+        verify(mWifiStateMachine, never()).sendMessage(any(Message.class));
+    }
+
+    /**
+     * {@link OpenNetworkNotifier#ACTION_CONNECT_TO_NETWORK} connects to the currently recommended
+     * network if it exists.
+     */
+    @Test
+    public void actionConnectToNetwork_currentRecommendationExists_connectsToNetwork() {
+        mNotificationController.handleScanResults(mOpenNetworks);
+
+        verify(mOpenNetworkRecommender).recommendNetwork(mOpenNetworks, mBlacklistedSsids);
+
+        mBroadcastReceiver.onReceive(mContext,
+                new Intent(OpenNetworkNotifier.ACTION_CONNECT_TO_NETWORK));
+
+        verify(mWifiStateMachine).sendMessage(any(Message.class));
     }
 }
