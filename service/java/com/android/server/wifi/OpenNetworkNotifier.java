@@ -29,6 +29,8 @@ import android.os.Looper;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
+import android.util.ArraySet;
+import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.messages.nano.SystemMessageProto.SystemMessage;
@@ -36,18 +38,25 @@ import com.android.internal.messages.nano.SystemMessageProto.SystemMessage;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Takes care of handling the "open wi-fi network available" notification
+ *
+ * NOTE: These API's are not thread safe and should only be used from WifiStateMachine thread.
  * @hide
  */
 public class OpenNetworkNotifier {
+
+    private static final String TAG = "OpenNetworkNotifier";
 
     static final String ACTION_USER_DISMISSED_NOTIFICATION =
             "com.android.server.wifi.OpenNetworkNotifier.USER_DISMISSED_NOTIFICATION";
     static final String ACTION_USER_TAPPED_CONTENT =
             "com.android.server.wifi.OpenNetworkNotifier.USER_TAPPED_CONTENT";
 
+    /** Identifier of the {@link SsidSetStoreData}. */
+    private static final String STORE_DATA_IDENTIFIER = "OpenNetworkNotifierBlacklist";
     /**
      * The {@link Clock#getWallClockMillis()} must be at least this value for us
      * to show the notification again.
@@ -68,10 +77,14 @@ public class OpenNetworkNotifier {
     /** Whether the screen is on or not. */
     private boolean mScreenOn;
 
+    /** List of SSIDs blacklisted from recommendation. */
+    private final Set<String> mBlacklistedSsids;
+
     private final Context mContext;
     private final Handler mHandler;
     private final FrameworkFacade mFrameworkFacade;
     private final Clock mClock;
+    private final WifiConfigManager mConfigManager;
     private final OpenNetworkRecommender mOpenNetworkRecommender;
     private final OpenNetworkNotificationBuilder mOpenNetworkNotificationBuilder;
 
@@ -82,14 +95,21 @@ public class OpenNetworkNotifier {
             Looper looper,
             FrameworkFacade framework,
             Clock clock,
+            WifiConfigManager wifiConfigManager,
+            WifiConfigStore wifiConfigStore,
             OpenNetworkRecommender openNetworkRecommender) {
         mContext = context;
         mHandler = new Handler(looper);
         mFrameworkFacade = framework;
         mClock = clock;
+        mConfigManager = wifiConfigManager;
         mOpenNetworkRecommender = openNetworkRecommender;
         mOpenNetworkNotificationBuilder = new OpenNetworkNotificationBuilder(context, framework);
         mScreenOn = false;
+
+        mBlacklistedSsids = new ArraySet<>();
+        wifiConfigStore.registerStoreData(new SsidSetStoreData(
+                STORE_DATA_IDENTIFIER, new OpenNetworkNotifierStoreData()));
 
         // Setting is in seconds
         mNotificationRepeatDelay = mFrameworkFacade.getIntegerSetting(context,
@@ -165,7 +185,7 @@ public class OpenNetworkNotifier {
         }
 
         mRecommendedNetwork = mOpenNetworkRecommender.recommendNetwork(
-                availableNetworks, mRecommendedNetwork);
+                availableNetworks, new ArraySet<>(mBlacklistedSsids));
 
         postNotification(availableNetworks.size());
     }
@@ -201,8 +221,14 @@ public class OpenNetworkNotifier {
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     }
 
-    /** A delay is set before the next shown notification after user dismissal. */
     private void handleUserDismissedAction() {
+        if (mRecommendedNetwork != null) {
+            // blacklist dismissed network
+            mBlacklistedSsids.add(mRecommendedNetwork.SSID);
+            mConfigManager.saveToStore(false /* forceWrite */);
+            Log.d(TAG, "Network is added to the open network notification blacklist: "
+                    + mRecommendedNetwork.SSID);
+        }
         mNotificationShown = false;
     }
 
@@ -213,6 +239,19 @@ public class OpenNetworkNotifier {
         pw.println("currentTime: " + mClock.getWallClockMillis());
         pw.println("mNotificationRepeatTime: " + mNotificationRepeatTime);
         pw.println("mNotificationShown: " + mNotificationShown);
+        pw.println("mBlacklistedSsids: " + mBlacklistedSsids.toString());
+    }
+
+    private class OpenNetworkNotifierStoreData implements SsidSetStoreData.DataSource {
+        @Override
+        public Set<String> getSsids() {
+            return new ArraySet<>(mBlacklistedSsids);
+        }
+
+        @Override
+        public void setSsids(Set<String> ssidList) {
+            mBlacklistedSsids.addAll(ssidList);
+        }
     }
 
     private class NotificationEnabledSettingObserver extends ContentObserver {
