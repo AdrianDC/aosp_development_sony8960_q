@@ -120,7 +120,7 @@ public class OpenNetworkNotifierTest {
         mNotificationController.handleScanResults(mOpenNetworks);
 
         verify(mOpenNetworkRecommender).recommendNetwork(mOpenNetworks, mBlacklistedSsids);
-        verify(mNotificationBuilder).createConnectToNetworkNotification(1);
+        verify(mNotificationBuilder).createConnectToNetworkNotification(mDummyNetwork);
         verify(mNotificationManager).notify(anyInt(), any());
     }
 
@@ -144,13 +144,32 @@ public class OpenNetworkNotifierTest {
         mNotificationController.handleScanResults(mOpenNetworks);
 
         verify(mOpenNetworkRecommender).recommendNetwork(mOpenNetworks, mBlacklistedSsids);
-        verify(mNotificationBuilder).createConnectToNetworkNotification(1);
+        verify(mNotificationBuilder).createConnectToNetworkNotification(mDummyNetwork);
         verify(mNotificationManager).notify(anyInt(), any());
 
         mNotificationController.handleScanResults(new ArrayList<>());
 
         verify(mNotificationManager).cancel(anyInt());
     }
+
+    /**
+     * When a notification is showing and no recommendation is made for the new scan results, the
+     * notification is cleared.
+     */
+    @Test
+    public void handleScanResults_notificationShown_noRecommendation_notificationCleared() {
+        mNotificationController.handleScanResults(mOpenNetworks);
+
+        verify(mOpenNetworkRecommender).recommendNetwork(mOpenNetworks, mBlacklistedSsids);
+        verify(mNotificationBuilder).createConnectToNetworkNotification(mDummyNetwork);
+        verify(mNotificationManager).notify(anyInt(), any());
+
+        when(mOpenNetworkRecommender.recommendNetwork(any(), any())).thenReturn(null);
+        mNotificationController.handleScanResults(mOpenNetworks);
+
+        verify(mNotificationManager).cancel(anyInt());
+    }
+
     /**
      * When a notification is showing, screen is off, and scan results with no open networks are
      * handled, the notification is cleared.
@@ -160,26 +179,13 @@ public class OpenNetworkNotifierTest {
         mNotificationController.handleScanResults(mOpenNetworks);
 
         verify(mOpenNetworkRecommender).recommendNetwork(mOpenNetworks, mBlacklistedSsids);
-        verify(mNotificationBuilder).createConnectToNetworkNotification(1);
+        verify(mNotificationBuilder).createConnectToNetworkNotification(mDummyNetwork);
         verify(mNotificationManager).notify(anyInt(), any());
 
         mNotificationController.handleScreenStateChanged(false);
         mNotificationController.handleScanResults(new ArrayList<>());
 
         verify(mNotificationManager).cancel(anyInt());
-    }
-
-    /**
-     * If notification is showing, do not post another notification.
-     */
-    @Test
-    public void handleScanResults_notificationShowing_doesNotRepostNotification() {
-        mNotificationController.handleScanResults(mOpenNetworks);
-        mNotificationController.handleScanResults(mOpenNetworks);
-
-        verify(mOpenNetworkRecommender).recommendNetwork(mOpenNetworks, mBlacklistedSsids);
-        verify(mNotificationBuilder).createConnectToNetworkNotification(1);
-        verify(mNotificationManager).notify(anyInt(), any());
     }
 
     /**
@@ -191,7 +197,7 @@ public class OpenNetworkNotifierTest {
         mNotificationController.handleScanResults(mOpenNetworks);
 
         verify(mOpenNetworkRecommender).recommendNetwork(mOpenNetworks, mBlacklistedSsids);
-        verify(mNotificationBuilder).createConnectToNetworkNotification(1);
+        verify(mNotificationBuilder).createConnectToNetworkNotification(mDummyNetwork);
         verify(mNotificationManager).notify(anyInt(), any());
 
         mNotificationController.clearPendingNotification(true);
@@ -215,12 +221,34 @@ public class OpenNetworkNotifierTest {
      * new scan results with open networks.
      */
     @Test
-    public void screenOff_handleScanResults_notificationNotDisplayed() {
+    public void screenOff_notificationNotShowing_handleScanResults_notificationNotDisplayed() {
         mNotificationController.handleScreenStateChanged(false);
         mNotificationController.handleScanResults(mOpenNetworks);
 
         verify(mOpenNetworkRecommender, never()).recommendNetwork(any(), any());
         verify(mNotificationManager, never()).notify(anyInt(), any());
+    }
+
+    /**
+     * When screen is off and notification is displayed, the notification can be updated with a new
+     * recommendation.
+     */
+    @Test
+    public void screenOff_notificationShowing_handleScanResults_recommendationCanBeUpdated() {
+        mNotificationController.handleScanResults(mOpenNetworks);
+
+        verify(mOpenNetworkRecommender).recommendNetwork(mOpenNetworks, mBlacklistedSsids);
+        verify(mNotificationBuilder).createConnectToNetworkNotification(mDummyNetwork);
+        verify(mNotificationManager).notify(anyInt(), any());
+
+        mNotificationController.handleScreenStateChanged(false);
+        mNotificationController.handleScanResults(mOpenNetworks);
+
+        // Recommendation made twice
+        verify(mOpenNetworkRecommender, times(2)).recommendNetwork(
+                mOpenNetworks, mBlacklistedSsids);
+        verify(mNotificationBuilder, times(2)).createConnectToNetworkNotification(mDummyNetwork);
+        verify(mNotificationManager, times(2)).notify(anyInt(), any());
     }
 
     /**
@@ -232,19 +260,17 @@ public class OpenNetworkNotifierTest {
         mNotificationController.handleScanResults(mOpenNetworks);
 
         verify(mOpenNetworkRecommender).recommendNetwork(mOpenNetworks, mBlacklistedSsids);
-        verify(mNotificationBuilder).createConnectToNetworkNotification(1);
+        verify(mNotificationBuilder).createConnectToNetworkNotification(mDummyNetwork);
         verify(mNotificationManager).notify(anyInt(), any());
 
         mNotificationController.clearPendingNotification(false);
 
+        verify(mNotificationManager).cancel(anyInt());
+
         mNotificationController.handleScanResults(mOpenNetworks);
 
-        // Recommendation made twice but no new notification posted.
-        verify(mOpenNetworkRecommender, times(2)).recommendNetwork(
-                mOpenNetworks, mBlacklistedSsids);
+        // no new notification posted
         verify(mNotificationManager).notify(anyInt(), any());
-        verify(mNotificationBuilder).createConnectToNetworkNotification(1);
-        verify(mNotificationManager).cancel(anyInt());
     }
 
     /**
@@ -256,7 +282,7 @@ public class OpenNetworkNotifierTest {
         mNotificationController.handleScanResults(mOpenNetworks);
 
         verify(mOpenNetworkRecommender).recommendNetwork(mOpenNetworks, mBlacklistedSsids);
-        verify(mNotificationBuilder).createConnectToNetworkNotification(1);
+        verify(mNotificationBuilder).createConnectToNetworkNotification(mDummyNetwork);
         verify(mNotificationManager).notify(anyInt(), any());
 
         mNotificationController.clearPendingNotification(true);
@@ -265,28 +291,8 @@ public class OpenNetworkNotifierTest {
 
         verify(mOpenNetworkRecommender, times(2)).recommendNetwork(
                 mOpenNetworks, mBlacklistedSsids);
-        verify(mNotificationBuilder, times(2)).createConnectToNetworkNotification(1);
+        verify(mNotificationBuilder, times(2)).createConnectToNetworkNotification(mDummyNetwork);
         verify(mNotificationManager, times(2)).notify(anyInt(), any());
-    }
-
-    /**
-     * When a notification is tapped, open Wi-Fi settings.
-     */
-    @Test
-    public void notificationTap_opensWifiSettings() {
-        mNotificationController.handleScanResults(mOpenNetworks);
-
-        verify(mOpenNetworkRecommender).recommendNetwork(mOpenNetworks, mBlacklistedSsids);
-        verify(mNotificationBuilder).createConnectToNetworkNotification(1);
-        verify(mNotificationManager).notify(anyInt(), any());
-
-        mBroadcastReceiver.onReceive(
-                mContext,
-                new Intent(ConnectToNetworkNotificationBuilder.ACTION_USER_TAPPED_CONTENT));
-
-        ArgumentCaptor<Intent> pickerIntentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext).startActivity(pickerIntentCaptor.capture());
-        assertEquals(pickerIntentCaptor.getValue().getAction(), Settings.ACTION_WIFI_SETTINGS);
     }
 
     /**
@@ -298,7 +304,7 @@ public class OpenNetworkNotifierTest {
         mNotificationController.handleScanResults(mOpenNetworks);
 
         verify(mOpenNetworkRecommender).recommendNetwork(mOpenNetworks, mBlacklistedSsids);
-        verify(mNotificationBuilder).createConnectToNetworkNotification(1);
+        verify(mNotificationBuilder).createConnectToNetworkNotification(mDummyNetwork);
         verify(mNotificationManager).notify(anyInt(), any());
 
         mBroadcastReceiver.onReceive(
@@ -307,7 +313,9 @@ public class OpenNetworkNotifierTest {
 
         verify(mWifiConfigManager).saveToStore(false /* forceWrite */);
 
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.clearPendingNotification(true);
+        List<ScanDetail> scanResults = mOpenNetworks;
+        mNotificationController.handleScanResults(scanResults);
 
         Set<String> expectedBlacklist = new ArraySet<>();
         expectedBlacklist.add(mDummyNetwork.SSID);
@@ -323,7 +331,7 @@ public class OpenNetworkNotifierTest {
         mNotificationController.handleScanResults(mOpenNetworks);
 
         verify(mOpenNetworkRecommender).recommendNetwork(mOpenNetworks, mBlacklistedSsids);
-        verify(mNotificationBuilder).createConnectToNetworkNotification(1);
+        verify(mNotificationBuilder).createConnectToNetworkNotification(mDummyNetwork);
         verify(mNotificationManager).notify(anyInt(), any());
 
         mNotificationController.clearPendingNotification(false);
@@ -335,6 +343,7 @@ public class OpenNetworkNotifierTest {
 
         verify(mOpenNetworkRecommender, times(2)).recommendNetwork(
                 mOpenNetworks, mBlacklistedSsids);
+        verify(mNotificationBuilder, times(2)).createConnectToNetworkNotification(mDummyNetwork);
         verify(mNotificationManager, times(2)).notify(anyInt(), any());
     }
 
@@ -356,7 +365,7 @@ public class OpenNetworkNotifierTest {
         mNotificationController.handleScanResults(mOpenNetworks);
 
         verify(mOpenNetworkRecommender).recommendNetwork(mOpenNetworks, mBlacklistedSsids);
-        verify(mNotificationBuilder).createConnectToNetworkNotification(1);
+        verify(mNotificationBuilder).createConnectToNetworkNotification(mDummyNetwork);
         verify(mNotificationManager).notify(anyInt(), any());
 
         when(mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_WIFI, UserHandle.CURRENT))
@@ -389,7 +398,7 @@ public class OpenNetworkNotifierTest {
 
         verify(mOpenNetworkRecommender).recommendNetwork(mOpenNetworks, mBlacklistedSsids);
         // Initial Notification
-        verify(mNotificationBuilder).createConnectToNetworkNotification(1);
+        verify(mNotificationBuilder).createConnectToNetworkNotification(mDummyNetwork);
         verify(mNotificationManager).notify(anyInt(), any());
 
         mBroadcastReceiver.onReceive(mContext,
@@ -421,7 +430,7 @@ public class OpenNetworkNotifierTest {
 
         verify(mOpenNetworkRecommender).recommendNetwork(mOpenNetworks, mBlacklistedSsids);
         // Initial Notification
-        verify(mNotificationBuilder).createConnectToNetworkNotification(1);
+        verify(mNotificationBuilder).createConnectToNetworkNotification(mDummyNetwork);
         verify(mNotificationManager).notify(anyInt(), any());
 
         mNotificationController.handleWifiConnected();
@@ -439,7 +448,7 @@ public class OpenNetworkNotifierTest {
 
         verify(mOpenNetworkRecommender).recommendNetwork(mOpenNetworks, mBlacklistedSsids);
         // Initial Notification
-        verify(mNotificationBuilder).createConnectToNetworkNotification(1);
+        verify(mNotificationBuilder).createConnectToNetworkNotification(mDummyNetwork);
         verify(mNotificationManager).notify(anyInt(), any());
 
         mBroadcastReceiver.onReceive(mContext,
@@ -477,7 +486,7 @@ public class OpenNetworkNotifierTest {
 
         verify(mOpenNetworkRecommender).recommendNetwork(mOpenNetworks, mBlacklistedSsids);
         // Initial Notification
-        verify(mNotificationBuilder).createConnectToNetworkNotification(1);
+        verify(mNotificationBuilder).createConnectToNetworkNotification(mDummyNetwork);
         verify(mNotificationManager).notify(anyInt(), any());
 
         mBroadcastReceiver.onReceive(mContext,
@@ -505,7 +514,7 @@ public class OpenNetworkNotifierTest {
 
         verify(mOpenNetworkRecommender).recommendNetwork(mOpenNetworks, mBlacklistedSsids);
         // Initial Notification
-        verify(mNotificationBuilder).createConnectToNetworkNotification(1);
+        verify(mNotificationBuilder).createConnectToNetworkNotification(mDummyNetwork);
         verify(mNotificationManager).notify(anyInt(), any());
 
         mBroadcastReceiver.onReceive(mContext,
