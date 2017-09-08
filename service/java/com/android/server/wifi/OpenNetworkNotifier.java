@@ -16,7 +16,15 @@
 
 package com.android.server.wifi;
 
+import static com.android.server.wifi.ConnectToNetworkNotificationBuilder.ACTION_CONNECT_TO_NETWORK;
+import static com.android.server.wifi.ConnectToNetworkNotificationBuilder.ACTION_PICK_WIFI_NETWORK;
+import static com.android.server.wifi.ConnectToNetworkNotificationBuilder.ACTION_PICK_WIFI_NETWORK_AFTER_CONNECT_FAILURE;
+import static com.android.server.wifi.ConnectToNetworkNotificationBuilder.ACTION_USER_DISMISSED_NOTIFICATION;
+import static com.android.server.wifi.ConnectToNetworkNotificationBuilder.ACTION_USER_TAPPED_CONTENT;
+
+import android.annotation.IntDef;
 import android.annotation.NonNull;
+import android.app.Notification;
 import android.app.NotificationManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -42,6 +50,8 @@ import com.android.server.wifi.util.ScanResultUtil;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.util.List;
 import java.util.Set;
 
@@ -55,12 +65,39 @@ public class OpenNetworkNotifier {
 
     private static final String TAG = "OpenNetworkNotifier";
 
-    static final String ACTION_USER_DISMISSED_NOTIFICATION =
-            "com.android.server.wifi.OpenNetworkNotifier.USER_DISMISSED_NOTIFICATION";
-    static final String ACTION_USER_TAPPED_CONTENT =
-            "com.android.server.wifi.OpenNetworkNotifier.USER_TAPPED_CONTENT";
-    static final String ACTION_CONNECT_TO_NETWORK =
-            "com.android.server.wifi.OpenNetworkNotifier.CONNECT_TO_NETWORK";
+    /** Time in milliseconds to display the Connecting notification. */
+    private static final int TIME_TO_SHOW_CONNECTING_MILLIS = 10000;
+
+    /** Time in milliseconds to display the Connected notification. */
+    private static final int TIME_TO_SHOW_CONNECTED_MILLIS = 5000;
+
+    /** Time in milliseconds to display the Failed To Connect notification. */
+    private static final int TIME_TO_SHOW_FAILED_MILLIS = 5000;
+
+    /** The state of the notification */
+    @IntDef({
+            STATE_NO_NOTIFICATION,
+            STATE_SHOWING_RECOMMENDATION_NOTIFICATION,
+            STATE_CONNECTING_IN_NOTIFICATION,
+            STATE_CONNECTED_NOTIFICATION,
+            STATE_CONNECT_FAILED_NOTIFICATION
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    private @interface State {}
+
+    /** No recommendation is made and no notifications are shown. */
+    private static final int STATE_NO_NOTIFICATION = 0;
+    /** The initial notification recommending an open network to connect to is shown. */
+    private static final int STATE_SHOWING_RECOMMENDATION_NOTIFICATION = 1;
+    /** The notification of status of connecting to the recommended network is shown. */
+    private static final int STATE_CONNECTING_IN_NOTIFICATION = 2;
+    /** The notification that the connection to the recommended network was successful is shown. */
+    private static final int STATE_CONNECTED_NOTIFICATION = 3;
+    /** The notification to show that connection to the recommended network failed is shown. */
+    private static final int STATE_CONNECT_FAILED_NOTIFICATION = 4;
+
+    /** Current state of the notification. */
+    @State private int mState = STATE_NO_NOTIFICATION;
 
     /** Identifier of the {@link SsidSetStoreData}. */
     private static final String STORE_DATA_IDENTIFIER = "OpenNetworkNotifierBlacklist";
@@ -79,8 +116,6 @@ public class OpenNetworkNotifier {
 
     /** Whether the user has set the setting to show the 'available networks' notification. */
     private boolean mSettingEnabled;
-    /** Whether the notification is being shown. */
-    private boolean mNotificationShown;
     /** Whether the screen is on or not. */
     private boolean mScreenOn;
 
@@ -95,7 +130,7 @@ public class OpenNetworkNotifier {
     private final WifiStateMachine mWifiStateMachine;
     private final Messenger mSrcMessenger;
     private final OpenNetworkRecommender mOpenNetworkRecommender;
-    private final OpenNetworkNotificationBuilder mOpenNetworkNotificationBuilder;
+    private final ConnectToNetworkNotificationBuilder mNotificationBuilder;
 
     private ScanResult mRecommendedNetwork;
 
@@ -107,7 +142,8 @@ public class OpenNetworkNotifier {
             WifiConfigManager wifiConfigManager,
             WifiConfigStore wifiConfigStore,
             WifiStateMachine wifiStateMachine,
-            OpenNetworkRecommender openNetworkRecommender) {
+            OpenNetworkRecommender openNetworkRecommender,
+            ConnectToNetworkNotificationBuilder connectToNetworkNotificationBuilder) {
         mContext = context;
         mHandler = new Handler(looper);
         mFrameworkFacade = framework;
@@ -115,7 +151,7 @@ public class OpenNetworkNotifier {
         mConfigManager = wifiConfigManager;
         mWifiStateMachine = wifiStateMachine;
         mOpenNetworkRecommender = openNetworkRecommender;
-        mOpenNetworkNotificationBuilder = new OpenNetworkNotificationBuilder(context, framework);
+        mNotificationBuilder = connectToNetworkNotificationBuilder;
         mScreenOn = false;
         mSrcMessenger = new Messenger(new Handler(looper, mConnectionStateCallback));
 
@@ -135,6 +171,8 @@ public class OpenNetworkNotifier {
         filter.addAction(ACTION_USER_DISMISSED_NOTIFICATION);
         filter.addAction(ACTION_USER_TAPPED_CONTENT);
         filter.addAction(ACTION_CONNECT_TO_NETWORK);
+        filter.addAction(ACTION_PICK_WIFI_NETWORK);
+        filter.addAction(ACTION_PICK_WIFI_NETWORK_AFTER_CONNECT_FAILURE);
         mContext.registerReceiver(
                 mBroadcastReceiver, filter, null /* broadcastPermission */, mHandler);
     }
@@ -152,6 +190,12 @@ public class OpenNetworkNotifier {
                             break;
                         case ACTION_CONNECT_TO_NETWORK:
                             handleConnectToNetworkAction();
+                            break;
+                        case ACTION_PICK_WIFI_NETWORK:
+                            handleSeeAllNetworksAction();
+                            break;
+                        case ACTION_PICK_WIFI_NETWORK_AFTER_CONNECT_FAILURE:
+                            handlePickWifiNetworkAfterConnectFailure();
                             break;
                         default:
                             Log.e(TAG, "Unknown action " + intent.getAction());
@@ -178,17 +222,17 @@ public class OpenNetworkNotifier {
     /**
      * Clears the pending notification. This is called by {@link WifiConnectivityManager} on stop.
      *
-     * @param resetRepeatDelay resets the time delay for repeated notification if true.
+     * @param resetRepeatTime resets the time delay for repeated notification if true.
      */
-    public void clearPendingNotification(boolean resetRepeatDelay) {
-        if (resetRepeatDelay) {
+    public void clearPendingNotification(boolean resetRepeatTime) {
+        if (resetRepeatTime) {
             mNotificationRepeatTime = 0;
         }
 
-        if (mNotificationShown) {
+        if (mState != STATE_NO_NOTIFICATION) {
             getNotificationManager().cancel(SystemMessage.NOTE_NETWORK_AVAILABLE);
+            mState = STATE_NO_NOTIFICATION;
             mRecommendedNetwork = null;
-            mNotificationShown = false;
         }
     }
 
@@ -205,11 +249,11 @@ public class OpenNetworkNotifier {
      */
     public void handleScanResults(@NonNull List<ScanDetail> availableNetworks) {
         if (!isControllerEnabled()) {
-            clearPendingNotification(true /* resetRepeatDelay */);
+            clearPendingNotification(true /* resetRepeatTime */);
             return;
         }
         if (availableNetworks.isEmpty()) {
-            clearPendingNotification(false /* resetRepeatDelay */);
+            clearPendingNotification(false /* resetRepeatTime */);
             return;
         }
 
@@ -217,14 +261,14 @@ public class OpenNetworkNotifier {
         // could occur between a user picking a network in settings and a network candidate picked
         // through network selection, which will happen because screen on triggers a new
         // connectivity scan.
-        if (mNotificationShown || !mScreenOn) {
+        if (mState !=  STATE_NO_NOTIFICATION || !mScreenOn) {
             return;
         }
 
         mRecommendedNetwork = mOpenNetworkRecommender.recommendNetwork(
                 availableNetworks, new ArraySet<>(mBlacklistedSsids));
 
-        postNotification(availableNetworks.size());
+        postInitialNotification(availableNetworks.size());
     }
 
     /** Handles screen state changes. */
@@ -232,28 +276,78 @@ public class OpenNetworkNotifier {
         mScreenOn = screenOn;
     }
 
+    /**
+     * Called by {@link WifiConnectivityManager} when Wi-Fi is connected. If the notification
+     * was in the connecting state, update the notification to show that it has connected to the
+     * recommended network.
+     */
+    public void handleWifiConnected() {
+        if (mState != STATE_CONNECTING_IN_NOTIFICATION) {
+            clearPendingNotification(true /* resetRepeatTime */);
+            return;
+        }
+
+        postNotification(mNotificationBuilder.createNetworkConnectedNotification(
+                mRecommendedNetwork));
+        mState = STATE_CONNECTED_NOTIFICATION;
+        mHandler.postDelayed(
+                () -> {
+                    if (mState == STATE_CONNECTED_NOTIFICATION) {
+                        clearPendingNotification(true /* resetRepeatTime */);
+                    }
+                },
+                TIME_TO_SHOW_CONNECTED_MILLIS);
+    }
+
+    /**
+     * Handles when a Wi-Fi connection attempt failed.
+     */
+    public void handleConnectionFailure() {
+        if (mState != STATE_CONNECTING_IN_NOTIFICATION) {
+            return;
+        }
+        postNotification(mNotificationBuilder.createNetworkFailedNotification());
+        mState = STATE_CONNECT_FAILED_NOTIFICATION;
+        mHandler.postDelayed(
+                () -> {
+                    if (mState == STATE_CONNECT_FAILED_NOTIFICATION) {
+                        clearPendingNotification(false /* resetRepeatTime */);
+                    }
+                },
+                TIME_TO_SHOW_FAILED_MILLIS);
+    }
+
     private NotificationManager getNotificationManager() {
         return (NotificationManager) mContext.getSystemService(Context.NOTIFICATION_SERVICE);
     }
 
-    private void postNotification(int numNetworks) {
+    private void postInitialNotification(int numNetworks) {
+        if (mState != STATE_NO_NOTIFICATION
+                && mState != STATE_SHOWING_RECOMMENDATION_NOTIFICATION) {
+            return;
+        }
         // Not enough time has passed to show the notification again
         if (mClock.getWallClockMillis() < mNotificationRepeatTime) {
             return;
         }
 
-        getNotificationManager().notify(
-                SystemMessage.NOTE_NETWORK_AVAILABLE,
-                mOpenNetworkNotificationBuilder.createOpenNetworkAvailableNotification(
-                        numNetworks));
-        mNotificationShown = true;
+        postNotification(mNotificationBuilder.createConnectToNetworkNotification(
+                numNetworks));
+        mState = STATE_SHOWING_RECOMMENDATION_NOTIFICATION;
         mNotificationRepeatTime = mClock.getWallClockMillis() + mNotificationRepeatDelay;
     }
 
+    private void postNotification(Notification notification) {
+        getNotificationManager().notify(SystemMessage.NOTE_NETWORK_AVAILABLE, notification);
+    }
+
     private void handleConnectToNetworkAction() {
-        if (mRecommendedNetwork == null) {
+        if (mState != STATE_SHOWING_RECOMMENDATION_NOTIFICATION) {
             return;
         }
+        postNotification(mNotificationBuilder.createNetworkConnectingNotification(
+                mRecommendedNetwork));
+
         Log.d(TAG, "User initiated connection to recommended network: " + mRecommendedNetwork.SSID);
         WifiConfiguration network = ScanResultUtil.createNetworkFromScanResult(mRecommendedNetwork);
         Message msg = Message.obtain();
@@ -262,32 +356,52 @@ public class OpenNetworkNotifier {
         msg.obj = network;
         msg.replyTo = mSrcMessenger;
         mWifiStateMachine.sendMessage(msg);
+
+        mState = STATE_CONNECTING_IN_NOTIFICATION;
+        mHandler.postDelayed(
+                () -> {
+                    if (mState == STATE_CONNECTING_IN_NOTIFICATION) {
+                        handleConnectionFailure();
+                    }
+                },
+                TIME_TO_SHOW_CONNECTING_MILLIS);
     }
 
-    /**
-     * Handles when a Wi-Fi connection attempt failed.
-     */
-    public void handleConnectionFailure() {
-        // Stub. Should post connection failure notification once implemented.
+    private void handleSeeAllNetworksAction() {
+        startWifiSettings();
     }
 
-    /** Opens Wi-Fi picker. */
-    private void handleUserClickedContentAction() {
-        mNotificationShown = false;
+    private void startWifiSettings() {
         mContext.startActivity(
                 new Intent(Settings.ACTION_WIFI_SETTINGS)
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        clearPendingNotification(false /* resetRepeatTime */);
+    }
+
+    private void handlePickWifiNetworkAfterConnectFailure() {
+        startWifiSettings();
+    }
+
+    private void handleUserClickedContentAction() {
+        startWifiSettings();
+        resetStateAndDelayNotification();
     }
 
     private void handleUserDismissedAction() {
-        if (mRecommendedNetwork != null) {
+        if (mState == STATE_SHOWING_RECOMMENDATION_NOTIFICATION) {
             // blacklist dismissed network
             mBlacklistedSsids.add(mRecommendedNetwork.SSID);
             mConfigManager.saveToStore(false /* forceWrite */);
             Log.d(TAG, "Network is added to the open network notification blacklist: "
                     + mRecommendedNetwork.SSID);
         }
-        mNotificationShown = false;
+        resetStateAndDelayNotification();
+    }
+
+    private void resetStateAndDelayNotification() {
+        mState = STATE_NO_NOTIFICATION;
+        mNotificationRepeatTime = System.currentTimeMillis() + mNotificationRepeatDelay;
+        mRecommendedNetwork = null;
     }
 
     /** Dump ONA controller state. */
@@ -296,7 +410,7 @@ public class OpenNetworkNotifier {
         pw.println("mSettingEnabled " + mSettingEnabled);
         pw.println("currentTime: " + mClock.getWallClockMillis());
         pw.println("mNotificationRepeatTime: " + mNotificationRepeatTime);
-        pw.println("mNotificationShown: " + mNotificationShown);
+        pw.println("mState: " + mState);
         pw.println("mBlacklistedSsids: " + mBlacklistedSsids.toString());
     }
 
@@ -327,7 +441,7 @@ public class OpenNetworkNotifier {
         public void onChange(boolean selfChange) {
             super.onChange(selfChange);
             mSettingEnabled = getValue();
-            clearPendingNotification(true /* resetRepeatDelay */);
+            clearPendingNotification(true /* resetRepeatTime */);
         }
 
         private boolean getValue() {
