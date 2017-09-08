@@ -20,7 +20,6 @@ import static com.android.server.wifi.ConnectToNetworkNotificationBuilder.ACTION
 import static com.android.server.wifi.ConnectToNetworkNotificationBuilder.ACTION_PICK_WIFI_NETWORK;
 import static com.android.server.wifi.ConnectToNetworkNotificationBuilder.ACTION_PICK_WIFI_NETWORK_AFTER_CONNECT_FAILURE;
 import static com.android.server.wifi.ConnectToNetworkNotificationBuilder.ACTION_USER_DISMISSED_NOTIFICATION;
-import static com.android.server.wifi.ConnectToNetworkNotificationBuilder.ACTION_USER_TAPPED_CONTENT;
 
 import android.annotation.IntDef;
 import android.annotation.NonNull;
@@ -169,7 +168,6 @@ public class OpenNetworkNotifier {
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(ACTION_USER_DISMISSED_NOTIFICATION);
-        filter.addAction(ACTION_USER_TAPPED_CONTENT);
         filter.addAction(ACTION_CONNECT_TO_NETWORK);
         filter.addAction(ACTION_PICK_WIFI_NETWORK);
         filter.addAction(ACTION_PICK_WIFI_NETWORK_AFTER_CONNECT_FAILURE);
@@ -182,9 +180,6 @@ public class OpenNetworkNotifier {
                 @Override
                 public void onReceive(Context context, Intent intent) {
                     switch (intent.getAction()) {
-                        case ACTION_USER_TAPPED_CONTENT:
-                            handleUserClickedContentAction();
-                            break;
                         case ACTION_USER_DISMISSED_NOTIFICATION:
                             handleUserDismissedAction();
                             break;
@@ -257,18 +252,29 @@ public class OpenNetworkNotifier {
             return;
         }
 
-        // Do not show or update the notification if screen is off. We want to avoid a race that
-        // could occur between a user picking a network in settings and a network candidate picked
-        // through network selection, which will happen because screen on triggers a new
-        // connectivity scan.
-        if (mState !=  STATE_NO_NOTIFICATION || !mScreenOn) {
+        // Not enough time has passed to show a recommendation notification again
+        if (mState == STATE_NO_NOTIFICATION
+                && mClock.getWallClockMillis() < mNotificationRepeatTime) {
             return;
         }
 
-        mRecommendedNetwork = mOpenNetworkRecommender.recommendNetwork(
-                availableNetworks, new ArraySet<>(mBlacklistedSsids));
+        // Do nothing when the screen is off and no notification is showing.
+        if (mState == STATE_NO_NOTIFICATION && !mScreenOn) {
+            return;
+        }
 
-        postInitialNotification(availableNetworks.size());
+        // Only show a new or update an existing recommendation notification.
+        if (mState == STATE_NO_NOTIFICATION
+                || mState == STATE_SHOWING_RECOMMENDATION_NOTIFICATION) {
+            ScanResult recommendation = mOpenNetworkRecommender.recommendNetwork(
+                    availableNetworks, new ArraySet<>(mBlacklistedSsids));
+
+            if (recommendation != null) {
+                postInitialNotification(recommendation);
+            } else {
+                clearPendingNotification(false /* resetRepeatTime */);
+            }
+        }
     }
 
     /** Handles screen state changes. */
@@ -321,19 +327,11 @@ public class OpenNetworkNotifier {
         return (NotificationManager) mContext.getSystemService(Context.NOTIFICATION_SERVICE);
     }
 
-    private void postInitialNotification(int numNetworks) {
-        if (mState != STATE_NO_NOTIFICATION
-                && mState != STATE_SHOWING_RECOMMENDATION_NOTIFICATION) {
-            return;
-        }
-        // Not enough time has passed to show the notification again
-        if (mClock.getWallClockMillis() < mNotificationRepeatTime) {
-            return;
-        }
-
+    private void postInitialNotification(ScanResult recommendedNetwork) {
         postNotification(mNotificationBuilder.createConnectToNetworkNotification(
-                numNetworks));
+                recommendedNetwork));
         mState = STATE_SHOWING_RECOMMENDATION_NOTIFICATION;
+        mRecommendedNetwork = recommendedNetwork;
         mNotificationRepeatTime = mClock.getWallClockMillis() + mNotificationRepeatDelay;
     }
 
@@ -372,6 +370,8 @@ public class OpenNetworkNotifier {
     }
 
     private void startWifiSettings() {
+        // Close notification drawer before opening the picker.
+        mContext.sendBroadcast(new Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS));
         mContext.startActivity(
                 new Intent(Settings.ACTION_WIFI_SETTINGS)
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
@@ -380,11 +380,6 @@ public class OpenNetworkNotifier {
 
     private void handlePickWifiNetworkAfterConnectFailure() {
         startWifiSettings();
-    }
-
-    private void handleUserClickedContentAction() {
-        startWifiSettings();
-        resetStateAndDelayNotification();
     }
 
     private void handleUserDismissedAction() {

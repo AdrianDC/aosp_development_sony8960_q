@@ -35,10 +35,6 @@ public class ConnectToNetworkNotificationBuilder {
     public static final String ACTION_USER_DISMISSED_NOTIFICATION =
             "com.android.server.wifi.ConnectToNetworkNotification.USER_DISMISSED_NOTIFICATION";
 
-    /** Intent when user tapped the "Connect to Network" notification. */
-    public static final String ACTION_USER_TAPPED_CONTENT =
-            "com.android.server.wifi.ConnectToNetworkNotification.USER_TAPPED_CONTENT";
-
     /** Intent when user tapped action button to connect to recommended network. */
     public static final String ACTION_CONNECT_TO_NETWORK =
             "com.android.server.wifi.ConnectToNetworkNotification.CONNECT_TO_NETWORK";
@@ -67,17 +63,24 @@ public class ConnectToNetworkNotificationBuilder {
      * Creates the connect to network notification that alerts users of a recommended connectable
      * network.
      *
-     * @param numNetworks Number of available open networks nearby
+     * There are two actions - "Options" link to the Wi-Fi picker activity, and "Connect" prompts
+     * the connection to the recommended network.
+     *
+     * @param network The network to be recommended
      */
-    public Notification createConnectToNetworkNotification(int numNetworks) {
-
-        CharSequence title = mResources.getQuantityText(
-                com.android.internal.R.plurals.wifi_available, numNetworks);
-        CharSequence content = mResources.getQuantityText(
-                com.android.internal.R.plurals.wifi_available_detailed, numNetworks);
-
-        return createNotificationBuilder(title, content)
-                .setContentIntent(getPrivateBroadcast(ACTION_USER_TAPPED_CONTENT))
+    public Notification createConnectToNetworkNotification(ScanResult network) {
+        Notification.Action connectAction = new Notification.Action.Builder(
+                null /* icon */,
+                mResources.getText(R.string.wifi_available_action_connect),
+                getPrivateBroadcast(ACTION_CONNECT_TO_NETWORK)).build();
+        Notification.Action allNetworksAction = new Notification.Action.Builder(
+                null /* icon */,
+                mResources.getText(R.string.wifi_available_action_all_networks),
+                getPrivateBroadcast(ACTION_PICK_WIFI_NETWORK)).build();
+        return createNotificationBuilder(
+                mContext.getText(R.string.wifi_available_title), network.SSID)
+                .addAction(connectAction)
+                .addAction(allNetworksAction)
                 .build();
     }
 
@@ -116,6 +119,7 @@ public class ConnectToNetworkNotificationBuilder {
                 mContext.getText(R.string.wifi_available_content_failed_to_connect))
                 .setContentIntent(
                         getPrivateBroadcast(ACTION_PICK_WIFI_NETWORK_AFTER_CONNECT_FAILURE))
+                .setAutoCancel(true)
                 .build();
     }
 
@@ -124,7 +128,6 @@ public class ConnectToNetworkNotificationBuilder {
         return mFrameworkFacade.makeNotificationBuilder(mContext,
                 SystemNotificationChannels.NETWORK_AVAILABLE)
                 .setSmallIcon(R.drawable.stat_notify_wifi_in_range)
-                .setAutoCancel(true)
                 .setTicker(title)
                 .setContentTitle(title)
                 .setContentText(content)
