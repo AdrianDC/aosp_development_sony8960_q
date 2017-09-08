@@ -1571,6 +1571,67 @@ public class WifiStateMachineTest {
     }
 
     /**
+     *  Test that we disconnect from a network if it was removed while we are in the
+     *  ObtainingIpState.
+     */
+    @Test
+    public void disconnectFromNetworkWhenRemovedWhileObtainingIpAddr() throws Exception {
+        initializeAndAddNetworkAndVerifySuccess();
+
+        when(mWifiConfigManager.enableNetwork(eq(0), eq(true), anyInt())).thenReturn(true);
+        when(mWifiConfigManager.checkAndUpdateLastConnectUid(eq(0), anyInt())).thenReturn(true);
+
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        mLooper.dispatchAll();
+        verify(mWifiNative).removeAllNetworks();
+
+        mLooper.startAutoDispatch();
+        assertTrue(mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true));
+        mLooper.stopAutoDispatch();
+
+        verify(mWifiConfigManager).enableNetwork(eq(0), eq(true), anyInt());
+        verify(mWifiConnectivityManager).setUserConnectChoice(eq(0));
+        when(mWifiConfigManager.getScanDetailCacheForNetwork(FRAMEWORK_NETWORK_ID))
+                .thenReturn(mScanDetailCache);
+
+        when(mScanDetailCache.getScanDetail(sBSSID)).thenReturn(
+                getGoogleGuestScanDetail(TEST_RSSI, sBSSID, sFreq));
+        when(mScanDetailCache.getScanResult(sBSSID)).thenReturn(
+                getGoogleGuestScanDetail(TEST_RSSI, sBSSID, sFreq).getScanResult());
+
+        mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, sBSSID);
+        mLooper.dispatchAll();
+
+        mWsm.sendMessage(WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0, 0,
+                new StateChangeResult(0, sWifiSsid, sBSSID, SupplicantState.COMPLETED));
+        mLooper.dispatchAll();
+
+        assertEquals("ObtainingIpState", getCurrentState().getName());
+
+        // now remove the config
+        when(mWifiConfigManager.removeNetwork(eq(FRAMEWORK_NETWORK_ID), anyInt()))
+                .thenReturn(true);
+        mWsm.sendMessage(WifiManager.FORGET_NETWORK, FRAMEWORK_NETWORK_ID, MANAGED_PROFILE_UID);
+        mLooper.dispatchAll();
+        verify(mWifiConfigManager).removeNetwork(eq(FRAMEWORK_NETWORK_ID), anyInt());
+
+        reset(mWifiConfigManager);
+
+        when(mWifiConfigManager.getConfiguredNetwork(FRAMEWORK_NETWORK_ID)).thenReturn(null);
+
+        DhcpResults dhcpResults = new DhcpResults();
+        dhcpResults.setGateway("1.2.3.4");
+        dhcpResults.setIpAddress("192.168.1.100", 0);
+        dhcpResults.addDns("8.8.8.8");
+        dhcpResults.setLeaseDuration(3600);
+
+        injectDhcpSuccess(dhcpResults);
+        mLooper.dispatchAll();
+
+        assertEquals("DisconnectingState", getCurrentState().getName());
+    }
+
+    /**
      * Sunny-day scenario for WPS connections. Verifies that after a START_WPS and
      * NETWORK_CONNECTION_EVENT command, WifiStateMachine will have transitioned to ObtainingIpState
      */
