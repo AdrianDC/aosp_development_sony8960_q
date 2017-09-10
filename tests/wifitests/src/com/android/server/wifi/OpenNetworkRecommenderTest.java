@@ -17,14 +17,18 @@
 package com.android.server.wifi;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 import android.net.wifi.ScanResult;
+import android.util.ArraySet;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.MockitoAnnotations;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Tests for {@link OpenNetworkRecommender}.
@@ -36,10 +40,13 @@ public class OpenNetworkRecommenderTest {
     private static final int MIN_RSSI_LEVEL = -127;
 
     private OpenNetworkRecommender mOpenNetworkRecommender;
+    private Set<String> mBlacklistedSsids;
 
     @Before
     public void setUp() throws Exception {
+        MockitoAnnotations.initMocks(this);
         mOpenNetworkRecommender = new OpenNetworkRecommender();
+        mBlacklistedSsids = new ArraySet<>();
     }
 
     private List<ScanDetail> createOpenScanResults(String... ssids) {
@@ -59,7 +66,8 @@ public class OpenNetworkRecommenderTest {
         List<ScanDetail> scanResults = createOpenScanResults(TEST_SSID_1);
         scanResults.get(0).getScanResult().level = MIN_RSSI_LEVEL;
 
-        ScanResult actual = mOpenNetworkRecommender.recommendNetwork(scanResults, null);
+        ScanResult actual = mOpenNetworkRecommender.recommendNetwork(
+                scanResults, mBlacklistedSsids);
         ScanResult expected = scanResults.get(0).getScanResult();
         assertEquals(expected, actual);
     }
@@ -71,28 +79,24 @@ public class OpenNetworkRecommenderTest {
         scanResults.get(0).getScanResult().level = MIN_RSSI_LEVEL;
         scanResults.get(1).getScanResult().level = MIN_RSSI_LEVEL + 1;
 
-        ScanResult actual = mOpenNetworkRecommender.recommendNetwork(scanResults, null);
+        ScanResult actual = mOpenNetworkRecommender.recommendNetwork(
+                scanResults, mBlacklistedSsids);
         ScanResult expected = scanResults.get(1).getScanResult();
         assertEquals(expected, actual);
     }
 
     /**
-     * If the current recommended network is present in the list for the next recommendation and has
-     * an equal RSSI, the recommendation should not change.
+     * If the best available open network is blacklisted, no networks should be recommended.
      */
     @Test
-    public void currentRecommendationHasEquallyHighRssi_shouldNotChangeRecommendation() {
+    public void blacklistBestNetworkSsid_shouldNeverRecommendNetwork() {
         List<ScanDetail> scanResults = createOpenScanResults(TEST_SSID_1, TEST_SSID_2);
         scanResults.get(0).getScanResult().level = MIN_RSSI_LEVEL + 1;
-        scanResults.get(1).getScanResult().level = MIN_RSSI_LEVEL + 1;
+        scanResults.get(1).getScanResult().level = MIN_RSSI_LEVEL;
+        mBlacklistedSsids.add(TEST_SSID_1);
 
-        ScanResult currentRecommendation = new ScanResult(scanResults.get(1).getScanResult());
-        // next recommendation does not depend on the rssi of the input recommendation.
-        currentRecommendation.level = MIN_RSSI_LEVEL;
-
-        ScanResult expected = scanResults.get(1).getScanResult();
         ScanResult actual = mOpenNetworkRecommender.recommendNetwork(
-                scanResults, currentRecommendation);
-        assertEquals(expected, actual);
+                scanResults, mBlacklistedSsids);
+        assertNull(actual);
     }
 }

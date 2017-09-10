@@ -614,7 +614,7 @@ public class WifiConnectivityManagerTest {
      * Expected behavior: ONA handles scan results
      */
     @Test
-    public void wifiDisconnected_noConnectionCandidate_openNetworkNotificationScanResultsHandled() {
+    public void wifiDisconnected_noConnectionCandidate_openNetworkNotifierScanResultsHandled() {
         // no connection candidate selected
         when(mWifiNS.selectNetwork(anyObject(), anyObject(), anyObject(), anyBoolean(),
                 anyBoolean(), anyBoolean())).thenReturn(null);
@@ -637,18 +637,17 @@ public class WifiConnectivityManagerTest {
     }
 
     /**
-     * When wifi is connected, {@link OpenNetworkNotifier} tries to clear the pending
-     * notification and does not reset notification repeat delay.
+     * When wifi is connected, {@link OpenNetworkNotifier} handles the Wi-Fi connected behavior.
      *
-     * Expected behavior: ONA clears pending notification and does not reset repeat delay.
+     * Expected behavior: ONA handles connected behavior
      */
     @Test
-    public void wifiConnected_openNetworkNotificationClearsPendingNotification() {
+    public void wifiConnected_openNetworkNotifierHandlesConnection() {
         // Set WiFi to connected state
         mWifiConnectivityManager.handleConnectionStateChanged(
                 WifiConnectivityManager.WIFI_STATE_CONNECTED);
 
-        verify(mOpenNetworkNotifier).clearPendingNotification(false /* isRepeatDelayReset*/);
+        verify(mOpenNetworkNotifier).handleWifiConnected();
     }
 
     /**
@@ -658,7 +657,7 @@ public class WifiConnectivityManagerTest {
      * Expected behavior: ONA does not clear pending notification.
      */
     @Test
-    public void wifiDisconnected_openNetworkNotificationDoesNotClearPendingNotification() {
+    public void wifiDisconnected_openNetworkNotifierDoesNotClearPendingNotification() {
         // Set WiFi to disconnected state
         mWifiConnectivityManager.handleConnectionStateChanged(
                 WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
@@ -667,22 +666,52 @@ public class WifiConnectivityManagerTest {
     }
 
     /**
+     * When a Wi-Fi connection attempt ends, {@link OpenNetworkNotifier} handles the connection
+     * failure. A failure code that is not {@link WifiMetrics.ConnectionEvent#FAILURE_NONE}
+     * represents a connection failure.
+     *
+     * Expected behavior: ONA handles connection failure.
+     */
+    @Test
+    public void wifiConnectionEndsWithFailure_openNetworkNotifierHandlesConnectionFailure() {
+        mWifiConnectivityManager.handleConnectionAttemptEnded(
+                WifiMetrics.ConnectionEvent.FAILURE_CONNECT_NETWORK_FAILED);
+
+        verify(mOpenNetworkNotifier).handleConnectionFailure();
+    }
+
+    /**
+     * When a Wi-Fi connection attempt ends, {@link OpenNetworkNotifier} does not handle connection
+     * failure after a successful connection. {@link WifiMetrics.ConnectionEvent#FAILURE_NONE}
+     * represents a successful connection.
+     *
+     * Expected behavior: ONA does nothing.
+     */
+    @Test
+    public void wifiConnectionEndsWithSuccess_openNetworkNotifierDoesNotHandleConnectionFailure() {
+        mWifiConnectivityManager.handleConnectionAttemptEnded(
+                WifiMetrics.ConnectionEvent.FAILURE_NONE);
+
+        verify(mOpenNetworkNotifier, never()).handleConnectionFailure();
+    }
+
+    /**
      * When Wi-Fi is disabled, clear the pending notification and reset notification repeat delay.
      *
      * Expected behavior: clear pending notification and reset notification repeat delay
      * */
     @Test
-    public void openNetworkNotificationControllerToggledOnWifiStateChanges() {
+    public void openNetworkNotifierClearsPendingNotificationOnWifiDisabled() {
         mWifiConnectivityManager.setWifiEnabled(false);
 
-        verify(mOpenNetworkNotifier).clearPendingNotification(true /* isRepeatDelayReset */);
+        verify(mOpenNetworkNotifier).clearPendingNotification(true /* resetRepeatDelay */);
     }
 
     /**
      * Verify that the ONA controller tracks screen state changes.
      */
     @Test
-    public void openNetworkNotificationControllerTracksScreenStateChanges() {
+    public void openNetworkNotifierTracksScreenStateChanges() {
         mWifiConnectivityManager.handleScreenStateChanged(false);
 
         verify(mOpenNetworkNotifier).handleScreenStateChanged(false);

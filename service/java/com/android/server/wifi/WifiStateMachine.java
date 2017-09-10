@@ -3429,11 +3429,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     /**
-     * Inform other components (WifiMetrics, WifiDiagnostics, etc.) that the current connection attempt
-     * has concluded.
+     * Inform other components (WifiMetrics, WifiDiagnostics, WifiConnectivityManager, etc.) that
+     * the current connection attempt has concluded.
      */
     private void reportConnectionAttemptEnd(int level2FailureCode, int connectivityFailureCode) {
         mWifiMetrics.endConnectionEvent(level2FailureCode, connectivityFailureCode);
+        mWifiConnectivityManager.handleConnectionAttemptEnded(level2FailureCode);
         switch (level2FailureCode) {
             case WifiMetrics.ConnectionEvent.FAILURE_NONE:
                 // Ideally, we'd wait until IP reachability has been confirmed. this code falls
@@ -4274,10 +4275,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mLastSignalLevel = -1;
 
                     mWifiInfo.setMacAddress(mWifiNative.getMacAddress());
-                    // Attempt to migrate data out of legacy store.
-                    if (!mWifiConfigManager.migrateFromLegacyStore()) {
-                        Log.e(TAG, "Failed to migrate from legacy config store");
-                    }
                     initializeWpsDetails();
                     sendSupplicantConnectionChangedBroadcast(true);
                     transitionTo(mSupplicantStartedState);

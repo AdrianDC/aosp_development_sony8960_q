@@ -1073,7 +1073,7 @@ public class WifiConnectivityManager {
         mWifiState = state;
 
         if (mWifiState == WIFI_STATE_CONNECTED) {
-            mOpenNetworkNotifier.clearPendingNotification(false /* resetRepeatDelay */);
+            mOpenNetworkNotifier.handleWifiConnected();
         }
 
         // Reset BSSID of last connection attempt and kick off
@@ -1084,6 +1084,17 @@ public class WifiConnectivityManager {
             startConnectivityScan(SCAN_IMMEDIATELY);
         } else {
             startConnectivityScan(SCAN_ON_SCHEDULE);
+        }
+    }
+
+    /**
+     * Handler when a WiFi connection attempt ended.
+     *
+     * @param failureCode {@link WifiMetrics.ConnectionEvent} failure code.
+     */
+    public void handleConnectionAttemptEnded(int failureCode) {
+        if (failureCode != WifiMetrics.ConnectionEvent.FAILURE_NONE) {
+            mOpenNetworkNotifier.handleConnectionFailure();
         }
     }
 
