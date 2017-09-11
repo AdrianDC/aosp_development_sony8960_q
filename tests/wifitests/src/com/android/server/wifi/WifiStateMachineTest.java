@@ -359,6 +359,7 @@ public class WifiStateMachineTest {
     @Mock WrongPasswordNotifier mWrongPasswordNotifier;
     @Mock Clock mClock;
     @Mock ScanDetailCache mScanDetailCache;
+    @Mock WifiDiagnostics mWifiDiagnostics;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -383,8 +384,7 @@ public class WifiStateMachineTest {
         when(mWifiInjector.getBuildProperties()).thenReturn(mBuildProperties);
         when(mWifiInjector.getKeyStore()).thenReturn(mock(KeyStore.class));
         when(mWifiInjector.getWifiBackupRestore()).thenReturn(mock(WifiBackupRestore.class));
-        when(mWifiInjector.makeWifiDiagnostics(anyObject())).thenReturn(
-                mock(BaseWifiDiagnostics.class));
+        when(mWifiInjector.makeWifiDiagnostics(anyObject())).thenReturn(mWifiDiagnostics);
         when(mWifiInjector.makeWificond()).thenReturn(mWificond);
         when(mWifiInjector.getWifiConfigManager()).thenReturn(mWifiConfigManager);
         when(mWifiInjector.getWifiScanner()).thenReturn(mWifiScanner);
@@ -1753,6 +1753,7 @@ public class WifiStateMachineTest {
 
         verify(mWifiMetrics).incrementNumHalCrashes();
         verify(mSelfRecovery).trigger(eq(SelfRecovery.REASON_HAL_CRASH));
+        verify(mWifiDiagnostics).captureBugReportData(WifiDiagnostics.REPORT_REASON_HAL_CRASH);
     }
 
     @Test
@@ -1775,6 +1776,7 @@ public class WifiStateMachineTest {
 
         verify(mWifiMetrics).incrementNumWificondCrashes();
         verify(mSelfRecovery).trigger(eq(SelfRecovery.REASON_WIFICOND_CRASH));
+        verify(mWifiDiagnostics).captureBugReportData(WifiDiagnostics.REPORT_REASON_WIFICOND_CRASH);
     }
 
     private void setupMocksForWpsNetworkMigration() {
