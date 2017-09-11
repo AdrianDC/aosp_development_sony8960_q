@@ -55,6 +55,7 @@ public class WifiAwareShellCommand extends ShellCommand {
                 for (DelegatedShellCommand dsc: mDelegatedCommands.values()) {
                     dsc.onReset();
                 }
+                return 0;
             } else {
                 DelegatedShellCommand delegatedCmd = null;
                 if (!TextUtils.isEmpty(cmd)) {
