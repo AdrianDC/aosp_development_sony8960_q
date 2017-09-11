@@ -60,10 +60,11 @@ import java.net.SocketException;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * Manages Aware data-path lifetime: interface creation/deletion, data-path setup and tear-down.
@@ -323,6 +324,8 @@ public class WifiAwareDataPathStateManager {
              * - The discovery session (pub/sub ID) must match.
              * - The peer MAC address (if specified - i.e. non-null) must match. A null peer MAC ==
              *   accept (otherwise matching) requests from any peer MAC.
+             * - The request must be pending (i.e. we could have completed requests for the same
+             *   parameters)
              */
             if (entry.getValue().pubSubId != 0 && entry.getValue().pubSubId != pubSubId) {
                 continue;
@@ -330,6 +333,11 @@ public class WifiAwareDataPathStateManager {
 
             if (entry.getValue().peerDiscoveryMac != null && !Arrays.equals(
                     entry.getValue().peerDiscoveryMac, mac)) {
+                continue;
+            }
+
+            if (entry.getValue().state
+                    != AwareNetworkRequestInformation.STATE_RESPONDER_WAIT_FOR_REQUEST) {
                 continue;
             }
 
@@ -884,18 +892,43 @@ public class WifiAwareDataPathStateManager {
     }
 
     /**
-     * Select one of the existing interfaces for the new network request.
+     * Select one of the existing interfaces for the new network request. A request is canonical
+     * (otherwise it wouldn't be executed).
      *
-     * TODO: for now there is only a single interface - simply pick it.
+     * Construct a list of all interfaces currently used to communicate to the peer. The remaining
+     * interfaces are available for use for this request - if none are left then the request should
+     * fail (signaled to the caller by returning a null).
      */
     private String selectInterfaceForRequest(AwareNetworkRequestInformation req) {
-        Iterator<String> it = mInterfaces.iterator();
-        if (it.hasNext()) {
-            return it.next();
+        SortedSet<String> potential = new TreeSet<>(mInterfaces);
+        Set<String> used = new HashSet<>();
+
+        if (VDBG) {
+            Log.v(TAG, "selectInterfaceForRequest: req=" + req + ", mNetworkRequestsCache="
+                    + mNetworkRequestsCache);
         }
 
-        Log.e(TAG, "selectInterfaceForRequest: req=" + req + " - but no interfaces available!");
+        for (AwareNetworkRequestInformation nnri : mNetworkRequestsCache.values()) {
+            if (nnri == req) {
+                continue;
+            }
 
+            if (Arrays.equals(req.peerDiscoveryMac, nnri.peerDiscoveryMac)) {
+                used.add(nnri.interfaceName);
+            }
+        }
+
+        if (VDBG) {
+            Log.v(TAG, "selectInterfaceForRequest: potential=" + potential + ", used=" + used);
+        }
+
+        for (String ifName: potential) {
+            if (!used.contains(ifName)) {
+                return ifName;
+            }
+        }
+
+        Log.e(TAG, "selectInterfaceForRequest: req=" + req + " - no interfaces available!");
         return null;
     }
 

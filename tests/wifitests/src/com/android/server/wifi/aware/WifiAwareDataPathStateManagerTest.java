@@ -19,6 +19,7 @@ package com.android.server.wifi.aware;
 import static android.hardware.wifi.V1_0.NanDataPathChannelCfg.CHANNEL_NOT_REQUESTED;
 
 import static org.hamcrest.core.IsEqual.equalTo;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -84,6 +85,8 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Unit test harness for WifiAwareDataPathStateManager class.
@@ -359,8 +362,7 @@ public class WifiAwareDataPathStateManagerTest {
         final byte pubSubId = 58;
         final int requestorId = 1341234;
         final int ndpId = 2;
-        final byte[] peerDiscoveryMac = HexEncoding.decode("000102030405".toCharArray(), false);
-        final byte[] peerDataPathMac = HexEncoding.decode("0A0B0C0D0E0F".toCharArray(), false);
+
         final int[] startOrder = {0, 1, 2};
         final int[] endOrder = {1, 0, 2};
         int networkRequestId = 0;
@@ -378,8 +380,10 @@ public class WifiAwareDataPathStateManagerTest {
         boolean first = true;
         for (int i : startOrder) {
             networkRequestId += 1;
-            peerDiscoveryMac[5] = (byte) (peerDiscoveryMac[5] + 1);
-            peerDataPathMac[5] = (byte) (peerDataPathMac[5] + 1);
+            byte[] peerDiscoveryMac = HexEncoding.decode("000102030405".toCharArray(), false);
+            byte[] peerDataPathMac = HexEncoding.decode("0A0B0C0D0E0F".toCharArray(), false);
+            peerDiscoveryMac[5] = (byte) (peerDiscoveryMac[5] + i);
+            peerDataPathMac[5] = (byte) (peerDataPathMac[5] + i);
 
             // (0) initialize
             ress[i] = initDataPathEndPoint(first, clientId, (byte) (pubSubId + i),
@@ -474,16 +478,16 @@ public class WifiAwareDataPathStateManagerTest {
         InOrder inOrderM = inOrder(mAwareMetricsMock);
 
         // (1) initialize all clients
-        Messenger messenger = initOobDataPathEndPoint(true, clientId, inOrder, inOrderM);
+        Messenger messenger = initOobDataPathEndPoint(true, 1, clientId, inOrder, inOrderM);
         for (int i = 1; i < numRequestsPre + numRequestsPost; ++i) {
-            initOobDataPathEndPoint(false, clientId + i, inOrder, inOrderM);
+            initOobDataPathEndPoint(false, 1, clientId + i, inOrder, inOrderM);
         }
 
         // (2) make 3 network requests (all identical under the hood)
         for (int i = 0; i < numRequestsPre; ++i) {
             nrs[i] = getDirectNetworkRequest(clientId + i,
                     WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_INITIATOR, peerDiscoveryMac, null,
-                    null);
+                    null, i);
 
             Message reqNetworkMsg = Message.obtain();
             reqNetworkMsg.what = NetworkFactory.CMD_REQUEST_NETWORK;
@@ -532,7 +536,7 @@ public class WifiAwareDataPathStateManagerTest {
         for (int i = numRequestsPre; i < numRequestsPre + numRequestsPost; ++i) {
             nrs[i] = getDirectNetworkRequest(clientId + i,
                     WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_INITIATOR, peerDiscoveryMac, null,
-                    null);
+                    null, i);
 
             Message reqNetworkMsg = Message.obtain();
             reqNetworkMsg.what = NetworkFactory.CMD_REQUEST_NETWORK;
@@ -565,6 +569,74 @@ public class WifiAwareDataPathStateManagerTest {
 
         inOrder.verify(mMockNwMgt).setInterfaceDown(anyString());
         inOrderM.verify(mAwareMetricsMock).recordNdpSessionDuration(anyLong());
+
+        verifyNoMoreInteractions(mMockNative, mMockCm, mMockCallback, mMockSessionCallback,
+                mAwareMetricsMock, mMockNwMgt);
+    }
+
+    /**
+     * Validate that multiple NDP requests to the same peer target different NDIs.
+     */
+    @Test
+    public void testMultipleNdi() throws Exception {
+        final int numNdis = 5;
+        final int clientId = 123;
+        final int ndpId = 5;
+        final byte[] peerDiscoveryMac = HexEncoding.decode("000102030405".toCharArray(), false);
+        final byte[] peerDataPathMac = HexEncoding.decode("0A0B0C0D0E0F".toCharArray(), false);
+
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        ArgumentCaptor<String> ifNameCaptor = ArgumentCaptor.forClass(String.class);
+
+        InOrder inOrder = inOrder(mMockNative, mMockCm, mMockCallback, mMockSessionCallback,
+                mMockNwMgt);
+        InOrder inOrderM = inOrder(mAwareMetricsMock);
+
+        // (1) initialize all clients
+        Messenger messenger = initOobDataPathEndPoint(true, numNdis, clientId, inOrder, inOrderM);
+        for (int i = 1; i < numNdis + 3; ++i) {
+            initOobDataPathEndPoint(false, numNdis, clientId + i, inOrder, inOrderM);
+        }
+
+        // (2) make N network requests: each unique
+        Set<String> interfaces = new HashSet<>();
+        for (int i = 0; i < numNdis + 1; ++i) {
+            byte[] pmk = new byte[32];
+            pmk[0] = (byte) i;
+
+            NetworkRequest nr = getDirectNetworkRequest(clientId + i,
+                    WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_INITIATOR, peerDiscoveryMac, pmk,
+                    null, i);
+
+            Message reqNetworkMsg = Message.obtain();
+            reqNetworkMsg.what = NetworkFactory.CMD_REQUEST_NETWORK;
+            reqNetworkMsg.obj = nr;
+            reqNetworkMsg.arg1 = 0;
+            messenger.send(reqNetworkMsg);
+            mMockLooper.dispatchAll();
+
+            if (i < numNdis) {
+                inOrder.verify(mMockNative).initiateDataPath(transactionId.capture(), eq(0),
+                        eq(CHANNEL_NOT_REQUESTED), anyInt(), eq(peerDiscoveryMac),
+                        ifNameCaptor.capture(), eq(pmk), eq(null), eq(true), any());
+                interfaces.add(ifNameCaptor.getValue());
+
+                mDut.onInitiateDataPathResponseSuccess(transactionId.getValue(), ndpId + i);
+                mDut.onDataPathConfirmNotification(ndpId + i, peerDataPathMac, true, 0, null);
+                mMockLooper.dispatchAll();
+
+                inOrder.verify(mMockNwMgt).setInterfaceUp(anyString());
+                inOrder.verify(mMockNwMgt).enableIpv6(anyString());
+                inOrder.verify(mMockCm).registerNetworkAgent(any(), any(), any(), any(), anyInt(),
+                        any());
+                inOrderM.verify(mAwareMetricsMock).recordNdpStatus(eq(NanStatusType.SUCCESS),
+                        eq(true), anyLong());
+                inOrderM.verify(mAwareMetricsMock).recordNdpCreation(anyInt(), any());
+            }
+        }
+
+        // verify that each interface name is unique
+        assertEquals("Number of unique interface names", numNdis, interfaces.size());
 
         verifyNoMoreInteractions(mMockNative, mMockCm, mMockCallback, mMockSessionCallback,
                 mAwareMetricsMock, mMockNwMgt);
@@ -929,7 +1001,7 @@ public class WifiAwareDataPathStateManagerTest {
             nr = getDirectNetworkRequest(clientId,
                     WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_INITIATOR,
                     provideMac ? peerDiscoveryMac : null, providePmk ? pmk : null,
-                    providePassphrase ? passphrase : null);
+                    providePassphrase ? passphrase : null, 0);
         } else {
             nr = getSessionNetworkRequest(clientId, res.mSessionId,
                     provideMac ? res.mPeerHandle : null, providePmk ? pmk : null,
@@ -1038,7 +1110,7 @@ public class WifiAwareDataPathStateManagerTest {
             nr = getDirectNetworkRequest(clientId,
                     WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_RESPONDER,
                     provideMac ? peerDiscoveryMac : null, providePmk ? pmk : null,
-                    providePassphrase ? passphrase : null);
+                    providePassphrase ? passphrase : null, 0);
         } else {
             nr = getSessionNetworkRequest(clientId, res.mSessionId,
                     provideMac ? res.mPeerHandle : null, providePmk ? pmk : null,
@@ -1183,7 +1255,7 @@ public class WifiAwareDataPathStateManagerTest {
     }
 
     private NetworkRequest getDirectNetworkRequest(int clientId, int role, byte[] peer,
-            byte[] pmk, String passphrase) throws Exception {
+            byte[] pmk, String passphrase, int requestId) throws Exception {
         final IWifiAwareManager mockAwareService = mock(IWifiAwareManager.class);
         final ConfigRequest configRequest = new ConfigRequest.Builder().build();
         final WifiAwareManager mgr = new WifiAwareManager(mMockContext, mockAwareService);
@@ -1220,7 +1292,7 @@ public class WifiAwareDataPathStateManagerTest {
         nc.setLinkDownstreamBandwidthKbps(1);
         nc.setSignalStrength(1);
 
-        return new NetworkRequest(nc, 0, 0, NetworkRequest.Type.REQUEST);
+        return new NetworkRequest(nc, 0, requestId, NetworkRequest.Type.REQUEST);
     }
 
     private DataPathEndPointInfo initDataPathEndPoint(boolean isFirstIteration, int clientId,
@@ -1237,7 +1309,7 @@ public class WifiAwareDataPathStateManagerTest {
 
         Messenger messenger = null;
         if (isFirstIteration) {
-            messenger = initOobDataPathEndPoint(true, clientId, inOrder, inOrderM);
+            messenger = initOobDataPathEndPoint(true, 1, clientId, inOrder, inOrderM);
         }
 
         if (doPublish) {
@@ -1271,8 +1343,8 @@ public class WifiAwareDataPathStateManagerTest {
                 isFirstIteration ? messenger : null);
     }
 
-    private Messenger initOobDataPathEndPoint(boolean startUpSequence, int clientId,
-            InOrder inOrder, InOrder inOrderM) throws Exception {
+    private Messenger initOobDataPathEndPoint(boolean startUpSequence, int maxNdiInterfaces,
+            int clientId, InOrder inOrder, InOrder inOrderM) throws Exception {
         final int pid = 2000;
         final String callingPackage = "com.android.somePackage";
         final ConfigRequest configRequest = new ConfigRequest.Builder().build();
@@ -1282,7 +1354,7 @@ public class WifiAwareDataPathStateManagerTest {
         ArgumentCaptor<String> strCaptor = ArgumentCaptor.forClass(String.class);
 
         Capabilities capabilities = new Capabilities();
-        capabilities.maxNdiInterfaces = 1;
+        capabilities.maxNdiInterfaces = maxNdiInterfaces;
 
         if (startUpSequence) {
             // (0) start/registrations
@@ -1322,12 +1394,14 @@ public class WifiAwareDataPathStateManagerTest {
                 any());
 
         if (startUpSequence) {
-            inOrder.verify(mMockNative).createAwareNetworkInterface(transactionId.capture(),
-                    strCaptor.capture());
-            collector.checkThat("interface created -- 0", sAwareInterfacePrefix + 0,
-                    equalTo(strCaptor.getValue()));
-            mDut.onCreateDataPathInterfaceResponse(transactionId.getValue(), true, 0);
-            mMockLooper.dispatchAll();
+            for (int i = 0; i < maxNdiInterfaces; ++i) {
+                inOrder.verify(mMockNative).createAwareNetworkInterface(transactionId.capture(),
+                        strCaptor.capture());
+                collector.checkThat("interface created -- " + i, sAwareInterfacePrefix + i,
+                        equalTo(strCaptor.getValue()));
+                mDut.onCreateDataPathInterfaceResponse(transactionId.getValue(), true, 0);
+                mMockLooper.dispatchAll();
+            }
             return messengerCaptor.getValue();
         }
 
