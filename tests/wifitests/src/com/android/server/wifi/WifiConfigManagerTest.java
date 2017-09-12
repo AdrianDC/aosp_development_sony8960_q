@@ -84,6 +84,7 @@ public class WifiConfigManagerTest {
     private static final String TEST_CREATOR_NAME = "com.wificonfigmanager.creator";
     private static final String TEST_UPDATE_NAME = "com.wificonfigmanager.update";
     private static final String TEST_NO_PERM_NAME = "com.wificonfigmanager.noperm";
+    private static final String TEST_WIFI_NAME = "android.uid.system";
     private static final String TEST_DEFAULT_GW_MAC_ADDRESS = "0f:67:ad:ef:09:34";
     private static final String TEST_STATIC_PROXY_HOST_1 = "192.168.48.1";
     private static final int    TEST_STATIC_PROXY_PORT_1 = 8000;
@@ -149,6 +150,8 @@ public class WifiConfigManagerTest {
                     return WifiConfigManager.SYSUI_PACKAGE_NAME;
                 } else if (uid == TEST_NO_PERM_UID) {
                     return TEST_NO_PERM_NAME;
+                } else if (uid == Process.WIFI_UID) {
+                    return TEST_WIFI_NAME;
                 }
                 fail("Unexpected UID: " + uid);
                 return "";
