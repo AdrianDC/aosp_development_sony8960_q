@@ -359,7 +359,7 @@ public class WifiStateMachineTest {
     @Mock WrongPasswordNotifier mWrongPasswordNotifier;
     @Mock Clock mClock;
     @Mock ScanDetailCache mScanDetailCache;
-    @Mock WifiDiagnostics mWifiDiagnostics;
+    @Mock BaseWifiDiagnostics mWifiDiagnostics;
 
     public WifiStateMachineTest() throws Exception {
     }
