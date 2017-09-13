@@ -11,7 +11,7 @@
     <string name="beam_failed" msgid="5116241718189888630">"ਬੀਮ ਪੂਰਾ ਨਹੀਂ ਕੀਤਾ"</string>
     <string name="beam_canceled" msgid="5425192751826544741">"ਬੀਮ ਰੱਦ ਕੀਤਾ"</string>
     <string name="cancel" msgid="61873902552555096">"ਰੱਦ ਕਰੋ"</string>
-    <string name="beam_tap_to_view" msgid="7430394753262448349">"ਵੇਖਣ ਲਈ ਟੈਪ ਕਰੋ"</string>
+    <string name="beam_tap_to_view" msgid="7430394753262448349">"ਦੇਖਣ ਲਈ ਟੈਪ ਕਰੋ"</string>
     <string name="beam_handover_not_supported" msgid="4083165921751489015">"ਪ੍ਰਾਪਤਕਰਤਾ ਦਾ ਡੀਵਾਈਸ ਬੀਮ ਰਾਹੀਂ ਵੱਡੀ ਫ਼ਾਈਲ ਟ੍ਰਾਂਸਫਰ ਦਾ ਸਮਰਥਨ ਨਹੀਂ ਕਰਦਾ।"</string>
     <string name="beam_try_again" msgid="3364677301009783455">"ਡਿਵਾਈਸਾਂ ਨੂੰ ਦੁਬਾਰਾ ਇਕੱਠੇ ਨਾਲ ਲਿਆਓ"</string>
     <string name="beam_busy" msgid="5253335587620612576">"ਬੀਮ ਇਸ ਵੇਲੇ ਰੁੱਝਾ ਹੋਇਆ ਹੈ। ਜਦੋਂ ਪਿਛਲਾ ਟ੍ਰਾਂਸਫਰ ਪੂਰਾ ਹੋ ਜਾਏ ਤਾਂ ਦੁਬਾਰਾ ਕੋਸ਼ਿਸ਼ ਕਰੋ।"</string>
