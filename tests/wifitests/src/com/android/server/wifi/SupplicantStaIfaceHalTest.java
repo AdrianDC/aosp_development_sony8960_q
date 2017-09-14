@@ -54,6 +54,7 @@ import android.net.wifi.WifiManager;
 import android.net.wifi.WifiSsid;
 import android.os.IHwBinder;
 import android.os.RemoteException;
+import android.text.TextUtils;
 import android.util.SparseArray;
 
 import com.android.server.wifi.hotspot2.AnqpEvent;
@@ -483,6 +484,28 @@ public class SupplicantStaIfaceHalTest {
         reset(mISupplicantStaIfaceMock);
         setupMocksForConnectSequence(true /*haveExistingNetwork*/);
         assertTrue(mDut.connectToNetwork(config));
+        verify(mISupplicantStaIfaceMock, never()).removeNetwork(anyInt());
+        verify(mISupplicantStaIfaceMock, never())
+                .addNetwork(any(ISupplicantStaIface.addNetworkCallback.class));
+    }
+
+    @Test
+    public void connectToNetworkWithSameNetworkButDifferentBssidUpdatesNetworkFromSupplicant()
+            throws Exception {
+        executeAndValidateInitializationSequence();
+        WifiConfiguration config = executeAndValidateConnectSequence(SUPPLICANT_NETWORK_ID, false);
+        String testBssid = "11:22:33:44:55:66";
+        when(mSupplicantStaNetworkMock.setBssid(eq(testBssid))).thenReturn(true);
+
+        // Reset mocks for mISupplicantStaIfaceMock because we finished the first connection.
+        reset(mISupplicantStaIfaceMock);
+        setupMocksForConnectSequence(true /*haveExistingNetwork*/);
+        // Change the BSSID and connect to the same network.
+        assertFalse(TextUtils.equals(
+                testBssid, config.getNetworkSelectionStatus().getNetworkSelectionBSSID()));
+        config.getNetworkSelectionStatus().setNetworkSelectionBSSID(testBssid);
+        assertTrue(mDut.connectToNetwork(config));
+        verify(mSupplicantStaNetworkMock).setBssid(eq(testBssid));
         verify(mISupplicantStaIfaceMock, never()).removeNetwork(anyInt());
         verify(mISupplicantStaIfaceMock, never())
                 .addNetwork(any(ISupplicantStaIface.addNetworkCallback.class));

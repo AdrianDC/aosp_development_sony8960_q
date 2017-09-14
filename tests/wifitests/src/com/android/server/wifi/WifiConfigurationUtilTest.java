@@ -43,6 +43,8 @@ public class WifiConfigurationUtilTest {
     static final int OTHER_USER_ID = 11;
     static final String TEST_SSID = "test_ssid";
     static final String TEST_SSID_1 = "test_ssid_1";
+    static final String TEST_BSSID = "aa:aa:11:22:cc:dd";
+    static final String TEST_BSSID_1 = "11:22:11:22:cc:dd";
     static final List<UserInfo> PROFILES = Arrays.asList(
             new UserInfo(CURRENT_USER_ID, "owner", 0),
             new UserInfo(CURRENT_USER_MANAGED_PROFILE_USER_ID, "managed profile", 0));
@@ -248,6 +250,19 @@ public class WifiConfigurationUtilTest {
     public void testIsSameNetworkReturnsTrueOnSameNetwork() {
         WifiConfiguration network = WifiConfigurationTestUtil.createPskNetwork(TEST_SSID);
         WifiConfiguration network1 = WifiConfigurationTestUtil.createPskNetwork(TEST_SSID);
+        assertTrue(WifiConfigurationUtil.isSameNetwork(network, network1));
+    }
+
+    /**
+     * Verify that WifiConfigurationUtil.isSameNetwork returns true when two WifiConfiguration
+     * objects have the same parameters but different network selection BSSID's.
+     */
+    @Test
+    public void testIsSameNetworkReturnsTrueOnSameNetworkWithDifferentBSSID() {
+        WifiConfiguration network = WifiConfigurationTestUtil.createPskNetwork(TEST_SSID);
+        network.getNetworkSelectionStatus().setNetworkSelectionBSSID(TEST_BSSID);
+        WifiConfiguration network1 = WifiConfigurationTestUtil.createPskNetwork(TEST_SSID);
+        network1.getNetworkSelectionStatus().setNetworkSelectionBSSID(TEST_BSSID_1);
         assertTrue(WifiConfigurationUtil.isSameNetwork(network, network1));
     }
 
