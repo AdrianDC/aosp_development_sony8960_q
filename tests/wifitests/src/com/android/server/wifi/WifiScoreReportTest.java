@@ -240,11 +240,16 @@ public class WifiScoreReportTest {
     @Test
     public void giveUpOnBadRssiAggressively() throws Exception {
         mAggr = 1;
-        mWifiInfo.setRssi(-83);
-        mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mAggr, mWifiMetrics);
+        String oops = "giveUpOnBadRssiAggressively";
+        for (int rssi = -60; rssi >= -83; rssi -= 1) {
+            mWifiInfo.setRssi(rssi);
+            oops += " " + mClock.mWallClockMillis + "," + rssi;
+            mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mAggr, mWifiMetrics);
+            oops += ":" + mWifiInfo.score;
+        }
         int score = mWifiInfo.score;
         verify(mNetworkAgent, atLeast(1)).sendNetworkScore(score);
-        assertTrue(score < CELLULAR_THRESHOLD_SCORE);
+        assertTrue(oops, score < CELLULAR_THRESHOLD_SCORE);
     }
 
     /**

@@ -123,5 +123,14 @@ public class KalmanFilterTest {
         double variance = (sumSquares - sum * sum) / (n * n);
         assertTrue(mean < 0.1);
         assertTrue(variance < 1.5);
+        assertNotNull(kf.toString());
+    }
+
+    /**
+     * Test that the toString method works even if the matrices have not been set.
+     */
+    @Test
+    public void testToStrinWithNullsInside() throws Exception {
+        assertNotNull(new KalmanFilter().toString());
     }
 }

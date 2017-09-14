@@ -49,11 +49,13 @@ public class WifiScoreReport {
 
     ConnectedScore mConnectedScore;
     ConnectedScore mAggressiveConnectedScore;
+    ConnectedScore mFancyConnectedScore;
 
     WifiScoreReport(Context context, WifiConfigManager wifiConfigManager, Clock clock) {
         mClock = clock;
         mConnectedScore = new LegacyConnectedScore(context, wifiConfigManager, clock);
         mAggressiveConnectedScore = new AggressiveConnectedScore(context, clock);
+        mFancyConnectedScore = new VelocityBasedConnectedScore(context, clock);
     }
 
     /**
@@ -76,6 +78,7 @@ public class WifiScoreReport {
         }
         mConnectedScore.reset();
         mAggressiveConnectedScore.reset();
+        mFancyConnectedScore.reset();
         if (mVerboseLoggingEnabled) Log.d(TAG, "reset");
     }
 
@@ -113,18 +116,20 @@ public class WifiScoreReport {
                                         int aggressiveHandover, WifiMetrics wifiMetrics) {
         int score;
 
-        long millis = mConnectedScore.getMillis();
+        long millis = mClock.getWallClockMillis();
 
         mConnectedScore.updateUsingWifiInfo(wifiInfo, millis);
         mAggressiveConnectedScore.updateUsingWifiInfo(wifiInfo, millis);
+        mFancyConnectedScore.updateUsingWifiInfo(wifiInfo, millis);
 
         int s0 = mConnectedScore.generateScore();
         int s1 = mAggressiveConnectedScore.generateScore();
+        int s2 = mFancyConnectedScore.generateScore();
 
         if (aggressiveHandover == 0) {
             score = s0;
         } else {
-            score = s1;
+            score = s2;
         }
 
         //sanitize boundaries
@@ -135,7 +140,7 @@ public class WifiScoreReport {
             score = 0;
         }
 
-        logLinkMetrics(wifiInfo, s0, s1);
+        logLinkMetrics(wifiInfo, millis, s0, s1, s2);
 
         //report score
         if (score != wifiInfo.score) {
@@ -163,8 +168,7 @@ public class WifiScoreReport {
     /**
      * Data logging for dumpsys
      */
-    private void logLinkMetrics(WifiInfo wifiInfo, int s0, int s1) {
-        long now = mClock.getWallClockMillis();
+    private void logLinkMetrics(WifiInfo wifiInfo, long now, int s0, int s1, int s2) {
         if (now < FIRST_REASONABLE_WALL_CLOCK) return;
         double rssi = wifiInfo.getRssi();
         int freq = wifiInfo.getFrequency();
@@ -176,10 +180,10 @@ public class WifiScoreReport {
         try {
             String timestamp = new SimpleDateFormat("MM-dd HH:mm:ss.SSS").format(new Date(now));
             String s = String.format(Locale.US, // Use US to avoid comma/decimal confusion
-                    "%s,%d,%.1f,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%d",
+                    "%s,%d,%.1f,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%d,%d",
                     timestamp, mSessionNumber, rssi, freq, linkSpeed,
                     txSuccessRate, txRetriesRate, txBadRate, rxSuccessRate,
-                    s0, s1);
+                    s0, s1, s2);
             mLinkMetricsHistory.add(s);
         } catch (Exception e) {
             Log.e(TAG, "format problem", e);
@@ -201,7 +205,7 @@ public class WifiScoreReport {
      * @param args unused
      */
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-        pw.println("time,session,rssi,freq,linkspeed,tx_good,tx_retry,tx_bad,rx,s0,s1");
+        pw.println("time,session,rssi,freq,linkspeed,tx_good,tx_retry,tx_bad,rx,s0,s1,s2");
         for (String line : mLinkMetricsHistory) {
             pw.println(line);
         }

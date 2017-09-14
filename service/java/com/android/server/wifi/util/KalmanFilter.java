@@ -51,12 +51,12 @@ public class KalmanFilter {
 
     @Override
     public String toString() {
-        return "{F: " + mF.toString()
-                + " Q: " + mQ.toString()
-                + " H: " + mH.toString()
-                + " R: " + mR.toString()
-                + " P: " + mP.toString()
-                + " x: " + mx.toString()
+        return "{F: " + mF
+                + " Q: " + mQ
+                + " H: " + mH
+                + " R: " + mR
+                + " P: " + mP
+                + " x: " + mx
                 + "}";
     }
 }
