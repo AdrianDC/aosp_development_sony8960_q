@@ -543,6 +543,16 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 "ConnectivityService");
     }
 
+    private void enforceTetheringRestriction() {
+        // check if the user has the tethering restriction
+        UserManager um = UserManager.get(mContext);
+        UserHandle userHandle = Binder.getCallingUserHandle();
+        Slog.d(TAG, "setWifiApEnabled - calling userId: " + userHandle.getIdentifier());
+        if (um.hasUserRestriction(UserManager.DISALLOW_CONFIG_TETHERING, userHandle)) {
+            throw new SecurityException("DISALLOW_CONFIG_TETHERING is enabled for this user.");
+        }
+    }
+
     /**
      * see {@link android.net.wifi.WifiManager#setWifiEnabled(boolean)}
      * @param enable {@code true} to enable, {@code false} to disable.
@@ -593,11 +603,21 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * @param enabled true to enable and false to disable
      */
     public void setWifiApEnabled(WifiConfiguration wifiConfig, boolean enabled) {
+        Slog.d(TAG, "setWifiApEnabled: " + enabled + " pid=" + Binder.getCallingPid()
+                                + ", uid=" + Binder.getCallingUid());
         enforceChangePermission();
         ConnectivityManager.enforceTetherChangePermission(mContext);
-        if (mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_TETHERING)) {
-            throw new SecurityException("DISALLOW_CONFIG_TETHERING is enabled for this user.");
+
+        // check if the user has the tethering restriction
+        enforceTetheringRestriction();
+        Slog.d(TAG, "setWifiApEnabled - passed the config_tethering check");
+
+        // now check if this is the primary user
+        if (Binder.getCallingUserHandle().getIdentifier() != UserHandle.USER_OWNER) {
+            Slog.e(TAG, "Only the device owner can enable wifi tethering");
+            return;
         }
+
         // null wifiConfig is a meaningful input for CMD_SET_AP
         if (wifiConfig == null || isValid(wifiConfig)) {
             mWifiController.obtainMessage(CMD_SET_AP, enabled ? 1 : 0, 0, wifiConfig).sendToTarget();
@@ -625,6 +645,13 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      */
     public WifiConfiguration getWifiApConfiguration() {
         enforceAccessPermission();
+        enforceTetheringRestriction();
+        // now check if this is the primary user
+        if (Binder.getCallingUserHandle().getIdentifier() != UserHandle.USER_OWNER) {
+            Slog.e(TAG, "Only the device owner can retrieve the ap config");
+            return null;
+        }
+
         return mWifiStateMachine.syncGetWifiApConfiguration();
     }
 
@@ -652,7 +679,17 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * @param wifiConfig WifiConfiguration details for soft access point
      */
     public void setWifiApConfiguration(WifiConfiguration wifiConfig) {
+        Slog.d(TAG, "setWifiApConfiguration: " + wifiConfig);
         enforceChangePermission();
+
+        enforceTetheringRestriction();
+
+        // now check if this is the primary user
+        if (Binder.getCallingUserHandle().getIdentifier() != UserHandle.USER_OWNER) {
+            Slog.e(TAG, "Only the device owner can set the ap config");
+            return;
+        }
+
         if (wifiConfig == null)
             return;
         if (isValid(wifiConfig)) {
