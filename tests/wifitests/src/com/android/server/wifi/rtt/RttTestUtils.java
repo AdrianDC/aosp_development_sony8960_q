@@ -37,14 +37,14 @@ public class RttTestUtils {
      * - First: 802.11mc capable
      * - Second: 802.11mc not capable
      */
-    public static RangingRequest getDummyRangingRequest() {
+    public static RangingRequest getDummyRangingRequest(byte lastMacByte) {
         RangingRequest.Builder builder = new RangingRequest.Builder();
 
         ScanResult scan1 = new ScanResult();
-        scan1.BSSID = "00:01:02:03:04:05";
+        scan1.BSSID = "00:01:02:03:04:" + String.format("%02d", lastMacByte);
         scan1.setFlag(ScanResult.FLAG_80211mc_RESPONDER);
         ScanResult scan2 = new ScanResult();
-        scan2.BSSID = "0A:0B:0C:0D:0E:0F";
+        scan2.BSSID = "0A:0B:0C:0D:0E:" + String.format("%02d", lastMacByte);
 
         builder.addAp(scan1);
         builder.addAp(scan2);

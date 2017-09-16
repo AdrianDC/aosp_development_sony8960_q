@@ -74,7 +74,7 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
      * @return Success status: true for success, false for failure.
      */
     public boolean rangeRequest(int cmdId, RangingRequest request) {
-        if (VDBG) Log.v(TAG, "rangeRequest: cmdId=" + cmdId);
+        if (VDBG) Log.v(TAG, "rangeRequest: cmdId=" + cmdId + ", request=" + request);
         // TODO: b/65014872 replace by direct access to HalDeviceManager
         IWifiRttController rttController = mWifiVendorHal.getRttController();
         if (rttController == null) {

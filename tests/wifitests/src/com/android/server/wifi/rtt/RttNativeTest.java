@@ -101,7 +101,7 @@ public class RttNativeTest {
     @Test
     public void testRangeRequest() throws Exception {
         int cmdId = 55;
-        RangingRequest request = RttTestUtils.getDummyRangingRequest();
+        RangingRequest request = RttTestUtils.getDummyRangingRequest((byte) 0);
 
         // (1) issue range request
         mDut.rangeRequest(cmdId, request);
@@ -117,13 +117,13 @@ public class RttNativeTest {
 
         RttConfig rttConfig = halRequest.get(0);
         collector.checkThat("entry 0: MAC", rttConfig.addr,
-                equalTo(HexEncoding.decode("000102030405".toCharArray(), false)));
+                equalTo(HexEncoding.decode("000102030400".toCharArray(), false)));
         collector.checkThat("entry 0: MAC", rttConfig.type, equalTo(RttType.TWO_SIDED));
         collector.checkThat("entry 0: MAC", rttConfig.peer, equalTo(RttPeerType.AP));
 
         rttConfig = halRequest.get(1);
         collector.checkThat("entry 0: MAC", rttConfig.addr,
-                equalTo(HexEncoding.decode("0A0B0C0D0E0F".toCharArray(), false)));
+                equalTo(HexEncoding.decode("0A0B0C0D0E00".toCharArray(), false)));
         collector.checkThat("entry 0: MAC", rttConfig.type, equalTo(RttType.ONE_SIDED));
         collector.checkThat("entry 0: MAC", rttConfig.peer, equalTo(RttPeerType.AP));
     }

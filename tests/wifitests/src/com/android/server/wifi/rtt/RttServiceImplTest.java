@@ -20,6 +20,7 @@ package com.android.server.wifi.rtt;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -113,26 +114,37 @@ public class RttServiceImplTest {
      */
     @Test
     public void testRangingFlow() throws Exception {
-        RangingRequest request = RttTestUtils.getDummyRangingRequest();
-        List<RangingResult> results = RttTestUtils.getDummyRangingResults(request);
+        int numIter = 10;
+        RangingRequest[] requests = new RangingRequest[numIter];
+        List<List<RangingResult>> results = new ArrayList<>();
 
-        // (1) request ranging operation
-        mDut.startRanging(mockIbinder, mPackageName, request, mockCallback);
+        for (int i = 0; i < numIter; ++i) {
+            requests[i] = RttTestUtils.getDummyRangingRequest((byte) i);
+            results.add(RttTestUtils.getDummyRangingResults(requests[i]));
+        }
+
+        // (1) request 10 ranging operations
+        for (int i = 0; i < numIter; ++i) {
+            mDut.startRanging(mockIbinder, mPackageName, requests[i], mockCallback);
+        }
         mMockLooper.dispatchAll();
 
-        // (2) verify that request issued to native
-        verify(mockNative).rangeRequest(mIntCaptor.capture(), eq(request));
+        for (int i = 0; i < numIter; ++i) {
+            // (2) verify that request issued to native
+            verify(mockNative).rangeRequest(mIntCaptor.capture(), eq(requests[i]));
 
-        // (3) native calls back with result
-        mDut.onRangingResults(mIntCaptor.getValue(), results);
-        mMockLooper.dispatchAll();
+            // (3) native calls back with result
+            mDut.onRangingResults(mIntCaptor.getValue(), results.get(i));
+            mMockLooper.dispatchAll();
 
-        // (4) verify that results dispatched
-        verify(mockCallback).onRangingResults(RangingResultCallback.STATUS_SUCCESS, results);
+            // (4) verify that results dispatched
+            verify(mockCallback).onRangingResults(RangingResultCallback.STATUS_SUCCESS,
+                    results.get(i));
 
-        // (5) replicate results - shouldn't dispatch another callback
-        mDut.onRangingResults(mIntCaptor.getValue(), results);
-        mMockLooper.dispatchAll();
+            // (5) replicate results - shouldn't dispatch another callback
+            mDut.onRangingResults(mIntCaptor.getValue(), results.get(i));
+            mMockLooper.dispatchAll();
+        }
 
         verifyNoMoreInteractions(mockNative, mockCallback);
     }
@@ -142,24 +154,46 @@ public class RttServiceImplTest {
      */
     @Test
     public void testRangingFlowNativeFailure() throws Exception {
-        RangingRequest request = RttTestUtils.getDummyRangingRequest();
-        List<RangingResult> results = RttTestUtils.getDummyRangingResults(request);
+        int numIter = 10;
+        RangingRequest[] requests = new RangingRequest[numIter];
+        List<List<RangingResult>> results = new ArrayList<>();
 
+        for (int i = 0; i < numIter; ++i) {
+            requests[i] = RttTestUtils.getDummyRangingRequest((byte) i);
+            results.add(RttTestUtils.getDummyRangingResults(requests[i]));
+        }
+
+
+        // (1) request 10 ranging operations: fail the first one
         when(mockNative.rangeRequest(anyInt(), any(RangingRequest.class))).thenReturn(false);
-
-        // (1) request ranging operation
-        mDut.startRanging(mockIbinder, mPackageName, request, mockCallback);
+        mDut.startRanging(mockIbinder, mPackageName, requests[0], mockCallback);
         mMockLooper.dispatchAll();
 
-        // (2) verify that request issued to native
-        verify(mockNative).rangeRequest(mIntCaptor.capture(), eq(request));
-
-        // (3) verify that failure callback dispatched
-        verify(mockCallback).onRangingResults(RangingResultCallback.STATUS_FAIL, null);
-
-        // (4) even if native calls back with result we shouldn't dispatch callback
-        mDut.onRangingResults(mIntCaptor.getValue(), results);
+        when(mockNative.rangeRequest(anyInt(), any(RangingRequest.class))).thenReturn(true);
+        for (int i = 1; i < numIter; ++i) {
+            mDut.startRanging(mockIbinder, mPackageName, requests[i], mockCallback);
+        }
         mMockLooper.dispatchAll();
+
+        for (int i = 0; i < numIter; ++i) {
+            // (2) verify that request issued to native
+            verify(mockNative).rangeRequest(mIntCaptor.capture(), eq(requests[i]));
+
+            // (3) verify that failure callback dispatched (for the HAL failure)
+            if (i == 0) {
+                verify(mockCallback).onRangingResults(RangingResultCallback.STATUS_FAIL, null);
+            }
+
+            // (4) on failed HAL: even if native calls back with result we shouldn't dispatch
+            // callback, otherwise expect result
+            mDut.onRangingResults(mIntCaptor.getValue(), results.get(i));
+            mMockLooper.dispatchAll();
+
+            if (i != 0) {
+                verify(mockCallback).onRangingResults(RangingResultCallback.STATUS_SUCCESS,
+                        results.get(i));
+            }
+        }
 
         verifyNoMoreInteractions(mockNative, mockCallback);
     }
@@ -169,7 +203,7 @@ public class RttServiceImplTest {
      */
     @Test
     public void testRangingRequestWithoutRuntimePermission() throws Exception {
-        RangingRequest request = RttTestUtils.getDummyRangingRequest();
+        RangingRequest request = RttTestUtils.getDummyRangingRequest((byte) 0);
         List<RangingResult> results = RttTestUtils.getDummyRangingResults(request);
 
         // (1) request ranging operation
@@ -197,24 +231,51 @@ public class RttServiceImplTest {
      */
     @Test
     public void testBinderDeathOfRangingApp() throws Exception {
-        RangingRequest request = RttTestUtils.getDummyRangingRequest();
-        List<RangingResult> results = RttTestUtils.getDummyRangingResults(request);
+        int numIter = 10;
+        RangingRequest[] requests = new RangingRequest[numIter];
+        List<List<RangingResult>> results = new ArrayList<>();
 
-        // (1) request ranging operation
-        mDut.startRanging(mockIbinder, mPackageName, request, mockCallback);
+        for (int i = 0; i < numIter; ++i) {
+            requests[i] = RttTestUtils.getDummyRangingRequest((byte) i);
+            results.add(RttTestUtils.getDummyRangingResults(requests[i]));
+        }
+
+        // (1) request 10 ranging operations: even/odd with different UIDs
+        for (int i = 0; i < numIter; ++i) {
+            mDut.fakeUid = mDefaultUid + i % 2;
+            mDut.startRanging(mockIbinder, mPackageName, requests[i], mockCallback);
+        }
         mMockLooper.dispatchAll();
 
-        // (2) verify that request issued to native & capture death listener
-        verify(mockIbinder).linkToDeath(mDeathRecipientCaptor.capture(), anyInt());
-        verify(mockNative).rangeRequest(mIntCaptor.capture(), eq(request));
+        // (2) capture death listeners
+        verify(mockIbinder, times(numIter)).linkToDeath(mDeathRecipientCaptor.capture(), anyInt());
 
-        // (3) trigger death recipient
-        mDeathRecipientCaptor.getValue().binderDied();
-        mMockLooper.dispatchAll();
+        for (int i = 0; i < numIter; ++i) {
+            // (3) verify first request and all odd requests issued to HAL
+            if (i == 0 || i % 2 == 1) {
+                verify(mockNative).rangeRequest(mIntCaptor.capture(), eq(requests[i]));
+            }
 
-        // (4) native calls back with result - shouldn't dispatch a callback
-        mDut.onRangingResults(mIntCaptor.getValue(), results);
-        mMockLooper.dispatchAll();
+            // (4) trigger first death recipient (which will map to the even UID)
+            if (i == 0) {
+                mDeathRecipientCaptor.getAllValues().get(0).binderDied();
+                mMockLooper.dispatchAll();
+            }
+
+            // (5) native calls back with results - should get requests for the odd attempts and
+            // should only get callbacks for the odd attempts (the non-dead UID)
+            if (i == 0 || i % 2 == 1) {
+                mDut.onRangingResults(mIntCaptor.getValue(), results.get(i));
+                mMockLooper.dispatchAll();
+
+                // note that we are getting a callback for the first operation - it was dispatched
+                // before the binder death. The callback is called from the service - the app is
+                // dead so in reality this will throw a RemoteException which the service will
+                // handle correctly.
+                verify(mockCallback).onRangingResults(RangingResultCallback.STATUS_SUCCESS,
+                        results.get(i));
+            }
+        }
 
         verifyNoMoreInteractions(mockNative, mockCallback);
     }
@@ -225,7 +286,7 @@ public class RttServiceImplTest {
      */
     @Test
     public void testUnexpectedResult() throws Exception {
-        RangingRequest request = RttTestUtils.getDummyRangingRequest();
+        RangingRequest request = RttTestUtils.getDummyRangingRequest((byte) 0);
         List<RangingResult> results = RttTestUtils.getDummyRangingResults(request);
 
         // (1) request ranging operation
@@ -255,7 +316,7 @@ public class RttServiceImplTest {
      */
     @Test
     public void testMissingResults() throws Exception {
-        RangingRequest request = RttTestUtils.getDummyRangingRequest();
+        RangingRequest request = RttTestUtils.getDummyRangingRequest((byte) 0);
         List<RangingResult> results = RttTestUtils.getDummyRangingResults(request);
         List<RangingResult> resultsMissing = new ArrayList<>(results);
         resultsMissing.remove(0);
