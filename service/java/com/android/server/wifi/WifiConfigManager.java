@@ -1107,9 +1107,10 @@ public class WifiConfigManager {
      * Removes the specified network configuration from our database.
      *
      * @param config provided WifiConfiguration object.
+     * @param uid UID of the app requesting the network deletion.
      * @return true if successful, false otherwise.
      */
-    private boolean removeNetworkInternal(WifiConfiguration config) {
+    private boolean removeNetworkInternal(WifiConfiguration config, int uid) {
         if (mVerboseLoggingEnabled) {
             Log.v(TAG, "Removing network " + config.getPrintableSsid());
         }
@@ -1127,7 +1128,9 @@ public class WifiConfigManager {
 
         localLog("removeNetworkInternal: removed config."
                 + " netId=" + config.networkId
-                + " configKey=" + config.configKey());
+                + " configKey=" + config.configKey()
+                + " uid=" + Integer.toString(uid)
+                + " name=" + mContext.getPackageManager().getNameForUid(uid));
         return true;
     }
 
@@ -1152,7 +1155,7 @@ public class WifiConfigManager {
                     + config.configKey());
             return false;
         }
-        if (!removeNetworkInternal(config)) {
+        if (!removeNetworkInternal(config, uid)) {
             Log.e(TAG, "Failed to remove network " + config.getPrintableSsid());
             return false;
         }
