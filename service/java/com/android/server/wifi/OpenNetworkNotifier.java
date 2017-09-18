@@ -40,11 +40,13 @@ import android.os.Messenger;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
+import android.text.TextUtils;
 import android.util.ArraySet;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.messages.nano.SystemMessageProto.SystemMessage;
+import com.android.server.wifi.nano.WifiMetricsProto.ConnectToNetworkNotificationAndActionCount;
 import com.android.server.wifi.util.ScanResultUtil;
 
 import java.io.FileDescriptor;
@@ -124,6 +126,7 @@ public class OpenNetworkNotifier {
     private final Context mContext;
     private final Handler mHandler;
     private final FrameworkFacade mFrameworkFacade;
+    private final WifiMetrics mWifiMetrics;
     private final Clock mClock;
     private final WifiConfigManager mConfigManager;
     private final WifiStateMachine mWifiStateMachine;
@@ -138,6 +141,7 @@ public class OpenNetworkNotifier {
             Looper looper,
             FrameworkFacade framework,
             Clock clock,
+            WifiMetrics wifiMetrics,
             WifiConfigManager wifiConfigManager,
             WifiConfigStore wifiConfigStore,
             WifiStateMachine wifiStateMachine,
@@ -146,6 +150,7 @@ public class OpenNetworkNotifier {
         mContext = context;
         mHandler = new Handler(looper);
         mFrameworkFacade = framework;
+        mWifiMetrics = wifiMetrics;
         mClock = clock;
         mConfigManager = wifiConfigManager;
         mWifiStateMachine = wifiStateMachine;
@@ -206,7 +211,7 @@ public class OpenNetworkNotifier {
             case WifiManager.CONNECT_NETWORK_SUCCEEDED:
                 break;
             case WifiManager.CONNECT_NETWORK_FAILED:
-                handleConnectionFailure();
+                handleConnectionAttemptFailedToSend();
                 break;
             default:
                 Log.e(TAG, "Unknown message " + msg.what);
@@ -226,6 +231,13 @@ public class OpenNetworkNotifier {
 
         if (mState != STATE_NO_NOTIFICATION) {
             getNotificationManager().cancel(SystemMessage.NOTE_NETWORK_AVAILABLE);
+
+            if (mRecommendedNetwork != null) {
+                Log.d(TAG, "Notification with state="
+                        + mState
+                        + " was cleared for recommended network: "
+                        + mRecommendedNetwork.SSID);
+            }
             mState = STATE_NO_NOTIFICATION;
             mRecommendedNetwork = null;
         }
@@ -295,6 +307,10 @@ public class OpenNetworkNotifier {
 
         postNotification(mNotificationBuilder.createNetworkConnectedNotification(
                 mRecommendedNetwork));
+
+        Log.d(TAG, "User connected to recommended network: " + mRecommendedNetwork.SSID);
+        mWifiMetrics.incrementConnectToNetworkNotification(
+                ConnectToNetworkNotificationAndActionCount.NOTIFICATION_CONNECTED_TO_NETWORK);
         mState = STATE_CONNECTED_NOTIFICATION;
         mHandler.postDelayed(
                 () -> {
@@ -313,6 +329,10 @@ public class OpenNetworkNotifier {
             return;
         }
         postNotification(mNotificationBuilder.createNetworkFailedNotification());
+
+        Log.d(TAG, "User failed to connect to recommended network: " + mRecommendedNetwork.SSID);
+        mWifiMetrics.incrementConnectToNetworkNotification(
+                ConnectToNetworkNotificationAndActionCount.NOTIFICATION_FAILED_TO_CONNECT);
         mState = STATE_CONNECT_FAILED_NOTIFICATION;
         mHandler.postDelayed(
                 () -> {
@@ -328,8 +348,18 @@ public class OpenNetworkNotifier {
     }
 
     private void postInitialNotification(ScanResult recommendedNetwork) {
+        if (mRecommendedNetwork != null
+                && TextUtils.equals(mRecommendedNetwork.SSID, recommendedNetwork.SSID)) {
+            return;
+        }
         postNotification(mNotificationBuilder.createConnectToNetworkNotification(
                 recommendedNetwork));
+        if (mState == STATE_NO_NOTIFICATION) {
+            mWifiMetrics.incrementConnectToNetworkNotification(
+                    ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK);
+        } else {
+            mWifiMetrics.incrementNumOpenNetworkRecommendationUpdates();
+        }
         mState = STATE_SHOWING_RECOMMENDATION_NOTIFICATION;
         mRecommendedNetwork = recommendedNetwork;
         mNotificationRepeatTime = mClock.getWallClockMillis() + mNotificationRepeatDelay;
@@ -340,11 +370,15 @@ public class OpenNetworkNotifier {
     }
 
     private void handleConnectToNetworkAction() {
+        mWifiMetrics.incrementConnectToNetworkNotificationAction(mState,
+                ConnectToNetworkNotificationAndActionCount.ACTION_CONNECT_TO_NETWORK);
         if (mState != STATE_SHOWING_RECOMMENDATION_NOTIFICATION) {
             return;
         }
         postNotification(mNotificationBuilder.createNetworkConnectingNotification(
                 mRecommendedNetwork));
+        mWifiMetrics.incrementConnectToNetworkNotification(
+                ConnectToNetworkNotificationAndActionCount.NOTIFICATION_CONNECTING_TO_NETWORK);
 
         Log.d(TAG, "User initiated connection to recommended network: " + mRecommendedNetwork.SSID);
         WifiConfiguration network = ScanResultUtil.createNetworkFromScanResult(mRecommendedNetwork);
@@ -366,6 +400,8 @@ public class OpenNetworkNotifier {
     }
 
     private void handleSeeAllNetworksAction() {
+        mWifiMetrics.incrementConnectToNetworkNotificationAction(mState,
+                ConnectToNetworkNotificationAndActionCount.ACTION_PICK_WIFI_NETWORK);
         startWifiSettings();
     }
 
@@ -378,14 +414,26 @@ public class OpenNetworkNotifier {
         clearPendingNotification(false /* resetRepeatTime */);
     }
 
+    private void handleConnectionAttemptFailedToSend() {
+        handleConnectionFailure();
+        mWifiMetrics.incrementNumOpenNetworkConnectMessageFailedToSend();
+    }
+
     private void handlePickWifiNetworkAfterConnectFailure() {
+        mWifiMetrics.incrementConnectToNetworkNotificationAction(mState,
+                ConnectToNetworkNotificationAndActionCount
+                        .ACTION_PICK_WIFI_NETWORK_AFTER_CONNECT_FAILURE);
         startWifiSettings();
     }
 
     private void handleUserDismissedAction() {
+        Log.d(TAG, "User dismissed notification with state=" + mState);
+        mWifiMetrics.incrementConnectToNetworkNotificationAction(mState,
+                ConnectToNetworkNotificationAndActionCount.ACTION_USER_DISMISSED_NOTIFICATION);
         if (mState == STATE_SHOWING_RECOMMENDATION_NOTIFICATION) {
             // blacklist dismissed network
             mBlacklistedSsids.add(mRecommendedNetwork.SSID);
+            mWifiMetrics.setOpenNetworkRecommenderBlacklistSize(mBlacklistedSsids.size());
             mConfigManager.saveToStore(false /* forceWrite */);
             Log.d(TAG, "Network is added to the open network notification blacklist: "
                     + mRecommendedNetwork.SSID);
@@ -418,6 +466,7 @@ public class OpenNetworkNotifier {
         @Override
         public void setSsids(Set<String> ssidList) {
             mBlacklistedSsids.addAll(ssidList);
+            mWifiMetrics.setOpenNetworkRecommenderBlacklistSize(mBlacklistedSsids.size());
         }
     }
 
@@ -440,8 +489,10 @@ public class OpenNetworkNotifier {
         }
 
         private boolean getValue() {
-            return mFrameworkFacade.getIntegerSetting(mContext,
+            boolean enabled = mFrameworkFacade.getIntegerSetting(mContext,
                     Settings.Global.WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON, 1) == 1;
+            mWifiMetrics.setIsWifiNetworksAvailableNotificationEnabled(enabled);
+            return enabled;
         }
     }
 }
