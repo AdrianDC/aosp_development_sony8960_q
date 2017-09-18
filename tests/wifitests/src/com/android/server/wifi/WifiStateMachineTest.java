@@ -1074,7 +1074,7 @@ public class WifiStateMachineTest {
     private void setupAndStartConnectSequence(WifiConfiguration config) throws Exception {
         when(mWifiConfigManager.enableNetwork(eq(config.networkId), eq(true), anyInt()))
                 .thenReturn(true);
-        when(mWifiConfigManager.checkAndUpdateLastConnectUid(eq(config.networkId), anyInt()))
+        when(mWifiConfigManager.updateLastConnectUid(eq(config.networkId), anyInt()))
                 .thenReturn(true);
         when(mWifiConfigManager.getConfiguredNetwork(eq(config.networkId)))
                 .thenReturn(config);
@@ -1230,44 +1230,6 @@ public class WifiStateMachineTest {
     }
 
     @Test
-    public void connectWithNoEnablePermission() throws Exception {
-        initializeAndAddNetworkAndVerifySuccess();
-        when(mWifiConfigManager.enableNetwork(eq(0), eq(true), anyInt())).thenReturn(false);
-        when(mWifiConfigManager.checkAndUpdateLastConnectUid(eq(0), anyInt())).thenReturn(false);
-
-        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
-        mLooper.dispatchAll();
-        verify(mWifiNative).removeAllNetworks();
-
-        mLooper.startAutoDispatch();
-        assertTrue(mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true));
-        mLooper.stopAutoDispatch();
-
-        verify(mWifiConfigManager).enableNetwork(eq(0), eq(true), anyInt());
-        verify(mWifiConnectivityManager, never()).setUserConnectChoice(eq(0));
-
-        mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, sBSSID);
-        mLooper.dispatchAll();
-
-        mWsm.sendMessage(WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0, 0,
-                new StateChangeResult(0, sWifiSsid, sBSSID, SupplicantState.COMPLETED));
-        mLooper.dispatchAll();
-
-        assertEquals("ObtainingIpState", getCurrentState().getName());
-
-        DhcpResults dhcpResults = new DhcpResults();
-        dhcpResults.setGateway("1.2.3.4");
-        dhcpResults.setIpAddress("192.168.1.100", 0);
-        dhcpResults.addDns("8.8.8.8");
-        dhcpResults.setLeaseDuration(3600);
-
-        injectDhcpSuccess(dhcpResults);
-        mLooper.dispatchAll();
-
-        assertEquals("ConnectedState", getCurrentState().getName());
-    }
-
-    @Test
     public void enableWithInvalidNetworkId() throws Exception {
         initializeAndAddNetworkAndVerifySuccess();
         when(mWifiConfigManager.getConfiguredNetwork(eq(0))).thenReturn(null);
@@ -1281,7 +1243,7 @@ public class WifiStateMachineTest {
         mLooper.stopAutoDispatch();
 
         verify(mWifiConfigManager, never()).enableNetwork(eq(0), eq(true), anyInt());
-        verify(mWifiConfigManager, never()).checkAndUpdateLastConnectUid(eq(0), anyInt());
+        verify(mWifiConfigManager, never()).updateLastConnectUid(eq(0), anyInt());
     }
 
     /**
@@ -1809,7 +1771,7 @@ public class WifiStateMachineTest {
         initializeAndAddNetworkAndVerifySuccess();
 
         when(mWifiConfigManager.enableNetwork(eq(0), eq(true), anyInt())).thenReturn(true);
-        when(mWifiConfigManager.checkAndUpdateLastConnectUid(eq(0), anyInt())).thenReturn(true);
+        when(mWifiConfigManager.updateLastConnectUid(eq(0), anyInt())).thenReturn(true);
 
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
         mLooper.dispatchAll();
