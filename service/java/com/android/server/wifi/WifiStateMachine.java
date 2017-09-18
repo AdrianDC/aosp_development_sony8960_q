@@ -1770,7 +1770,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     uid) == PackageManager.PERMISSION_GRANTED) {
                 result.setMacAddress(mWifiInfo.getMacAddress());
             }
-            if (mWifiPermissionsUtil.canAccessScanResults(
+            final WifiConfiguration currentWifiConfiguration = getCurrentWifiConfiguration();
+            if (mWifiPermissionsUtil.canAccessFullConnectionInfo(
+                    currentWifiConfiguration,
                     callingPackage,
                     uid,
                     Build.VERSION_CODES.O)) {
