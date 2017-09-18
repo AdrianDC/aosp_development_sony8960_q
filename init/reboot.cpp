@@ -466,7 +466,8 @@ static void DoReboot(unsigned int cmd, const std::string& reason, const std::str
         LOG(INFO) << "Terminating running services took " << t
                   << " with remaining services:" << service_count;
     }
-
+    // turn off backlight before killing services to avoid screen stuck
+    TurnOffBacklight();  // this part can take time. save power.
     // minimum safety steps before restarting
     // 2. kill all services except ones that are necessary for the shutdown sequence.
     for (const auto& s : ServiceList::GetInstance().services_in_shutdown_order()) {
