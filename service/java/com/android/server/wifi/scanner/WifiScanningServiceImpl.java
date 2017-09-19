@@ -2213,7 +2213,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
     static String describeTo(StringBuilder sb, ScanSettings scanSettings) {
         sb.append("ScanSettings { ")
-          .append(" band:").append(scanSettings.band)
+          .append(" band:").append(ChannelHelper.bandToString(scanSettings.band))
           .append(" period:").append(scanSettings.periodInMs)
           .append(" reportEvents:").append(scanSettings.reportEvents)
           .append(" numBssidsPerScan:").append(scanSettings.numBssidsPerScan)

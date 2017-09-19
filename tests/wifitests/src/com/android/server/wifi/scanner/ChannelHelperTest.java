@@ -92,6 +92,27 @@ public class ChannelHelperTest {
 
     /**
      * Unit tests for
+     * {@link com.android.server.wifi.scanner.ChannelHelper#bandToString}.
+     */
+    @Test
+    public void bandToString_ShouldReturnApproapriateString() {
+        assertEquals("unspecified", ChannelHelper.bandToString(
+                WifiScanner.WIFI_BAND_UNSPECIFIED));
+        assertEquals("24Ghz", ChannelHelper.bandToString(WifiScanner.WIFI_BAND_24_GHZ));
+        assertEquals("5Ghz (no DFS)", ChannelHelper.bandToString(WifiScanner.WIFI_BAND_5_GHZ));
+        assertEquals("5Ghz (DFS only)", ChannelHelper.bandToString(
+                WifiScanner.WIFI_BAND_5_GHZ_DFS_ONLY));
+        assertEquals("5Ghz (DFS incl)", ChannelHelper.bandToString(
+                WifiScanner.WIFI_BAND_5_GHZ_WITH_DFS));
+        assertEquals("24Ghz & 5Ghz (no DFS)", ChannelHelper.bandToString(
+                WifiScanner.WIFI_BAND_BOTH));
+        assertEquals("24Ghz & 5Ghz (DFS incl)", ChannelHelper.bandToString(
+                WifiScanner.WIFI_BAND_BOTH_WITH_DFS));
+        assertEquals("invalid band", ChannelHelper.bandToString(-235342));
+    }
+
+    /**
+     * Unit tests for
      * {@link com.android.server.wifi.scanner.ChannelHelper.ChannelCollection}.
      */
     @SmallTest
