@@ -1888,16 +1888,11 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     /**
      * Set the country code
      * @param countryCode ISO 3166 country code.
-     * @param persist {@code true} if the setting should be remembered.
      *
-     * The persist behavior exists so that wifi can fall back to the last
-     * persisted country code on a restart, when the locale information is
-     * not available from telephony.
      */
     @Override
-    public void setCountryCode(String countryCode, boolean persist) {
-        Slog.i(TAG, "WifiService trying to set country code to " + countryCode +
-                " with persist set to " + persist);
+    public void setCountryCode(String countryCode) {
+        Slog.i(TAG, "WifiService trying to set country code to " + countryCode);
         enforceConnectivityInternalPermission();
         mLog.info("setCountryCode uid=%").c(Binder.getCallingUid()).flush();
         final long token = Binder.clearCallingIdentity();

@@ -119,6 +119,7 @@ public class WifiServiceImplTest {
     private static final int TEST_PID = 6789;
     private static final int TEST_PID2 = 9876;
     private static final String WIFI_IFACE_NAME = "wlan0";
+    private static final String TEST_COUNTRY_CODE = "US";
 
     private WifiServiceImpl mWifiServiceImpl;
     private TestLooper mLooper;
@@ -139,6 +140,7 @@ public class WifiServiceImplTest {
 
     @Mock Context mContext;
     @Mock WifiInjector mWifiInjector;
+    @Mock WifiCountryCode mWifiCountryCode;
     @Mock Clock mClock;
     @Mock WifiController mWifiController;
     @Mock WifiTrafficPoller mWifiTrafficPoller;
@@ -236,6 +238,7 @@ public class WifiServiceImplTest {
         when(mRequestInfo.getPid()).thenReturn(mPid);
         when(mRequestInfo2.getPid()).thenReturn(mPid2);
         when(mWifiInjector.getUserManager()).thenReturn(mUserManager);
+        when(mWifiInjector.getWifiCountryCode()).thenReturn(mWifiCountryCode);
         when(mWifiInjector.getWifiController()).thenReturn(mWifiController);
         when(mWifiInjector.getWifiMetrics()).thenReturn(mWifiMetrics);
         when(mWifiInjector.getWifiStateMachine()).thenReturn(mWifiStateMachine);
@@ -1816,5 +1819,28 @@ public class WifiServiceImplTest {
     public void testRssiPktcntFetchWithChangePermission() throws Exception {
         verifyAsyncChannelMessageHandlingWithChangePermisson(
                 WifiManager.RSSI_PKTCNT_FETCH, new Object());
+    }
+
+    /**
+     * Verify that setCountryCode() calls WifiCountryCode object on succeess.
+     */
+    @Test
+    public void testSetCountryCode() throws Exception {
+        mWifiServiceImpl.setCountryCode(TEST_COUNTRY_CODE);
+        verify(mWifiCountryCode).setCountryCode(TEST_COUNTRY_CODE);
+    }
+
+    /**
+     * Verify that setCountryCode() fails and doesn't call WifiCountryCode object
+     * if the caller doesn't have CONNECTIVITY_INTERNAL permission.
+     */
+    @Test(expected = SecurityException.class)
+    public void testSetCountryCodeFailsWithoutConnectivityInternalPermission() throws Exception {
+        doThrow(new SecurityException()).when(mContext)
+                .enforceCallingOrSelfPermission(
+                        eq(android.Manifest.permission.CONNECTIVITY_INTERNAL),
+                        eq("ConnectivityService"));
+        mWifiServiceImpl.setCountryCode(TEST_COUNTRY_CODE);
+        verify(mWifiCountryCode, never()).setCountryCode(TEST_COUNTRY_CODE);
     }
 }
