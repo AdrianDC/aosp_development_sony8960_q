@@ -2244,16 +2244,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         pw.println("mOperationalMode " + mOperationalMode);
         pw.println("mUserWantsSuspendOpt " + mUserWantsSuspendOpt);
         pw.println("mSuspendOptNeedsDisabled " + mSuspendOptNeedsDisabled);
-        if (mCountryCode.getCountryCodeSentToDriver() != null) {
-            pw.println("CountryCode sent to driver " + mCountryCode.getCountryCodeSentToDriver());
-        } else {
-            if (mCountryCode.getCountryCode() != null) {
-                pw.println("CountryCode: " +
-                        mCountryCode.getCountryCode() + " was not sent to driver");
-            } else {
-                pw.println("CountryCode was not initialized");
-            }
-        }
+        mCountryCode.dump(fd, pw, args);
+
         if (mNetworkFactory != null) {
             mNetworkFactory.dump(fd, pw, args);
         } else {
