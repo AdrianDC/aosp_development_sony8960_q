@@ -228,9 +228,8 @@ public class WifiBackupRestore {
             }
 
             return parseNetworkConfigurationsFromXml(in, rootTagDepth, version);
-        } catch (XmlPullParserException e) {
-            Log.e(TAG, "Error parsing the backup data: " + e);
-        } catch (IOException e) {
+        } catch (XmlPullParserException | IOException | ClassCastException
+                | IllegalArgumentException e) {
             Log.e(TAG, "Error parsing the backup data: " + e);
         }
         return null;
