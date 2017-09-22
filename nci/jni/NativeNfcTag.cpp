@@ -1844,6 +1844,36 @@ void nativeNfcTag_deregisterNdefTypeHandler ()
     sNdefTypeHandlerHandle = NFA_HANDLE_INVALID;
 }
 
+/*******************************************************************************
+**
+** Function:        nativeNfcTag_acquireRfInterfaceMutexLock
+**
+** Description:     acquire sRfInterfaceMutex
+**
+** Returns:         None
+**
+*******************************************************************************/
+void nativeNfcTag_acquireRfInterfaceMutexLock()
+{
+    ALOGD("%s: try to acquire lock", __func__);
+    sRfInterfaceMutex.lock();
+    ALOGD("%s: sRfInterfaceMutex lock", __func__);
+}
+
+/*******************************************************************************
+**
+** Function:       nativeNfcTag_releaseRfInterfaceMutexLock
+**
+** Description:    release the sRfInterfaceMutex
+**
+** Returns:        None
+**
+*******************************************************************************/
+void nativeNfcTag_releaseRfInterfaceMutexLock()
+{
+    sRfInterfaceMutex.unlock();
+    ALOGD("%s: sRfInterfaceMutex unlock", __func__);
+}
 
 /*****************************************************************************
 **
