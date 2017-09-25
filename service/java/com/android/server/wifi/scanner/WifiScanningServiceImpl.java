@@ -75,7 +75,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
     private static final String TAG = WifiScanningService.TAG;
     private static final boolean DBG = false;
 
-    private static final int MIN_PERIOD_PER_CHANNEL_MS = 200;               // DFS needs 120 ms
     private static final int UNKNOWN_PID = -1;
 
     private final LocalLog mLocalLog = new LocalLog(512);
@@ -240,10 +239,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
     private static final int CMD_SCAN_RESULTS_AVAILABLE              = BASE + 0;
     private static final int CMD_FULL_SCAN_RESULTS                   = BASE + 1;
-    private static final int CMD_HOTLIST_AP_FOUND                    = BASE + 2;
-    private static final int CMD_HOTLIST_AP_LOST                     = BASE + 3;
-    private static final int CMD_WIFI_CHANGE_DETECTED                = BASE + 4;
-    private static final int CMD_WIFI_CHANGE_TIMEOUT                 = BASE + 5;
     private static final int CMD_DRIVER_LOADED                       = BASE + 6;
     private static final int CMD_DRIVER_UNLOADED                     = BASE + 7;
     private static final int CMD_SCAN_PAUSED                         = BASE + 8;
