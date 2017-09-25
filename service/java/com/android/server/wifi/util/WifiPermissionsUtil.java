@@ -21,7 +21,6 @@ import android.app.AppOpsManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.pm.UserInfo;
-import android.net.ConnectivityManager;
 import android.net.NetworkScoreManager;
 import android.os.Binder;
 import android.os.RemoteException;
@@ -90,16 +89,6 @@ public class WifiPermissionsUtil {
             mLog.err("Error checking for permission: %").r(e.getMessage()).flush();
             return false;
         }
-    }
-
-    /**
-     * Check and enforce tether change permission.
-     *
-     * @param context Context object of the caller.
-     */
-    public void enforceTetherChangePermission(Context context) {
-        String pkgName = context.getOpPackageName();
-        ConnectivityManager.enforceTetherChangePermission(context, pkgName);
     }
 
     /**
