@@ -139,6 +139,7 @@ public class WifiStateMachineTest {
                     : WifiStateMachine.NUM_LOG_RECS_VERBOSE);
     private static final int FRAMEWORK_NETWORK_ID = 7;
     private static final int TEST_RSSI = -54;
+    private static final int TEST_NETWORK_ID = 54;
     private static final int WPS_SUPPLICANT_NETWORK_ID = 5;
     private static final int WPS_FRAMEWORK_NETWORK_ID = 10;
     private static final String DEFAULT_TEST_SSID = "\"GoogleGuest\"";
@@ -750,25 +751,7 @@ public class WifiStateMachineTest {
                 (Intent) argThat(new WifiEnablingStateIntentMatcher()), any());
     }
 
-    /**
-     * Verifies that configs can be removed when in client mode.
-     */
-    @Test
-    public void canRemoveNetworkConfigInClientMode() throws Exception {
-        boolean result;
-        when(mWifiConfigManager.removeNetwork(eq(0), anyInt())).thenReturn(true);
-        initializeAndAddNetworkAndVerifySuccess();
-        mLooper.startAutoDispatch();
-        result = mWsm.syncRemoveNetwork(mWsmAsyncChannel, 0);
-        mLooper.stopAutoDispatch();
-        assertTrue(result);
-    }
-
-    /**
-     * Verifies that configs can be removed when not in client mode.
-     */
-    @Test
-    public void canRemoveNetworkConfigWhenWifiDisabled() {
+    private void canRemoveNetwork() {
         boolean result;
         when(mWifiConfigManager.removeNetwork(eq(0), anyInt())).thenReturn(true);
         mLooper.startAutoDispatch();
@@ -780,12 +763,25 @@ public class WifiStateMachineTest {
     }
 
     /**
-     * Verifies that configs can be forgotten when in client mode.
+     * Verifies that configs can be removed when not in client mode.
      */
     @Test
-    public void canForgetNetworkConfigInClientMode() throws Exception {
-        when(mWifiConfigManager.removeNetwork(eq(0), anyInt())).thenReturn(true);
+    public void canRemoveNetworkConfigWhenWifiDisabled() {
+        canRemoveNetwork();
+    }
+
+
+    /**
+     * Verifies that configs can be removed when in client mode.
+     */
+    @Test
+    public void canRemoveNetworkConfigInClientMode() throws Exception {
         initializeAndAddNetworkAndVerifySuccess();
+        canRemoveNetwork();
+    }
+
+    private void canForgetNetwork() {
+        when(mWifiConfigManager.removeNetwork(eq(0), anyInt())).thenReturn(true);
         mWsm.sendMessage(WifiManager.FORGET_NETWORK, 0, MANAGED_PROFILE_UID);
         mLooper.dispatchAll();
         verify(mWifiConfigManager).removeNetwork(anyInt(), anyInt());
@@ -796,10 +792,109 @@ public class WifiStateMachineTest {
      */
     @Test
     public void canForgetNetworkConfigWhenWifiDisabled() throws Exception {
-        when(mWifiConfigManager.removeNetwork(eq(0), anyInt())).thenReturn(true);
-        mWsm.sendMessage(WifiManager.FORGET_NETWORK, 0, MANAGED_PROFILE_UID);
-        mLooper.dispatchAll();
-        verify(mWifiConfigManager).removeNetwork(anyInt(), anyInt());
+        canForgetNetwork();
+    }
+
+    /**
+     * Verifies that configs can be forgotten when in client mode.
+     */
+    @Test
+    public void canForgetNetworkConfigInClientMode() throws Exception {
+        initializeAndAddNetworkAndVerifySuccess();
+        canForgetNetwork();
+    }
+
+    private void canSaveNetworkConfig() {
+        WifiConfiguration config = WifiConfigurationTestUtil.createOpenNetwork();
+
+        int networkId = TEST_NETWORK_ID;
+        when(mWifiConfigManager.addOrUpdateNetwork(any(WifiConfiguration.class), anyInt()))
+                .thenReturn(new NetworkUpdateResult(networkId));
+        when(mWifiConfigManager.enableNetwork(eq(networkId), eq(false), anyInt()))
+                .thenReturn(true);
+
+        mLooper.startAutoDispatch();
+        Message reply = mWsmAsyncChannel.sendMessageSynchronously(WifiManager.SAVE_NETWORK, config);
+        mLooper.stopAutoDispatch();
+        assertEquals(WifiManager.SAVE_NETWORK_SUCCEEDED, reply.what);
+
+        verify(mWifiConfigManager).addOrUpdateNetwork(any(WifiConfiguration.class), anyInt());
+        verify(mWifiConfigManager).enableNetwork(eq(networkId), eq(false), anyInt());
+    }
+
+    /**
+     * Verifies that configs can be saved when not in client mode.
+     */
+    @Test
+    public void canSaveNetworkConfigWhenWifiDisabled() throws Exception {
+        canSaveNetworkConfig();
+    }
+
+    /**
+     * Verifies that configs can be saved when in client mode.
+     */
+    @Test
+    public void canSaveNetworkConfigInClientMode() throws Exception {
+        loadComponentsInStaMode();
+        canSaveNetworkConfig();
+    }
+
+    /**
+     * Verifies that null configs are rejected in SAVE_NETWORK message.
+     */
+    @Test
+    public void saveNetworkConfigFailsWithNullConfig() throws Exception {
+        mLooper.startAutoDispatch();
+        Message reply = mWsmAsyncChannel.sendMessageSynchronously(WifiManager.SAVE_NETWORK, null);
+        mLooper.stopAutoDispatch();
+        assertEquals(WifiManager.SAVE_NETWORK_FAILED, reply.what);
+
+        verify(mWifiConfigManager, never())
+                .addOrUpdateNetwork(any(WifiConfiguration.class), anyInt());
+        verify(mWifiConfigManager, never())
+                .enableNetwork(anyInt(), anyBoolean(), anyInt());
+    }
+
+    /**
+     * Verifies that configs save fails when the addition of network fails.
+     */
+    @Test
+    public void saveNetworkConfigFailsWithConfigAddFailure() throws Exception {
+        WifiConfiguration config = WifiConfigurationTestUtil.createOpenNetwork();
+
+        when(mWifiConfigManager.addOrUpdateNetwork(any(WifiConfiguration.class), anyInt()))
+                .thenReturn(new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID));
+
+        mLooper.startAutoDispatch();
+        Message reply = mWsmAsyncChannel.sendMessageSynchronously(WifiManager.SAVE_NETWORK, config);
+        mLooper.stopAutoDispatch();
+        assertEquals(WifiManager.SAVE_NETWORK_FAILED, reply.what);
+
+        verify(mWifiConfigManager).addOrUpdateNetwork(any(WifiConfiguration.class), anyInt());
+        verify(mWifiConfigManager, never())
+                .enableNetwork(anyInt(), anyBoolean(), anyInt());
+    }
+
+    /**
+     * Verifies that configs save fails when the enable of network fails.
+     */
+    @Test
+    public void saveNetworkConfigFailsWithConfigEnableFailure() throws Exception {
+        WifiConfiguration config = WifiConfigurationTestUtil.createOpenNetwork();
+
+        int networkId = 5;
+        when(mWifiConfigManager.addOrUpdateNetwork(any(WifiConfiguration.class), anyInt()))
+                .thenReturn(new NetworkUpdateResult(networkId));
+        when(mWifiConfigManager.enableNetwork(eq(networkId), eq(false), anyInt()))
+                .thenReturn(false);
+
+        mLooper.startAutoDispatch();
+        Message reply = mWsmAsyncChannel.sendMessageSynchronously(WifiManager.SAVE_NETWORK, config);
+        mLooper.stopAutoDispatch();
+        assertEquals(WifiManager.SAVE_NETWORK_FAILED, reply.what);
+
+        verify(mWifiConfigManager).addOrUpdateNetwork(any(WifiConfiguration.class), anyInt());
+        verify(mWifiConfigManager).enableNetwork(eq(networkId), eq(false), anyInt());
     }
 
     /**
