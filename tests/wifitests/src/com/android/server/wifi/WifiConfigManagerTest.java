@@ -1519,6 +1519,45 @@ public class WifiConfigManagerTest {
     }
 
     /**
+     * Verifies that the list of PNO networks does not contain any permanently or temporarily
+     * disabled networks.
+     * {@link WifiConfigManager#retrievePnoNetworkList()}.
+     */
+    @Test
+    public void testRetrievePnoListDoesNotContainDisabledNetworks() throws Exception {
+        // Create and add 2 networks.
+        WifiConfiguration network1 = WifiConfigurationTestUtil.createEapNetwork();
+        WifiConfiguration network2 = WifiConfigurationTestUtil.createPskNetwork();
+
+        NetworkUpdateResult result1 = verifyAddNetworkToWifiConfigManager(network1);
+        NetworkUpdateResult result2 = verifyAddNetworkToWifiConfigManager(network2);
+
+        // Enable all of them.
+        verifyUpdateNetworkSelectionStatus(
+                result1.getNetworkId(), NetworkSelectionStatus.NETWORK_SELECTION_ENABLE, 0);
+        verifyUpdateNetworkSelectionStatus(
+                result2.getNetworkId(), NetworkSelectionStatus.NETWORK_SELECTION_ENABLE, 0);
+
+        // Set network1 to temporarily disabled. The threshold for association rejection is 5, so
+        // disable it 5 times to actually mark it temporarily disabled.
+        int assocRejectReason = NetworkSelectionStatus.DISABLED_ASSOCIATION_REJECTION;
+        int assocRejectThreshold =
+                WifiConfigManager.NETWORK_SELECTION_DISABLE_THRESHOLD[assocRejectReason];
+        for (int i = 1; i <= assocRejectThreshold; i++) {
+            verifyUpdateNetworkSelectionStatus(result1.getNetworkId(), assocRejectReason, i);
+        }
+
+        // Set network 2 to permanently disabled.
+        verifyUpdateNetworkSelectionStatus(
+                result2.getNetworkId(), NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER, 0);
+
+        // Retrieve the Pno network list & verify both networks are not included.
+        List<WifiScanner.PnoSettings.PnoNetwork> pnoNetworks =
+                mWifiConfigManager.retrievePnoNetworkList();
+        assertEquals(0, pnoNetworks.size());
+    }
+
+    /**
      * Verifies the linking of networks when they have the same default GW Mac address in
      * {@link WifiConfigManager#getOrCreateScanDetailCacheForNetwork(WifiConfiguration)}.
      */

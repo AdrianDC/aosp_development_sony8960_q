@@ -2330,12 +2330,13 @@ public class WifiConfigManager {
     public List<WifiScanner.PnoSettings.PnoNetwork> retrievePnoNetworkList() {
         List<WifiScanner.PnoSettings.PnoNetwork> pnoList = new ArrayList<>();
         List<WifiConfiguration> networks = new ArrayList<>(getInternalConfiguredNetworks());
-        // Remove any permanently disabled networks.
+        // Remove any permanently or temporarily disabled networks.
         Iterator<WifiConfiguration> iter = networks.iterator();
         while (iter.hasNext()) {
             WifiConfiguration config = iter.next();
             if (config.ephemeral || config.isPasspoint()
-                    || config.getNetworkSelectionStatus().isNetworkPermanentlyDisabled()) {
+                    || config.getNetworkSelectionStatus().isNetworkPermanentlyDisabled()
+                    || config.getNetworkSelectionStatus().isNetworkTemporaryDisabled()) {
                 iter.remove();
             }
         }
