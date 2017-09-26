@@ -955,12 +955,6 @@ static jboolean nfcManager_doInitialize (JNIEnv* e, jobject o)
             if (stat == NFA_STATUS_OK)
             {
                 num = initializeGlobalAppLogLevel ();
-                CE_SetTraceLevel (num);
-                LLCP_SetTraceLevel (num);
-                NFC_SetTraceLevel (num);
-                RW_SetTraceLevel (num);
-                NFA_SetTraceLevel (num);
-                NFA_P2pSetTraceLevel (num);
                 sNfaEnableEvent.wait(); //wait for NFA command to finish
             }
             EXTNS_Init (nfaDeviceManagementCallback, nfaConnectionCallback);
