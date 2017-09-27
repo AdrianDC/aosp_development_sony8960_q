@@ -4824,7 +4824,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
             // Notify PasspointManager of Passpoint network connected event.
             WifiConfiguration currentNetwork = getCurrentWifiConfiguration();
-            if (currentNetwork.isPasspoint()) {
+            if (currentNetwork != null && currentNetwork.isPasspoint()) {
                 mPasspointManager.onPasspointNetworkConnected(currentNetwork.FQDN);
             }
        }
@@ -5831,8 +5831,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     reportConnectionAttemptEnd(
                             WifiMetrics.ConnectionEvent.FAILURE_NONE,
                             WifiMetricsProto.ConnectionEvent.HLF_NONE);
-                    sendConnectedState();
-                    transitionTo(mConnectedState);
+                    if (getCurrentWifiConfiguration() == null) {
+                        // The current config may have been removed while we were connecting,
+                        // trigger a disconnect to clear up state.
+                        mWifiNative.disconnect();
+                        transitionTo(mDisconnectingState);
+                    } else {
+                        sendConnectedState();
+                        transitionTo(mConnectedState);
+                    }
                     break;
                 case CMD_IP_CONFIGURATION_LOST:
                     // Get Link layer stats so that we get fresh tx packet counters.
