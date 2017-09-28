@@ -30,6 +30,7 @@ import android.net.wifi.WifiScanner.PnoSettings;
 import android.net.wifi.WifiScanner.ScanSettings;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Process;
 import android.util.LocalLog;
 import android.util.Log;
 
@@ -741,7 +742,7 @@ public class WifiConnectivityManager {
                 localLog("connectToNetwork: Connect to " + targetAssociationId + " from "
                         + currentAssociationId);
             }
-            mStateMachine.startConnectToNetwork(candidate.networkId, targetBssid);
+            mStateMachine.startConnectToNetwork(candidate.networkId, Process.WIFI_UID, targetBssid);
         }
     }
 
