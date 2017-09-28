@@ -67,6 +67,7 @@ import android.net.wifi.WifiWakeReasonAndCounts;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.RemoteException;
+import android.util.Log;
 import android.util.MutableBoolean;
 import android.util.MutableInt;
 
@@ -2582,8 +2583,25 @@ public class WifiVendorHal {
                 // The problem here is that the two threads acquire the locks in opposite order.
                 // If, for example, T2.2 executes between T1.2 and 1.4, then T1 and T2
                 // will be deadlocked.
-                eventHandler.onRingBufferData(
-                        ringBufferStatus(status), NativeUtil.byteArrayFromArrayList(data));
+                int sizeBefore = data.size();
+                boolean conversionFailure = false;
+                try {
+                    eventHandler.onRingBufferData(
+                            ringBufferStatus(status), NativeUtil.byteArrayFromArrayList(data));
+                    int sizeAfter = data.size();
+                    if (sizeAfter != sizeBefore) {
+                        conversionFailure = true;
+                    }
+                } catch (ArrayIndexOutOfBoundsException e) {
+                    conversionFailure = true;
+                }
+                if (conversionFailure) {
+                    Log.wtf("WifiVendorHal", "Conversion failure detected in "
+                            + "onDebugRingBufferDataAvailable. "
+                            + "The input ArrayList |data| is potentially corrupted. "
+                            + "Starting size=" + sizeBefore + ", "
+                            + "final size=" + data.size());
+                }
             });
         }
 
