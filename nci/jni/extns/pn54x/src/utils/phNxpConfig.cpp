@@ -13,8 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#define LOG_TAG "pn54x"
-
 #include <phNxpConfig.h>
 #include <stdio.h>
 #include <string>
@@ -22,8 +20,11 @@
 #include <list>
 #include <sys/stat.h>
 
+#include <base/logging.h>
+#include <android-base/stringprintf.h>
 #include <phNxpLog.h>
 
+using android::base::StringPrintf;
 #if GENERIC_TARGET
 const char alternative_config_path[] = "/data/nfc/";
 #else
@@ -216,10 +217,10 @@ bool CNxpNfcConfig::readConfig (const char* name, bool bResetContent)
     /* open config file, read it into a buffer */
     if ((fd = fopen (name, "rb")) == NULL)
     {
-        ALOGE("%s Cannot open config file %s", __func__, name);
+        LOG(ERROR) << StringPrintf("%s Cannot open config file %s", __func__, name);
         if (bResetContent)
         {
-            ALOGE("%s Using default value for all settings", __func__);
+            LOG(ERROR) << StringPrintf("%s Using default value for all settings", __func__);
             mValidFile = false;
         }
         return false;
@@ -599,11 +600,11 @@ const CNxpNfcParam* CNxpNfcConfig::find (const char* p_name) const
         {
             if ((*it)->str_len () > 0)
             {
-                NXPLOG_EXTNS_D ("%s found %s=%s\n", __func__, p_name, (*it)->str_value());
+                DLOG_IF(INFO, gLog_level.extns_log_level >= NXPLOG_LOG_DEBUG_LOGLEVEL) << StringPrintf("%s found %s=%s\n", __func__, p_name, (*it)->str_value());
             }
             else
             {
-                NXPLOG_EXTNS_D ("%s found %s=(0x%lx)\n", __func__, p_name, (*it)->numValue());
+                DLOG_IF(INFO, gLog_level.extns_log_level >= NXPLOG_LOG_DEBUG_LOGLEVEL) << StringPrintf("%s found %s=(0x%lx)\n", __func__, p_name, (*it)->numValue());
             }
             return *it;
         }
@@ -718,7 +719,7 @@ int CNxpNfcConfig::checkTimestamp ()
 
     if (stat(config_timestamp_path, &st) != 0)
     {
-        ALOGV("%s file %s not exist, creat it.", __func__, config_timestamp_path);
+        DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s file %s not exist, creat it.", __func__, config_timestamp_path);
         if ((fd = fopen (config_timestamp_path, "w+")) != NULL)
         {
             fwrite (&m_timeStamp, sizeof(unsigned long), 1, fd);
@@ -731,7 +732,7 @@ int CNxpNfcConfig::checkTimestamp ()
         fd = fopen (config_timestamp_path, "r+");
         if (fd == NULL)
         {
-            ALOGE("%s Cannot open file %s", __func__, config_timestamp_path);
+            LOG(ERROR) << StringPrintf("%s Cannot open file %s", __func__, config_timestamp_path);
             return 1;
         }
 

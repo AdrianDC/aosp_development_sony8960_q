@@ -35,6 +35,8 @@ LOCAL_SHARED_LIBRARIES := \
     libutils \
     liblog \
     libnfc-nci \
+    libchrome \
+    libbase \
 
 LOCAL_STATIC_LIBRARIES := libxml2
 

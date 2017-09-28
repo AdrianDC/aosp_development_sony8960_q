@@ -291,6 +291,4 @@ typedef struct phNfc_sTransceiveInfo
     uint8_t                         bWordCount;   /* Number of words to be read or written */
 } phNfc_sTransceiveInfo_t;
 
-#define UNUSED(X) (void)(X);
-
 #endif /* PHNFCTYPES_H */

@@ -19,7 +19,7 @@
 #include <errno.h>
 
 #include <log/log.h>
-
+#include "_OverrideLog.h"
 #include <nativehelper/JNIHelp.h>
 #include <nativehelper/ScopedLocalRef.h>
 #include "RoutingManager.h"
@@ -37,10 +37,10 @@
 *******************************************************************************/
 jint JNI_OnLoad (JavaVM* jvm, void*)
 {
-    ALOGV("%s: enter", __func__);
+    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter", __func__);
     JNIEnv *e = NULL;
 
-    ALOGI("NFC Service: loading nci JNI");
+    LOG(INFO) << StringPrintf("NFC Service: loading nci JNI");
 
     // Check JNI version
     if (jvm->GetEnv ((void **) &e, JNI_VERSION_1_6))
@@ -60,7 +60,7 @@ jint JNI_OnLoad (JavaVM* jvm, void*)
         return JNI_ERR;
     if (RoutingManager::getInstance().registerJniFunctions (e) == -1)
         return JNI_ERR;
-    ALOGV("%s: exit", __func__);
+    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: exit", __func__);
     return JNI_VERSION_1_6;
 }
 
@@ -83,7 +83,7 @@ int nfc_jni_cache_object (JNIEnv *e, const char *className, jobject *cachedObj)
     ScopedLocalRef<jclass> cls(e, e->FindClass(className));
     if (cls.get() == NULL)
     {
-        ALOGE("%s: find class error", __func__);
+        LOG(ERROR) << StringPrintf("%s: find class error", __func__);
         return -1;
     }
 
@@ -91,14 +91,14 @@ int nfc_jni_cache_object (JNIEnv *e, const char *className, jobject *cachedObj)
     ScopedLocalRef<jobject> obj(e, e->NewObject(cls.get(), ctor));
     if (obj.get() == NULL)
     {
-       ALOGE("%s: create object error", __func__);
+       LOG(ERROR) << StringPrintf("%s: create object error", __func__);
        return -1;
     }
 
     *cachedObj = e->NewGlobalRef(obj.get());
     if (*cachedObj == NULL)
     {
-        ALOGE("%s: global ref error", __func__);
+        LOG(ERROR) << StringPrintf("%s: global ref error", __func__);
         return -1;
     }
     return 0;
@@ -158,7 +158,7 @@ int nfc_jni_cache_object_local (JNIEnv *e, const char *className, jobject *cache
     ScopedLocalRef<jclass> cls(e, e->FindClass(className));
     if(cls.get() == NULL)
     {
-        ALOGE("%s: find class error", __func__);
+        LOG(ERROR) << StringPrintf("%s: find class error", __func__);
         return -1;
     }
 
@@ -166,14 +166,14 @@ int nfc_jni_cache_object_local (JNIEnv *e, const char *className, jobject *cache
     jobject obj = e->NewObject(cls.get(), ctor);
     if (obj == NULL)
     {
-       ALOGE("%s: create object error", __func__);
+       LOG(ERROR) << StringPrintf("%s: create object error", __func__);
        return -1;
     }
 
     *cachedObj = obj;
     if (*cachedObj == NULL)
     {
-        ALOGE("%s: global ref error", __func__);
+        LOG(ERROR) << StringPrintf("%s: global ref error", __func__);
         return -1;
     }
     return 0;
