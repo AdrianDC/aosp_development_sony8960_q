@@ -3980,9 +3980,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     deleteNetworkConfigAndSendReply(message, true);
                     break;
                 case WifiManager.SAVE_NETWORK:
-                    messageHandlingStatus = MESSAGE_HANDLING_STATUS_FAIL;
-                    replyToMessage(message, WifiManager.SAVE_NETWORK_FAILED,
-                            WifiManager.BUSY);
+                    saveNetworkConfigAndSendReply(message);
                     break;
                 case WifiManager.START_WPS:
                     replyToMessage(message, WifiManager.WPS_FAILED,
@@ -5270,36 +5268,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     replyToMessage(message, WifiManager.CONNECT_NETWORK_SUCCEEDED);
                     break;
                 case WifiManager.SAVE_NETWORK:
-                    config = (WifiConfiguration) message.obj;
-                    mWifiConnectionStatistics.numWifiManagerJoinAttempt++;
-                    if (config == null) {
-                        loge("SAVE_NETWORK with null configuration"
-                                + mSupplicantStateTracker.getSupplicantStateName()
-                                + " my state " + getCurrentState().getName());
-                        messageHandlingStatus = MESSAGE_HANDLING_STATUS_FAIL;
-                        replyToMessage(message, WifiManager.SAVE_NETWORK_FAILED,
-                                WifiManager.ERROR);
-                        break;
-                    }
-                    result = mWifiConfigManager.addOrUpdateNetwork(config, message.sendingUid);
-                    if (!result.isSuccess()) {
-                        loge("SAVE_NETWORK adding/updating config=" + config + " failed");
-                        messageHandlingStatus = MESSAGE_HANDLING_STATUS_FAIL;
-                        replyToMessage(message, WifiManager.SAVE_NETWORK_FAILED,
-                                WifiManager.ERROR);
-                        break;
-                    }
-                    if (!mWifiConfigManager.enableNetwork(
-                            result.getNetworkId(), false, message.sendingUid)) {
-                        loge("SAVE_NETWORK enabling config=" + config + " failed");
-                        messageHandlingStatus = MESSAGE_HANDLING_STATUS_FAIL;
-                        replyToMessage(message, WifiManager.SAVE_NETWORK_FAILED,
-                                WifiManager.ERROR);
-                        break;
-                    }
+                    result = saveNetworkConfigAndSendReply(message);
                     netId = result.getNetworkId();
-                    if (mWifiInfo.getNetworkId() == netId) {
+                    if (result.isSuccess() && mWifiInfo.getNetworkId() == netId) {
+                        mWifiConnectionStatistics.numWifiManagerJoinAttempt++;
                         if (result.hasCredentialChanged()) {
+                            config = (WifiConfiguration) message.obj;
                             // The network credentials changed and we're connected to this network,
                             // start a new connection with the updated credentials.
                             logi("SAVE_NETWORK credential changed for config=" + config.configKey()
@@ -5322,8 +5296,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             }
                         }
                     }
-                    broadcastWifiCredentialChanged(WifiManager.WIFI_CREDENTIAL_SAVED, config);
-                    replyToMessage(message, WifiManager.SAVE_NETWORK_SUCCEEDED);
                     break;
                 case WifiManager.FORGET_NETWORK:
                     if (!deleteNetworkConfigAndSendReply(message, true)) {
@@ -7215,6 +7187,43 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             replyToMessage(message, message.what, FAILURE);
             return false;
         }
+    }
+
+    /**
+     * Private method to handle calling WifiConfigManager to add & enable network configs and reply
+     * to the message from the sender of the outcome.
+     *
+     * @return NetworkUpdateResult with networkId of the added/updated configuration. Will return
+     * {@link WifiConfiguration#INVALID_NETWORK_ID} in case of error.
+     */
+    private NetworkUpdateResult saveNetworkConfigAndSendReply(Message message) {
+        WifiConfiguration config = (WifiConfiguration) message.obj;
+        if (config == null) {
+            loge("SAVE_NETWORK with null configuration "
+                    + mSupplicantStateTracker.getSupplicantStateName()
+                    + " my state " + getCurrentState().getName());
+            messageHandlingStatus = MESSAGE_HANDLING_STATUS_FAIL;
+            replyToMessage(message, WifiManager.SAVE_NETWORK_FAILED, WifiManager.ERROR);
+            return new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID);
+        }
+        NetworkUpdateResult result =
+                mWifiConfigManager.addOrUpdateNetwork(config, message.sendingUid);
+        if (!result.isSuccess()) {
+            loge("SAVE_NETWORK adding/updating config=" + config + " failed");
+            messageHandlingStatus = MESSAGE_HANDLING_STATUS_FAIL;
+            replyToMessage(message, WifiManager.SAVE_NETWORK_FAILED, WifiManager.ERROR);
+            return result;
+        }
+        if (!mWifiConfigManager.enableNetwork(
+                result.getNetworkId(), false, message.sendingUid)) {
+            loge("SAVE_NETWORK enabling config=" + config + " failed");
+            messageHandlingStatus = MESSAGE_HANDLING_STATUS_FAIL;
+            replyToMessage(message, WifiManager.SAVE_NETWORK_FAILED, WifiManager.ERROR);
+            return new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID);
+        }
+        broadcastWifiCredentialChanged(WifiManager.WIFI_CREDENTIAL_SAVED, config);
+        replyToMessage(message, WifiManager.SAVE_NETWORK_SUCCEEDED);
+        return result;
     }
 
     private static String getLinkPropertiesSummary(LinkProperties lp) {
