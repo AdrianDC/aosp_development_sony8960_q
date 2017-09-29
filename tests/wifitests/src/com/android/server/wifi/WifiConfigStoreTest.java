@@ -21,6 +21,7 @@ import static org.mockito.Mockito.*;
 
 import android.app.test.TestAlarmManager;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.net.wifi.WifiConfiguration;
 import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
@@ -60,6 +61,7 @@ public class WifiConfigStoreTest {
 
     private static final String TEST_USER_DATA = "UserData";
     private static final String TEST_SHARE_DATA = "ShareData";
+    private static final String TEST_CREATOR_NAME = "CreatorName";
 
     private static final String TEST_DATA_XML_STRING_FORMAT =
             "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n"
@@ -95,7 +97,7 @@ public class WifiConfigStoreTest {
                     + "<boolean name=\"UseExternalScores\" value=\"false\" />\n"
                     + "<int name=\"NumAssociation\" value=\"0\" />\n"
                     + "<int name=\"CreatorUid\" value=\"%d\" />\n"
-                    + "<null name=\"CreatorName\" />\n"
+                    + "<string name=\"CreatorName\">%s</string>\n"
                     + "<null name=\"CreationTime\" />\n"
                     + "<int name=\"LastUpdateUid\" value=\"-1\" />\n"
                     + "<null name=\"LastUpdateName\" />\n"
@@ -125,6 +127,7 @@ public class WifiConfigStoreTest {
 
     // Test mocks
     @Mock private Context mContext;
+    @Mock private PackageManager mPackageManager;
     private TestAlarmManager mAlarmManager;
     private TestLooper mLooper;
     @Mock private Clock mClock;
@@ -146,6 +149,8 @@ public class WifiConfigStoreTest {
         mLooper = new TestLooper();
         when(mContext.getSystemService(Context.ALARM_SERVICE))
                 .thenReturn(mAlarmManager.getAlarmManager());
+        when(mContext.getPackageManager()).thenReturn(mPackageManager);
+        when(mPackageManager.getNameForUid(anyInt())).thenReturn(TEST_CREATOR_NAME);
         mUserStore = new MockStoreFile();
         mSharedStore = new MockStoreFile();
         mStoreData = new MockStoreData();
@@ -364,9 +369,10 @@ public class WifiConfigStoreTest {
     @Test
     public void testReadWifiConfigStoreData() throws Exception {
         // Setup network list.
-        NetworkListStoreData networkList = new NetworkListStoreData();
+        NetworkListStoreData networkList = new NetworkListStoreData(mContext);
         mWifiConfigStore.registerStoreData(networkList);
         WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+        openNetwork.creatorName = TEST_CREATOR_NAME;
         openNetwork.setIpConfiguration(
                 WifiConfigurationTestUtil.createDHCPIpConfigurationWithNoProxy());
         List<WifiConfiguration> userConfigs = new ArrayList<>();
@@ -384,7 +390,7 @@ public class WifiConfigStoreTest {
         String xmlString = String.format(TEST_DATA_XML_STRING_FORMAT,
                 openNetwork.configKey().replaceAll("\"", "&quot;"),
                 openNetwork.SSID.replaceAll("\"", "&quot;"),
-                openNetwork.shared, openNetwork.creatorUid, testSsid);
+                openNetwork.shared, openNetwork.creatorUid, openNetwork.creatorName, testSsid);
         byte[] xmlBytes = xmlString.getBytes(StandardCharsets.UTF_8);
         mUserStore.storeRawDataToWrite(xmlBytes);
 
@@ -406,9 +412,10 @@ public class WifiConfigStoreTest {
         mWifiConfigStore.switchUserStoreAndRead(mUserStore);
 
         // Setup network list store data.
-        NetworkListStoreData networkList = new NetworkListStoreData();
+        NetworkListStoreData networkList = new NetworkListStoreData(mContext);
         mWifiConfigStore.registerStoreData(networkList);
         WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+        openNetwork.creatorName = TEST_CREATOR_NAME;
         openNetwork.setIpConfiguration(
                 WifiConfigurationTestUtil.createDHCPIpConfigurationWithNoProxy());
         List<WifiConfiguration> userConfigs = new ArrayList<>();
@@ -428,7 +435,7 @@ public class WifiConfigStoreTest {
         String xmlString = String.format(TEST_DATA_XML_STRING_FORMAT,
                 openNetwork.configKey().replaceAll("\"", "&quot;"),
                 openNetwork.SSID.replaceAll("\"", "&quot;"),
-                openNetwork.shared, openNetwork.creatorUid, testSsid);
+                openNetwork.shared, openNetwork.creatorUid, openNetwork.creatorName, testSsid);
         byte[] xmlBytes = xmlString.getBytes(StandardCharsets.UTF_8);
 
         mWifiConfigStore.write(true);
