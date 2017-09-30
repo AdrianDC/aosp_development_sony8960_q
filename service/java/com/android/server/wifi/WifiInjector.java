@@ -197,7 +197,7 @@ public class WifiInjector {
         mWifiConfigManager = new WifiConfigManager(mContext, mClock,
                 UserManager.get(mContext), TelephonyManager.from(mContext),
                 mWifiKeyStore, mWifiConfigStore, mWifiPermissionsUtil,
-                mWifiPermissionsWrapper, new NetworkListStoreData(),
+                mWifiPermissionsWrapper, new NetworkListStoreData(mContext),
                 new DeletedEphemeralSsidsStoreData());
         mWifiMetrics.setWifiConfigManager(mWifiConfigManager);
         mWifiConnectivityHelper = new WifiConnectivityHelper(mWifiNative);
@@ -225,7 +225,7 @@ public class WifiInjector {
                 new WrongPasswordNotifier(mContext, mFrameworkFacade));
         mCertManager = new WifiCertManager(mContext);
         mOpenNetworkNotifier = new OpenNetworkNotifier(mContext,
-                mWifiStateMachineHandlerThread.getLooper(), mFrameworkFacade, mClock,
+                mWifiStateMachineHandlerThread.getLooper(), mFrameworkFacade, mClock, mWifiMetrics,
                 mWifiConfigManager, mWifiConfigStore, mWifiStateMachine,
                 new OpenNetworkRecommender(),
                 new ConnectToNetworkNotificationBuilder(mContext, mFrameworkFacade));

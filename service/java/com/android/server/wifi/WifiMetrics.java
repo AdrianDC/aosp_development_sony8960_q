@@ -37,6 +37,7 @@ import com.android.server.wifi.hotspot2.PasspointManager;
 import com.android.server.wifi.hotspot2.PasspointMatch;
 import com.android.server.wifi.hotspot2.PasspointProvider;
 import com.android.server.wifi.nano.WifiMetricsProto;
+import com.android.server.wifi.nano.WifiMetricsProto.ConnectToNetworkNotificationAndActionCount;
 import com.android.server.wifi.nano.WifiMetricsProto.PnoScanMetrics;
 import com.android.server.wifi.nano.WifiMetricsProto.StaEvent;
 import com.android.server.wifi.nano.WifiMetricsProto.StaEvent.ConfigInfo;
@@ -83,6 +84,7 @@ public class WifiMetrics {
     public static final int MAX_CONNECTABLE_BSSID_NETWORK_BUCKET = 50;
     public static final int MAX_TOTAL_SCAN_RESULT_SSIDS_BUCKET = 100;
     public static final int MAX_TOTAL_SCAN_RESULTS_BUCKET = 250;
+    private static final int CONNECT_TO_NETWORK_NOTIFICATION_ACTION_KEY_MULTIPLIER = 1000;
     private Clock mClock;
     private boolean mScreenOn;
     private int mWifiState;
@@ -149,6 +151,15 @@ public class WifiMetrics {
             new SparseIntArray();
     private final SparseIntArray mAvailableSavedPasspointProviderBssidsInScanHistogram =
             new SparseIntArray();
+
+    /** Mapping of "Connect to Network" notifications to counts. */
+    private final SparseIntArray mConnectToNetworkNotificationCount = new SparseIntArray();
+    /** Mapping of "Connect to Network" notification user actions to counts. */
+    private final SparseIntArray mConnectToNetworkNotificationActionCount = new SparseIntArray();
+    private int mOpenNetworkRecommenderBlacklistSize = 0;
+    private boolean mIsWifiNetworksAvailableNotificationOn = false;
+    private int mNumOpenNetworkConnectMessageFailedToSend = 0;
+    private int mNumOpenNetworkRecommendationUpdates = 0;
 
     class RouterFingerPrint {
         private WifiMetricsProto.RouterFingerPrint mRouterFingerPrintProto;
@@ -1237,6 +1248,55 @@ public class WifiMetrics {
         }
     }
 
+    /** Increments the occurence of a "Connect to Network" notification. */
+    public void incrementConnectToNetworkNotification(int notificationType) {
+        synchronized (mLock) {
+            int count = mConnectToNetworkNotificationCount.get(notificationType);
+            mConnectToNetworkNotificationCount.put(notificationType, count + 1);
+        }
+    }
+
+    /** Increments the occurence of an "Connect to Network" notification user action. */
+    public void incrementConnectToNetworkNotificationAction(int notificationType, int actionType) {
+        synchronized (mLock) {
+            int key = notificationType * CONNECT_TO_NETWORK_NOTIFICATION_ACTION_KEY_MULTIPLIER
+                    + actionType;
+            int count = mConnectToNetworkNotificationActionCount.get(key);
+            mConnectToNetworkNotificationActionCount.put(key, count + 1);
+        }
+    }
+
+    /**
+     * Sets the number of SSIDs blacklisted from recommendation by the open network notification
+     * recommender.
+     */
+    public void setOpenNetworkRecommenderBlacklistSize(int size) {
+        synchronized (mLock) {
+            mOpenNetworkRecommenderBlacklistSize = size;
+        }
+    }
+
+    /** Sets if the available network notification feature is enabled. */
+    public void setIsWifiNetworksAvailableNotificationEnabled(boolean enabled) {
+        synchronized (mLock) {
+            mIsWifiNetworksAvailableNotificationOn = enabled;
+        }
+    }
+
+    /** Increments the occurence of connection attempts that were initiated unsuccessfully */
+    public void incrementNumOpenNetworkRecommendationUpdates() {
+        synchronized (mLock) {
+            mNumOpenNetworkRecommendationUpdates++;
+        }
+    }
+
+    /** Increments the occurence of connection attempts that were initiated unsuccessfully */
+    public void incrementNumOpenNetworkConnectMessageFailedToSend() {
+        synchronized (mLock) {
+            mNumOpenNetworkConnectMessageFailedToSend++;
+        }
+    }
+
     public static final String PROTO_DUMP_ARG = "wifiMetricsProto";
     public static final String CLEAN_DUMP_ARG = "clean";
 
@@ -1488,6 +1548,19 @@ public class WifiMetrics {
                         + mPnoScanMetrics.numPnoScanFailedOverOffload);
                 pw.println("mPnoScanMetrics.numPnoFoundNetworkEvents="
                         + mPnoScanMetrics.numPnoFoundNetworkEvents);
+
+                pw.println("mWifiLogProto.connectToNetworkNotificationCount="
+                        + mConnectToNetworkNotificationCount.toString());
+                pw.println("mWifiLogProto.connectToNetworkNotificationActionCount="
+                        + mConnectToNetworkNotificationActionCount.toString());
+                pw.println("mWifiLogProto.openNetworkRecommenderBlacklistSize="
+                        + mOpenNetworkRecommenderBlacklistSize);
+                pw.println("mWifiLogProto.isWifiNetworksAvailableNotificationOn="
+                        + mIsWifiNetworksAvailableNotificationOn);
+                pw.println("mWifiLogProto.numOpenNetworkRecommendationUpdates="
+                        + mNumOpenNetworkRecommendationUpdates);
+                pw.println("mWifiLogProto.numOpenNetworkConnectMessageFailedToSend="
+                        + mNumOpenNetworkConnectMessageFailedToSend);
             }
         }
     }
@@ -1698,6 +1771,53 @@ public class WifiMetrics {
             mWifiLogProto.wifiAwareLog = mWifiAwareMetrics.consolidateProto();
 
             mWifiLogProto.pnoScanMetrics = mPnoScanMetrics;
+
+            /**
+             * Convert the SparseIntArray of "Connect to Network" notification types and counts to
+             * proto's repeated IntKeyVal array.
+             */
+            ConnectToNetworkNotificationAndActionCount[] notificationCountArray =
+                    new ConnectToNetworkNotificationAndActionCount[
+                            mConnectToNetworkNotificationCount.size()];
+            for (int i = 0; i < mConnectToNetworkNotificationCount.size(); i++) {
+                ConnectToNetworkNotificationAndActionCount keyVal =
+                        new ConnectToNetworkNotificationAndActionCount();
+                keyVal.notification = mConnectToNetworkNotificationCount.keyAt(i);
+                keyVal.recommender =
+                        ConnectToNetworkNotificationAndActionCount.RECOMMENDER_OPEN;
+                keyVal.count = mConnectToNetworkNotificationCount.valueAt(i);
+                notificationCountArray[i] = keyVal;
+            }
+            mWifiLogProto.connectToNetworkNotificationCount = notificationCountArray;
+
+            /**
+             * Convert the SparseIntArray of "Connect to Network" notification types and counts to
+             * proto's repeated IntKeyVal array.
+             */
+            ConnectToNetworkNotificationAndActionCount[] notificationActionCountArray =
+                    new ConnectToNetworkNotificationAndActionCount[
+                            mConnectToNetworkNotificationActionCount.size()];
+            for (int i = 0; i < mConnectToNetworkNotificationActionCount.size(); i++) {
+                ConnectToNetworkNotificationAndActionCount keyVal =
+                        new ConnectToNetworkNotificationAndActionCount();
+                int key = mConnectToNetworkNotificationActionCount.keyAt(i);
+                keyVal.notification = key / CONNECT_TO_NETWORK_NOTIFICATION_ACTION_KEY_MULTIPLIER;
+                keyVal.action = key % CONNECT_TO_NETWORK_NOTIFICATION_ACTION_KEY_MULTIPLIER;
+                keyVal.recommender =
+                        ConnectToNetworkNotificationAndActionCount.RECOMMENDER_OPEN;
+                keyVal.count = mConnectToNetworkNotificationActionCount.valueAt(i);
+                notificationActionCountArray[i] = keyVal;
+            }
+            mWifiLogProto.connectToNetworkNotificationActionCount = notificationActionCountArray;
+
+            mWifiLogProto.openNetworkRecommenderBlacklistSize =
+                    mOpenNetworkRecommenderBlacklistSize;
+            mWifiLogProto.isWifiNetworksAvailableNotificationOn =
+                    mIsWifiNetworksAvailableNotificationOn;
+            mWifiLogProto.numOpenNetworkRecommendationUpdates =
+                    mNumOpenNetworkRecommendationUpdates;
+            mWifiLogProto.numOpenNetworkConnectMessageFailedToSend =
+                    mNumOpenNetworkConnectMessageFailedToSend;
         }
     }
 
@@ -1716,7 +1836,8 @@ public class WifiMetrics {
     }
 
     /**
-     * Clear all WifiMetrics, except for currentConnectionEvent.
+     * Clear all WifiMetrics, except for currentConnectionEvent and Open Network Notification
+     * feature enabled state, blacklist size.
      */
     private void clear() {
         synchronized (mLock) {
@@ -1747,6 +1868,10 @@ public class WifiMetrics {
             mAvailableSavedPasspointProviderProfilesInScanHistogram.clear();
             mAvailableSavedPasspointProviderBssidsInScanHistogram.clear();
             mPnoScanMetrics.clear();
+            mConnectToNetworkNotificationCount.clear();
+            mConnectToNetworkNotificationActionCount.clear();
+            mNumOpenNetworkRecommendationUpdates = 0;
+            mNumOpenNetworkConnectMessageFailedToSend = 0;
         }
     }
 
