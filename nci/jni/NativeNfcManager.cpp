@@ -61,6 +61,8 @@ namespace android
     extern void nativeNfcTag_abortWaits ();
     extern void nativeLlcpConnectionlessSocket_abortWait ();
     extern void nativeNfcTag_registerNdefTypeHandler ();
+    extern void nativeNfcTag_acquireRfInterfaceMutexLock();
+    extern void nativeNfcTag_releaseRfInterfaceMutexLock();
     extern void nativeLlcpConnectionlessSocket_receiveData (uint8_t* data, uint32_t len, uint32_t remote_sap);
 }
 
@@ -1952,6 +1954,7 @@ void startRfDiscovery(bool isStart)
     tNFA_STATUS status = NFA_STATUS_FAILED;
 
     ALOGV("%s: is start=%d", __func__, isStart);
+    nativeNfcTag_acquireRfInterfaceMutexLock();
     SyncEventGuard guard (sNfaEnableDisablePollingEvent);
     status  = isStart ? NFA_StartRfDiscovery () : NFA_StopRfDiscovery ();
     if (status == NFA_STATUS_OK)
@@ -1963,6 +1966,7 @@ void startRfDiscovery(bool isStart)
     {
         ALOGE("%s: Failed to start/stop RF discovery; error=0x%X", __func__, status);
     }
+    nativeNfcTag_releaseRfInterfaceMutexLock();
 }
 
 
@@ -2074,6 +2078,7 @@ static tNFA_STATUS startPolling_rfDiscoveryDisabled(tNFA_TECHNOLOGY_MASK tech_ma
         tech_mask = num;
     else if (tech_mask == 0) tech_mask = DEFAULT_TECH_MASK;
 
+    nativeNfcTag_acquireRfInterfaceMutexLock();
     SyncEventGuard guard (sNfaEnableDisablePollingEvent);
     ALOGV("%s: enable polling", __func__);
     stat = NFA_EnablePolling (tech_mask);
@@ -2087,6 +2092,7 @@ static tNFA_STATUS startPolling_rfDiscoveryDisabled(tNFA_TECHNOLOGY_MASK tech_ma
     {
         ALOGE("%s: fail enable polling; error=0x%X", __func__, stat);
     }
+    nativeNfcTag_releaseRfInterfaceMutexLock();
 
     return stat;
 }
@@ -2094,6 +2100,7 @@ static tNFA_STATUS startPolling_rfDiscoveryDisabled(tNFA_TECHNOLOGY_MASK tech_ma
 static tNFA_STATUS stopPolling_rfDiscoveryDisabled() {
     tNFA_STATUS stat = NFA_STATUS_FAILED;
 
+    nativeNfcTag_acquireRfInterfaceMutexLock();
     SyncEventGuard guard (sNfaEnableDisablePollingEvent);
     ALOGV("%s: disable polling", __func__);
     stat = NFA_DisablePolling ();
@@ -2103,6 +2110,7 @@ static tNFA_STATUS stopPolling_rfDiscoveryDisabled() {
     } else {
         ALOGE("%s: fail disable polling; error=0x%X", __func__, stat);
     }
+    nativeNfcTag_releaseRfInterfaceMutexLock();
 
     return stat;
 }
