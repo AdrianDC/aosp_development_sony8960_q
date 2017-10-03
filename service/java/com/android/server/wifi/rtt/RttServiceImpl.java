@@ -39,11 +39,13 @@ import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Set;
 
 /**
- * TBD
+ * Implementation of the IWifiRttManager AIDL interface and of the RttService state manager.
  */
 public class RttServiceImpl extends IWifiRttManager.Stub {
     private static final String TAG = "RttServiceImpl";
@@ -147,7 +149,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         }
 
         mRttServiceSynchronized.mHandler.post(() -> {
-            mRttServiceSynchronized.startRanging(uid, binder, dr, callingPackage, request,
+            mRttServiceSynchronized.queueRangingRequest(uid, binder, dr, callingPackage, request,
                     callback);
         });
     }
@@ -201,7 +203,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
 
         private RttNative mRttNative;
         private int mNextCommandId = 1000;
-        private RttRequestInfo mCurrentRttRequest = null;
+        private List<RttRequestInfo> mRttRequestQueue = new LinkedList<>();
 
         RttServiceSynchronized(Looper looper, RttNative rttNative) {
             mRttNative = rttNative;
@@ -210,71 +212,117 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         }
 
         private void cleanUpOnClientDeath(int uid) {
-            Log.d(TAG, "RttServiceSynchronized.cleanUpOnClientDeath: uid=" + uid
-                    + ", mCurrentRttRequest=" + mCurrentRttRequest);
-            if (mCurrentRttRequest != null && mCurrentRttRequest.uid == uid) {
-                // TODO: actually abort operation
-                mCurrentRttRequest = null;
+            if (VDBG) {
+                Log.v(TAG, "RttServiceSynchronized.cleanUpOnClientDeath: uid=" + uid
+                        + ", mRttRequestQueue=" + mRttRequestQueue);
+            }
+            ListIterator<RttRequestInfo> it = mRttRequestQueue.listIterator();
+            while (it.hasNext()) {
+                RttRequestInfo rri = it.next();
+                if (rri.uid == uid) {
+                    // TODO: actually abort operation - though API is not clear or clean
+                    if (rri.cmdId == 0) {
+                        // Until that happens we will get results for the last operation: which is
+                        // why we don't dispatch a new range request off the queue and keep the
+                        // currently running operation in the queue
+                        it.remove();
+                    }
+                }
+            }
+
+            if (VDBG) {
+                Log.v(TAG, "RttServiceSynchronized.cleanUpOnClientDeath: uid=" + uid
+                        + ", after cleanup - mRttRequestQueue=" + mRttRequestQueue);
             }
         }
 
-        private void startRanging(int uid, IBinder binder, IBinder.DeathRecipient dr,
+        private void queueRangingRequest(int uid, IBinder binder, IBinder.DeathRecipient dr,
                 String callingPackage, RangingRequest request, IRttCallback callback) {
-            mCurrentRttRequest = new RttRequestInfo();
-            mCurrentRttRequest.uid = uid;
-            mCurrentRttRequest.binder = binder;
-            mCurrentRttRequest.dr = dr;
-            mCurrentRttRequest.callingPackage = callingPackage;
-            mCurrentRttRequest.request = request;
-            mCurrentRttRequest.callback = callback;
-            mCurrentRttRequest.cmdId = mNextCommandId++;
+            RttRequestInfo newRequest = new RttRequestInfo();
+            newRequest.uid = uid;
+            newRequest.binder = binder;
+            newRequest.dr = dr;
+            newRequest.callingPackage = callingPackage;
+            newRequest.request = request;
+            newRequest.callback = callback;
+            mRttRequestQueue.add(newRequest);
 
             if (VDBG) {
-                Log.v(TAG, "RttServiceSynchronized.startRanging: mCurrentRttRequest="
-                        + mCurrentRttRequest);
+                Log.v(TAG, "RttServiceSynchronized.queueRangingRequest: newRequest=" + newRequest);
             }
 
-            if (!mRttNative.rangeRequest(mCurrentRttRequest.cmdId, request)) {
-                mCurrentRttRequest = null;
+            executeNextRangingRequestIfPossible();
+        }
+
+        private void executeNextRangingRequestIfPossible() {
+            if (mRttRequestQueue.size() == 0) {
+                if (VDBG) Log.v(TAG, "executeNextRangingRequestIfPossible: no requests pending");
+                return;
+            }
+
+            RttRequestInfo nextRequest = mRttRequestQueue.get(0);
+            if (nextRequest.cmdId != 0) {
+                if (VDBG) {
+                    Log.v(TAG, "executeNextRangingRequestIfPossible: called but a command is "
+                            + "executing. topOfQueue=" + nextRequest);
+                }
+                return;
+            }
+
+            nextRequest.cmdId = mNextCommandId++;
+            startRanging(nextRequest);
+        }
+
+        private void startRanging(RttRequestInfo nextRequest) {
+            if (VDBG) {
+                Log.v(TAG, "RttServiceSynchronized.startRanging: nextRequest=" + nextRequest);
+            }
+
+            if (!mRttNative.rangeRequest(nextRequest.cmdId, nextRequest.request)) {
                 Log.w(TAG, "RttServiceSynchronized.startRanging: native rangeRequest call failed");
                 try {
-                    callback.onRangingResults(RangingResultCallback.STATUS_FAIL, null);
+                    nextRequest.callback.onRangingResults(RangingResultCallback.STATUS_FAIL, null);
                 } catch (RemoteException e) {
                     Log.e(TAG, "RttServiceSynchronized.startRanging: HAL request failed, callback "
                             + "failed -- " + e);
                 }
+
+                mRttRequestQueue.remove(0);
+                executeNextRangingRequestIfPossible();
             }
         }
 
         private void onRangingResults(int cmdId, List<RangingResult> results) {
-            if (VDBG) {
-                Log.v(TAG, "RttServiceSynchronized.onRangingResults: cmdId=" + cmdId
-                        + ", mCurrentRttRequest=" + mCurrentRttRequest + ", results="
-                        + Arrays.toString(results.toArray()));
-            }
-            if (mCurrentRttRequest == null) {
+            if (mRttRequestQueue.size() == 0) {
                 Log.e(TAG, "RttServiceSynchronized.onRangingResults: no current RTT request "
                         + "pending!?");
                 return;
             }
+            RttRequestInfo topOfQueueRequest = mRttRequestQueue.get(0);
 
-            if (mCurrentRttRequest.cmdId != cmdId) {
+            if (VDBG) {
+                Log.v(TAG, "RttServiceSynchronized.onRangingResults: cmdId=" + cmdId
+                        + ", topOfQueueRequest=" + topOfQueueRequest + ", results="
+                        + Arrays.toString(results.toArray()));
+            }
+
+            if (topOfQueueRequest.cmdId != cmdId) {
                 Log.e(TAG, "RttServiceSynchronized.onRangingResults: cmdId=" + cmdId
-                        + ", does not match pending RTT request cmdId=" + mCurrentRttRequest.cmdId);
+                        + ", does not match pending RTT request cmdId=" + topOfQueueRequest.cmdId);
                 return;
             }
 
             boolean permissionGranted = mWifiPermissionsUtil.checkCallersLocationPermission(
-                    mCurrentRttRequest.callingPackage, mCurrentRttRequest.uid);
+                    topOfQueueRequest.callingPackage, topOfQueueRequest.uid);
             try {
                 if (permissionGranted) {
-                    addMissingEntries(mCurrentRttRequest.request, results);
-                    mCurrentRttRequest.callback.onRangingResults(
+                    addMissingEntries(topOfQueueRequest.request, results);
+                    topOfQueueRequest.callback.onRangingResults(
                             RangingResultCallback.STATUS_SUCCESS, results);
                 } else {
                     Log.w(TAG, "RttServiceSynchronized.onRangingResults: location permission "
                             + "revoked - not forwarding results");
-                    mCurrentRttRequest.callback.onRangingResults(RangingResultCallback.STATUS_FAIL,
+                    topOfQueueRequest.callback.onRangingResults(RangingResultCallback.STATUS_FAIL,
                             null);
                 }
             } catch (RemoteException e) {
@@ -284,9 +332,10 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
 
             // clean-up binder death listener: the callback for results is a onetime event - now
             // done with the binder.
-            mCurrentRttRequest.binder.unlinkToDeath(mCurrentRttRequest.dr, 0);
+            topOfQueueRequest.binder.unlinkToDeath(topOfQueueRequest.dr, 0);
 
-            mCurrentRttRequest = null;
+            mRttRequestQueue.remove(0);
+            executeNextRangingRequestIfPossible();
         }
 
         /*
@@ -323,7 +372,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         // dump call (asynchronous most likely)
         protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
             pw.println("  mNextCommandId: " + mNextCommandId);
-            pw.println("  mCurrentRttRequest: " + mCurrentRttRequest);
+            pw.println("  mRttRequestQueue: " + mRttRequestQueue);
             mRttNative.dump(fd, pw, args);
         }
     }
@@ -337,7 +386,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         public byte[] mac;
         public IRttCallback callback;
 
-        public int cmdId;
+        public int cmdId = 0; // uninitialized cmdId value
 
         @Override
         public String toString() {
