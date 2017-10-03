@@ -79,6 +79,10 @@ public class WifiNative {
         return mInterfaceName;
     }
 
+    public WifiVendorHal getVendorHal() {
+        return mWifiVendorHal;
+    }
+
     /**
      * Enable verbose logging for all sub modules.
      */
