@@ -1724,10 +1724,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             }
             logScanRequest("addHwPnoScanRequest", ci, handler, null, scanSettings, pnoSettings);
             addPnoScanRequest(ci, handler, scanSettings, pnoSettings);
-            // HW PNO is supported, check if we need a background scan running for this.
-            if (mScannerImpl.shouldScheduleBackgroundScanForHwPno()) {
-                addBackgroundScanRequest(scanSettings);
-            }
+
             return true;
         }
 
