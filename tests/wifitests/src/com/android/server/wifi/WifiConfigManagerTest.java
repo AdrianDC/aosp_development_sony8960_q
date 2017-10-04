@@ -2406,7 +2406,7 @@ public class WifiConfigManagerTest {
     }
 
     /**
-     * Verifies that the foreground user stop using {@link WifiConfigManager#handleUserStop(int)}
+     * Verifies that the user stop handling using {@link WifiConfigManager#handleUserStop(int)}
      * and ensures that the store is written only when the foreground user is stopped.
      */
     @Test
@@ -2426,6 +2426,49 @@ public class WifiConfigManagerTest {
         mContextConfigStoreMockOrder.verify(mWifiConfigStore, never())
                 .switchUserStoreAndRead(any(WifiConfigStore.StoreFile.class));
         mContextConfigStoreMockOrder.verify(mWifiConfigStore).write(anyBoolean());
+    }
+
+    /**
+     * Verifies that the user stop handling using {@link WifiConfigManager#handleUserStop(int)}
+     * and ensures that the shared data is not lost when the foreground user is stopped.
+     */
+    @Test
+    public void testHandleUserStopDoesNotClearSharedData() throws Exception {
+        int user1 = TEST_DEFAULT_USER;
+
+        //
+        // Setup the database for the user before initiating stop.
+        //
+        int appId = 674;
+        // Create 2 networks. 1 for user1, and 1 shared.
+        final WifiConfiguration user1Network = WifiConfigurationTestUtil.createPskNetwork();
+        user1Network.shared = false;
+        user1Network.creatorUid = UserHandle.getUid(user1, appId);
+        final WifiConfiguration sharedNetwork = WifiConfigurationTestUtil.createPskNetwork();
+
+        // Set up the store data that is loaded initially.
+        List<WifiConfiguration> sharedNetworks = new ArrayList<WifiConfiguration>() {
+            {
+                add(sharedNetwork);
+            }
+        };
+        List<WifiConfiguration> user1Networks = new ArrayList<WifiConfiguration>() {
+            {
+                add(user1Network);
+            }
+        };
+        setupStoreDataForRead(sharedNetworks, user1Networks, new HashSet<String>());
+        assertTrue(mWifiConfigManager.loadFromStore());
+        verify(mWifiConfigStore).read();
+
+        // Ensure that we have 2 networks in the database before the stop.
+        assertEquals(2, mWifiConfigManager.getConfiguredNetworks().size());
+
+        mWifiConfigManager.handleUserStop(user1);
+
+        // Ensure that we only have 1 shared network in the database after the stop.
+        assertEquals(1, mWifiConfigManager.getConfiguredNetworks().size());
+        assertEquals(sharedNetwork.SSID, mWifiConfigManager.getConfiguredNetworks().get(0).SSID);
     }
 
     /**
