@@ -2575,10 +2575,12 @@ public class WifiConfigManager {
      * @param userId The identifier of the user that stopped.
      */
     public void handleUserStop(int userId) {
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "Handling user stop for " + userId);
+        }
         if (userId == mCurrentUserId && mUserManager.isUserUnlockingOrUnlocked(mCurrentUserId)) {
             saveToStore(true);
-            clearInternalData();
-            mCurrentUserId = UserHandle.USER_SYSTEM;
+            clearInternalUserData(mCurrentUserId);
         }
     }
 
@@ -2590,6 +2592,7 @@ public class WifiConfigManager {
      *  - List of deleted ephemeral networks.
      */
     private void clearInternalData() {
+        localLog("clearInternalData: Clearing all internal data");
         mConfiguredNetworks.clear();
         mDeletedEphemeralSSIDs.clear();
         mScanDetailCaches.clear();
@@ -2608,12 +2611,16 @@ public class WifiConfigManager {
      * removed from memory.
      */
     private Set<Integer> clearInternalUserData(int userId) {
+        localLog("clearInternalUserData: Clearing user internal data for " + userId);
         Set<Integer> removedNetworkIds = new HashSet<>();
         // Remove any private networks of the old user before switching the userId.
         for (WifiConfiguration config : getInternalConfiguredNetworks()) {
             if (!config.shared && WifiConfigurationUtil.doesUidBelongToAnyProfile(
                     config.creatorUid, mUserManager.getProfiles(userId))) {
                 removedNetworkIds.add(config.networkId);
+                localLog("clearInternalUserData: removed config."
+                        + " netId=" + config.networkId
+                        + " configKey=" + config.configKey());
                 mConfiguredNetworks.remove(config.networkId);
             }
         }
