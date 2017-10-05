@@ -236,9 +236,10 @@ public class WifiConfigurationUtil {
 
     /**
      * Check if the provided two networks are the same.
+     * Note: This does not check if network selection BSSID's are the same.
      *
-     * @param config      Configuration corresponding to a network.
-     * @param config1      Configuration corresponding to another network.
+     * @param config  Configuration corresponding to a network.
+     * @param config1 Configuration corresponding to another network.
      *
      * @return true if |config| and |config1| are the same network.
      *         false otherwise.
@@ -254,13 +255,6 @@ public class WifiConfigurationUtil {
             return false;
         }
         if (!Objects.equals(config.SSID, config1.SSID)) {
-            return false;
-        }
-        String networkSelectionBSSID = config.getNetworkSelectionStatus()
-                .getNetworkSelectionBSSID();
-        String networkSelectionBSSID1 = config1.getNetworkSelectionStatus()
-                .getNetworkSelectionBSSID();
-        if (!Objects.equals(networkSelectionBSSID, networkSelectionBSSID1)) {
             return false;
         }
         if (WifiConfigurationUtil.hasCredentialChanged(config, config1)) {

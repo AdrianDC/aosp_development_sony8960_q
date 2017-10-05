@@ -69,6 +69,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -404,7 +405,22 @@ public class SupplicantStaIfaceHal {
     public boolean connectToNetwork(@NonNull WifiConfiguration config) {
         logd("connectToNetwork " + config.configKey());
         if (WifiConfigurationUtil.isSameNetwork(config, mCurrentNetworkLocalConfig)) {
-            logd("Network is already saved, will not trigger remove and add operation.");
+            String networkSelectionBSSID = config.getNetworkSelectionStatus()
+                    .getNetworkSelectionBSSID();
+            String networkSelectionBSSIDCurrent =
+                    mCurrentNetworkLocalConfig.getNetworkSelectionStatus()
+                            .getNetworkSelectionBSSID();
+            if (Objects.equals(networkSelectionBSSID, networkSelectionBSSIDCurrent)) {
+                logd("Network is already saved, will not trigger remove and add operation.");
+            } else {
+                logd("Network is already saved, but need to update BSSID.");
+                if (!setCurrentNetworkBssid(
+                        config.getNetworkSelectionStatus().getNetworkSelectionBSSID())) {
+                    loge("Failed to set current network BSSID.");
+                    return false;
+                }
+                mCurrentNetworkLocalConfig = new WifiConfiguration(config);
+            }
         } else {
             mCurrentNetworkRemoteHandle = null;
             mCurrentNetworkLocalConfig = null;
