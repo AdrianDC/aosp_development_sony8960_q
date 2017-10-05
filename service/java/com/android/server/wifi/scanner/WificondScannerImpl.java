@@ -561,11 +561,6 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
     }
 
     @Override
-    public boolean shouldScheduleBackgroundScanForHwPno() {
-        return false;
-    }
-
-    @Override
     protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         synchronized (mSettingsLock) {
             pw.println("Latest native scan results:");

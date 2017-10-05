@@ -155,11 +155,5 @@ public abstract class WifiScannerImpl {
      */
     public abstract boolean isHwPnoSupported(boolean isConnectedPno);
 
-    /**
-     * This returns whether a background scan should be running for HW PNO scan or not.
-     * @return true if background scan needs to be started, false otherwise.
-     */
-    public abstract boolean shouldScheduleBackgroundScanForHwPno();
-
     protected abstract void dump(FileDescriptor fd, PrintWriter pw, String[] args);
 }
