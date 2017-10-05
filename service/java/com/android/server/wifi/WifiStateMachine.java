@@ -5995,6 +5995,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_STOP_RSSI_MONITORING_OFFLOAD:
                     stopRssiMonitoringOffload();
                     break;
+                case CMD_RECONNECT:
+                    log(" Ignore CMD_RECONNECT request because wifi is already connected");
+                    break;
                 case CMD_RESET_SIM_NETWORKS:
                     if (message.arg1 == 0 // sim was removed
                             && mLastNetworkId != WifiConfiguration.INVALID_NETWORK_ID) {
@@ -6847,6 +6850,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case WifiManager.CONNECT_NETWORK:
                 case CMD_ENABLE_NETWORK:
                 case CMD_RECONNECT:
+                    log(" Ignore CMD_RECONNECT request because wps is running");
+                    return HANDLED;
                 case CMD_REASSOCIATE:
                     deferMessage(message);
                     break;
