@@ -2275,8 +2275,8 @@ public class WifiStateMachineTest {
             assertEquals(sBSSID, wifiInfo.getBSSID());
             assertEquals(sWifiSsid, wifiInfo.getWifiSsid());
 
-            when(mWifiPermissionsUtil.canAccessScanResults(anyString(), eq(fakeUid), anyInt()))
-                    .thenReturn(false);
+            when(mWifiPermissionsUtil.canAccessFullConnectionInfo(any(), anyString(), eq(fakeUid),
+                    anyInt())).thenReturn(false);
 
             WifiInfo connectionInfo = mWsm.syncRequestConnectionInfo(mContext.getOpPackageName());
 
@@ -2308,8 +2308,8 @@ public class WifiStateMachineTest {
             assertEquals(sBSSID, wifiInfo.getBSSID());
             assertEquals(sWifiSsid, wifiInfo.getWifiSsid());
 
-            when(mWifiPermissionsUtil.canAccessScanResults(anyString(), eq(fakeUid), anyInt()))
-                    .thenThrow(new SecurityException());
+            when(mWifiPermissionsUtil.canAccessFullConnectionInfo(any(), anyString(), eq(fakeUid),
+                    anyInt())).thenThrow(new SecurityException());
 
             WifiInfo connectionInfo = mWsm.syncRequestConnectionInfo(mContext.getOpPackageName());
 
@@ -2338,8 +2338,8 @@ public class WifiStateMachineTest {
             assertEquals(sBSSID, wifiInfo.getBSSID());
             assertEquals(sWifiSsid, wifiInfo.getWifiSsid());
 
-            when(mWifiPermissionsUtil.canAccessScanResults(anyString(), eq(fakeUid), anyInt()))
-                    .thenReturn(true);
+            when(mWifiPermissionsUtil.canAccessFullConnectionInfo(any(), anyString(), eq(fakeUid),
+                    anyInt())).thenReturn(true);
 
             WifiInfo connectionInfo = mWsm.syncRequestConnectionInfo(mContext.getOpPackageName());
 
