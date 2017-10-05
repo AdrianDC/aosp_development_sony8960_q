@@ -2354,6 +2354,35 @@ public class WifiStateMachineTest {
     }
 
     /**
+     * Test that reconnectCommand() triggers connectivity scan when WifiStateMachine
+     * is in DisconnectedMode.
+     */
+    @Test
+    public void testReconnectCommandWhenDisconnected() throws Exception {
+        // Connect to network with |sBSSID|, |sFreq|, and then disconnect.
+        disconnect();
+
+        mWsm.reconnectCommand(WifiStateMachine.WIFI_WORK_SOURCE);
+        mLooper.dispatchAll();
+        verify(mWifiConnectivityManager).forceConnectivityScan(WifiStateMachine.WIFI_WORK_SOURCE);
+    }
+
+    /**
+     * Test that reconnectCommand() doesn't trigger connectivity scan when WifiStateMachine
+     * is in ConnectedMode.
+     */
+    @Test
+    public void testReconnectCommandWhenConnected() throws Exception {
+        // Connect to network with |sBSSID|, |sFreq|.
+        connect();
+
+        mWsm.reconnectCommand(WifiStateMachine.WIFI_WORK_SOURCE);
+        mLooper.dispatchAll();
+        verify(mWifiConnectivityManager, never())
+                .forceConnectivityScan(WifiStateMachine.WIFI_WORK_SOURCE);
+    }
+
+    /**
      * Adds the network without putting WifiStateMachine into ConnectMode.
      */
     @Test
