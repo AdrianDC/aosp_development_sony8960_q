@@ -1875,8 +1875,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     /**
      * Initiate a reconnection to AP
      */
-    public void reconnectCommand() {
-        sendMessage(CMD_RECONNECT);
+    public void reconnectCommand(WorkSource workSource) {
+        sendMessage(CMD_RECONNECT, workSource);
     }
 
     /**
@@ -4537,7 +4537,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mEnableAutoJoinWhenAssociated = allowed;
                     if (!old_state && allowed && mScreenOn
                             && getCurrentState() == mConnectedState) {
-                        mWifiConnectivityManager.forceConnectivityScan();
+                        mWifiConnectivityManager.forceConnectivityScan(WIFI_WORK_SOURCE);
                     }
                     break;
                 case CMD_SELECT_TX_POWER_SCENARIO:
@@ -5160,7 +5160,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             mPasspointManager.getMatchingOsuProviders((ScanResult) message.obj));
                     break;
                 case CMD_RECONNECT:
-                    mWifiConnectivityManager.forceConnectivityScan();
+                    WorkSource workSource = (WorkSource) message.obj;
+                    mWifiConnectivityManager.forceConnectivityScan(workSource);
                     break;
                 case CMD_REASSOCIATE:
                     lastConnectAttemptTimestamp = mClock.getWallClockMillis();
