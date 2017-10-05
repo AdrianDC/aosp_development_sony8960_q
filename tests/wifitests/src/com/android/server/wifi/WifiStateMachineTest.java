@@ -413,9 +413,9 @@ public class WifiStateMachineTest {
         when(mWifiInjector.makeTelephonyManager()).thenReturn(mTelephonyManager);
         when(mWifiInjector.getClock()).thenReturn(mClock);
 
-        when(mWifiNative.setupForClientMode())
+        when(mWifiNative.setupForClientMode(WIFI_IFACE_NAME))
                 .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mClientInterface));
-        when(mWifiNative.setupForSoftApMode())
+        when(mWifiNative.setupForSoftApMode(WIFI_IFACE_NAME))
                 .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mApInterface));
         when(mApInterface.getInterfaceName()).thenReturn(WIFI_IFACE_NAME);
         when(mWifiNative.getInterfaceName()).thenReturn(WIFI_IFACE_NAME);
@@ -585,7 +585,7 @@ public class WifiStateMachineTest {
 
         assertEquals("SoftApState", getCurrentState().getName());
 
-        verify(mWifiNative).setupForSoftApMode();
+        verify(mWifiNative).setupForSoftApMode(WIFI_IFACE_NAME);
         verify(mSoftApManager).start();
 
         // reset expectations for mContext due to previously sent AP broadcast
@@ -647,7 +647,6 @@ public class WifiStateMachineTest {
         assertEquals("InitialState", getCurrentState().getName());
 
         // Failed to even create the client interface.
-        when(mWificond.createClientInterface()).thenReturn(null);
         mWsm.setSupplicantRunning(true);
         mLooper.dispatchAll();
         assertEquals("InitialState", getCurrentState().getName());
@@ -960,7 +959,7 @@ public class WifiStateMachineTest {
         mWsm.sendMessage(WifiMonitor.SUP_CONNECTION_EVENT);
         mLooper.dispatchAll();
 
-        verify(mWifiNative).setupForClientMode();
+        verify(mWifiNative).setupForClientMode(WIFI_IFACE_NAME);
         verify(mWifiLastResortWatchdog).clearAllFailureCounts();
     }
 
@@ -2427,7 +2426,7 @@ public class WifiStateMachineTest {
      */
     @Test
     public void testSetupForSoftApModeHalFailureIncrementsMetrics() throws Exception {
-        when(mWifiNative.setupForSoftApMode())
+        when(mWifiNative.setupForSoftApMode(WIFI_IFACE_NAME))
                 .thenReturn(Pair.create(WifiNative.SETUP_FAILURE_HAL, null));
 
         SoftApModeConfiguration config = new SoftApModeConfiguration(
@@ -2435,7 +2434,7 @@ public class WifiStateMachineTest {
         mWsm.setHostApRunning(config, true);
         mLooper.dispatchAll();
 
-        verify(mWifiNative).setupForSoftApMode();
+        verify(mWifiNative).setupForSoftApMode(WIFI_IFACE_NAME);
         verify(mWifiMetrics).incrementNumWifiOnFailureDueToHal();
     }
 
@@ -2444,7 +2443,7 @@ public class WifiStateMachineTest {
      */
     @Test
     public void testSetupForSoftApModeWificondFailureIncrementsMetrics() throws Exception {
-        when(mWifiNative.setupForSoftApMode())
+        when(mWifiNative.setupForSoftApMode(WIFI_IFACE_NAME))
                 .thenReturn(Pair.create(WifiNative.SETUP_FAILURE_WIFICOND, null));
 
         SoftApModeConfiguration config = new SoftApModeConfiguration(
@@ -2452,7 +2451,7 @@ public class WifiStateMachineTest {
         mWsm.setHostApRunning(config, true);
         mLooper.dispatchAll();
 
-        verify(mWifiNative).setupForSoftApMode();
+        verify(mWifiNative).setupForSoftApMode(WIFI_IFACE_NAME);
         verify(mWifiMetrics).incrementNumWifiOnFailureDueToWificond();
     }
 
@@ -2461,7 +2460,7 @@ public class WifiStateMachineTest {
      */
     @Test
     public void testSetupForClientModeHalFailureIncrementsMetrics() throws Exception {
-        when(mWifiNative.setupForClientMode())
+        when(mWifiNative.setupForClientMode(WIFI_IFACE_NAME))
                 .thenReturn(Pair.create(WifiNative.SETUP_FAILURE_HAL, null));
 
         mWsm.setSupplicantRunning(true);
@@ -2470,7 +2469,7 @@ public class WifiStateMachineTest {
         mWsm.sendMessage(WifiMonitor.SUP_CONNECTION_EVENT);
         mLooper.dispatchAll();
 
-        verify(mWifiNative).setupForClientMode();
+        verify(mWifiNative).setupForClientMode(WIFI_IFACE_NAME);
         verify(mWifiMetrics).incrementNumWifiOnFailureDueToHal();
     }
 
@@ -2479,7 +2478,7 @@ public class WifiStateMachineTest {
      */
     @Test
     public void testSetupForClientModeWificondFailureIncrementsMetrics() throws Exception {
-        when(mWifiNative.setupForClientMode())
+        when(mWifiNative.setupForClientMode(WIFI_IFACE_NAME))
                 .thenReturn(Pair.create(WifiNative.SETUP_FAILURE_WIFICOND, null));
 
         mWsm.setSupplicantRunning(true);
@@ -2488,7 +2487,7 @@ public class WifiStateMachineTest {
         mWsm.sendMessage(WifiMonitor.SUP_CONNECTION_EVENT);
         mLooper.dispatchAll();
 
-        verify(mWifiNative).setupForClientMode();
+        verify(mWifiNative).setupForClientMode(WIFI_IFACE_NAME);
         verify(mWifiMetrics).incrementNumWifiOnFailureDueToWificond();
     }
 
