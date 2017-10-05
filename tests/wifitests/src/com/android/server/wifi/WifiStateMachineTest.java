@@ -47,6 +47,9 @@ import android.hardware.wifi.supplicant.V1_0.ISupplicantStaIfaceCallback;
 import android.net.ConnectivityManager;
 import android.net.DhcpResults;
 import android.net.LinkProperties;
+import android.net.NetworkCapabilities;
+import android.net.NetworkFactory;
+import android.net.NetworkRequest;
 import android.net.dhcp.DhcpClient;
 import android.net.ip.IpManager;
 import android.net.wifi.IApInterface;
@@ -123,6 +126,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Consumer;
 
 /**
  * Unit tests for {@link com.android.server.wifi.WifiStateMachine}.
@@ -137,9 +141,11 @@ public class WifiStateMachineTest {
             (ActivityManager.isLowRamDeviceStatic()
                     ? WifiStateMachine.NUM_LOG_RECS_VERBOSE_LOW_MEMORY
                     : WifiStateMachine.NUM_LOG_RECS_VERBOSE);
-    private static final int FRAMEWORK_NETWORK_ID = 7;
+    private static final int FRAMEWORK_NETWORK_ID = 0;
     private static final int TEST_RSSI = -54;
     private static final int TEST_NETWORK_ID = 54;
+    private static final int TEST_VALID_NETWORK_SCORE = 54;
+    private static final int TEST_OUTSCORED_NETWORK_SCORE = 100;
     private static final int WPS_SUPPLICANT_NETWORK_ID = 5;
     private static final int WPS_FRAMEWORK_NETWORK_ID = 10;
     private static final String DEFAULT_TEST_SSID = "\"GoogleGuest\"";
@@ -230,7 +236,7 @@ public class WifiStateMachineTest {
                 mAlarmManager.getAlarmManager());
 
         when(context.getSystemService(Context.CONNECTIVITY_SERVICE)).thenReturn(
-                mock(ConnectivityManager.class));
+                mConnectivityManager);
 
         when(context.getOpPackageName()).thenReturn(OP_PACKAGE_NAME);
 
@@ -318,6 +324,7 @@ public class WifiStateMachineTest {
     HandlerThread mP2pThread;
     HandlerThread mSyncThread;
     AsyncChannel  mWsmAsyncChannel;
+    AsyncChannel  mNetworkFactoryChannel;
     TestAlarmManager mAlarmManager;
     MockWifiMonitor mWifiMonitor;
     TestLooper mLooper;
@@ -326,6 +333,7 @@ public class WifiStateMachineTest {
     FrameworkFacade mFrameworkFacade;
     IpManager.Callback mIpManagerCallback;
     PhoneStateListener mPhoneStateListener;
+    NetworkRequest mDefaultNetworkRequest;
 
     final ArgumentCaptor<SoftApManager.Listener> mSoftApManagerListenerCaptor =
                     ArgumentCaptor.forClass(SoftApManager.Listener.class);
@@ -361,6 +369,7 @@ public class WifiStateMachineTest {
     @Mock Clock mClock;
     @Mock ScanDetailCache mScanDetailCache;
     @Mock BaseWifiDiagnostics mWifiDiagnostics;
+    @Mock ConnectivityManager mConnectivityManager;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -449,15 +458,11 @@ public class WifiStateMachineTest {
             }
         }).when(mTelephonyManager).listen(any(PhoneStateListener.class), anyInt());
 
+        when(mWifiPermissionsUtil.checkNetworkSettingsPermission(anyInt())).thenReturn(true);
         initializeWsm();
     }
 
-    private void initializeWsm() throws Exception {
-        mWsm = new WifiStateMachine(mContext, mFrameworkFacade, mLooper.getLooper(),
-                mUserManager, mWifiInjector, mBackupManagerProxy, mCountryCode, mWifiNative,
-                mWrongPasswordNotifier);
-        mWsmThread = getWsmHandlerThread(mWsm);
-
+    private void registerAsyncChannel(Consumer<AsyncChannel> consumer, Messenger messenger) {
         final AsyncChannel channel = new AsyncChannel();
         Handler handler = new Handler(mLooper.getLooper()) {
             @Override
@@ -465,7 +470,7 @@ public class WifiStateMachineTest {
                 switch (msg.what) {
                     case AsyncChannel.CMD_CHANNEL_HALF_CONNECTED:
                         if (msg.arg1 == AsyncChannel.STATUS_SUCCESSFUL) {
-                            mWsmAsyncChannel = channel;
+                            consumer.accept(channel);
                         } else {
                             Log.d(TAG, "Failed to connect Command channel " + this);
                         }
@@ -477,14 +482,49 @@ public class WifiStateMachineTest {
             }
         };
 
-        channel.connect(mContext, handler, mWsm.getMessenger());
+        channel.connect(mContext, handler, messenger);
         mLooper.dispatchAll();
-        /* Now channel is supposed to be connected */
+    }
+
+    private void initializeWsm() throws Exception {
+        mWsm = new WifiStateMachine(mContext, mFrameworkFacade, mLooper.getLooper(),
+                mUserManager, mWifiInjector, mBackupManagerProxy, mCountryCode, mWifiNative,
+                mWrongPasswordNotifier);
+        mWsmThread = getWsmHandlerThread(mWsm);
+
+        registerAsyncChannel((x) -> {
+            mWsmAsyncChannel = x;
+        }, mWsm.getMessenger());
 
         mBinderToken = Binder.clearCallingIdentity();
 
         /* Send the BOOT_COMPLETED message to setup some WSM state. */
         mWsm.sendMessage(WifiStateMachine.CMD_BOOT_COMPLETED);
+        mLooper.dispatchAll();
+
+        /* Simulate the initial NetworkRequest sent in by ConnectivityService. */
+        ArgumentCaptor<Messenger> captor = ArgumentCaptor.forClass(Messenger.class);
+        verify(mConnectivityManager, atLeast(2)).registerNetworkFactory(
+                captor.capture(), anyString());
+        Messenger networkFactoryMessenger = captor.getAllValues().get(0);
+        registerAsyncChannel((x) -> {
+            mNetworkFactoryChannel = x;
+        }, networkFactoryMessenger);
+
+        mDefaultNetworkRequest = new NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build();
+        sendDefaultNetworkRequest(TEST_VALID_NETWORK_SCORE);
+    }
+
+    /**
+     * Helper function to resend the cached network request (id == 0) with the specified score.
+     * Note: If you need to add a separate network request, don't use the builder to create one
+     * since the new request object will again default to id == 0.
+     */
+    private void sendDefaultNetworkRequest(int score) {
+        mNetworkFactoryChannel.sendMessage(
+                NetworkFactory.CMD_REQUEST_NETWORK, score, 0, mDefaultNetworkRequest);
         mLooper.dispatchAll();
     }
 
@@ -501,6 +541,7 @@ public class WifiStateMachineTest {
         mSyncThread = null;
         mWsmAsyncChannel = null;
         mWsm = null;
+        mNetworkFactoryChannel = null;
     }
 
     @Test
@@ -1043,22 +1084,81 @@ public class WifiStateMachineTest {
                 hiddenNetworkSet);
     }
 
-    @Test
-    public void connect() throws Exception {
-        initializeAndAddNetworkAndVerifySuccess();
-        when(mWifiConfigManager.enableNetwork(eq(0), eq(true), anyInt())).thenReturn(true);
-        when(mWifiConfigManager.checkAndUpdateLastConnectUid(eq(0), anyInt())).thenReturn(true);
+    private void setupAndStartConnectSequence(WifiConfiguration config) throws Exception {
+        when(mWifiConfigManager.enableNetwork(eq(config.networkId), eq(true), anyInt()))
+                .thenReturn(true);
+        when(mWifiConfigManager.checkAndUpdateLastConnectUid(eq(config.networkId), anyInt()))
+                .thenReturn(true);
+        when(mWifiConfigManager.getConfiguredNetwork(eq(config.networkId)))
+                .thenReturn(config);
+        when(mWifiConfigManager.getConfiguredNetworkWithPassword(eq(config.networkId)))
+                .thenReturn(config);
 
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
         mLooper.dispatchAll();
         verify(mWifiNative).removeAllNetworks();
 
         mLooper.startAutoDispatch();
-        assertTrue(mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true));
+        assertTrue(mWsm.syncEnableNetwork(mWsmAsyncChannel, config.networkId, true));
         mLooper.stopAutoDispatch();
+    }
 
-        verify(mWifiConfigManager).enableNetwork(eq(0), eq(true), anyInt());
-        verify(mWifiConnectivityManager).setUserConnectChoice(eq(0));
+    private void validateSuccessfulConnectSequence(WifiConfiguration config) {
+        verify(mWifiConfigManager).enableNetwork(eq(config.networkId), eq(true), anyInt());
+        verify(mWifiConnectivityManager).setUserConnectChoice(eq(config.networkId));
+        verify(mWifiConnectivityManager).prepareForForcedConnection(eq(config.networkId));
+        verify(mWifiConfigManager).getConfiguredNetworkWithPassword(eq(config.networkId));
+        verify(mWifiNative).connectToNetwork(eq(config));
+    }
+
+    private void validateFailureConnectSequence(WifiConfiguration config) {
+        verify(mWifiConfigManager).enableNetwork(eq(config.networkId), eq(true), anyInt());
+        verify(mWifiConnectivityManager).setUserConnectChoice(eq(config.networkId));
+        verify(mWifiConnectivityManager).prepareForForcedConnection(eq(config.networkId));
+        verify(mWifiConfigManager, never()).getConfiguredNetworkWithPassword(eq(config.networkId));
+        verify(mWifiNative, never()).connectToNetwork(eq(config));
+    }
+
+    /**
+     * Tests the network connection initiation sequence with the default network request pending
+     * from WifiNetworkFactory.
+     * This simulates the connect sequence using the public
+     * {@link WifiManager#enableNetwork(int, boolean)} and ensures that we invoke
+     * {@link WifiNative#connectToNetwork(WifiConfiguration)}.
+     */
+    @Test
+    public void triggerConnect() throws Exception {
+        loadComponentsInStaMode();
+        WifiConfiguration config = WifiConfigurationTestUtil.createOpenNetwork();
+        config.networkId = FRAMEWORK_NETWORK_ID;
+        setupAndStartConnectSequence(config);
+        validateSuccessfulConnectSequence(config);
+    }
+
+    /**
+     * Tests the network connection initiation sequence with no network request pending from
+     * from WifiNetworkFactory.
+     * This simulates the connect sequence using the public
+     * {@link WifiManager#enableNetwork(int, boolean)} and ensures that we don't invoke
+     * {@link WifiNative#connectToNetwork(WifiConfiguration)}.
+     */
+    @Test
+    public void triggerConnectWithNoNetworkRequest() throws Exception {
+        loadComponentsInStaMode();
+        // Change the network score to remove the network request.
+        sendDefaultNetworkRequest(TEST_OUTSCORED_NETWORK_SCORE);
+        WifiConfiguration config = WifiConfigurationTestUtil.createOpenNetwork();
+        config.networkId = FRAMEWORK_NETWORK_ID;
+        setupAndStartConnectSequence(config);
+        validateFailureConnectSequence(config);
+    }
+
+    /**
+     * Tests the entire successful network connection flow.
+     */
+    @Test
+    public void connect() throws Exception {
+        triggerConnect();
         when(mWifiConfigManager.getScanDetailCacheForNetwork(FRAMEWORK_NETWORK_ID))
                 .thenReturn(mScanDetailCache);
 
@@ -1092,6 +1192,54 @@ public class WifiStateMachineTest {
         assertTrue(sWifiSsid.equals(wifiInfo.getWifiSsid()));
 
         assertEquals("ConnectedState", getCurrentState().getName());
+    }
+
+    /**
+     * Tests the network connection initiation sequence with no network request pending from
+     * from WifiNetworkFactory when we're already connected to a different network.
+     * This simulates the connect sequence using the public
+     * {@link WifiManager#enableNetwork(int, boolean)} and ensures that we invoke
+     * {@link WifiNative#connectToNetwork(WifiConfiguration)}.
+     */
+    @Test
+    public void triggerConnectWithNoNetworkRequestAndAlreadyConnected() throws Exception {
+        // Simulate the first connection.
+        connect();
+
+        // Change the network score to remove the network request.
+        sendDefaultNetworkRequest(TEST_OUTSCORED_NETWORK_SCORE);
+
+        WifiConfiguration config = WifiConfigurationTestUtil.createOpenNetwork();
+        config.networkId = FRAMEWORK_NETWORK_ID + 1;
+        setupAndStartConnectSequence(config);
+        validateSuccessfulConnectSequence(config);
+        verify(mWifiPermissionsUtil, times(2)).checkNetworkSettingsPermission(anyInt());
+    }
+
+    /**
+     * Tests the network connection initiation sequence from a non-privileged app with no network
+     * request pending from from WifiNetworkFactory when we're already connected to a different
+     * network.
+     * This simulates the connect sequence using the public
+     * {@link WifiManager#enableNetwork(int, boolean)} and ensures that we don't invoke
+     * {@link WifiNative#connectToNetwork(WifiConfiguration)}.
+     */
+    @Test
+    public void triggerConnectWithNoNetworkRequestAndAlreadyConnectedButNonPrivilegedApp()
+            throws Exception {
+        // Simulate the first connection.
+        connect();
+
+        // Change the network score to remove the network request.
+        sendDefaultNetworkRequest(TEST_OUTSCORED_NETWORK_SCORE);
+
+        when(mWifiPermissionsUtil.checkNetworkSettingsPermission(anyInt())).thenReturn(false);
+
+        WifiConfiguration config = WifiConfigurationTestUtil.createOpenNetwork();
+        config.networkId = FRAMEWORK_NETWORK_ID + 1;
+        setupAndStartConnectSequence(config);
+        validateFailureConnectSequence(config);
+        verify(mWifiPermissionsUtil, times(2)).checkNetworkSettingsPermission(anyInt());
     }
 
     @Test
