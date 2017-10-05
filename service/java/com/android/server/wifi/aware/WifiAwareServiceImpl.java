@@ -19,7 +19,6 @@ package com.android.server.wifi.aware;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.hardware.wifi.V1_0.NanStatusType;
-import android.net.wifi.RttManager;
 import android.net.wifi.aware.Characteristics;
 import android.net.wifi.aware.ConfigRequest;
 import android.net.wifi.aware.DiscoverySession;
@@ -42,7 +41,6 @@ import com.android.server.wifi.util.WifiPermissionsWrapper;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
-import java.util.Arrays;
 
 /**
  * Implementation of the IWifiAwareManager AIDL interface. Performs validity
@@ -63,7 +61,6 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
     private final SparseArray<IBinder.DeathRecipient> mDeathRecipientsByClientId =
             new SparseArray<>();
     private int mNextClientId = 1;
-    private int mNextRangingId = 1;
     private final SparseIntArray mUidByClientId = new SparseIntArray();
 
     public WifiAwareServiceImpl(Context context) {
@@ -349,33 +346,6 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
         }
 
         mStateManager.sendMessage(clientId, sessionId, peerId, message, messageId, retryCount);
-    }
-
-    @Override
-    public int startRanging(int clientId, int sessionId, RttManager.ParcelableRttParams params) {
-        enforceAccessPermission();
-        enforceLocationPermission();
-
-        // TODO: b/35676064 restricts access to this API until decide if will open.
-        enforceConnectivityInternalPermission();
-
-        int uid = getMockableCallingUid();
-        enforceClientValidity(uid, clientId);
-        if (VDBG) {
-            Log.v(TAG, "startRanging: clientId=" + clientId + ", sessionId=" + sessionId + ", "
-                    + ", parms=" + Arrays.toString(params.mParams));
-        }
-
-        if (params.mParams.length == 0) {
-            throw new IllegalArgumentException("Empty ranging parameters");
-        }
-
-        int rangingId;
-        synchronized (mLock) {
-            rangingId = mNextRangingId++;
-        }
-        mStateManager.startRanging(clientId, sessionId, params.mParams, rangingId);
-        return rangingId;
     }
 
     @Override

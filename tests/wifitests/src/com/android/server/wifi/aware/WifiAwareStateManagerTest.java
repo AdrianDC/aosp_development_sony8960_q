@@ -47,7 +47,6 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.hardware.wifi.V1_0.NanStatusType;
 import android.net.ConnectivityManager;
-import android.net.wifi.RttManager;
 import android.net.wifi.aware.ConfigRequest;
 import android.net.wifi.aware.IWifiAwareDiscoverySessionCallback;
 import android.net.wifi.aware.IWifiAwareEventCallback;
@@ -99,7 +98,6 @@ public class WifiAwareStateManagerTest {
     @Mock private WifiAwareNativeApi mMockNative;
     @Mock private Context mMockContext;
     @Mock private AppOpsManager mMockAppOpsManager;
-    @Mock private WifiAwareRttStateManager mMockAwareRttStateManager;
     @Mock private WifiAwareMetrics mAwareMetricsMock;
     @Mock private WifiPermissionsWrapper mPermissionsWrapperMock;
     TestAlarmManager mAlarmManager;
@@ -156,7 +154,7 @@ public class WifiAwareStateManagerTest {
         mMockLooper.dispatchAll();
         verify(mMockContext).registerReceiver(bcastRxCaptor.capture(), any(IntentFilter.class));
         mPowerBcastReceiver = bcastRxCaptor.getValue();
-        installMocksInStateManager(mDut, mMockAwareRttStateManager, mMockAwareDataPathStatemanager);
+        installMocksInStateManager(mDut, mMockAwareDataPathStatemanager);
 
         when(mMockNative.enableAndConfigure(anyShort(), any(), anyBoolean(),
                 anyBoolean(), anyBoolean(), anyBoolean())).thenReturn(true);
@@ -2296,88 +2294,6 @@ public class WifiAwareStateManagerTest {
     }
 
     /**
-     * Validate that start ranging function fills-in correct MAC addresses for peer IDs and
-     * passed along to RTT module.
-     */
-    @Test
-    public void testStartRanging() throws Exception {
-        final int clientId = 1005;
-        final int uid = 1000;
-        final int pid = 2000;
-        final String callingPackage = "com.google.somePackage";
-        final byte subscribeId = 15;
-        final int requestorId = 22;
-        final byte[] peerMac = HexEncoding.decode("060708090A0B".toCharArray(), false);
-        final String peerSsi = "some peer ssi data";
-        final String peerMatchFilter = "filter binary array represented as string";
-        final int rangingId = 18423;
-        final RttManager.RttParams[] params = new RttManager.RttParams[2];
-
-        ConfigRequest configRequest = new ConfigRequest.Builder().build();
-        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().build();
-
-        IWifiAwareEventCallback mockCallback = mock(IWifiAwareEventCallback.class);
-        IWifiAwareDiscoverySessionCallback mockSessionCallback = mock(
-                IWifiAwareDiscoverySessionCallback.class);
-
-        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
-        ArgumentCaptor<Integer> sessionId = ArgumentCaptor.forClass(Integer.class);
-        ArgumentCaptor<Integer> peerIdIdCaptor = ArgumentCaptor.forClass(Integer.class);
-        ArgumentCaptor<WifiAwareClientState> clientCaptor =
-                ArgumentCaptor.forClass(WifiAwareClientState.class);
-        ArgumentCaptor<RttManager.RttParams[]> rttParamsCaptor =
-                ArgumentCaptor.forClass(RttManager.RttParams[].class);
-
-        InOrder inOrder = inOrder(mockCallback, mockSessionCallback, mMockNative,
-                mMockAwareRttStateManager);
-
-        mDut.enableUsage();
-        mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
-        mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
-        mMockLooper.dispatchAll();
-
-        // (1) connect
-        mDut.connect(clientId, uid, pid, callingPackage, mockCallback, configRequest, false);
-        mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(), eq(configRequest),
-                eq(false), eq(true), eq(true), eq(false));
-        mDut.onConfigSuccessResponse(transactionId.getValue());
-        mMockLooper.dispatchAll();
-        inOrder.verify(mockCallback).onConnectSuccess(clientId);
-
-        // (2) subscribe & match
-        mDut.subscribe(clientId, subscribeConfig, mockSessionCallback);
-        mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq((byte) 0),
-                eq(subscribeConfig));
-        mDut.onSessionConfigSuccessResponse(transactionId.getValue(), false, subscribeId);
-        mDut.onMatchNotification(subscribeId, requestorId, peerMac, peerSsi.getBytes(),
-                peerMatchFilter.getBytes());
-        mMockLooper.dispatchAll();
-        inOrder.verify(mockSessionCallback).onSessionStarted(sessionId.capture());
-        inOrder.verify(mockSessionCallback).onMatch(peerIdIdCaptor.capture(),
-                eq(peerSsi.getBytes()), eq(peerMatchFilter.getBytes()));
-
-        // (3) start ranging: pass along a valid peer ID and an invalid one
-        params[0] = new RttManager.RttParams();
-        params[0].bssid = Integer.toString(peerIdIdCaptor.getValue());
-        params[1] = new RttManager.RttParams();
-        params[1].bssid = Integer.toString(peerIdIdCaptor.getValue() + 5);
-
-        mDut.startRanging(clientId, sessionId.getValue(), params, rangingId);
-        mMockLooper.dispatchAll();
-        inOrder.verify(mMockAwareRttStateManager).startRanging(eq(rangingId),
-                clientCaptor.capture(), rttParamsCaptor.capture());
-        collector.checkThat("RttParams[0].bssid", "06:07:08:09:0a:0b",
-                equalTo(rttParamsCaptor.getValue()[0].bssid));
-        collector.checkThat("RttParams[1].bssid", "", equalTo(rttParamsCaptor.getValue()[1].bssid));
-
-        verifyNoMoreInteractions(mockCallback, mockSessionCallback, mMockNative,
-                mMockAwareRttStateManager);
-    }
-
-    /**
      * Test sequence of configuration: (1) config1, (2) config2 - incompatible,
      * (3) config3 - compatible with config1 (requiring upgrade), (4) disconnect
      * config3 (should get a downgrade), (5) disconnect config1 (should get a
@@ -3150,13 +3066,9 @@ public class WifiAwareStateManagerTest {
     }
 
     private static void installMocksInStateManager(WifiAwareStateManager awareStateManager,
-            WifiAwareRttStateManager mockRtt, WifiAwareDataPathStateManager mockDpMgr)
+            WifiAwareDataPathStateManager mockDpMgr)
             throws Exception {
-        Field field = WifiAwareStateManager.class.getDeclaredField("mRtt");
-        field.setAccessible(true);
-        field.set(awareStateManager, mockRtt);
-
-        field = WifiAwareStateManager.class.getDeclaredField("mDataPathMgr");
+        Field field = WifiAwareStateManager.class.getDeclaredField("mDataPathMgr");
         field.setAccessible(true);
         field.set(awareStateManager, mockDpMgr);
     }

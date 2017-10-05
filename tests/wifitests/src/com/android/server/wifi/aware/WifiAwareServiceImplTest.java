@@ -16,7 +16,6 @@
 
 package com.android.server.wifi.aware;
 
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -29,7 +28,6 @@ import static org.mockito.Mockito.when;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.net.wifi.RttManager;
 import android.net.wifi.aware.Characteristics;
 import android.net.wifi.aware.ConfigRequest;
 import android.net.wifi.aware.IWifiAwareDiscoverySessionCallback;
@@ -508,64 +506,6 @@ public class WifiAwareServiceImplTest {
 
         verify(mAwareStateManagerMock).sendMessage(clientId, sessionId, peerId, message, messageId,
                 0);
-    }
-
-    /**
-     * Validate startRanging() - correct pass-through args
-     */
-    @Test
-    public void testStartRanging() {
-        int clientId = doConnect();
-        int sessionId = 65345;
-        RttManager.ParcelableRttParams params =
-                new RttManager.ParcelableRttParams(new RttManager.RttParams[1]);
-
-        ArgumentCaptor<RttManager.RttParams[]> paramsCaptor =
-                ArgumentCaptor.forClass(RttManager.RttParams[].class);
-
-        int rangingId = mDut.startRanging(clientId, sessionId, params);
-
-        verify(mAwareStateManagerMock).startRanging(eq(clientId), eq(sessionId),
-                paramsCaptor.capture(), eq(rangingId));
-
-        assertArrayEquals(paramsCaptor.getValue(), params.mParams);
-    }
-
-    /**
-     * Validates that sequential startRanging() calls return increasing ranging IDs.
-     */
-    @Test
-    public void testRangingIdIncrementing() {
-        int loopCount = 100;
-        int clientId = doConnect();
-        int sessionId = 65345;
-        RttManager.ParcelableRttParams params =
-                new RttManager.ParcelableRttParams(new RttManager.RttParams[1]);
-
-        int prevRangingId = 0;
-        for (int i = 0; i < loopCount; ++i) {
-            int rangingId = mDut.startRanging(clientId, sessionId, params);
-            if (i != 0) {
-                assertTrue("Client ID incrementing", rangingId > prevRangingId);
-            }
-            prevRangingId = rangingId;
-        }
-    }
-
-    /**
-     * Validates that startRanging() requires a non-empty list
-     */
-    @Test(expected = IllegalArgumentException.class)
-    public void testStartRangingZeroArgs() {
-        int clientId = doConnect();
-        int sessionId = 65345;
-        RttManager.ParcelableRttParams params =
-                new RttManager.ParcelableRttParams(new RttManager.RttParams[0]);
-
-        ArgumentCaptor<RttManager.RttParams[]> paramsCaptor =
-                ArgumentCaptor.forClass(RttManager.RttParams[].class);
-
-        int rangingId = mDut.startRanging(clientId, sessionId, params);
     }
 
     /*
