@@ -1321,7 +1321,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     /**
      * Initiates connection to a network specified by the user/app. This method checks if the
-     * requesting app holds the WIFI_CONFIG_OVERRIDE permission.
+     * requesting app holds the NETWORK_SETTINGS permission.
      *
      * @param netId Id network to initiate connection.
      * @param uid UID of the app requesting the connection.
@@ -1350,7 +1350,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             logi("connectToUserSelectNetwork already connecting/connected=" + netId);
         } else {
             mWifiConnectivityManager.prepareForForcedConnection(netId);
-            startConnectToNetwork(netId, SUPPLICANT_BSSID_ANY);
+            startConnectToNetwork(netId, uid, SUPPLICANT_BSSID_ANY);
         }
         return true;
     }
@@ -5178,7 +5178,23 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_START_CONNECT:
                     /* connect command coming from auto-join */
                     netId = message.arg1;
+                    int uid = message.arg2;
                     bssid = (String) message.obj;
+
+                    synchronized (mWifiReqCountLock) {
+                        if (!hasConnectionRequests()) {
+                            if (mNetworkAgent == null) {
+                                loge("CMD_START_CONNECT but no requests and not connected,"
+                                        + " bailing");
+                                break;
+                            } else if (!mWifiPermissionsUtil.checkNetworkSettingsPermission(uid)) {
+                                loge("CMD_START_CONNECT but no requests and connected, but app "
+                                        + "does not have sufficient permissions, bailing");
+                                break;
+                            }
+                        }
+                    }
+
                     config = mWifiConfigManager.getConfiguredNetworkWithPassword(netId);
                     logd("CMD_START_CONNECT sup state "
                             + mSupplicantStateTracker.getSupplicantStateName()
@@ -5278,7 +5294,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             // start a new connection with the updated credentials.
                             logi("SAVE_NETWORK credential changed for config=" + config.configKey()
                                     + ", Reconnecting.");
-                            startConnectToNetwork(netId, SUPPLICANT_BSSID_ANY);
+                            startConnectToNetwork(netId, message.sendingUid, SUPPLICANT_BSSID_ANY);
                         } else {
                             if (result.hasProxyChanged()) {
                                 log("Reconfiguring proxy on connection");
@@ -6121,7 +6137,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         WifiConfiguration config = getCurrentWifiConfiguration();
         if (shouldEvaluateWhetherToSendExplicitlySelected(config)) {
             boolean prompt =
-                    mWifiPermissionsUtil.checkConfigOverridePermission(config.lastConnectUid);
+                    mWifiPermissionsUtil.checkNetworkSettingsPermission(config.lastConnectUid);
             if (mVerboseLoggingEnabled) {
                 log("Network selected by UID " + config.lastConnectUid + " prompt=" + prompt);
             }
@@ -7097,14 +7113,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      * Automatically connect to the network specified
      *
      * @param networkId ID of the network to connect to
+     * @param uid UID of the app triggering the connection.
      * @param bssid BSSID of the network
      */
-    public void startConnectToNetwork(int networkId, String bssid) {
-        synchronized (mWifiReqCountLock) {
-            if (hasConnectionRequests()) {
-                sendMessage(CMD_START_CONNECT, networkId, 0, bssid);
-            }
-        }
+    public void startConnectToNetwork(int networkId, int uid, String bssid) {
+        sendMessage(CMD_START_CONNECT, networkId, uid, bssid);
     }
 
     /**
