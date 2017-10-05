@@ -1178,7 +1178,7 @@ public class WifiConnectivityManagerTest {
 
         // Force a connectivity scan which enables WifiConnectivityManager
         // to wait for full band scan results.
-        mWifiConnectivityManager.forceConnectivityScan();
+        mWifiConnectivityManager.forceConnectivityScan(WIFI_WORK_SOURCE);
 
         // No roaming because no full band scan results.
         verify(mWifiStateMachine, times(0)).startConnectToNetwork(
@@ -1189,7 +1189,7 @@ public class WifiConnectivityManagerTest {
 
         // Force a connectivity scan which enables WifiConnectivityManager
         // to wait for full band scan results.
-        mWifiConnectivityManager.forceConnectivityScan();
+        mWifiConnectivityManager.forceConnectivityScan(WIFI_WORK_SOURCE);
 
         // Roaming attempt because full band scan results are available.
         verify(mWifiStateMachine).startConnectToNetwork(
@@ -1286,14 +1286,14 @@ public class WifiConnectivityManagerTest {
         // its blacklist expiration time hasn't reached yet.
         when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime()
                 + WifiConnectivityManager.BSSID_BLACKLIST_EXPIRE_TIME_MS / 2);
-        mWifiConnectivityManager.forceConnectivityScan();
+        mWifiConnectivityManager.forceConnectivityScan(WIFI_WORK_SOURCE);
         assertTrue(mWifiConnectivityManager.isBssidDisabled(bssid));
 
         // Force another connectivity scan at BSSID_BLACKLIST_EXPIRE_TIME_MS from when the
         // BSSID was blacklisted. Verify that the blacklisted BSSId is freed.
         when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime()
                 + WifiConnectivityManager.BSSID_BLACKLIST_EXPIRE_TIME_MS);
-        mWifiConnectivityManager.forceConnectivityScan();
+        mWifiConnectivityManager.forceConnectivityScan(WIFI_WORK_SOURCE);
 
         // Verify the BSSID is no longer blacklisted.
         assertFalse(mWifiConnectivityManager.isBssidDisabled(bssid));
