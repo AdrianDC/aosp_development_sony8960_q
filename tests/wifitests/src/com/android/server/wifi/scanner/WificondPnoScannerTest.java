@@ -134,36 +134,6 @@ public class WificondPnoScannerTest {
     }
 
     /**
-     * Verify that the SW disconnected PNO scan triggers a background scan and invokes the
-     * background scan callbacks when scan results are received.
-     */
-    @Test
-    public void startSwDisconnectedPnoScan() {
-        createScannerWithSwPnoScanSupport();
-        doSuccessfulSwPnoScanTest(false);
-    }
-
-    /**
-     * Verify that the HW connected PNO scan triggers a background scan and invokes the
-     * background scan callbacks when scan results are received.
-     */
-    @Test
-    public void startHwConnectedPnoScan() {
-        createScannerWithHwPnoScanSupport();
-        doSuccessfulSwPnoScanTest(true);
-    }
-
-    /**
-     * Verify that the SW connected PNO scan triggers a background scan and invokes the
-     * background scan callbacks when scan results are received.
-     */
-    @Test
-    public void startSwConnectedPnoScan() {
-        createScannerWithSwPnoScanSupport();
-        doSuccessfulSwPnoScanTest(true);
-    }
-
-    /**
      * Verify that the HW PNO delayed failure cleans up the scan settings cleanly.
      * 1. Start Hw PNO.
      * 2. Start Single Scan which should pause PNO scan.
