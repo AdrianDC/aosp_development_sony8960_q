@@ -1721,21 +1721,6 @@ public class WifiScanningServiceTest {
         return Pair.create(requestSettings, nativeSettings);
     }
 
-    private Pair<WifiScanner.ScanSettings, WifiNative.ScanSettings> createScanSettingsForSwPno()
-            throws Exception {
-        Pair<WifiScanner.ScanSettings, WifiNative.ScanSettings> settingsPair =
-                createScanSettingsForHwPno();
-
-        WifiScanner.ScanSettings requestSettings = settingsPair.first;
-        WifiNative.ScanSettings nativeSettings = settingsPair.second;
-        // reportEvents field is overridden for SW PNO
-        for (int i = 0; i < nativeSettings.buckets.length; i++) {
-            nativeSettings.buckets[i].report_events = WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN
-                    | WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT;
-        }
-        return Pair.create(requestSettings, nativeSettings);
-    }
-
     private Pair<WifiScanner.PnoSettings, WifiNative.PnoSettings> createPnoSettings(
             ScanResults results)
             throws Exception {
