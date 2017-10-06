@@ -2925,23 +2925,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiApState.set(wifiApState);
 
         if (mVerboseLoggingEnabled) log("setWifiApState: " + syncGetWifiApStateByName());
-
-        final Intent intent = new Intent(WifiManager.WIFI_AP_STATE_CHANGED_ACTION);
-        intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
-        intent.putExtra(WifiManager.EXTRA_WIFI_AP_STATE, wifiApState);
-        intent.putExtra(WifiManager.EXTRA_PREVIOUS_WIFI_AP_STATE, previousWifiApState);
-        if (wifiApState == WifiManager.WIFI_AP_STATE_FAILED) {
-            //only set reason number when softAP start failed
-            intent.putExtra(WifiManager.EXTRA_WIFI_AP_FAILURE_REASON, reason);
-        }
-
-        if (ifaceName == null) {
-            loge("Updating wifiApState with a null iface name");
-        }
-        intent.putExtra(WifiManager.EXTRA_WIFI_AP_INTERFACE_NAME, ifaceName);
-        intent.putExtra(WifiManager.EXTRA_WIFI_AP_MODE, mode);
-
-        mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
     }
 
     private void setScanResults() {

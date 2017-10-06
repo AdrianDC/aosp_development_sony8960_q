@@ -16,16 +16,24 @@
 
 package com.android.server.wifi;
 
-import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.anyBoolean;
-import static org.mockito.Mockito.anyInt;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.eq;
-import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static android.net.wifi.WifiManager.EXTRA_PREVIOUS_WIFI_AP_STATE;
+import static android.net.wifi.WifiManager.EXTRA_WIFI_AP_FAILURE_REASON;
+import static android.net.wifi.WifiManager.EXTRA_WIFI_AP_INTERFACE_NAME;
+import static android.net.wifi.WifiManager.EXTRA_WIFI_AP_MODE;
+import static android.net.wifi.WifiManager.EXTRA_WIFI_AP_STATE;
+import static android.net.wifi.WifiManager.WIFI_AP_STATE_DISABLED;
+import static android.net.wifi.WifiManager.WIFI_AP_STATE_DISABLING;
+import static android.net.wifi.WifiManager.WIFI_AP_STATE_ENABLED;
+import static android.net.wifi.WifiManager.WIFI_AP_STATE_ENABLING;
+import static android.net.wifi.WifiManager.WIFI_AP_STATE_FAILED;
 
+import static com.android.server.wifi.LocalOnlyHotspotRequestInfo.HOTSPOT_NO_ERROR;
+
+import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.*;
+
+import android.content.Context;
+import android.content.Intent;
 import android.net.InterfaceConfiguration;
 import android.net.wifi.IApInterface;
 import android.net.wifi.WifiConfiguration;
@@ -33,7 +41,7 @@ import android.net.wifi.WifiManager;
 import android.os.IBinder;
 import android.os.IBinder.DeathRecipient;
 import android.os.INetworkManagementService;
-import android.os.RemoteException;
+import android.os.UserHandle;
 import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 
@@ -49,6 +57,7 @@ import org.mockito.MockitoAnnotations;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 /** Unit tests for {@link SoftApManager}. */
@@ -68,6 +77,7 @@ public class SoftApManagerTest {
 
     private final WifiConfiguration mDefaultApConfig = createDefaultApConfig();
 
+    @Mock Context mContext;
     TestLooper mLooper;
     @Mock WifiNative mWifiNative;
     @Mock SoftApManager.Listener mListener;
@@ -111,7 +121,8 @@ public class SoftApManagerTest {
         if (config.getWifiConfiguration() == null) {
             when(mWifiApConfigStore.getApConfiguration()).thenReturn(mDefaultApConfig);
         }
-        SoftApManager newSoftApManager = new SoftApManager(mLooper.getLooper(),
+        SoftApManager newSoftApManager = new SoftApManager(mContext,
+                                                           mLooper.getLooper(),
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
                                                            mListener,
@@ -169,7 +180,8 @@ public class SoftApManagerTest {
         when(mWifiApConfigStore.getApConfiguration()).thenReturn(null);
         SoftApModeConfiguration nullApConfig =
                 new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
-        SoftApManager newSoftApManager = new SoftApManager(mLooper.getLooper(),
+        SoftApManager newSoftApManager = new SoftApManager(mContext,
+                                                           mLooper.getLooper(),
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
                                                            mListener,
@@ -184,18 +196,85 @@ public class SoftApManagerTest {
         mLooper.dispatchAll();
         verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
                 WifiManager.SAP_START_FAILURE_GENERAL);
+        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
+        verify(mContext, times(2)).sendStickyBroadcastAsUser(intentCaptor.capture(),
+                eq(UserHandle.ALL));
+
+        List<Intent> capturedIntents = intentCaptor.getAllValues();
+        checkApStateChangedBroadcast(capturedIntents.get(0), WIFI_AP_STATE_ENABLING,
+                WIFI_AP_STATE_DISABLED, HOTSPOT_NO_ERROR, TEST_INTERFACE_NAME,
+                nullApConfig.getTargetMode());
+        checkApStateChangedBroadcast(capturedIntents.get(1), WIFI_AP_STATE_FAILED,
+                WIFI_AP_STATE_ENABLING, WifiManager.SAP_START_FAILURE_GENERAL, TEST_INTERFACE_NAME,
+                nullApConfig.getTargetMode());
     }
 
     /**
-     * Tests softap mode startup when retrieving the interface name fails.  This should return an
-     * error and softap mode should not be active.
+     * Tests that the generic error is propagated and properly reported when starting softap and the
+     * specified channel cannot be used.
      */
     @Test
-    public void startSoftApFailToGetInterfaceName() throws Exception  {
-        doThrow(new RemoteException("error!")).when(mApInterface).getInterfaceName();
-        SoftApModeConfiguration nullApConfig =
-                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
-        SoftApManager newSoftApManager = new SoftApManager(mLooper.getLooper(),
+    public void startSoftApFailGeneralErrorForConfigChannel() throws Exception {
+        WifiConfiguration config = new WifiConfiguration();
+        config.apBand = WifiConfiguration.AP_BAND_5GHZ;
+        config.SSID = TEST_SSID;
+        SoftApModeConfiguration softApConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, config);
+
+        when(mApInterface.asBinder()).thenReturn(mApInterfaceBinder);
+        when(mApInterface.startHostapd()).thenReturn(true);
+        when(mApInterface.stopHostapd()).thenReturn(true);
+        when(mWifiNative.isHalStarted()).thenReturn(true);
+
+        SoftApManager newSoftApManager = new SoftApManager(mContext,
+                                                           mLooper.getLooper(),
+                                                           mWifiNative,
+                                                           null,
+                                                           mListener,
+                                                           mApInterface,
+                                                           TEST_INTERFACE_NAME,
+                                                           mNmService,
+                                                           mWifiApConfigStore,
+                                                           softApConfig,
+                                                           mWifiMetrics);
+        mLooper.dispatchAll();
+        newSoftApManager.start();
+        mLooper.dispatchAll();
+
+        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
+        verify(mContext, times(2)).sendStickyBroadcastAsUser(intentCaptor.capture(),
+                eq(UserHandle.ALL));
+
+        List<Intent> capturedIntents = intentCaptor.getAllValues();
+        checkApStateChangedBroadcast(capturedIntents.get(0), WIFI_AP_STATE_ENABLING,
+                WIFI_AP_STATE_DISABLED, HOTSPOT_NO_ERROR, TEST_INTERFACE_NAME,
+                softApConfig.getTargetMode());
+        checkApStateChangedBroadcast(capturedIntents.get(1), WIFI_AP_STATE_FAILED,
+                WIFI_AP_STATE_ENABLING, WifiManager.SAP_START_FAILURE_GENERAL, TEST_INTERFACE_NAME,
+                softApConfig.getTargetMode());
+    }
+
+    /**
+     * Tests that the NO_CHANNEL error is propagated and properly reported when starting softap and
+     * a valid channel cannot be determined.
+     */
+    @Test
+    public void startSoftApFailNoChannel() throws Exception {
+        WifiConfiguration config = new WifiConfiguration();
+        config.apBand = -2;
+        config.apChannel = 0;
+        config.SSID = TEST_SSID;
+        SoftApModeConfiguration softApConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, config);
+
+        when(mApInterface.asBinder()).thenReturn(mApInterfaceBinder);
+        when(mApInterface.startHostapd()).thenReturn(true);
+        when(mApInterface.stopHostapd()).thenReturn(true);
+        when(mWifiNative.isHalStarted()).thenReturn(true);
+        when(mWifiNative.isGetChannelsForBandSupported()).thenReturn(true);
+
+        SoftApManager newSoftApManager = new SoftApManager(mContext,
+                                                           mLooper.getLooper(),
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
                                                            mListener,
@@ -203,16 +282,29 @@ public class SoftApManagerTest {
                                                            TEST_INTERFACE_NAME,
                                                            mNmService,
                                                            mWifiApConfigStore,
-                                                           nullApConfig,
+                                                           softApConfig,
                                                            mWifiMetrics);
         mLooper.dispatchAll();
         newSoftApManager.start();
         mLooper.dispatchAll();
-        verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
-                WifiManager.SAP_START_FAILURE_GENERAL);
+
+        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
+        verify(mContext, times(2)).sendStickyBroadcastAsUser(intentCaptor.capture(),
+                eq(UserHandle.ALL));
+
+        List<Intent> capturedIntents = intentCaptor.getAllValues();
+        checkApStateChangedBroadcast(capturedIntents.get(0), WIFI_AP_STATE_ENABLING,
+                WIFI_AP_STATE_DISABLED, HOTSPOT_NO_ERROR, TEST_INTERFACE_NAME,
+                softApConfig.getTargetMode());
+        checkApStateChangedBroadcast(capturedIntents.get(1), WIFI_AP_STATE_FAILED,
+                WIFI_AP_STATE_ENABLING, WifiManager.SAP_START_FAILURE_NO_CHANNEL,
+                TEST_INTERFACE_NAME, softApConfig.getTargetMode());
     }
 
-    /** Tests the handling of stop command when soft AP is not started. */
+
+    /**
+     * Tests the handling of stop command when soft AP is not started.
+     */
     @Test
     public void stopWhenNotStarted() throws Exception {
         mSoftApManager = createSoftApManager(
@@ -221,13 +313,20 @@ public class SoftApManagerTest {
         mLooper.dispatchAll();
         /* Verify no state changes. */
         verify(mListener, never()).onStateChanged(anyInt(), anyInt());
+        verify(mContext, never()).sendStickyBroadcastAsUser(any(), any());
     }
 
-    /** Tests the handling of stop command when soft AP is started. */
+    /**
+     * Tests the handling of stop command when soft AP is started.
+     */
     @Test
     public void stopWhenStarted() throws Exception {
-        startSoftApAndVerifyEnabled(
-                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null));
+        SoftApModeConfiguration softApModeConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
+        startSoftApAndVerifyEnabled(softApModeConfig);
+
+        // reset to clear verified Intents for ap state change updates
+        reset(mContext);
 
         InOrder order = inOrder(mListener);
 
@@ -237,12 +336,30 @@ public class SoftApManagerTest {
         verify(mApInterface).stopHostapd();
         order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLING, 0);
         order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLED, 0);
+        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
+        verify(mContext, times(2)).sendStickyBroadcastAsUser(intentCaptor.capture(),
+                eq(UserHandle.ALL));
+
+        List<Intent> capturedIntents = intentCaptor.getAllValues();
+        checkApStateChangedBroadcast(capturedIntents.get(0), WIFI_AP_STATE_DISABLING,
+                WIFI_AP_STATE_ENABLED, HOTSPOT_NO_ERROR, TEST_INTERFACE_NAME,
+                softApModeConfig.getTargetMode());
+        checkApStateChangedBroadcast(capturedIntents.get(1), WIFI_AP_STATE_DISABLED,
+                WIFI_AP_STATE_DISABLING, HOTSPOT_NO_ERROR, TEST_INTERFACE_NAME,
+                softApModeConfig.getTargetMode());
     }
 
+    /**
+     * Verify that SoftAp mode shuts down if wificond dies.
+     */
     @Test
     public void handlesWificondInterfaceDeath() throws Exception {
-        startSoftApAndVerifyEnabled(
-                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null));
+        SoftApModeConfiguration softApModeConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
+        startSoftApAndVerifyEnabled(softApModeConfig);
+
+        // reset to clear verified Intents for ap state change updates
+        reset(mContext);
 
         mDeathListenerCaptor.getValue().binderDied();
         mLooper.dispatchAll();
@@ -250,6 +367,17 @@ public class SoftApManagerTest {
         order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLING, 0);
         order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
                 WifiManager.SAP_START_FAILURE_GENERAL);
+        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
+        verify(mContext, times(2)).sendStickyBroadcastAsUser(intentCaptor.capture(),
+                eq(UserHandle.ALL));
+
+        List<Intent> capturedIntents = intentCaptor.getAllValues();
+        checkApStateChangedBroadcast(capturedIntents.get(0), WIFI_AP_STATE_DISABLING,
+                WIFI_AP_STATE_ENABLED, HOTSPOT_NO_ERROR, TEST_INTERFACE_NAME,
+                softApModeConfig.getTargetMode());
+        checkApStateChangedBroadcast(capturedIntents.get(1), WIFI_AP_STATE_FAILED,
+                WIFI_AP_STATE_DISABLING, WifiManager.SAP_START_FAILURE_GENERAL, TEST_INTERFACE_NAME,
+                softApModeConfig.getTargetMode());
     }
 
     /** Starts soft AP and verifies that it is enabled successfully. */
@@ -274,6 +402,8 @@ public class SoftApManagerTest {
             expectedHiddenSsid = config.hiddenSSID;
         }
 
+        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
+
         mSoftApManager.start();
         mLooper.dispatchAll();
         order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_ENABLING, 0);
@@ -286,11 +416,35 @@ public class SoftApManagerTest {
         mNetworkObserverCaptor.getValue().interfaceLinkStateChanged(TEST_INTERFACE_NAME, true);
         mLooper.dispatchAll();
         order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_ENABLED, 0);
+        verify(mContext, times(2)).sendStickyBroadcastAsUser(intentCaptor.capture(),
+                                                             eq(UserHandle.ALL));
+        List<Intent> capturedIntents = intentCaptor.getAllValues();
+        checkApStateChangedBroadcast(capturedIntents.get(0), WIFI_AP_STATE_ENABLING,
+                WIFI_AP_STATE_DISABLED, HOTSPOT_NO_ERROR, TEST_INTERFACE_NAME,
+                softApConfig.getTargetMode());
+        checkApStateChangedBroadcast(capturedIntents.get(1), WIFI_AP_STATE_ENABLED,
+                WIFI_AP_STATE_ENABLING, HOTSPOT_NO_ERROR, TEST_INTERFACE_NAME,
+                softApConfig.getTargetMode());
     }
 
     /** Verifies that soft AP was not disabled. */
     protected void verifySoftApNotDisabled() throws Exception {
         verify(mListener, never()).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLING, 0);
         verify(mListener, never()).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLED, 0);
+    }
+
+    private void checkApStateChangedBroadcast(Intent intent, int expectedCurrentState,
+                                              int expectedPrevState, int expectedErrorCode,
+                                              String expectedIfaceName, int expectedMode) {
+        int currentState = intent.getIntExtra(EXTRA_WIFI_AP_STATE, WIFI_AP_STATE_DISABLED);
+        int prevState = intent.getIntExtra(EXTRA_PREVIOUS_WIFI_AP_STATE, WIFI_AP_STATE_DISABLED);
+        int errorCode = intent.getIntExtra(EXTRA_WIFI_AP_FAILURE_REASON, HOTSPOT_NO_ERROR);
+        String ifaceName = intent.getStringExtra(EXTRA_WIFI_AP_INTERFACE_NAME);
+        int mode = intent.getIntExtra(EXTRA_WIFI_AP_MODE, WifiManager.IFACE_IP_MODE_UNSPECIFIED);
+        assertEquals(expectedCurrentState, currentState);
+        assertEquals(expectedPrevState, prevState);
+        assertEquals(expectedErrorCode, errorCode);
+        assertEquals(expectedIfaceName, ifaceName);
+        assertEquals(expectedMode, mode);
     }
 }
