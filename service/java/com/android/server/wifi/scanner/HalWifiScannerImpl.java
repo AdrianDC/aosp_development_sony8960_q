@@ -131,11 +131,6 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
     }
 
     @Override
-    public boolean shouldScheduleBackgroundScanForHwPno() {
-        return mWificondScannerDelegate.shouldScheduleBackgroundScanForHwPno();
-    }
-
-    @Override
     protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         mWificondScannerDelegate.dump(fd, pw, args);
     }
