@@ -20,6 +20,7 @@ import static com.android.server.wifi.util.ApConfigUtil.ERROR_GENERIC;
 import static com.android.server.wifi.util.ApConfigUtil.ERROR_NO_CHANNEL;
 import static com.android.server.wifi.util.ApConfigUtil.SUCCESS;
 
+import android.annotation.NonNull;
 import android.net.InterfaceConfiguration;
 import android.net.wifi.IApInterface;
 import android.net.wifi.WifiConfiguration;
@@ -55,6 +56,7 @@ public class SoftApManager implements ActiveModeManager {
     private final Listener mListener;
 
     private final IApInterface mApInterface;
+    private final String mApInterfaceName;
 
     private final INetworkManagementService mNwService;
     private final WifiApConfigStore mWifiApConfigStore;
@@ -79,7 +81,8 @@ public class SoftApManager implements ActiveModeManager {
                          WifiNative wifiNative,
                          String countryCode,
                          Listener listener,
-                         IApInterface apInterface,
+                         @NonNull IApInterface apInterface,
+                         @NonNull String ifaceName,
                          INetworkManagementService nms,
                          WifiApConfigStore wifiApConfigStore,
                          WifiConfiguration config,
@@ -90,6 +93,7 @@ public class SoftApManager implements ActiveModeManager {
         mCountryCode = countryCode;
         mListener = listener;
         mApInterface = apInterface;
+        mApInterfaceName = ifaceName;
         mNwService = nms;
         mWifiApConfigStore = wifiApConfigStore;
         if (config == null) {
@@ -291,7 +295,7 @@ public class SoftApManager implements ActiveModeManager {
                         }
 
                         try {
-                            mNetworkObserver = new NetworkObserver(mApInterface.getInterfaceName());
+                            mNetworkObserver = new NetworkObserver(mApInterfaceName);
                             mNwService.registerObserver(mNetworkObserver);
                         } catch (RemoteException e) {
                             mDeathRecipient.unlinkToDeath();
@@ -359,7 +363,7 @@ public class SoftApManager implements ActiveModeManager {
                 mIfaceIsUp = false;
                 InterfaceConfiguration config = null;
                 try {
-                    config = mNwService.getInterfaceConfig(mApInterface.getInterfaceName());
+                    config = mNwService.getInterfaceConfig(mApInterfaceName);
                 } catch (RemoteException e) {
                 }
                 if (config != null) {

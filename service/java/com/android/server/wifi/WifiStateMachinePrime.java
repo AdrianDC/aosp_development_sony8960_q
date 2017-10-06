@@ -270,6 +270,7 @@ public class WifiStateMachinePrime {
 
         class SoftAPModeState extends State {
             IApInterface mApInterface = null;
+            String mIfaceName = null;
 
             @Override
             public void enter() {
@@ -281,23 +282,18 @@ public class WifiStateMachinePrime {
 
                 // Continue with setup since we are changing modes
                 mApInterface = null;
-                mWificond = mWifiInjector.makeWificond();
-                if (mWificond == null) {
-                    Log.e(TAG, "Failed to get reference to wificond");
-                    writeApConfigDueToStartFailure();
-                    mModeStateMachine.sendMessage(CMD_START_AP_FAILURE);
-                    return;
-                }
 
                 try {
+                    mWificond = mWifiInjector.makeWificond();
                     mApInterface = mWificond.createApInterface(
                             mWifiInjector.getWifiNative().getInterfaceName());
-                } catch (RemoteException e1) { }
-
-                if (mApInterface == null) {
-                    Log.e(TAG, "Could not get IApInterface instance from wificond");
-                    writeApConfigDueToStartFailure();
-                    mModeStateMachine.sendMessage(CMD_START_AP_FAILURE);
+                    mIfaceName = mApInterface.getInterfaceName();
+                } catch (RemoteException e) {
+                    initializationFailed(
+                            "Could not get IApInterface instance or its name from wificond");
+                    return;
+                } catch (NullPointerException e) {
+                    initializationFailed("wificond failure when initializing softap mode");
                     return;
                 }
                 mModeStateMachine.transitionTo(mSoftAPModeActiveState);
@@ -335,6 +331,16 @@ public class WifiStateMachinePrime {
 
             protected IApInterface getInterface() {
                 return mApInterface;
+            }
+
+            protected String getInterfaceName() {
+                return mIfaceName;
+            }
+
+            private void initializationFailed(String message) {
+                Log.e(TAG, message);
+                writeApConfigDueToStartFailure();
+                mModeStateMachine.sendMessage(CMD_START_AP_FAILURE);
             }
 
             private void writeApConfigDueToStartFailure() {
@@ -416,10 +422,9 @@ public class WifiStateMachinePrime {
                 } else {
                     config = null;
                 }
-
                 this.mActiveModeManager = mWifiInjector.makeSoftApManager(mNMService,
                         new SoftApListener(), ((SoftAPModeState) mSoftAPModeState).getInterface(),
-                        config);
+                        ((SoftAPModeState) mSoftAPModeState).getInterfaceName(), config);
                 mActiveModeManager.start();
             }
 

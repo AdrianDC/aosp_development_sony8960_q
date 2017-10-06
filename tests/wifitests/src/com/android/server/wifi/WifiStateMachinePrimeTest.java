@@ -104,6 +104,7 @@ public class WifiStateMachinePrimeTest {
         String fromState = mWifiStateMachinePrime.getCurrentMode();
         when(mWifiInjector.makeWificond()).thenReturn(mWificond);
         when(mWificond.createApInterface(WIFI_IFACE_NAME)).thenReturn(mApInterface);
+        when(mApInterface.getInterfaceName()).thenReturn(WIFI_IFACE_NAME);
         doAnswer(
                 new Answer<Object>() {
                     public SoftApManager answer(InvocationOnMock invocation) {
@@ -111,12 +112,14 @@ public class WifiStateMachinePrimeTest {
                         assertEquals(mNMService, (INetworkManagementService) args[0]);
                         mSoftApListener = (SoftApManager.Listener) args[1];
                         assertEquals(mApInterface, (IApInterface) args[2]);
-                        assertEquals(wifiConfig, (WifiConfiguration) args[3]);
+                        assertEquals(WIFI_IFACE_NAME, (String) args[3]);
+                        assertEquals(wifiConfig, (WifiConfiguration) args[4]);
                         return mSoftApManager;
                     }
                 }).when(mWifiInjector).makeSoftApManager(any(INetworkManagementService.class),
                                                          any(SoftApManager.Listener.class),
                                                          any(IApInterface.class),
+                                                         anyString(),
                                                          any());
         mWifiStateMachinePrime.enterSoftAPMode(wifiConfig);
         mLooper.dispatchAll();
@@ -358,6 +361,7 @@ public class WifiStateMachinePrimeTest {
     public void testStartSoftApModeTwiceWithTwoConfigs() throws Exception {
         when(mWifiInjector.makeWificond()).thenReturn(mWificond);
         when(mWificond.createApInterface(WIFI_IFACE_NAME)).thenReturn(mApInterface);
+        when(mApInterface.getInterfaceName()).thenReturn(WIFI_IFACE_NAME);
         when(mWifiInjector.getWifiApConfigStore()).thenReturn(mWifiApConfigStore);
         WifiConfiguration config1 = new WifiConfiguration();
         config1.SSID = "ThisIsAConfig";
@@ -367,11 +371,13 @@ public class WifiStateMachinePrimeTest {
         when(mWifiInjector.makeSoftApManager(any(INetworkManagementService.class),
                                              any(SoftApManager.Listener.class),
                                              any(IApInterface.class),
+                                             anyString(),
                                              eq(config1)))
                 .thenReturn(mSoftApManager);
         when(mWifiInjector.makeSoftApManager(any(INetworkManagementService.class),
                                              any(SoftApManager.Listener.class),
                                              any(IApInterface.class),
+                                             anyString(),
                                              eq(config2)))
                 .thenReturn(mSoftApManager);
 

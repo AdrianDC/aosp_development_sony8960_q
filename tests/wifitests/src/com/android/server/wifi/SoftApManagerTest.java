@@ -19,6 +19,7 @@ package com.android.server.wifi;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
@@ -32,6 +33,7 @@ import android.net.wifi.WifiManager;
 import android.os.IBinder;
 import android.os.IBinder.DeathRecipient;
 import android.os.INetworkManagementService;
+import android.os.RemoteException;
 import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 
@@ -114,6 +116,7 @@ public class SoftApManagerTest {
                                                            TEST_COUNTRY_CODE,
                                                            mListener,
                                                            mApInterface,
+                                                           TEST_INTERFACE_NAME,
                                                            mNmService,
                                                            mWifiApConfigStore,
                                                            config,
@@ -163,6 +166,31 @@ public class SoftApManagerTest {
                                                            TEST_COUNTRY_CODE,
                                                            mListener,
                                                            mApInterface,
+                                                           TEST_INTERFACE_NAME,
+                                                           mNmService,
+                                                           mWifiApConfigStore,
+                                                           null,
+                                                           mWifiMetrics);
+        mLooper.dispatchAll();
+        newSoftApManager.start();
+        mLooper.dispatchAll();
+        verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
+                WifiManager.SAP_START_FAILURE_GENERAL);
+    }
+
+    /**
+     * Tests softap mode startup when retrieving the interface name fails.  This should return an
+     * error and softap mode should not be active.
+     */
+    @Test
+    public void startSoftApFailToGetInterfaceName() throws Exception  {
+        doThrow(new RemoteException("error!")).when(mApInterface).getInterfaceName();
+        SoftApManager newSoftApManager = new SoftApManager(mLooper.getLooper(),
+                                                           mWifiNative,
+                                                           TEST_COUNTRY_CODE,
+                                                           mListener,
+                                                           mApInterface,
+                                                           TEST_INTERFACE_NAME,
                                                            mNmService,
                                                            mWifiApConfigStore,
                                                            null,

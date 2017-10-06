@@ -402,7 +402,7 @@ public class WifiStateMachineTest {
                 .thenReturn(mWifiConnectivityManager);
         when(mWifiInjector.makeSoftApManager(any(INetworkManagementService.class),
                 mSoftApManagerListenerCaptor.capture(), any(IApInterface.class),
-                any(WifiConfiguration.class)))
+                anyString(), any(WifiConfiguration.class)))
                 .thenReturn(mSoftApManager);
         when(mWifiInjector.getPasspointManager()).thenReturn(mPasspointManager);
         when(mWifiInjector.getWifiStateTracker()).thenReturn(mWifiStateTracker);

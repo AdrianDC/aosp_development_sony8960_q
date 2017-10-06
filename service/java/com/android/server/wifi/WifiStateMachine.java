@@ -6984,10 +6984,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             if (apInterface == null) {
                 setWifiApState(WIFI_AP_STATE_FAILED,
                         WifiManager.SAP_START_FAILURE_GENERAL, null, mMode);
-                /**
-                 * Transition to InitialState to reset the
-                 * driver/HAL back to the initial state.
-                 */
+                // Transition to InitialState to reset the driver/HAL back to the initial state.
                 transitionTo(mInitialState);
                 return;
             }
@@ -6995,15 +6992,19 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             try {
                 mIfaceName = apInterface.getInterfaceName();
             } catch (RemoteException e) {
-                // Failed to get the interface name. The name will not be available for
-                // the enabled broadcast, but since we had an error getting the name, we most likely
-                // won't be able to fully start softap mode.
+                // Failed to get the interface name. This is not a good sign and we should report
+                // a failure and switch back to the initial state to reset the driver and HAL.
+                setWifiApState(WIFI_AP_STATE_FAILED,
+                        WifiManager.SAP_START_FAILURE_GENERAL, null, mMode);
+                transitionTo(mInitialState);
+                return;
             }
 
             checkAndSetConnectivityInstance();
             mSoftApManager = mWifiInjector.makeSoftApManager(mNwService,
                                                              new SoftApListener(),
                                                              apInterface,
+                                                             mIfaceName,
                                                              config.getWifiConfiguration());
             mSoftApManager.start();
             mWifiStateTracker.updateState(WifiStateTracker.SOFT_AP);
