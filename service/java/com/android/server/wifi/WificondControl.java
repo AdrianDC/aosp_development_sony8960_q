@@ -374,8 +374,13 @@ public class WificondControl {
                         new InformationElementUtil.Capabilities();
                 capabilities.from(ies, result.capability);
                 String flags = capabilities.generateCapabilitiesString();
-                NetworkDetail networkDetail =
-                        new NetworkDetail(bssid, ies, null, result.frequency);
+                NetworkDetail networkDetail;
+                try {
+                    networkDetail = new NetworkDetail(bssid, ies, null, result.frequency);
+                } catch (IllegalArgumentException e) {
+                    Log.e(TAG, "Illegal argument for scan result with bssid: " + bssid, e);
+                    continue;
+                }
 
                 ScanDetail scanDetail = new ScanDetail(networkDetail, wifiSsid, bssid, flags,
                         result.signalMbm / 100, result.frequency, result.tsf, ies, null);
