@@ -7005,7 +7005,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                                                              new SoftApListener(),
                                                              apInterface,
                                                              mIfaceName,
-                                                             config.getWifiConfiguration());
+                                                             config);
             mSoftApManager.start();
             mWifiStateTracker.updateState(WifiStateTracker.SOFT_AP);
         }

@@ -401,8 +401,9 @@ public class WifiStateMachineTest {
         when(mWifiInjector.makeWifiConnectivityManager(any(WifiInfo.class), anyBoolean()))
                 .thenReturn(mWifiConnectivityManager);
         when(mWifiInjector.makeSoftApManager(any(INetworkManagementService.class),
-                mSoftApManagerListenerCaptor.capture(), any(IApInterface.class),
-                anyString(), any(WifiConfiguration.class)))
+                                             mSoftApManagerListenerCaptor.capture(),
+                                             any(IApInterface.class), anyString(),
+                                             any(SoftApModeConfiguration.class)))
                 .thenReturn(mSoftApManager);
         when(mWifiInjector.getPasspointManager()).thenReturn(mPasspointManager);
         when(mWifiInjector.getWifiStateTracker()).thenReturn(mWifiStateTracker);

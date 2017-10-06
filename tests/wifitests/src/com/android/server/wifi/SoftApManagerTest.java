@@ -104,11 +104,11 @@ public class SoftApManagerTest {
         return defaultConfig;
     }
 
-    private SoftApManager createSoftApManager(WifiConfiguration config) throws Exception {
+    private SoftApManager createSoftApManager(SoftApModeConfiguration config) throws Exception {
         when(mApInterface.asBinder()).thenReturn(mApInterfaceBinder);
         when(mApInterface.startHostapd()).thenReturn(true);
         when(mApInterface.stopHostapd()).thenReturn(true);
-        if (config == null) {
+        if (config.getWifiConfiguration() == null) {
             when(mWifiApConfigStore.getApConfiguration()).thenReturn(mDefaultApConfig);
         }
         SoftApManager newSoftApManager = new SoftApManager(mLooper.getLooper(),
@@ -128,7 +128,9 @@ public class SoftApManagerTest {
     /** Verifies startSoftAp will use default config if AP configuration is not provided. */
     @Test
     public void startSoftApWithoutConfig() throws Exception {
-        startSoftApAndVerifyEnabled(null);
+        SoftApModeConfiguration apConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
+        startSoftApAndVerifyEnabled(apConfig);
     }
 
     /** Verifies startSoftAp will use provided config and start AP. */
@@ -137,7 +139,9 @@ public class SoftApManagerTest {
         WifiConfiguration config = new WifiConfiguration();
         config.apBand = WifiConfiguration.AP_BAND_2GHZ;
         config.SSID = TEST_SSID;
-        startSoftApAndVerifyEnabled(config);
+        SoftApModeConfiguration apConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, config);
+        startSoftApAndVerifyEnabled(apConfig);
     }
 
 
@@ -151,7 +155,9 @@ public class SoftApManagerTest {
         config.apBand = WifiConfiguration.AP_BAND_2GHZ;
         config.SSID = TEST_SSID;
         config.hiddenSSID = true;
-        startSoftApAndVerifyEnabled(config);
+        SoftApModeConfiguration apConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, config);
+        startSoftApAndVerifyEnabled(apConfig);
     }
 
     /** Tests softap startup if default config fails to load. **/
@@ -161,6 +167,8 @@ public class SoftApManagerTest {
         when(mApInterface.startHostapd()).thenReturn(true);
         when(mApInterface.stopHostapd()).thenReturn(true);
         when(mWifiApConfigStore.getApConfiguration()).thenReturn(null);
+        SoftApModeConfiguration nullApConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
         SoftApManager newSoftApManager = new SoftApManager(mLooper.getLooper(),
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
@@ -169,7 +177,7 @@ public class SoftApManagerTest {
                                                            TEST_INTERFACE_NAME,
                                                            mNmService,
                                                            mWifiApConfigStore,
-                                                           null,
+                                                           nullApConfig,
                                                            mWifiMetrics);
         mLooper.dispatchAll();
         newSoftApManager.start();
@@ -185,6 +193,8 @@ public class SoftApManagerTest {
     @Test
     public void startSoftApFailToGetInterfaceName() throws Exception  {
         doThrow(new RemoteException("error!")).when(mApInterface).getInterfaceName();
+        SoftApModeConfiguration nullApConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
         SoftApManager newSoftApManager = new SoftApManager(mLooper.getLooper(),
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
@@ -193,7 +203,7 @@ public class SoftApManagerTest {
                                                            TEST_INTERFACE_NAME,
                                                            mNmService,
                                                            mWifiApConfigStore,
-                                                           null,
+                                                           nullApConfig,
                                                            mWifiMetrics);
         mLooper.dispatchAll();
         newSoftApManager.start();
@@ -205,7 +215,8 @@ public class SoftApManagerTest {
     /** Tests the handling of stop command when soft AP is not started. */
     @Test
     public void stopWhenNotStarted() throws Exception {
-        mSoftApManager = createSoftApManager(null);
+        mSoftApManager = createSoftApManager(
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null));
         mSoftApManager.stop();
         mLooper.dispatchAll();
         /* Verify no state changes. */
@@ -215,7 +226,8 @@ public class SoftApManagerTest {
     /** Tests the handling of stop command when soft AP is started. */
     @Test
     public void stopWhenStarted() throws Exception {
-        startSoftApAndVerifyEnabled(null);
+        startSoftApAndVerifyEnabled(
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null));
 
         InOrder order = inOrder(mListener);
 
@@ -229,7 +241,8 @@ public class SoftApManagerTest {
 
     @Test
     public void handlesWificondInterfaceDeath() throws Exception {
-        startSoftApAndVerifyEnabled(null);
+        startSoftApAndVerifyEnabled(
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null));
 
         mDeathListenerCaptor.getValue().binderDied();
         mLooper.dispatchAll();
@@ -240,7 +253,8 @@ public class SoftApManagerTest {
     }
 
     /** Starts soft AP and verifies that it is enabled successfully. */
-    protected void startSoftApAndVerifyEnabled(WifiConfiguration config) throws Exception {
+    protected void startSoftApAndVerifyEnabled(
+            SoftApModeConfiguration softApConfig) throws Exception {
         String expectedSSID;
         boolean expectedHiddenSsid;
         InOrder order = inOrder(mListener, mApInterfaceBinder, mApInterface, mNmService);
@@ -249,7 +263,8 @@ public class SoftApManagerTest {
         when(mWifiNative.setCountryCodeHal(TEST_COUNTRY_CODE.toUpperCase(Locale.ROOT)))
                 .thenReturn(true);
 
-        mSoftApManager = createSoftApManager(config);
+        mSoftApManager = createSoftApManager(softApConfig);
+        WifiConfiguration config = softApConfig.getWifiConfiguration();
         if (config == null) {
             when(mWifiApConfigStore.getApConfiguration()).thenReturn(mDefaultApConfig);
             expectedSSID = mDefaultApConfig.SSID;

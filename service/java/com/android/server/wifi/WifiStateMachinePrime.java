@@ -16,6 +16,7 @@
 
 package com.android.server.wifi;
 
+import android.annotation.NonNull;
 import android.net.wifi.IApInterface;
 import android.net.wifi.IWificond;
 import android.net.wifi.WifiConfiguration;
@@ -50,7 +51,7 @@ public class WifiStateMachinePrime {
 
     private IWificond mWificond;
 
-    private Queue<WifiConfiguration> mApConfigQueue = new ConcurrentLinkedQueue<>();
+    private Queue<SoftApModeConfiguration> mApConfigQueue = new ConcurrentLinkedQueue<>();
 
     /* The base for wifi message types */
     static final int BASE = Protocol.BASE_WIFI;
@@ -106,17 +107,13 @@ public class WifiStateMachinePrime {
     /**
      * Method to enable soft ap for wifi hotspot.
      *
-     * The WifiConfiguration is generally going to be null to indicate that the
-     * currently saved config in WifiApConfigManager should be used.  When the config is
-     * not null, it will be saved in the WifiApConfigManager. This save is performed in the
-     * constructor of SoftApManager.
+     * The supplied SoftApModeConfiguration includes the target softap WifiConfiguration (or null if
+     * the persisted config is to be used) and the target operating mode (ex,
+     * {@link WifiManager.IFACE_IP_MODE_TETHERED} {@link WifiManager.IFACE_IP_MODE_LOCAL_ONLY}).
      *
-     * @param wifiConfig WifiConfiguration for the hostapd softap
+     * @param wifiConfig SoftApModeConfiguration for the hostapd softap
      */
-    public void enterSoftAPMode(WifiConfiguration wifiConfig) {
-        if (wifiConfig == null) {
-            wifiConfig = new WifiConfiguration();
-        }
+    public void enterSoftAPMode(@NonNull SoftApModeConfiguration wifiConfig) {
         mApConfigQueue.offer(wifiConfig);
         changeMode(ModeStateMachine.CMD_START_SOFT_AP_MODE);
     }
@@ -313,6 +310,8 @@ public class WifiStateMachinePrime {
                         // not in active state, nothing to stop.
                         break;
                     case CMD_START_AP_FAILURE:
+                        // remove the saved config for the start attempt
+                        mApConfigQueue.poll();
                         Log.e(TAG, "Failed to start SoftApMode.  Wait for next mode command.");
                         break;
                     case CMD_AP_STOPPED:
@@ -339,16 +338,7 @@ public class WifiStateMachinePrime {
 
             private void initializationFailed(String message) {
                 Log.e(TAG, message);
-                writeApConfigDueToStartFailure();
                 mModeStateMachine.sendMessage(CMD_START_AP_FAILURE);
-            }
-
-            private void writeApConfigDueToStartFailure() {
-                WifiConfiguration config = mApConfigQueue.poll();
-                if (config != null && config.SSID != null) {
-                    // Save valid configs for future calls.
-                    mWifiInjector.getWifiApConfigStore().setApConfiguration(config);
-                }
             }
         }
 
@@ -416,7 +406,9 @@ public class WifiStateMachinePrime {
             @Override
             public void enter() {
                 Log.d(TAG, "Entering SoftApModeActiveState");
-                WifiConfiguration config = mApConfigQueue.poll();
+                SoftApModeConfiguration softApModeConfig = mApConfigQueue.poll();
+                WifiConfiguration config = softApModeConfig.getWifiConfiguration();
+                // TODO (b/67601382): add checks for valid softap configs
                 if (config != null && config.SSID != null) {
                     Log.d(TAG, "Passing config to SoftApManager! " + config);
                 } else {
@@ -424,7 +416,7 @@ public class WifiStateMachinePrime {
                 }
                 this.mActiveModeManager = mWifiInjector.makeSoftApManager(mNMService,
                         new SoftApListener(), ((SoftAPModeState) mSoftAPModeState).getInterface(),
-                        ((SoftAPModeState) mSoftAPModeState).getInterfaceName(), config);
+                        ((SoftAPModeState) mSoftAPModeState).getInterfaceName(), softApModeConfig);
                 mActiveModeManager.start();
             }
 

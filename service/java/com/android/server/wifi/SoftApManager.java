@@ -63,6 +63,7 @@ public class SoftApManager implements ActiveModeManager {
 
     private final WifiMetrics mWifiMetrics;
 
+    private final int mMode;
     private WifiConfiguration mApConfig;
 
     /**
@@ -85,7 +86,7 @@ public class SoftApManager implements ActiveModeManager {
                          @NonNull String ifaceName,
                          INetworkManagementService nms,
                          WifiApConfigStore wifiApConfigStore,
-                         WifiConfiguration config,
+                         @NonNull SoftApModeConfiguration apConfig,
                          WifiMetrics wifiMetrics) {
         mStateMachine = new SoftApStateMachine(looper);
 
@@ -96,6 +97,8 @@ public class SoftApManager implements ActiveModeManager {
         mApInterfaceName = ifaceName;
         mNwService = nms;
         mWifiApConfigStore = wifiApConfigStore;
+        mMode = apConfig.getTargetMode();
+        WifiConfiguration config = apConfig.getWifiConfiguration();
         if (config == null) {
             mApConfig = mWifiApConfigStore.getApConfiguration();
         } else {
