@@ -18,7 +18,9 @@ package com.android.server.wifi;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import android.net.NetworkAgent;
 import android.net.wifi.ScanResult;
@@ -308,6 +310,23 @@ public class WifiMetricsTest {
             when(mockNetworkDetail.isInterworking()).thenReturn(true);
             when(mPpm.matchProvider(eq(scanResult))).thenReturn(providerMatch);
         }
+        return mockScanDetail;
+    }
+
+    private ScanDetail buildMockScanDetailPasspoint(String ssid, String bssid, long hessid,
+            int anqpDomainId, NetworkDetail.HSRelease hsRelease) {
+        ScanDetail mockScanDetail = mock(ScanDetail.class);
+        NetworkDetail mockNetworkDetail = mock(NetworkDetail.class);
+        ScanResult scanResult = new ScanResult();
+        scanResult.SSID = ssid;
+        scanResult.BSSID = bssid;
+        scanResult.hessid = hessid;
+        scanResult.capabilities = "PSK";
+        when(mockScanDetail.getNetworkDetail()).thenReturn(mockNetworkDetail);
+        when(mockScanDetail.getScanResult()).thenReturn(scanResult);
+        when(mockNetworkDetail.getHSRelease()).thenReturn(hsRelease);
+        when(mockNetworkDetail.getAnqpDomainID()).thenReturn(anqpDomainId);
+        when(mockNetworkDetail.isInterworking()).thenReturn(true);
         return mockScanDetail;
     }
 
@@ -1268,6 +1287,73 @@ public class WifiMetricsTest {
                 a(WifiMetrics.MAX_CONNECTABLE_BSSID_NETWORK_BUCKET), a(1));
         verifyHist(mDecodedProto.availableOpenOrSavedBssidsInScanHistogram, 1,
                 a(WifiMetrics.MAX_CONNECTABLE_BSSID_NETWORK_BUCKET), a(1));
+    }
+
+    /**
+     * Test that Hotspot 2.0 (Passpoint) scan results are collected correctly and that relevant
+     * bounds are observed.
+     */
+    @Test
+    public void testObservedHotspotAps() throws Exception {
+        List<ScanDetail> scan = new ArrayList<ScanDetail>();
+        // 2 R1 (Unknown AP isn't counted) passpoint APs belonging to a single provider: hessid1
+        long hessid1 = 10;
+        int anqpDomainId1 = 5;
+        scan.add(buildMockScanDetailPasspoint("PASSPOINT_XX", "00:02:03:04:05:06", hessid1,
+                anqpDomainId1, NetworkDetail.HSRelease.R1));
+        scan.add(buildMockScanDetailPasspoint("PASSPOINT_XY", "01:02:03:04:05:06", hessid1,
+                anqpDomainId1, NetworkDetail.HSRelease.R1));
+        scan.add(buildMockScanDetailPasspoint("PASSPOINT_XYZ", "02:02:03:04:05:06", hessid1,
+                anqpDomainId1, NetworkDetail.HSRelease.Unknown));
+        // 2 R2 passpoint APs belonging to a single provider: hessid2
+        long hessid2 = 12;
+        int anqpDomainId2 = 6;
+        scan.add(buildMockScanDetailPasspoint("PASSPOINT_Y", "AA:02:03:04:05:06", hessid2,
+                anqpDomainId2, NetworkDetail.HSRelease.R2));
+        scan.add(buildMockScanDetailPasspoint("PASSPOINT_Z", "AB:02:03:04:05:06", hessid2,
+                anqpDomainId2, NetworkDetail.HSRelease.R2));
+        mWifiMetrics.incrementAvailableNetworksHistograms(scan, true);
+        scan = new ArrayList<ScanDetail>();
+        // 3 R2 passpoint APs belonging to a single provider: hessid3 (in next scan)
+        long hessid3 = 15;
+        int anqpDomainId3 = 8;
+        scan.add(buildMockScanDetailPasspoint("PASSPOINT_Y", "AA:02:03:04:05:06", hessid3,
+                anqpDomainId3, NetworkDetail.HSRelease.R2));
+        scan.add(buildMockScanDetailPasspoint("PASSPOINT_Y", "AA:02:03:04:05:06", hessid3,
+                anqpDomainId3, NetworkDetail.HSRelease.R2));
+        scan.add(buildMockScanDetailPasspoint("PASSPOINT_Z", "AB:02:03:04:05:06", hessid3,
+                anqpDomainId3, NetworkDetail.HSRelease.R2));
+        mWifiMetrics.incrementAvailableNetworksHistograms(scan, true);
+        dumpProtoAndDeserialize();
+
+        verifyHist(mDecodedProto.observedHotspotR1ApsInScanHistogram, 2, a(0, 2), a(1, 1));
+        verifyHist(mDecodedProto.observedHotspotR2ApsInScanHistogram, 2, a(2, 3), a(1, 1));
+        verifyHist(mDecodedProto.observedHotspotR1EssInScanHistogram, 2, a(0, 1), a(1, 1));
+        verifyHist(mDecodedProto.observedHotspotR2EssInScanHistogram, 1, a(1), a(2));
+        verifyHist(mDecodedProto.observedHotspotR1ApsPerEssInScanHistogram, 1, a(2), a(1));
+        verifyHist(mDecodedProto.observedHotspotR2ApsPerEssInScanHistogram, 2, a(2, 3), a(1, 1));
+
+        // check bounds
+        scan.clear();
+        int lotsOfSSids = Math.max(WifiMetrics.MAX_TOTAL_PASSPOINT_APS_BUCKET,
+                WifiMetrics.MAX_TOTAL_PASSPOINT_UNIQUE_ESS_BUCKET) + 5;
+        for (int i = 0; i < lotsOfSSids; i++) {
+            scan.add(buildMockScanDetailPasspoint("PASSPOINT_XX" + i, "00:02:03:04:05:06", i,
+                    i + 10, NetworkDetail.HSRelease.R1));
+            scan.add(buildMockScanDetailPasspoint("PASSPOINT_XY" + i, "AA:02:03:04:05:06", 1000 * i,
+                    i + 10, NetworkDetail.HSRelease.R2));
+        }
+        mWifiMetrics.incrementAvailableNetworksHistograms(scan, true);
+        dumpProtoAndDeserialize();
+        verifyHist(mDecodedProto.observedHotspotR1ApsInScanHistogram, 1,
+                a(WifiMetrics.MAX_TOTAL_PASSPOINT_APS_BUCKET), a(1));
+        verifyHist(mDecodedProto.observedHotspotR2ApsInScanHistogram, 1,
+                a(WifiMetrics.MAX_TOTAL_PASSPOINT_APS_BUCKET), a(1));
+        verifyHist(mDecodedProto.observedHotspotR1EssInScanHistogram, 1,
+                a(WifiMetrics.MAX_TOTAL_PASSPOINT_UNIQUE_ESS_BUCKET), a(1));
+        verifyHist(mDecodedProto.observedHotspotR2EssInScanHistogram, 1,
+                a(WifiMetrics.MAX_TOTAL_PASSPOINT_UNIQUE_ESS_BUCKET), a(1));
+
     }
 
     /**
