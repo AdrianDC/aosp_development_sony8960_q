@@ -70,8 +70,8 @@ public class RttTestUtils {
         scan2.BSSID = "0A:0B:0C:0D:0E:" + String.format("%02d", lastMacByte);
         byte[] mac1 = HexEncoding.decode("080908070605".toCharArray(), false);
 
-        builder.addAp(scan1);
-        builder.addAp(scan2);
+        builder.addAccessPoint(scan1);
+        builder.addAccessPoint(scan2);
         builder.addWifiAwarePeer(mac1);
 
         return builder.build();
@@ -144,7 +144,7 @@ public class RttTestUtils {
         rttResult.distanceInMm = rangingResult.getDistanceCm() * 10;
         rttResult.distanceSdInMm = rangingResult.getDistanceStdDevCm() * 10;
         rttResult.rssi = rangingResult.getRssi();
-        rttResult.timeStampInUs = rangingResult.getRangingTimestamp();
+        rttResult.timeStampInUs = rangingResult.getRangingTimestampUs();
 
         return rttResult;
     }
