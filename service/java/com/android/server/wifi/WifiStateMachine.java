@@ -78,6 +78,7 @@ import android.net.wifi.WifiSsid;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.WpsResult;
 import android.net.wifi.WpsResult.Status;
+import android.net.wifi.hotspot2.IProvisioningCallback;
 import android.net.wifi.hotspot2.OsuProvider;
 import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.net.wifi.p2p.IWifiP2pManager;
@@ -181,6 +182,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     private static final String EXTRA_OSU_ICON_QUERY_BSSID = "BSSID";
     private static final String EXTRA_OSU_ICON_QUERY_FILENAME = "FILENAME";
+    private static final String EXTRA_OSU_PROVIDER = "OsuProvider";
 
     private boolean mVerboseLoggingEnabled = false;
 
@@ -739,6 +741,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     /* Used to set the tx power limit for SAR during the start of a phone call. */
     private static final int CMD_SELECT_TX_POWER_SCENARIO               = BASE + 253;
+
+    // Start subscription provisioning with a given provider
+    private static final int CMD_START_SUBSCRIPTION_PROVISIONING        = BASE + 254;
 
     // For message logging.
     private static final Class[] sMessageClasses = {
@@ -2010,6 +2015,25 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         return result;
     }
 
+    /**
+     * Start subscription provisioning synchronously
+     *
+     * @param provider {@link OsuProvider} the provider to provision with
+     * @param callback {@link IProvisioningCallback} callback for provisioning status
+     * @return boolean true indicates provisioning was started, false otherwise
+     */
+    public boolean syncStartSubscriptionProvisioning(int callingUid, OsuProvider provider,
+            IProvisioningCallback callback, AsyncChannel channel) {
+        Message msg = Message.obtain();
+        msg.what = CMD_START_SUBSCRIPTION_PROVISIONING;
+        msg.arg1 = callingUid;
+        msg.obj = callback;
+        msg.getData().putParcelable(EXTRA_OSU_PROVIDER, provider);
+        Message resultMsg = channel.sendMessageSynchronously(msg);
+        boolean result = resultMsg.arg1 != 0;
+        resultMsg.recycle();
+        return result;
+    }
     /**
      * Get connection statistics synchronously
      *
@@ -4028,6 +4052,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_GET_MATCHING_OSU_PROVIDERS:
                     replyToMessage(message, message.what, new ArrayList<OsuProvider>());
                     break;
+                case CMD_START_SUBSCRIPTION_PROVISIONING:
+                    replyToMessage(message, message.what, 0);
+                    break;
                 case CMD_IP_CONFIGURATION_SUCCESSFUL:
                 case CMD_IP_CONFIGURATION_LOST:
                 case CMD_IP_REACHABILITY_LOST:
@@ -5155,6 +5182,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_GET_MATCHING_OSU_PROVIDERS:
                     replyToMessage(message, message.what,
                             mPasspointManager.getMatchingOsuProviders((ScanResult) message.obj));
+                    break;
+                case CMD_START_SUBSCRIPTION_PROVISIONING:
+                    IProvisioningCallback callback = (IProvisioningCallback) message.obj;
+                    OsuProvider provider =
+                            (OsuProvider) message.getData().getParcelable(EXTRA_OSU_PROVIDER);
+                    int res = mPasspointManager.startSubscriptionProvisioning(
+                                    message.arg1, provider, callback) ? 1 : 0;
+                    replyToMessage(message, message.what, res);
                     break;
                 case CMD_RECONNECT:
                     WorkSource workSource = (WorkSource) message.obj;

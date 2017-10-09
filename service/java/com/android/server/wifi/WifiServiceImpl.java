@@ -73,6 +73,7 @@ import android.net.wifi.WifiLinkLayerStats;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiManager.LocalOnlyHotspotCallback;
 import android.net.wifi.WifiScanner;
+import android.net.wifi.hotspot2.IProvisioningCallback;
 import android.net.wifi.hotspot2.OsuProvider;
 import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.os.AsyncTask;
@@ -2658,5 +2659,34 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                         supplicantData, ipConfigData);
         restoreNetworks(wifiConfigurations);
         Slog.d(TAG, "Restored supplicant backup data");
+    }
+
+    /**
+     * Starts subscription provisioning with a provider
+     *
+     * @param provider {@link OsuProvider} the provider to provision with
+     * @param callback {@link IProvisoningCallback} the callback object to inform status
+     */
+    @Override
+    public void startSubscriptionProvisioning(OsuProvider provider,
+            IProvisioningCallback callback) {
+        if (provider == null) {
+            throw new IllegalArgumentException("Provider must not be null");
+        }
+        if (callback == null) {
+            throw new IllegalArgumentException("Callback must not be null");
+        }
+        enforceNetworkSettingsPermission();
+        if (!mContext.getPackageManager().hasSystemFeature(
+                PackageManager.FEATURE_WIFI_PASSPOINT)) {
+            throw new UnsupportedOperationException("Passpoint not enabled");
+        }
+        final int uid = Binder.getCallingUid();
+        mLog.trace("startSubscriptionProvisioning uid=%").c(uid).flush();
+        if (mWifiStateMachine.syncStartSubscriptionProvisioning(uid, provider,
+                callback, mWifiStateMachineChannel)) {
+            mLog.trace("Subscription provisioning started with %")
+                    .c(provider.toString()).flush();
+        }
     }
 }

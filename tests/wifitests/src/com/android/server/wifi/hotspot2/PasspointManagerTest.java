@@ -131,6 +131,7 @@ public class PasspointManagerTest {
     @Mock WifiConfigStore mWifiConfigStore;
     @Mock PasspointConfigStoreData.DataSource mDataSource;
     @Mock WifiMetrics mWifiMetrics;
+    @Mock PasspointProvisioner mPasspointProvisioner;
     PasspointManager mManager;
 
     /** Sets up test. */
@@ -141,6 +142,7 @@ public class PasspointManagerTest {
         when(mObjectFactory.makeANQPRequestManager(any(), eq(mClock)))
                 .thenReturn(mAnqpRequestManager);
         when(mObjectFactory.makeCertificateVerifier()).thenReturn(mCertVerifier);
+        when(mObjectFactory.makePasspointProvisioner(any())).thenReturn(mPasspointProvisioner);
         mManager = new PasspointManager(mContext, mWifiNative, mWifiKeyStore, mClock,
                 mSimAccessor, mObjectFactory, mWifiConfigManager, mWifiConfigStore, mWifiMetrics);
         ArgumentCaptor<PasspointEventHandler.Callbacks> callbacks =

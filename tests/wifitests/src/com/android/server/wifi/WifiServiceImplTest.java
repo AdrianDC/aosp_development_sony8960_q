@@ -64,6 +64,8 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiManager.LocalOnlyHotspotCallback;
+import android.net.wifi.hotspot2.IProvisioningCallback;
+import android.net.wifi.hotspot2.OsuProvider;
 import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -83,9 +85,9 @@ import android.test.suitebuilder.annotation.SmallTest;
 
 import com.android.internal.util.AsyncChannel;
 import com.android.server.wifi.WifiServiceImpl.LocalOnlyRequestorCallback;
+import com.android.server.wifi.hotspot2.PasspointProvisioningTestUtil;
 import com.android.server.wifi.util.WifiAsyncChannel;
 import com.android.server.wifi.util.WifiPermissionsUtil;
-
 
 import org.junit.Before;
 import org.junit.Test;
@@ -128,6 +130,7 @@ public class WifiServiceImplTest {
     private Messenger mAppMessenger;
     private int mPid;
     private int mPid2 = Process.myPid();
+    private OsuProvider mOsuProvider;
 
     final ArgumentCaptor<BroadcastReceiver> mBroadcastReceiverCaptor =
             ArgumentCaptor.forClass(BroadcastReceiver.class);
@@ -165,6 +168,7 @@ public class WifiServiceImplTest {
     @Mock IBinder mAppBinder;
     @Mock LocalOnlyHotspotRequestInfo mRequestInfo;
     @Mock LocalOnlyHotspotRequestInfo mRequestInfo2;
+    @Mock IProvisioningCallback mProvisioningCallback;
 
     @Spy FakeWifiLog mLog;
 
@@ -280,6 +284,12 @@ public class WifiServiceImplTest {
         when(mWifiInjector.getWifiPermissionsUtil()).thenReturn(mWifiPermissionsUtil);
         when(mWifiInjector.getWifiSettingsStore()).thenReturn(mSettingsStore);
         when(mWifiInjector.getClock()).thenReturn(mClock);
+        when(mWifiStateMachine.syncStartSubscriptionProvisioning(anyInt(),
+                any(OsuProvider.class), any(IProvisioningCallback.class), any())).thenReturn(true);
+        when(mPackageManager.hasSystemFeature(
+                PackageManager.FEATURE_WIFI_PASSPOINT)).thenReturn(true);
+        // Create an OSU provider that can be provisioned via an open OSU AP
+        mOsuProvider = PasspointProvisioningTestUtil.generateOsuProvider(true);
         mWifiServiceImpl = new WifiServiceImpl(mContext, mWifiInjector, mAsyncChannel);
         mWifiServiceImpl.setWifiHandlerLogForTest(mLog);
     }
@@ -1512,6 +1522,60 @@ public class WifiServiceImplTest {
         assertEquals(-1, mWifiServiceImpl.addOrUpdateNetwork(config));
         verify(mWifiStateMachine).syncAddOrUpdatePasspointConfig(any(),
                 any(PasspointConfiguration.class), anyInt());
+    }
+
+    /**
+     * Verify that the call to startSubscriptionProvisioning is redirected to the Passpoint
+     * specific API startSubscriptionProvisioning when the caller has the right permissions.
+     */
+    @Test
+    public void testStartSubscriptionProvisioningWithPermission() throws Exception {
+        mWifiServiceImpl.startSubscriptionProvisioning(mOsuProvider, mProvisioningCallback);
+        verify(mWifiStateMachine).syncStartSubscriptionProvisioning(anyInt(),
+                eq(mOsuProvider), eq(mProvisioningCallback), any());
+    }
+
+    /**
+     * Verify that the call to startSubscriptionProvisioning is not directed to the Passpoint
+     * specific API startSubscriptionProvisioning when the feature is not supported.
+     */
+    @Test(expected = UnsupportedOperationException.class)
+    public void testStartSubscriptionProvisioniningPasspointUnsupported() throws Exception {
+        when(mPackageManager.hasSystemFeature(
+                PackageManager.FEATURE_WIFI_PASSPOINT)).thenReturn(false);
+        mWifiServiceImpl.startSubscriptionProvisioning(mOsuProvider, mProvisioningCallback);
+    }
+
+    /**
+     * Verify that the call to startSubscriptionProvisioning is not redirected to the Passpoint
+     * specific API startSubscriptionProvisioning when the caller provides invalid arguments
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testStartSubscriptionProvisioningWithInvalidProvider() throws Exception {
+        mWifiServiceImpl.startSubscriptionProvisioning(null, mProvisioningCallback);
+    }
+
+
+    /**
+     * Verify that the call to startSubscriptionProvisioning is not redirected to the Passpoint
+     * specific API startSubscriptionProvisioning when the caller provides invalid callback
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testStartSubscriptionProvisioningWithInvalidCallback() throws Exception {
+        mWifiServiceImpl.startSubscriptionProvisioning(mOsuProvider, null);
+    }
+
+    /**
+     * Verify that the call to startSubscriptionProvisioning is not redirected to the Passpoint
+     * specific API startSubscriptionProvisioning when the caller doesn't have NETWORK_SETTINGS
+     * permissions.
+     */
+    @Test(expected = SecurityException.class)
+    public void testStartSubscriptionProvisioningWithoutPermission() throws Exception {
+        doThrow(new SecurityException()).when(mContext)
+                .enforceCallingOrSelfPermission(eq(android.Manifest.permission.NETWORK_SETTINGS),
+                        eq("WifiService"));
+        mWifiServiceImpl.startSubscriptionProvisioning(mOsuProvider, mProvisioningCallback);
     }
 
     /**
