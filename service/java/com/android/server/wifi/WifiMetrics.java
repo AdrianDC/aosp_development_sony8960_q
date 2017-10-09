@@ -32,10 +32,12 @@ import android.util.Pair;
 import android.util.SparseIntArray;
 
 import com.android.server.wifi.aware.WifiAwareMetrics;
+import com.android.server.wifi.hotspot2.ANQPNetworkKey;
 import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.hotspot2.PasspointManager;
 import com.android.server.wifi.hotspot2.PasspointMatch;
 import com.android.server.wifi.hotspot2.PasspointProvider;
+import com.android.server.wifi.hotspot2.Utils;
 import com.android.server.wifi.nano.WifiMetricsProto;
 import com.android.server.wifi.nano.WifiMetricsProto.ConnectToNetworkNotificationAndActionCount;
 import com.android.server.wifi.nano.WifiMetricsProto.PnoScanMetrics;
@@ -49,9 +51,11 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -84,6 +88,9 @@ public class WifiMetrics {
     public static final int MAX_CONNECTABLE_BSSID_NETWORK_BUCKET = 50;
     public static final int MAX_TOTAL_SCAN_RESULT_SSIDS_BUCKET = 100;
     public static final int MAX_TOTAL_SCAN_RESULTS_BUCKET = 250;
+    public static final int MAX_TOTAL_PASSPOINT_APS_BUCKET = 50;
+    public static final int MAX_TOTAL_PASSPOINT_UNIQUE_ESS_BUCKET = 20;
+    public static final int MAX_PASSPOINT_APS_PER_UNIQUE_ESS_BUCKET = 50;
     private static final int CONNECT_TO_NETWORK_NOTIFICATION_ACTION_KEY_MULTIPLIER = 1000;
     private Clock mClock;
     private boolean mScreenOn;
@@ -160,6 +167,13 @@ public class WifiMetrics {
     private boolean mIsWifiNetworksAvailableNotificationOn = false;
     private int mNumOpenNetworkConnectMessageFailedToSend = 0;
     private int mNumOpenNetworkRecommendationUpdates = 0;
+
+    private final SparseIntArray mObservedHotspotR1ApInScanHistogram = new SparseIntArray();
+    private final SparseIntArray mObservedHotspotR2ApInScanHistogram = new SparseIntArray();
+    private final SparseIntArray mObservedHotspotR1EssInScanHistogram = new SparseIntArray();
+    private final SparseIntArray mObservedHotspotR2EssInScanHistogram = new SparseIntArray();
+    private final SparseIntArray mObservedHotspotR1ApsPerEssInScanHistogram = new SparseIntArray();
+    private final SparseIntArray mObservedHotspotR2ApsPerEssInScanHistogram = new SparseIntArray();
 
     class RouterFingerPrint {
         private WifiMetricsProto.RouterFingerPrint mRouterFingerPrintProto;
@@ -1192,6 +1206,10 @@ public class WifiMetrics {
             Set<PasspointProvider> savedPasspointProviderProfiles =
                     new HashSet<PasspointProvider>();
             int savedPasspointProviderBssids = 0;
+            int passpointR1Aps = 0;
+            int passpointR2Aps = 0;
+            Map<ANQPNetworkKey, Integer> passpointR1UniqueEss = new HashMap<>();
+            Map<ANQPNetworkKey, Integer> passpointR2UniqueEss = new HashMap<>();
             for (ScanDetail scanDetail : scanDetails) {
                 NetworkDetail networkDetail = scanDetail.getNetworkDetail();
                 ScanResult scanResult = scanDetail.getScanResult();
@@ -1205,6 +1223,36 @@ public class WifiMetrics {
                     providerMatch =
                             mPasspointManager.matchProvider(scanResult);
                     passpointProvider = providerMatch != null ? providerMatch.first : null;
+
+                    if (networkDetail.getHSRelease() == NetworkDetail.HSRelease.R1) {
+                        passpointR1Aps++;
+                    } else if (networkDetail.getHSRelease() == NetworkDetail.HSRelease.R2) {
+                        passpointR2Aps++;
+                    }
+
+                    long bssid = 0;
+                    boolean validBssid = false;
+                    try {
+                        bssid = Utils.parseMac(scanResult.BSSID);
+                        validBssid = true;
+                    } catch (IllegalArgumentException e) {
+                        Log.e(TAG,
+                                "Invalid BSSID provided in the scan result: " + scanResult.BSSID);
+                    }
+                    if (validBssid) {
+                        ANQPNetworkKey uniqueEss = ANQPNetworkKey.buildKey(scanResult.SSID, bssid,
+                                scanResult.hessid, networkDetail.getAnqpDomainID());
+                        if (networkDetail.getHSRelease() == NetworkDetail.HSRelease.R1) {
+                            Integer countObj = passpointR1UniqueEss.get(uniqueEss);
+                            int count = countObj == null ? 0 : countObj;
+                            passpointR1UniqueEss.put(uniqueEss, count + 1);
+                        } else if (networkDetail.getHSRelease() == NetworkDetail.HSRelease.R2) {
+                            Integer countObj = passpointR2UniqueEss.get(uniqueEss);
+                            int count = countObj == null ? 0 : countObj;
+                            passpointR2UniqueEss.put(uniqueEss, count + 1);
+                        }
+                    }
+
                 }
                 ssids.add(matchInfo);
                 bssids++;
@@ -1245,6 +1293,18 @@ public class WifiMetrics {
                     savedPasspointProviderProfiles.size());
             incrementBssid(mAvailableSavedPasspointProviderBssidsInScanHistogram,
                     savedPasspointProviderBssids);
+            incrementTotalPasspointAps(mObservedHotspotR1ApInScanHistogram, passpointR1Aps);
+            incrementTotalPasspointAps(mObservedHotspotR2ApInScanHistogram, passpointR2Aps);
+            incrementTotalUniquePasspointEss(mObservedHotspotR1EssInScanHistogram,
+                    passpointR1UniqueEss.size());
+            incrementTotalUniquePasspointEss(mObservedHotspotR2EssInScanHistogram,
+                    passpointR2UniqueEss.size());
+            for (Integer count : passpointR1UniqueEss.values()) {
+                incrementPasspointPerUniqueEss(mObservedHotspotR1ApsPerEssInScanHistogram, count);
+            }
+            for (Integer count : passpointR2UniqueEss.values()) {
+                incrementPasspointPerUniqueEss(mObservedHotspotR2ApsPerEssInScanHistogram, count);
+            }
         }
     }
 
@@ -1561,6 +1621,19 @@ public class WifiMetrics {
                         + mNumOpenNetworkRecommendationUpdates);
                 pw.println("mWifiLogProto.numOpenNetworkConnectMessageFailedToSend="
                         + mNumOpenNetworkConnectMessageFailedToSend);
+
+                pw.println("mWifiLogProto.observedHotspotR1ApInScanHistogram="
+                        + mObservedHotspotR1ApInScanHistogram);
+                pw.println("mWifiLogProto.observedHotspotR2ApInScanHistogram="
+                        + mObservedHotspotR2ApInScanHistogram);
+                pw.println("mWifiLogProto.observedHotspotR1EssInScanHistogram="
+                        + mObservedHotspotR1EssInScanHistogram);
+                pw.println("mWifiLogProto.observedHotspotR2EssInScanHistogram="
+                        + mObservedHotspotR2EssInScanHistogram);
+                pw.println("mWifiLogProto.observedHotspotR1ApsPerEssInScanHistogram="
+                        + mObservedHotspotR1ApsPerEssInScanHistogram);
+                pw.println("mWifiLogProto.observedHotspotR2ApsPerEssInScanHistogram="
+                        + mObservedHotspotR2ApsPerEssInScanHistogram);
             }
         }
     }
@@ -1818,6 +1891,21 @@ public class WifiMetrics {
                     mNumOpenNetworkRecommendationUpdates;
             mWifiLogProto.numOpenNetworkConnectMessageFailedToSend =
                     mNumOpenNetworkConnectMessageFailedToSend;
+
+            mWifiLogProto.observedHotspotR1ApsInScanHistogram =
+                    makeNumConnectableNetworksBucketArray(mObservedHotspotR1ApInScanHistogram);
+            mWifiLogProto.observedHotspotR2ApsInScanHistogram =
+                    makeNumConnectableNetworksBucketArray(mObservedHotspotR2ApInScanHistogram);
+            mWifiLogProto.observedHotspotR1EssInScanHistogram =
+                    makeNumConnectableNetworksBucketArray(mObservedHotspotR1EssInScanHistogram);
+            mWifiLogProto.observedHotspotR2EssInScanHistogram =
+                    makeNumConnectableNetworksBucketArray(mObservedHotspotR2EssInScanHistogram);
+            mWifiLogProto.observedHotspotR1ApsPerEssInScanHistogram =
+                    makeNumConnectableNetworksBucketArray(
+                            mObservedHotspotR1ApsPerEssInScanHistogram);
+            mWifiLogProto.observedHotspotR2ApsPerEssInScanHistogram =
+                    makeNumConnectableNetworksBucketArray(
+                            mObservedHotspotR2ApsPerEssInScanHistogram);
         }
     }
 
@@ -1872,6 +1960,12 @@ public class WifiMetrics {
             mConnectToNetworkNotificationActionCount.clear();
             mNumOpenNetworkRecommendationUpdates = 0;
             mNumOpenNetworkConnectMessageFailedToSend = 0;
+            mObservedHotspotR1ApInScanHistogram.clear();
+            mObservedHotspotR2ApInScanHistogram.clear();
+            mObservedHotspotR1EssInScanHistogram.clear();
+            mObservedHotspotR2EssInScanHistogram.clear();
+            mObservedHotspotR1ApsPerEssInScanHistogram.clear();
+            mObservedHotspotR2ApsPerEssInScanHistogram.clear();
         }
     }
 
@@ -2271,6 +2365,15 @@ public class WifiMetrics {
     }
     private void incrementTotalScanSsids(SparseIntArray sia, int element) {
         increment(sia, Math.min(element, MAX_TOTAL_SCAN_RESULT_SSIDS_BUCKET));
+    }
+    private void incrementTotalPasspointAps(SparseIntArray sia, int element) {
+        increment(sia, Math.min(element, MAX_TOTAL_PASSPOINT_APS_BUCKET));
+    }
+    private void incrementTotalUniquePasspointEss(SparseIntArray sia, int element) {
+        increment(sia, Math.min(element, MAX_TOTAL_PASSPOINT_UNIQUE_ESS_BUCKET));
+    }
+    private void incrementPasspointPerUniqueEss(SparseIntArray sia, int element) {
+        increment(sia, Math.min(element, MAX_PASSPOINT_APS_PER_UNIQUE_ESS_BUCKET));
     }
     private void increment(SparseIntArray sia, int element) {
         int count = sia.get(element);
