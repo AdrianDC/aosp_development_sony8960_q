@@ -21,6 +21,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 
 import java.util.ArrayList;
@@ -38,6 +39,17 @@ public class TestUtil {
         NetworkInfo networkInfo = new NetworkInfo(0, 0, "", "");
         networkInfo.setDetailedState(detailedState, "", "");
         intent.putExtra(WifiManager.EXTRA_NETWORK_INFO, networkInfo);
+        broadcastReceiver.onReceive(context, intent);
+    }
+
+    /**
+     * Send {@link WifiManager#NETWORK_STATE_CHANGED_ACTION} broadcast.
+     */
+    public static void sendNetworkStateChanged(BroadcastReceiver broadcastReceiver,
+            Context context, NetworkInfo nwInfo, WifiInfo wifiInfo) {
+        Intent intent = new Intent(WifiManager.NETWORK_STATE_CHANGED_ACTION);
+        intent.putExtra(WifiManager.EXTRA_NETWORK_INFO, nwInfo);
+        intent.putExtra(WifiManager.EXTRA_WIFI_INFO, wifiInfo);
         broadcastReceiver.onReceive(context, intent);
     }
 
@@ -85,7 +97,6 @@ public class TestUtil {
         }
         intent.putExtra(WifiManager.EXTRA_WIFI_AP_INTERFACE_NAME, ifaceName);
         intent.putExtra(WifiManager.EXTRA_WIFI_AP_MODE, mode);
-
         broadcastReceiver.onReceive(context, intent);
     }
 

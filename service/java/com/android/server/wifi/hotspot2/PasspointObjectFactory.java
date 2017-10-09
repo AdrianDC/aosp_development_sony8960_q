@@ -103,7 +103,18 @@ public class PasspointObjectFactory{
      * @param context
      * @return {@link PasspointProvisioner}
      */
-    public PasspointProvisioner makePasspointProvisioner(Context context) {
-        return new PasspointProvisioner(context);
+    public PasspointProvisioner makePasspointProvisioner(Context context,
+            OsuNetworkConnection osuNetworkConnection) {
+        return new PasspointProvisioner(context, osuNetworkConnection);
+    }
+
+    /**
+     * Create an instance of {@link OsuNetworkConnection}.
+     *
+     * @param context
+     * @return {@link OsuNetworkConnection}
+     */
+    public OsuNetworkConnection makeOsuNetworkConnection(Context context) {
+        return new OsuNetworkConnection(context);
     }
 }

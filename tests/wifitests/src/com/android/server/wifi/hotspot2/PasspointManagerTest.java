@@ -33,6 +33,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.anyMap;
 import static org.mockito.Mockito.doThrow;
@@ -54,11 +55,14 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiSsid;
+import android.net.wifi.hotspot2.IProvisioningCallback;
 import android.net.wifi.hotspot2.OsuProvider;
 import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.net.wifi.hotspot2.pps.Credential;
 import android.net.wifi.hotspot2.pps.HomeSp;
+import android.os.Looper;
 import android.os.UserHandle;
+import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Base64;
 import android.util.Pair;
@@ -116,6 +120,7 @@ public class PasspointManagerTest {
     private static final ANQPNetworkKey TEST_ANQP_KEY = ANQPNetworkKey.buildKey(
             TEST_SSID, TEST_BSSID, TEST_HESSID, TEST_ANQP_DOMAIN_ID);
     private static final int TEST_CREATOR_UID = 1234;
+    private static final int TEST_UID = 1500;
 
     @Mock Context mContext;
     @Mock WifiNative mWifiNative;
@@ -131,7 +136,11 @@ public class PasspointManagerTest {
     @Mock WifiConfigStore mWifiConfigStore;
     @Mock PasspointConfigStoreData.DataSource mDataSource;
     @Mock WifiMetrics mWifiMetrics;
+    @Mock OsuNetworkConnection mOsuNetworkConnection;
     @Mock PasspointProvisioner mPasspointProvisioner;
+    @Mock IProvisioningCallback mCallback;
+
+    TestLooper mLooper;
     PasspointManager mManager;
 
     /** Sets up test. */
@@ -142,7 +151,10 @@ public class PasspointManagerTest {
         when(mObjectFactory.makeANQPRequestManager(any(), eq(mClock)))
                 .thenReturn(mAnqpRequestManager);
         when(mObjectFactory.makeCertificateVerifier()).thenReturn(mCertVerifier);
-        when(mObjectFactory.makePasspointProvisioner(any())).thenReturn(mPasspointProvisioner);
+        when(mObjectFactory.makeOsuNetworkConnection(any(Context.class)))
+                .thenReturn(mOsuNetworkConnection);
+        when(mObjectFactory.makePasspointProvisioner(any(Context.class),
+                any(OsuNetworkConnection.class))).thenReturn(mPasspointProvisioner);
         mManager = new PasspointManager(mContext, mWifiNative, mWifiKeyStore, mClock,
                 mSimAccessor, mObjectFactory, mWifiConfigManager, mWifiConfigStore, mWifiMetrics);
         ArgumentCaptor<PasspointEventHandler.Callbacks> callbacks =
@@ -155,6 +167,7 @@ public class PasspointManagerTest {
                 any(WifiKeyStore.class), any(SIMAccessor.class), dataSource.capture());
         mCallbacks = callbacks.getValue();
         mDataSource = dataSource.getValue();
+        mLooper = new TestLooper();
     }
 
     /**
@@ -1366,5 +1379,19 @@ public class PasspointManagerTest {
         mManager.updateMetrics();
         verify(mWifiMetrics).updateSavedPasspointProfiles(
                 eq(expectedInstalledProviders), eq(expectedConnectedProviders));
+    }
+    /**
+     * Verify Passpoint Manager's provisioning APIs by invoking methods in PasspointProvisioner for
+     * initiailization and provisioning a provider.
+     */
+    @Test
+    public void verifyPasspointProvisioner() {
+        mManager.initializeProvisioner(mLooper.getLooper());
+        verify(mPasspointProvisioner).init(any(Looper.class));
+        when(mPasspointProvisioner.startSubscriptionProvisioning(anyInt(), any(OsuProvider.class),
+                any(IProvisioningCallback.class))).thenReturn(true);
+        OsuProvider osuProvider = PasspointProvisioningTestUtil.generateOsuProvider(true);
+        assertEquals(true,
+                mManager.startSubscriptionProvisioning(TEST_UID, osuProvider, mCallback));
     }
 }

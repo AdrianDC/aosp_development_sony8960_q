@@ -375,6 +375,7 @@ public class WifiStateMachineTest {
     @Mock BaseWifiDiagnostics mWifiDiagnostics;
     @Mock ConnectivityManager mConnectivityManager;
     @Mock IProvisioningCallback mProvisioningCallback;
+    @Mock HandlerThread mWifiServiceHandlerThread;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -418,6 +419,8 @@ public class WifiStateMachineTest {
         when(mWifiInjector.getWifiPermissionsUtil()).thenReturn(mWifiPermissionsUtil);
         when(mWifiInjector.makeTelephonyManager()).thenReturn(mTelephonyManager);
         when(mWifiInjector.getClock()).thenReturn(mClock);
+        when(mWifiServiceHandlerThread.getLooper()).thenReturn(mLooper.getLooper());
+        when(mWifiInjector.getWifiServiceHandlerThread()).thenReturn(mWifiServiceHandlerThread);
 
         when(mWifiNative.setupForClientMode(WIFI_IFACE_NAME))
                 .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mClientInterface));
@@ -428,7 +431,8 @@ public class WifiStateMachineTest {
         when(mWifiNative.enableSupplicant()).thenReturn(true);
         when(mWifiNative.disableSupplicant()).thenReturn(true);
         when(mWifiNative.getFrameworkNetworkId(anyInt())).thenReturn(0);
-
+        when(mWifiNative.initializeVendorHal(any(WifiNative.VendorHalDeathEventHandler.class)))
+                .thenReturn(true);
 
         mFrameworkFacade = getFrameworkFacade();
         mContext = getContext();
@@ -1788,10 +1792,14 @@ public class WifiStateMachineTest {
     /**
      * Verify that syncStartSubscriptionProvisioning will redirect calls with right parameters
      * to {@link PasspointManager} with expected true being returned when in client mode.
-     *
      */
     @Test
     public void syncStartSubscriptionProvisioningInClientMode() throws Exception {
+        mLooper.startAutoDispatch();
+        mWsm.syncInitialize(mWsmAsyncChannel);
+        verify(mPasspointManager).initializeProvisioner(any(Looper.class));
+        mLooper.stopAutoDispatch();
+
         loadComponentsInStaMode();
         when(mPasspointManager.startSubscriptionProvisioning(anyInt(),
                 any(OsuProvider.class), any(IProvisioningCallback.class))).thenReturn(true);

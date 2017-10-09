@@ -1251,6 +1251,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiNative.enableVerboseLogging(verbose);
         mWifiConfigManager.enableVerboseLogging(verbose);
         mSupplicantStateTracker.enableVerboseLogging(verbose);
+        mPasspointManager.enableVerboseLogging(verbose);
     }
 
     private static final String SYSTEM_PROPERTY_LOG_CONTROL_WIFIHAL = "log.tag.WifiHAL";
@@ -3920,6 +3921,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_INITIALIZE:
                     ok = mWifiNative.initializeVendorHal(mVendorHalDeathRecipient);
+                    mPasspointManager.initializeProvisioner(
+                            mWifiInjector.getWifiServiceHandlerThread().getLooper());
                     replyToMessage(message, message.what, ok ? SUCCESS : FAILURE);
                     break;
                 case CMD_BOOT_COMPLETED:

@@ -36,6 +36,7 @@ import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.hotspot2.IProvisioningCallback;
 import android.net.wifi.hotspot2.OsuProvider;
 import android.net.wifi.hotspot2.PasspointConfiguration;
+import android.os.Looper;
 import android.os.UserHandle;
 import android.text.TextUtils;
 import android.util.Log;
@@ -214,10 +215,24 @@ public class PasspointManager {
         mProviderIndex = 0;
         wifiConfigStore.registerStoreData(objectFactory.makePasspointConfigStoreData(
                 mKeyStore, mSimAccessor, new DataSourceHandler()));
-        mPasspointProvisioner = objectFactory.makePasspointProvisioner(context);
+        mPasspointProvisioner = objectFactory.makePasspointProvisioner(context,
+                objectFactory.makeOsuNetworkConnection(context));
         sPasspointManager = this;
-        // TODO(sohanirao): Find a different hook to initialize this
-        mPasspointProvisioner.init();
+    }
+
+    /**
+     * Initializes the provisioning flow with a looper
+     */
+    public void initializeProvisioner(Looper looper) {
+        mPasspointProvisioner.init(looper);
+    }
+
+    /**
+     * Enable verbose logging
+     * @param verbose more than 0 enables verbose logging
+     */
+    public void enableVerboseLogging(int verbose) {
+        mPasspointProvisioner.enableVerboseLogging(verbose);
     }
 
     /**
