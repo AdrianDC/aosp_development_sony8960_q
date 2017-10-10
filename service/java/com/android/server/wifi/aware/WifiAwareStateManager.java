@@ -25,6 +25,7 @@ import android.net.wifi.aware.Characteristics;
 import android.net.wifi.aware.ConfigRequest;
 import android.net.wifi.aware.IWifiAwareDiscoverySessionCallback;
 import android.net.wifi.aware.IWifiAwareEventCallback;
+import android.net.wifi.aware.IWifiAwareMacAddressProvider;
 import android.net.wifi.aware.PublishConfig;
 import android.net.wifi.aware.SubscribeConfig;
 import android.net.wifi.aware.WifiAwareManager;
@@ -60,6 +61,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -408,6 +410,48 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         }
 
         return mCharacteristics;
+    }
+
+    /*
+     * Cross-service API: synchronized but independent of state machine
+     */
+
+    /**
+     * Translate (and return in the callback) the peerId to its MAC address representation.
+     */
+    public void requestMacAddresses(int uid, List<Integer> peerIds,
+            IWifiAwareMacAddressProvider callback) {
+        mSm.getHandler().post(() -> {
+            if (VDBG) Log.v(TAG, "requestMacAddresses: uid=" + uid + ", peerIds=" + peerIds);
+            Map<Integer, byte[]> peerIdToMacMap = new HashMap<>();
+            for (int i = 0; i < mClients.size(); ++i) {
+                WifiAwareClientState client = mClients.valueAt(i);
+                if (client.getUid() != uid) {
+                    continue;
+                }
+
+                SparseArray<WifiAwareDiscoverySessionState> sessions = client.getSessions();
+                for (int j = 0; j < sessions.size(); ++j) {
+                    WifiAwareDiscoverySessionState session = sessions.valueAt(j);
+
+                    for (int peerId : peerIds) {
+                        WifiAwareDiscoverySessionState.PeerInfo peerInfo = session.getPeerInfo(
+                                peerId);
+                        if (peerInfo != null) {
+                            peerIdToMacMap.put(peerId, peerInfo.mMac);
+                        }
+                    }
+                }
+            }
+
+            try {
+                if (VDBG) Log.v(TAG, "requestMacAddresses: peerIdToMacMap=" + peerIdToMacMap);
+                callback.macAddress(peerIdToMacMap);
+            } catch (RemoteException e) {
+                Log.e(TAG, "requestMacAddress (sync): exception on callback -- " + e);
+
+            }
+        });
     }
 
     /*

@@ -16,6 +16,7 @@
 
 package com.android.server.wifi.aware;
 
+import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.hardware.wifi.V1_0.NanStatusType;
@@ -24,6 +25,7 @@ import android.net.wifi.aware.ConfigRequest;
 import android.net.wifi.aware.DiscoverySession;
 import android.net.wifi.aware.IWifiAwareDiscoverySessionCallback;
 import android.net.wifi.aware.IWifiAwareEventCallback;
+import android.net.wifi.aware.IWifiAwareMacAddressProvider;
 import android.net.wifi.aware.IWifiAwareManager;
 import android.net.wifi.aware.PublishConfig;
 import android.net.wifi.aware.SubscribeConfig;
@@ -41,6 +43,7 @@ import com.android.server.wifi.util.WifiPermissionsWrapper;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.util.List;
 
 /**
  * Implementation of the IWifiAwareManager AIDL interface. Performs validity
@@ -131,7 +134,7 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
         }
 
         if (configRequest != null) {
-            enforceConnectivityInternalPermission();
+            enforceNetworkStackPermission();
         } else {
             configRequest = new ConfigRequest.Builder().build();
         }
@@ -323,7 +326,7 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
         enforceChangePermission();
 
         if (retryCount != 0) {
-            enforceConnectivityInternalPermission();
+            enforceNetworkStackPermission();
         }
 
         if (message != null
@@ -346,6 +349,13 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
         }
 
         mStateManager.sendMessage(clientId, sessionId, peerId, message, messageId, retryCount);
+    }
+
+    @Override
+    public void requestMacAddresses(int uid, List peerIds, IWifiAwareMacAddressProvider callback) {
+        enforceNetworkStackPermission();
+
+        mStateManager.requestMacAddresses(uid, peerIds, callback);
     }
 
     @Override
@@ -394,8 +404,7 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
                 TAG);
     }
 
-    private void enforceConnectivityInternalPermission() {
-        mContext.enforceCallingOrSelfPermission(android.Manifest.permission.CONNECTIVITY_INTERNAL,
-                TAG);
+    private void enforceNetworkStackPermission() {
+        mContext.enforceCallingOrSelfPermission(Manifest.permission.NETWORK_STACK, TAG);
     }
 }

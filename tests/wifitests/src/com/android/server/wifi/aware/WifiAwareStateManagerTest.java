@@ -20,6 +20,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -50,13 +51,16 @@ import android.net.ConnectivityManager;
 import android.net.wifi.aware.ConfigRequest;
 import android.net.wifi.aware.IWifiAwareDiscoverySessionCallback;
 import android.net.wifi.aware.IWifiAwareEventCallback;
+import android.net.wifi.aware.IWifiAwareMacAddressProvider;
 import android.net.wifi.aware.PublishConfig;
 import android.net.wifi.aware.SubscribeConfig;
 import android.net.wifi.aware.WifiAwareManager;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.IPowerManager;
 import android.os.Message;
 import android.os.PowerManager;
+import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
@@ -79,9 +83,11 @@ import org.mockito.MockitoAnnotations;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -193,6 +199,124 @@ public class WifiAwareStateManagerTest {
     @Test
     public void testSetParameterShellCommandInvalidValue() {
         setSettableParam(WifiAwareStateManager.PARAM_ON_IDLE_DISABLE_AWARE, "garbage", false);
+    }
+
+    /**
+     * Test the PeerHandle -> MAC address API:
+     * - Start up discovery of 2 sessions
+     * - Get multiple matches (PeerHandles)
+     * - Request translation as UID of sesssion #1 for PeerHandles of the same UID + of the other
+     *   discovery session (to which we shouldn't have access) + invalid PeerHandle.
+     * -> validate results
+     */
+    @Test
+    public void testRequestMacAddresses() throws Exception {
+        final int clientId1 = 1005;
+        final int clientId2 = 1006;
+        final int uid1 = 1000;
+        final int uid2 = 1001;
+        final int pid1 = 2000;
+        final int pid2 = 2001;
+        final String callingPackage = "com.google.somePackage";
+        final String serviceName = "some-service-name";
+        final byte subscribeId1 = 15;
+        final byte subscribeId2 = 16;
+        final int requestorIdBase = 22;
+        final byte[] peerMac1 = HexEncoding.decode("060708090A0B".toCharArray(), false);
+        final byte[] peerMac2 = HexEncoding.decode("010203040506".toCharArray(), false);
+        final byte[] peerMac3 = HexEncoding.decode("AABBCCDDEEFF".toCharArray(), false);
+
+        ConfigRequest configRequest = new ConfigRequest.Builder().build();
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(serviceName)
+                .build();
+
+        IWifiAwareEventCallback mockCallback1 = mock(IWifiAwareEventCallback.class);
+        IWifiAwareEventCallback mockCallback2 = mock(IWifiAwareEventCallback.class);
+        IWifiAwareDiscoverySessionCallback mockSessionCallback1 = mock(
+                IWifiAwareDiscoverySessionCallback.class);
+        IWifiAwareDiscoverySessionCallback mockSessionCallback2 = mock(
+                IWifiAwareDiscoverySessionCallback.class);
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        ArgumentCaptor<Integer> sessionId = ArgumentCaptor.forClass(Integer.class);
+        ArgumentCaptor<Integer> peerIdCaptor = ArgumentCaptor.forClass(Integer.class);
+        InOrder inOrder = inOrder(mockCallback1, mockCallback2, mockSessionCallback1,
+                mockSessionCallback2, mMockNative);
+
+        // (0) enable
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
+        mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
+        mMockLooper.dispatchAll();
+
+        // (1) connect 2 clients
+        mDut.connect(clientId1, uid1, pid1, callingPackage, mockCallback1, configRequest, false);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(),
+                eq(configRequest), eq(false), eq(true), eq(true), eq(false));
+        mDut.onConfigSuccessResponse(transactionId.getValue());
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback1).onConnectSuccess(clientId1);
+
+        mDut.connect(clientId2, uid2, pid2, callingPackage, mockCallback2, configRequest, false);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback2).onConnectSuccess(clientId2);
+
+        // (2) subscribe both clients
+        mDut.subscribe(clientId1, subscribeConfig, mockSessionCallback1);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq((byte) 0),
+                eq(subscribeConfig));
+        mDut.onSessionConfigSuccessResponse(transactionId.getValue(), false, subscribeId1);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback1).onSessionStarted(sessionId.capture());
+
+        mDut.subscribe(clientId2, subscribeConfig, mockSessionCallback2);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).subscribe(transactionId.capture(), eq((byte) 0),
+                eq(subscribeConfig));
+        mDut.onSessionConfigSuccessResponse(transactionId.getValue(), false, subscribeId2);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback2).onSessionStarted(sessionId.capture());
+
+        // (3) 2 matches on session 1, 1 match on session 2
+        mDut.onMatchNotification(subscribeId1, requestorIdBase, peerMac1, null, null);
+        mDut.onMatchNotification(subscribeId1, requestorIdBase + 1, peerMac2, null, null);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback1, times(2)).onMatch(peerIdCaptor.capture(), isNull(),
+                isNull());
+        int peerId1 = peerIdCaptor.getAllValues().get(0);
+        int peerId2 = peerIdCaptor.getAllValues().get(1);
+
+        mDut.onMatchNotification(subscribeId2, requestorIdBase + 2, peerMac3, null, null);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockSessionCallback2).onMatch(peerIdCaptor.capture(), isNull(), isNull());
+        int peerId3 = peerIdCaptor.getAllValues().get(0);
+
+        // request MAC addresses
+        List<Integer> request = new ArrayList<>();
+        request.add(peerId1);
+        request.add(peerId2);
+        request.add(peerId3); // for uid2: so should not be in results
+        request.add(peerId1 * 20 + peerId2 + peerId3); // garbage values != to any
+        Mutable<Map> response = new Mutable<>();
+        mDut.requestMacAddresses(uid1, request, new IWifiAwareMacAddressProvider() {
+            @Override
+            public void macAddress(Map peerIdToMacMap) throws RemoteException {
+                response.value = peerIdToMacMap;
+            }
+
+            @Override
+            public IBinder asBinder() {
+                return null;
+            }
+        });
+        mMockLooper.dispatchAll();
+
+        assertNotEquals("Non-null result", null, response.value);
+        assertEquals("Number of results", 2, response.value.size());
+        assertEquals("Results[peerId1]", peerMac1, response.value.get(peerId1));
+        assertEquals("Results[peerId2]", peerMac2, response.value.get(peerId2));
     }
 
     /**
@@ -3167,6 +3291,18 @@ public class WifiAwareStateManagerTest {
         cap.maxAppInfoLen = 255;
         cap.maxQueuedTransmitMessages = 6;
         return cap;
+    }
+
+    private static class Mutable<E> {
+        public E value;
+
+        Mutable() {
+            value = null;
+        }
+
+        Mutable(E value) {
+            this.value = value;
+        }
     }
 }
 

@@ -20,22 +20,27 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.net.wifi.aware.Characteristics;
 import android.net.wifi.aware.ConfigRequest;
 import android.net.wifi.aware.IWifiAwareDiscoverySessionCallback;
 import android.net.wifi.aware.IWifiAwareEventCallback;
+import android.net.wifi.aware.IWifiAwareMacAddressProvider;
 import android.net.wifi.aware.PublishConfig;
 import android.net.wifi.aware.SubscribeConfig;
 import android.os.HandlerThread;
 import android.os.IBinder;
+import android.os.RemoteException;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
@@ -50,6 +55,9 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Unit test harness for WifiAwareStateManager.
@@ -79,8 +87,6 @@ public class WifiAwareServiceImplTest {
     private IWifiAwareDiscoverySessionCallback mSessionCallbackMock;
     @Mock private WifiAwareMetrics mAwareMetricsMock;
     @Mock private WifiPermissionsWrapper mPermissionsWrapperMock;
-
-    private HandlerThread mHandlerThread;
 
     /**
      * Using instead of spy to avoid native crash failures - possibly due to
@@ -508,13 +514,54 @@ public class WifiAwareServiceImplTest {
                 0);
     }
 
+    @Test
+    public void testRequestMacAddress() {
+        int uid = 1005;
+        List<Integer> list = new ArrayList<>();
+        IWifiAwareMacAddressProvider callback = new IWifiAwareMacAddressProvider() { // dummy
+            @Override
+            public void macAddress(Map peerIdToMacMap) throws RemoteException {
+                // empty
+            }
+
+            @Override
+            public IBinder asBinder() {
+                return null;
+            }
+        };
+
+        mDut.requestMacAddresses(uid, list, callback);
+
+        verify(mAwareStateManagerMock).requestMacAddresses(uid, list, callback);
+    }
+
+    @Test(expected = SecurityException.class)
+    public void testRequestMacAddressWithoutPermission() {
+        doThrow(new SecurityException()).when(mContextMock).enforceCallingOrSelfPermission(
+                eq(Manifest.permission.NETWORK_STACK), anyString());
+
+        mDut.requestMacAddresses(1005, new ArrayList<>(), new IWifiAwareMacAddressProvider() {
+            @Override
+            public void macAddress(Map peerIdToMacMap) throws RemoteException {
+            }
+
+            @Override
+            public IBinder asBinder() {
+                return null;
+            }
+        });
+    }
+
+    /*
+     * Utilities
+     */
+
     /*
      * Tests of internal state of WifiAwareServiceImpl: very limited (not usually
      * a good idea). However, these test that the internal state is cleaned-up
      * appropriately. Alternatively would cause issues with memory leaks or
      * information leak between sessions.
      */
-
     private void validateInternalStateCleanedUp(int clientId) throws Exception {
         int uidEntry = getInternalStateUid(clientId);
         assertEquals(-1, uidEntry);
@@ -522,10 +569,6 @@ public class WifiAwareServiceImplTest {
         IBinder.DeathRecipient dr = getInternalStateDeathRecipient(clientId);
         assertEquals(null, dr);
     }
-
-    /*
-     * Utilities
-     */
 
     private void doBadPublishConfiguration(String serviceName, byte[] ssi, byte[] matchFilter)
             throws IllegalArgumentException {
