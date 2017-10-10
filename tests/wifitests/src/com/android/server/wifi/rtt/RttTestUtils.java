@@ -141,8 +141,8 @@ public class RttTestUtils {
                 ? RttStatus.SUCCESS : RttStatus.FAILURE;
         System.arraycopy(overrideMac == null ? rangingResult.getMacAddress() : overrideMac, 0,
                 rttResult.addr, 0, 6);
-        rttResult.distanceInMm = rangingResult.getDistanceCm() * 10;
-        rttResult.distanceSdInMm = rangingResult.getDistanceStdDevCm() * 10;
+        rttResult.distanceInMm = rangingResult.getDistanceMm();
+        rttResult.distanceSdInMm = rangingResult.getDistanceStdDevMm();
         rttResult.rssi = rangingResult.getRssi();
         rttResult.timeStampInUs = rangingResult.getRangingTimestampUs();
 

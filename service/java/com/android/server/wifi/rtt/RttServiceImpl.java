@@ -486,11 +486,6 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                     int status = resultForRequest.status == RttStatus.SUCCESS
                             ? RangingResultCallback.STATUS_SUCCESS
                             : RangingResultCallback.STATUS_FAIL;
-                    int distanceCm = resultForRequest.distanceInMm / 10;
-                    int distanceCmStdDev = resultForRequest.distanceSdInMm / 10;
-                    int rssi = resultForRequest.rssi;
-                    long timestamp = resultForRequest.timeStampInUs;
-
                     PeerHandle peerHandle = null;
                     if (peer instanceof RangingRequest.RttPeerAware) {
                         peerHandle = ((RangingRequest.RttPeerAware) peer).peerHandle;
@@ -498,12 +493,14 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
 
                     if (peerHandle == null) {
                         finalResults.add(
-                                new RangingResult(status, addr, distanceCm, distanceCmStdDev, rssi,
-                                        timestamp));
+                                new RangingResult(status, addr, resultForRequest.distanceInMm,
+                                        resultForRequest.distanceSdInMm, resultForRequest.rssi,
+                                        resultForRequest.timeStampInUs));
                     } else {
                         finalResults.add(
-                                new RangingResult(status, peerHandle, distanceCm, distanceCmStdDev,
-                                        rssi, timestamp));
+                                new RangingResult(status, peerHandle, resultForRequest.distanceInMm,
+                                        resultForRequest.distanceSdInMm, resultForRequest.rssi,
+                                        resultForRequest.timeStampInUs));
                     }
                 }
             }
