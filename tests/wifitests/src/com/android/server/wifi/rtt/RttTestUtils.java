@@ -23,7 +23,6 @@ import android.hardware.wifi.V1_0.RttStatus;
 import android.net.wifi.ScanResult;
 import android.net.wifi.rtt.RangingRequest;
 import android.net.wifi.rtt.RangingResult;
-import android.net.wifi.rtt.RangingResultCallback;
 import android.util.Pair;
 
 import libcore.util.HexEncoding;
@@ -97,19 +96,19 @@ public class RttTestUtils {
                 RangingResult rangingResult = null;
                 byte[] overrideMac = null;
                 if (peer instanceof RangingRequest.RttPeerAp) {
-                    rangingResult = new RangingResult(RangingResultCallback.STATUS_SUCCESS,
+                    rangingResult = new RangingResult(RangingResult.STATUS_SUCCESS,
                             macAddressToByteArray(
                                     ((RangingRequest.RttPeerAp) peer).scanResult.BSSID),
                             rangeCmBase++, rangeStdDevCmBase++, rssiBase++, rangeTimestampBase++);
                 } else if (peer instanceof RangingRequest.RttPeerAware) {
                     RangingRequest.RttPeerAware awarePeer = (RangingRequest.RttPeerAware) peer;
                     if (awarePeer.peerHandle != null) {
-                        rangingResult = new RangingResult(RangingResultCallback.STATUS_SUCCESS,
+                        rangingResult = new RangingResult(RangingResult.STATUS_SUCCESS,
                                 awarePeer.peerHandle, rangeCmBase++, rangeStdDevCmBase++,
                                 rssiBase++, rangeTimestampBase++);
                         overrideMac = awarePeer.peerMacAddress;
                     } else {
-                        rangingResult = new RangingResult(RangingResultCallback.STATUS_SUCCESS,
+                        rangingResult = new RangingResult(RangingResult.STATUS_SUCCESS,
                                 awarePeer.peerMacAddress, rangeCmBase++, rangeStdDevCmBase++,
                                 rssiBase++, rangeTimestampBase++);
                     }
@@ -118,13 +117,13 @@ public class RttTestUtils {
                 halResults.add(getMatchingRttResult(rangingResult, overrideMac));
             }
         } else {
-            results.add(new RangingResult(RangingResultCallback.STATUS_SUCCESS,
+            results.add(new RangingResult(RangingResult.STATUS_SUCCESS,
                     HexEncoding.decode("100102030405".toCharArray(), false), rangeCmBase++,
                     rangeStdDevCmBase++, rssiBase++, rangeTimestampBase++));
-            results.add(new RangingResult(RangingResultCallback.STATUS_SUCCESS,
+            results.add(new RangingResult(RangingResult.STATUS_SUCCESS,
                     HexEncoding.decode("1A0B0C0D0E0F".toCharArray(), false), rangeCmBase++,
                     rangeStdDevCmBase++, rssiBase++, rangeTimestampBase++));
-            results.add(new RangingResult(RangingResultCallback.STATUS_SUCCESS,
+            results.add(new RangingResult(RangingResult.STATUS_SUCCESS,
                     HexEncoding.decode("080908070605".toCharArray(), false), rangeCmBase++,
                     rangeStdDevCmBase++, rssiBase++, rangeTimestampBase++));
             halResults.add(getMatchingRttResult(results.get(0), null));
@@ -137,7 +136,7 @@ public class RttTestUtils {
 
     private static RttResult getMatchingRttResult(RangingResult rangingResult, byte[] overrideMac) {
         RttResult rttResult = new RttResult();
-        rttResult.status = rangingResult.getStatus() == RangingResultCallback.STATUS_SUCCESS
+        rttResult.status = rangingResult.getStatus() == RangingResult.STATUS_SUCCESS
                 ? RttStatus.SUCCESS : RttStatus.FAILURE;
         System.arraycopy(overrideMac == null ? rangingResult.getMacAddress() : overrideMac, 0,
                 rttResult.addr, 0, 6);

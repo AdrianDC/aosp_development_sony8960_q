@@ -300,7 +300,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
             if (!mRttNative.rangeRequest(nextRequest.cmdId, nextRequest.request)) {
                 Log.w(TAG, "RttServiceSynchronized.startRanging: native rangeRequest call failed");
                 try {
-                    nextRequest.callback.onRangingResults(RangingResultCallback.STATUS_FAIL, null);
+                    nextRequest.callback.onRangingFailure(RangingResultCallback.STATUS_CODE_FAIL);
                 } catch (RemoteException e) {
                     Log.e(TAG, "RttServiceSynchronized.startRanging: HAL request failed, callback "
                             + "failed -- " + e);
@@ -339,7 +339,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                 Log.w(TAG, "processAwarePeerHandles: request=" + request
                         + ": PeerHandles translated - but information still missing!?");
                 try {
-                    request.callback.onRangingResults(RangingResultCallback.STATUS_FAIL, null);
+                    request.callback.onRangingFailure(RangingResultCallback.STATUS_CODE_FAIL);
                 } catch (RemoteException e) {
                     Log.e(TAG, "processAwarePeerHandles: onRangingResults failure -- " + e);
                 }
@@ -365,7 +365,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                         "processAwarePeerHandles: exception while calling requestMacAddresses -- "
                                 + e1 + ", aborting request=" + request);
                 try {
-                    request.callback.onRangingResults(RangingResultCallback.STATUS_FAIL, null);
+                    request.callback.onRangingFailure(RangingResultCallback.STATUS_CODE_FAIL);
                 } catch (RemoteException e2) {
                     Log.e(TAG, "processAwarePeerHandles: onRangingResults failure -- " + e2);
                 }
@@ -426,13 +426,12 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                         Log.v(TAG, "RttServiceSynchronized.onRangingResults: finalResults="
                                 + finalResults);
                     }
-                    topOfQueueRequest.callback.onRangingResults(
-                            RangingResultCallback.STATUS_SUCCESS, finalResults);
+                    topOfQueueRequest.callback.onRangingResults(finalResults);
                 } else {
                     Log.w(TAG, "RttServiceSynchronized.onRangingResults: location permission "
                             + "revoked - not forwarding results");
-                    topOfQueueRequest.callback.onRangingResults(RangingResultCallback.STATUS_FAIL,
-                            null);
+                    topOfQueueRequest.callback.onRangingFailure(
+                            RangingResultCallback.STATUS_CODE_FAIL);
                 }
             } catch (RemoteException e) {
                 Log.e(TAG,
@@ -481,11 +480,10 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                                 HexEncoding.encode(addr)));
                     }
                     finalResults.add(
-                            new RangingResult(RangingResultCallback.STATUS_FAIL, addr, 0, 0, 0, 0));
+                            new RangingResult(RangingResult.STATUS_FAIL, addr, 0, 0, 0, 0));
                 } else {
                     int status = resultForRequest.status == RttStatus.SUCCESS
-                            ? RangingResultCallback.STATUS_SUCCESS
-                            : RangingResultCallback.STATUS_FAIL;
+                            ? RangingResult.STATUS_SUCCESS : RangingResult.STATUS_FAIL;
                     PeerHandle peerHandle = null;
                     if (peer instanceof RangingRequest.RttPeerAware) {
                         peerHandle = ((RangingRequest.RttPeerAware) peer).peerHandle;
