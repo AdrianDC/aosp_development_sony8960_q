@@ -16,6 +16,7 @@
 
 package com.android.server.wifi;
 
+import android.annotation.NonNull;
 import android.net.wifi.IApInterface;
 import android.net.wifi.IClientInterface;
 import android.net.wifi.IPnoScanEvent;
@@ -133,7 +134,7 @@ public class WificondControl {
     * @return An IClientInterface as wificond client interface binder handler.
     * Returns null on failure.
     */
-    public IClientInterface setupDriverForClientMode() {
+    public IClientInterface setupDriverForClientMode(@NonNull String ifaceName) {
         Log.d(TAG, "Setting up driver for client mode");
         mWificond = mWifiInjector.makeWificond();
         if (mWificond == null) {
@@ -143,7 +144,7 @@ public class WificondControl {
 
         IClientInterface clientInterface = null;
         try {
-            clientInterface = mWificond.createClientInterface();
+            clientInterface = mWificond.createClientInterface(ifaceName);
         } catch (RemoteException e1) {
             Log.e(TAG, "Failed to get IClientInterface due to remote exception");
             return null;
@@ -181,7 +182,7 @@ public class WificondControl {
     * @return An IApInterface as wificond Ap interface binder handler.
     * Returns null on failure.
     */
-    public IApInterface setupDriverForSoftApMode() {
+    public IApInterface setupDriverForSoftApMode(@NonNull String ifaceName) {
         Log.d(TAG, "Setting up driver for soft ap mode");
         mWificond = mWifiInjector.makeWificond();
         if (mWificond == null) {
@@ -191,7 +192,7 @@ public class WificondControl {
 
         IApInterface apInterface = null;
         try {
-            apInterface = mWificond.createApInterface();
+            apInterface = mWificond.createApInterface(ifaceName);
         } catch (RemoteException e1) {
             Log.e(TAG, "Failed to get IApInterface due to remote exception");
             return null;

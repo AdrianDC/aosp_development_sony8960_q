@@ -153,7 +153,7 @@ public class WificondControlTest {
     }
 
     /**
-     * Verifies that setupDriverForClientMode() calls Wificond.
+     * Verifies that setupDriverForClientMode(TEST_INTERFACE_NAME) calls Wificond.
      */
     @Test
     public void testSetupDriverForClientMode() throws Exception {
@@ -161,15 +161,16 @@ public class WificondControlTest {
         IClientInterface clientInterface = getMockClientInterface();
 
         when(mWifiInjector.makeWificond()).thenReturn(wificond);
-        when(wificond.createClientInterface()).thenReturn(clientInterface);
+        when(wificond.createClientInterface(TEST_INTERFACE_NAME)).thenReturn(clientInterface);
 
-        IClientInterface returnedClientInterface = mWificondControl.setupDriverForClientMode();
+        IClientInterface returnedClientInterface =
+                mWificondControl.setupDriverForClientMode(TEST_INTERFACE_NAME);
         assertEquals(clientInterface, returnedClientInterface);
-        verify(wificond).createClientInterface();
+        verify(wificond).createClientInterface(TEST_INTERFACE_NAME);
     }
 
     /**
-     * Verifies that setupDriverForClientMode() calls subscribeScanEvents().
+     * Verifies that setupDriverForClientMode(TEST_INTERFACE_NAME) calls subscribeScanEvents().
      */
     @Test
     public void testSetupDriverForClientModeCallsScanEventSubscripiton() throws Exception {
@@ -179,19 +180,21 @@ public class WificondControlTest {
     }
 
     /**
-     * Verifies that setupDriverForClientMode() returns null when wificond is not started.
+     * Verifies that setupDriverForClientMode(TEST_INTERFACE_NAME) returns null when wificond is
+     * not started.
      */
     @Test
     public void testSetupDriverForClientModeErrorWhenWificondIsNotStarted() throws Exception {
         when(mWifiInjector.makeWificond()).thenReturn(null);
 
-        IClientInterface returnedClientInterface = mWificondControl.setupDriverForClientMode();
+        IClientInterface returnedClientInterface =
+                mWificondControl.setupDriverForClientMode(TEST_INTERFACE_NAME);
         assertEquals(null, returnedClientInterface);
     }
 
     /**
-     * Verifies that setupDriverForClientMode() returns null when wificond failed to setup client
-     * interface.
+     * Verifies that setupDriverForClientMode(TEST_INTERFACE_NAME) returns null when wificond failed
+     * to setup client interface.
      */
     @Test
     public void testSetupDriverForClientModeErrorWhenWificondFailedToSetupInterface()
@@ -199,14 +202,15 @@ public class WificondControlTest {
         IWificond wificond = mock(IWificond.class);
 
         when(mWifiInjector.makeWificond()).thenReturn(wificond);
-        when(wificond.createClientInterface()).thenReturn(null);
+        when(wificond.createClientInterface(TEST_INTERFACE_NAME)).thenReturn(null);
 
-        IClientInterface returnedClientInterface = mWificondControl.setupDriverForClientMode();
+        IClientInterface returnedClientInterface =
+                mWificondControl.setupDriverForClientMode(TEST_INTERFACE_NAME);
         assertEquals(null, returnedClientInterface);
     }
 
     /**
-     * Verifies that setupDriverForSoftApMode() calls wificond.
+     * Verifies that setupDriverForSoftApMode(TEST_INTERFACE_NAME) calls wificond.
      */
     @Test
     public void testSetupDriverForSoftApMode() throws Exception {
@@ -214,11 +218,12 @@ public class WificondControlTest {
         IApInterface apInterface = mock(IApInterface.class);
 
         when(mWifiInjector.makeWificond()).thenReturn(wificond);
-        when(wificond.createApInterface()).thenReturn(apInterface);
+        when(wificond.createApInterface(TEST_INTERFACE_NAME)).thenReturn(apInterface);
 
-        IApInterface returnedApInterface = mWificondControl.setupDriverForSoftApMode();
+        IApInterface returnedApInterface =
+                mWificondControl.setupDriverForSoftApMode(TEST_INTERFACE_NAME);
         assertEquals(apInterface, returnedApInterface);
-        verify(wificond).createApInterface();
+        verify(wificond).createApInterface(TEST_INTERFACE_NAME);
     }
 
     /**
@@ -228,14 +233,15 @@ public class WificondControlTest {
     public void testSetupDriverForSoftApModeErrorWhenWificondIsNotStarted() throws Exception {
         when(mWifiInjector.makeWificond()).thenReturn(null);
 
-        IApInterface returnedApInterface = mWificondControl.setupDriverForSoftApMode();
+        IApInterface returnedApInterface =
+                mWificondControl.setupDriverForSoftApMode(TEST_INTERFACE_NAME);
 
         assertEquals(null, returnedApInterface);
     }
 
     /**
-     * Verifies that setupDriverForSoftApMode() returns null when wificond failed to setup
-     * AP interface.
+     * Verifies that setupDriverForSoftApMode(TEST_INTERFACE_NAME) returns null when wificond failed
+     * to setup AP interface.
      */
     @Test
     public void testSetupDriverForSoftApModeErrorWhenWificondFailedToSetupInterface()
@@ -243,9 +249,10 @@ public class WificondControlTest {
         IWificond wificond = mock(IWificond.class);
 
         when(mWifiInjector.makeWificond()).thenReturn(wificond);
-        when(wificond.createApInterface()).thenReturn(null);
+        when(wificond.createApInterface(TEST_INTERFACE_NAME)).thenReturn(null);
 
-        IApInterface returnedApInterface = mWificondControl.setupDriverForSoftApMode();
+        IApInterface returnedApInterface =
+                mWificondControl.setupDriverForSoftApMode(TEST_INTERFACE_NAME);
         assertEquals(null, returnedApInterface);
     }
 
@@ -258,10 +265,10 @@ public class WificondControlTest {
         IClientInterface clientInterface = getMockClientInterface();
 
         when(mWifiInjector.makeWificond()).thenReturn(wificond);
-        when(wificond.createClientInterface()).thenReturn(clientInterface);
+        when(wificond.createClientInterface(TEST_INTERFACE_NAME)).thenReturn(clientInterface);
         when(clientInterface.enableSupplicant()).thenReturn(true);
 
-        mWificondControl.setupDriverForClientMode();
+        mWificondControl.setupDriverForClientMode(TEST_INTERFACE_NAME);
         assertTrue(mWificondControl.enableSupplicant());
         verify(clientInterface).enableSupplicant();
     }
@@ -276,10 +283,11 @@ public class WificondControlTest {
         IClientInterface clientInterface = getMockClientInterface();
 
         when(mWifiInjector.makeWificond()).thenReturn(wificond);
-        when(wificond.createClientInterface()).thenReturn(clientInterface);
+        when(wificond.createClientInterface(TEST_INTERFACE_NAME)).thenReturn(clientInterface);
 
         // Configure client interface.
-        IClientInterface returnedClientInterface = mWificondControl.setupDriverForClientMode();
+        IClientInterface returnedClientInterface =
+                mWificondControl.setupDriverForClientMode(TEST_INTERFACE_NAME);
         assertEquals(clientInterface, returnedClientInterface);
 
         // Tear down interfaces.
@@ -298,10 +306,10 @@ public class WificondControlTest {
         IClientInterface clientInterface = getMockClientInterface();
 
         when(mWifiInjector.makeWificond()).thenReturn(wificond);
-        when(wificond.createClientInterface()).thenReturn(clientInterface);
+        when(wificond.createClientInterface(TEST_INTERFACE_NAME)).thenReturn(clientInterface);
         when(clientInterface.disableSupplicant()).thenReturn(true);
 
-        mWificondControl.setupDriverForClientMode();
+        mWificondControl.setupDriverForClientMode(TEST_INTERFACE_NAME);
         assertTrue(mWificondControl.disableSupplicant());
         verify(clientInterface).disableSupplicant();
     }
@@ -316,10 +324,11 @@ public class WificondControlTest {
         IClientInterface clientInterface = getMockClientInterface();
 
         when(mWifiInjector.makeWificond()).thenReturn(wificond);
-        when(wificond.createClientInterface()).thenReturn(clientInterface);
+        when(wificond.createClientInterface(TEST_INTERFACE_NAME)).thenReturn(clientInterface);
 
         // Configure client interface.
-        IClientInterface returnedClientInterface = mWificondControl.setupDriverForClientMode();
+        IClientInterface returnedClientInterface =
+                mWificondControl.setupDriverForClientMode(TEST_INTERFACE_NAME);
         assertEquals(clientInterface, returnedClientInterface);
 
         // Tear down interfaces.
@@ -375,9 +384,9 @@ public class WificondControlTest {
         IClientInterface clientInterface = getMockClientInterface();
 
         when(mWifiInjector.makeWificond()).thenReturn(wificond);
-        when(wificond.createClientInterface()).thenReturn(clientInterface);
+        when(wificond.createClientInterface(TEST_INTERFACE_NAME)).thenReturn(clientInterface);
 
-        mWificondControl.setupDriverForClientMode();
+        mWificondControl.setupDriverForClientMode(TEST_INTERFACE_NAME);
         mWificondControl.signalPoll();
         verify(clientInterface).signalPoll();
     }
@@ -391,10 +400,11 @@ public class WificondControlTest {
         IClientInterface clientInterface = getMockClientInterface();
 
         when(mWifiInjector.makeWificond()).thenReturn(wificond);
-        when(wificond.createClientInterface()).thenReturn(clientInterface);
+        when(wificond.createClientInterface(TEST_INTERFACE_NAME)).thenReturn(clientInterface);
 
         // Configure client interface.
-        IClientInterface returnedClientInterface = mWificondControl.setupDriverForClientMode();
+        IClientInterface returnedClientInterface =
+                mWificondControl.setupDriverForClientMode(TEST_INTERFACE_NAME);
         assertEquals(clientInterface, returnedClientInterface);
 
         // Tear down interfaces.
@@ -413,9 +423,9 @@ public class WificondControlTest {
         IClientInterface clientInterface = getMockClientInterface();
 
         when(mWifiInjector.makeWificond()).thenReturn(wificond);
-        when(wificond.createClientInterface()).thenReturn(clientInterface);
+        when(wificond.createClientInterface(TEST_INTERFACE_NAME)).thenReturn(clientInterface);
 
-        mWificondControl.setupDriverForClientMode();
+        mWificondControl.setupDriverForClientMode(TEST_INTERFACE_NAME);
         mWificondControl.getTxPacketCounters();
         verify(clientInterface).getPacketCounters();
     }
@@ -430,10 +440,11 @@ public class WificondControlTest {
         IClientInterface clientInterface = getMockClientInterface();
 
         when(mWifiInjector.makeWificond()).thenReturn(wificond);
-        when(wificond.createClientInterface()).thenReturn(clientInterface);
+        when(wificond.createClientInterface(TEST_INTERFACE_NAME)).thenReturn(clientInterface);
 
         // Configure client interface.
-        IClientInterface returnedClientInterface = mWificondControl.setupDriverForClientMode();
+        IClientInterface returnedClientInterface =
+                mWificondControl.setupDriverForClientMode(TEST_INTERFACE_NAME);
         assertEquals(clientInterface, returnedClientInterface);
 
         // Tear down interfaces.
@@ -453,10 +464,11 @@ public class WificondControlTest {
         IClientInterface clientInterface = getMockClientInterface();
 
         when(mWifiInjector.makeWificond()).thenReturn(wificond);
-        when(wificond.createClientInterface()).thenReturn(clientInterface);
+        when(wificond.createClientInterface(TEST_INTERFACE_NAME)).thenReturn(clientInterface);
 
         // Configure client interface.
-        IClientInterface returnedClientInterface = mWificondControl.setupDriverForClientMode();
+        IClientInterface returnedClientInterface =
+                mWificondControl.setupDriverForClientMode(TEST_INTERFACE_NAME);
         assertEquals(clientInterface, returnedClientInterface);
 
         // Tear down interfaces.
@@ -749,11 +761,12 @@ public class WificondControlTest {
         IWifiScannerImpl scanner = mock(IWifiScannerImpl.class);
 
         when(mWifiInjector.makeWificond()).thenReturn(wificond);
-        when(wificond.createClientInterface()).thenReturn(clientInterface);
+        when(wificond.createClientInterface(TEST_INTERFACE_NAME)).thenReturn(clientInterface);
         when(clientInterface.getWifiScannerImpl()).thenReturn(scanner);
         when(clientInterface.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
 
-        assertEquals(clientInterface, mWificondControl.setupDriverForClientMode());
+        assertEquals(
+                clientInterface, mWificondControl.setupDriverForClientMode(TEST_INTERFACE_NAME));
 
         return scanner;
     }
