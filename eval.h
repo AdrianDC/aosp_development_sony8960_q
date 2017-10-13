@@ -53,9 +53,7 @@ class Evaluator {
   void set_loc(const Loc& loc) { loc_ = loc; }
 
   const vector<const Rule*>& rules() const { return rules_; }
-  const unordered_map<Symbol, Vars*>& rule_vars() const {
-    return rule_vars_;
-  }
+  const unordered_map<Symbol, Vars*>& rule_vars() const { return rule_vars_; }
   const unordered_map<Symbol, bool>& exports() const { return exports_; }
 
   void Error(const string& msg);
@@ -74,28 +72,34 @@ class Evaluator {
   void add_delayed_output_command(const string& c) {
     delayed_output_commands_.push_back(c);
   }
-  void clear_delayed_output_commands() {
-    delayed_output_commands_.clear();
-  }
+  void clear_delayed_output_commands() { delayed_output_commands_.clear(); }
 
   static const unordered_set<Symbol>& used_undefined_vars() {
     return used_undefined_vars_;
   }
 
   int eval_depth() const { return eval_depth_; }
-  void IncrementEvalDepth() {
-    eval_depth_++;
-  }
-  void DecrementEvalDepth() {
-    eval_depth_--;
-  }
+  void IncrementEvalDepth() { eval_depth_++; }
+  void DecrementEvalDepth() { eval_depth_--; }
 
   string GetShell();
   string GetShellFlag();
   string GetShellAndFlag();
 
+  void CheckStack() {
+    void* addr = __builtin_frame_address(0);
+    if (__builtin_expect(addr < lowest_stack_ && addr >= stack_addr_, 0)) {
+      lowest_stack_ = addr;
+      lowest_loc_ = loc_;
+    }
+  }
+  void DumpStackStats() const;
+
  private:
-  Var* EvalRHS(Symbol lhs, Value* rhs, StringPiece orig_rhs, AssignOp op,
+  Var* EvalRHS(Symbol lhs,
+               Value* rhs,
+               StringPiece orig_rhs,
+               AssignOp op,
                bool is_override = false);
   void DoInclude(const string& fname);
 
@@ -123,6 +127,11 @@ class Evaluator {
 
   Symbol posix_sym_;
   bool is_posix_;
+
+  void* stack_addr_;
+  size_t stack_size_;
+  void* lowest_stack_;
+  Loc lowest_loc_;
 
   static unordered_set<Symbol> used_undefined_vars_;
 
