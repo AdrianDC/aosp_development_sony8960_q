@@ -4165,7 +4165,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             switch (message.what) {
                 case CMD_START_SUPPLICANT:
                     Pair<Integer, IClientInterface> statusAndInterface =
-                            mWifiNative.setupForClientMode();
+                            mWifiNative.setupForClientMode(mInterfaceName);
                     if (statusAndInterface.first == WifiNative.SETUP_SUCCESS) {
                         mClientInterface = statusAndInterface.second;
                     } else {
@@ -6954,7 +6954,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             mMode = config.getTargetMode();
 
             IApInterface apInterface = null;
-            Pair<Integer, IApInterface> statusAndInterface = mWifiNative.setupForSoftApMode();
+            Pair<Integer, IApInterface> statusAndInterface =
+                    mWifiNative.setupForSoftApMode(mInterfaceName);
             if (statusAndInterface.first == WifiNative.SETUP_SUCCESS) {
                 apInterface = statusAndInterface.second;
             } else {

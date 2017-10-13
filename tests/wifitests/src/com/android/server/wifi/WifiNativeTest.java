@@ -47,6 +47,7 @@ import java.util.regex.Pattern;
  */
 @SmallTest
 public class WifiNativeTest {
+    private static final String WIFI_IFACE_NAME = "mockWlan";
     private static final long FATE_REPORT_DRIVER_TIMESTAMP_USEC = 12345;
     private static final byte[] FATE_REPORT_FRAME_BYTES = new byte[] {
             'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 0, 1, 2, 3, 4, 5, 6, 7};
@@ -481,127 +482,139 @@ public class WifiNativeTest {
     // TODO(b/28005116): Add test for the success case of getDriverStateDump().
 
     /**
-     * Verifies that setupDriverForClientMode() calls underlying WificondControl.
+     * Verifies that setupDriverForClientMode(WIFI_IFACE_NAME) calls underlying WificondControl.
      */
     @Test
     public void testSetupDriverForClientMode() {
         IClientInterface clientInterface = mock(IClientInterface.class);
-        when(mWificondControl.setupDriverForClientMode()).thenReturn(clientInterface);
+        when(mWificondControl.setupDriverForClientMode(WIFI_IFACE_NAME))
+                .thenReturn(clientInterface);
 
-        Pair<Integer, IClientInterface> statusAndClientInterface = mWifiNative.setupForClientMode();
+        Pair<Integer, IClientInterface> statusAndClientInterface =
+                mWifiNative.setupForClientMode(WIFI_IFACE_NAME);
         assertTrue(WifiNative.SETUP_SUCCESS == statusAndClientInterface.first);
         assertEquals(clientInterface, statusAndClientInterface.second);
         verify(mWifiVendorHal).startVendorHal(eq(true));
-        verify(mWificondControl).setupDriverForClientMode();
+        verify(mWificondControl).setupDriverForClientMode(WIFI_IFACE_NAME);
     }
 
     /**
-     * Verifies that setupDriverForClientMode() does not call start vendor HAL when it is not
-     * supported and calls underlying WificondControl setup.
+     * Verifies that setupDriverForClientMode(WIFI_IFACE_NAME) does not call start vendor HAL
+     * when it is not supported and calls underlying WificondControl setup.
      */
     @Test
     public void testSetupDriverForClientModeWithNoVendorHal() {
         when(mWifiVendorHal.isVendorHalSupported()).thenReturn(false);
         IClientInterface clientInterface = mock(IClientInterface.class);
-        when(mWificondControl.setupDriverForClientMode()).thenReturn(clientInterface);
+        when(mWificondControl.setupDriverForClientMode(WIFI_IFACE_NAME))
+                .thenReturn(clientInterface);
 
-        Pair<Integer, IClientInterface> statusAndClientInterface = mWifiNative.setupForClientMode();
+        Pair<Integer, IClientInterface> statusAndClientInterface =
+                mWifiNative.setupForClientMode(WIFI_IFACE_NAME);
         assertTrue(WifiNative.SETUP_SUCCESS == statusAndClientInterface.first);
         assertEquals(clientInterface, statusAndClientInterface.second);
         verify(mWifiVendorHal, never()).startVendorHal(anyBoolean());
-        verify(mWificondControl).setupDriverForClientMode();
+        verify(mWificondControl).setupDriverForClientMode(WIFI_IFACE_NAME);
     }
 
     /**
-     * Verifies that setupDriverForClientMode() returns null when underlying WificondControl
-     * call fails.
+     * Verifies that setupDriverForClientMode(WIFI_IFACE_NAME) returns null when underlying
+     * WificondControl call fails.
      */
     @Test
     public void testSetupDriverForClientModeWificondError() {
-        when(mWificondControl.setupDriverForClientMode()).thenReturn(null);
+        when(mWificondControl.setupDriverForClientMode(WIFI_IFACE_NAME)).thenReturn(null);
 
-        Pair<Integer, IClientInterface> statusAndClientInterface = mWifiNative.setupForClientMode();
+        Pair<Integer, IClientInterface> statusAndClientInterface =
+                mWifiNative.setupForClientMode(WIFI_IFACE_NAME);
         assertTrue(WifiNative.SETUP_FAILURE_WIFICOND == statusAndClientInterface.first);
         assertEquals(null, statusAndClientInterface.second);
         verify(mWifiVendorHal).startVendorHal(eq(true));
-        verify(mWificondControl).setupDriverForClientMode();
+        verify(mWificondControl).setupDriverForClientMode(WIFI_IFACE_NAME);
     }
 
     /**
-     * Verifies that setupDriverForClientMode() returns null when underlying Hal call fails.
+     * Verifies that setupDriverForClientMode(WIFI_IFACE_NAME) returns null when underlying Hal
+     * call fails.
      */
     @Test
     public void testSetupDriverForClientModeHalError() {
         when(mWifiVendorHal.startVendorHal(anyBoolean())).thenReturn(false);
 
-        Pair<Integer, IClientInterface> statusAndClientInterface = mWifiNative.setupForClientMode();
+        Pair<Integer, IClientInterface> statusAndClientInterface =
+                mWifiNative.setupForClientMode(WIFI_IFACE_NAME);
         assertTrue(WifiNative.SETUP_FAILURE_HAL == statusAndClientInterface.first);
         assertEquals(null, statusAndClientInterface.second);
         verify(mWifiVendorHal).startVendorHal(eq(true));
-        verify(mWificondControl, never()).setupDriverForClientMode();
+        verify(mWificondControl, never()).setupDriverForClientMode(WIFI_IFACE_NAME);
     }
 
     /**
-     * Verifies that setupDriverForSoftApMode() calls underlying WificondControl.
+     * Verifies that setupDriverForSoftApMode(WIFI_IFACE_NAME) calls underlying WificondControl.
      */
     @Test
     public void testSetupDriverForSoftApMode() {
         IApInterface apInterface = mock(IApInterface.class);
-        when(mWificondControl.setupDriverForSoftApMode()).thenReturn(apInterface);
+        when(mWificondControl.setupDriverForSoftApMode(WIFI_IFACE_NAME)).thenReturn(apInterface);
 
-        Pair<Integer, IApInterface> statusAndApInterface = mWifiNative.setupForSoftApMode();
+        Pair<Integer, IApInterface> statusAndApInterface =
+                mWifiNative.setupForSoftApMode(WIFI_IFACE_NAME);
         assertTrue(WifiNative.SETUP_SUCCESS == statusAndApInterface.first);
         assertEquals(apInterface, statusAndApInterface.second);
         verify(mWifiVendorHal).startVendorHal(eq(false));
-        verify(mWificondControl).setupDriverForSoftApMode();
+        verify(mWificondControl).setupDriverForSoftApMode(WIFI_IFACE_NAME);
     }
 
     /**
-     * Verifies that setupDriverForClientMode() does not call start vendor HAL when it is not
-     * supported and calls underlying WificondControl setup.
+     * Verifies that setupDriverForClientMode(WIFI_IFACE_NAME) does not call start vendor HAL when
+     * it is not supported and calls underlying WificondControl setup.
      */
     @Test
     public void testSetupDriverForSoftApModeWithNoVendorHal() {
         when(mWifiVendorHal.isVendorHalSupported()).thenReturn(false);
         IApInterface apInterface = mock(IApInterface.class);
-        when(mWificondControl.setupDriverForSoftApMode()).thenReturn(apInterface);
+        when(mWificondControl.setupDriverForSoftApMode(WIFI_IFACE_NAME)).thenReturn(apInterface);
 
-        Pair<Integer, IApInterface> statusAndApInterface = mWifiNative.setupForSoftApMode();
+        Pair<Integer, IApInterface> statusAndApInterface =
+                mWifiNative.setupForSoftApMode(WIFI_IFACE_NAME);
         assertTrue(WifiNative.SETUP_SUCCESS == statusAndApInterface.first);
         assertEquals(apInterface, statusAndApInterface.second);
         verify(mWifiVendorHal, never()).startVendorHal(anyBoolean());
-        verify(mWificondControl).setupDriverForSoftApMode();
+        verify(mWificondControl).setupDriverForSoftApMode(WIFI_IFACE_NAME);
     }
 
     /**
-     * Verifies that setupDriverForSoftApMode() returns null when underlying WificondControl
-     * call fails.
+     * Verifies that setupDriverForSoftApMode(WIFI_IFACE_NAME) returns null when underlying
+     * WificondControl call fails.
      */
     @Test
     public void testSetupDriverForSoftApModeWificondError() {
-        when(mWificondControl.setupDriverForSoftApMode()).thenReturn(null);
+        when(mWificondControl.setupDriverForSoftApMode(WIFI_IFACE_NAME)).thenReturn(null);
 
-        Pair<Integer, IApInterface> statusAndApInterface = mWifiNative.setupForSoftApMode();
+        Pair<Integer, IApInterface> statusAndApInterface =
+                mWifiNative.setupForSoftApMode(WIFI_IFACE_NAME);
         assertTrue(WifiNative.SETUP_FAILURE_WIFICOND == statusAndApInterface.first);
         assertEquals(null, statusAndApInterface.second);
 
         verify(mWifiVendorHal).startVendorHal(eq(false));
-        verify(mWificondControl).setupDriverForSoftApMode();
+        verify(mWificondControl).setupDriverForSoftApMode(WIFI_IFACE_NAME);
     }
 
     /**
-     * Verifies that setupDriverForSoftApMode() returns null when underlying Hal call fails.
+     * Verifies that setupDriverForSoftApMode(WIFI_IFACE_NAME) returns null when underlying Hal
+     * call fails.
      */
     @Test
     public void testSetupDriverForSoftApModeHalError() {
         when(mWifiVendorHal.startVendorHal(anyBoolean())).thenReturn(false);
 
-        Pair<Integer, IApInterface> statusAndApInterface = mWifiNative.setupForSoftApMode();
+        Pair<Integer, IApInterface> statusAndApInterface =
+                mWifiNative.setupForSoftApMode(WIFI_IFACE_NAME);
         assertTrue(WifiNative.SETUP_FAILURE_HAL == statusAndApInterface.first);
         assertEquals(null, statusAndApInterface.second);
 
         verify(mWifiVendorHal).startVendorHal(eq(false));
-        verify(mWificondControl, never()).setupDriverForSoftApMode();
+        verify(mWificondControl, never()).setupDriverForSoftApMode(WIFI_IFACE_NAME);
     }
 
     /**
