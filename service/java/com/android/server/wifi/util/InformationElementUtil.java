@@ -247,6 +247,10 @@ public class InformationElementUtil {
                         "Bad Interworking element length: " + ie.bytes.length);
             }
 
+            if (ie.bytes.length == 3 || ie.bytes.length == 9) {
+                int venueInfo = (int) ByteBufferReader.readInteger(data, ByteOrder.BIG_ENDIAN, 2);
+            }
+
             if (ie.bytes.length == 7 || ie.bytes.length == 9) {
                 hessid = ByteBufferReader.readInteger(data, ByteOrder.BIG_ENDIAN, 6);
             }
