@@ -1588,6 +1588,26 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     }
 
     /**
+     * Return the list of all matching Wifi configurations for this ScanResult.
+     *
+     * An empty list will be returned when no configurations are installed or if no configurations
+     * match the ScanResult.
+     *
+     * @param scanResult scanResult that represents the BSSID
+     * @return A list of {@link WifiConfiguration}
+     */
+    @Override
+    public List<WifiConfiguration> getAllMatchingWifiConfigs(ScanResult scanResult) {
+        enforceAccessPermission();
+        mLog.info("getMatchingPasspointConfigurations uid=%").c(Binder.getCallingUid()).flush();
+        if (!mContext.getPackageManager().hasSystemFeature(
+                PackageManager.FEATURE_WIFI_PASSPOINT)) {
+            throw new UnsupportedOperationException("Passpoint not enabled");
+        }
+        return mWifiStateMachine.getAllMatchingWifiConfigs(scanResult, mWifiStateMachineChannel);
+    }
+
+    /**
      * Returns list of OSU (Online Sign-Up) providers associated with the given Passpoint network.
      *
      * @param scanResult scanResult of the Passpoint AP
