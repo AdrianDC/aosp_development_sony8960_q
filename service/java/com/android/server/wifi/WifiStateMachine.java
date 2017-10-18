@@ -6003,14 +6003,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     class ObtainingIpState extends State {
         @Override
         public void enter() {
-            WifiConfiguration currentConfig = getCurrentWifiConfiguration();
-            boolean isUsingStaticIp =
+            final WifiConfiguration currentConfig = getCurrentWifiConfiguration();
+            final boolean isUsingStaticIp =
                     (currentConfig.getIpAssignment() == IpConfiguration.IpAssignment.STATIC);
             if (mVerboseLoggingEnabled) {
-                String key = "";
-                if (getCurrentWifiConfiguration() != null) {
-                    key = getCurrentWifiConfiguration().configKey();
-                }
+                final String key = currentConfig.configKey();
                 log("enter ObtainingIpState netId=" + Integer.toString(mLastNetworkId)
                         + " " + key + " "
                         + " roam=" + mIsAutoRoaming
@@ -6050,12 +6047,16 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 prov = IpManager.buildProvisioningConfiguration()
                             .withPreDhcpAction()
                             .withApfCapabilities(mWifiNative.getApfCapabilities())
+                            .withNetwork(getCurrentNetwork())
+                            .withDisplayName(currentConfig.SSID)
                             .build();
             } else {
                 StaticIpConfiguration staticIpConfig = currentConfig.getStaticIpConfiguration();
                 prov = IpManager.buildProvisioningConfiguration()
                             .withStaticConfiguration(staticIpConfig)
                             .withApfCapabilities(mWifiNative.getApfCapabilities())
+                            .withNetwork(getCurrentNetwork())
+                            .withDisplayName(currentConfig.SSID)
                             .build();
             }
             mIpManager.startProvisioning(prov);
