@@ -33,7 +33,7 @@
     <string name="could_not_use_app" msgid="8137587876138569083">"Haikuweza kutumia <xliff:g id="APP">%1$s</xliff:g>."</string>
     <string name="pay_with" msgid="5531545488795798945">"Lipa kwa"</string>
     <string name="complete_with" msgid="6797459104103012992">"Kamilisha kwa"</string>
-    <string name="default_pay_app_removed" msgid="4108250545457437360">"Huduma unayopendelea ya kugonga na kulipa iliondolewa. Ungependa kuchagua nyingine?"</string>
+    <string name="default_pay_app_removed" msgid="4108250545457437360">"Huduma unayokuwa umechagua ya kugusisha ili ulipe imeondolewa. Ungependa kuchagua nyingine?"</string>
     <string name="ask_nfc_tap" msgid="2925239870458286340">"Gonga kifaa kingine ili kukamilisha"</string>
     <string name="wifi_connect" msgid="6250727951843550671">"Unganisha"</string>
     <string name="status_unable_to_connect" msgid="9183908200295307657">"Haiwezi kuunganisha kwenye mtandao"</string>
