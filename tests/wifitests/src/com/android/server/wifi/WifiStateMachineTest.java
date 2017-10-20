@@ -46,7 +46,7 @@ import android.net.ConnectivityManager;
 import android.net.DhcpResults;
 import android.net.LinkProperties;
 import android.net.dhcp.DhcpClient;
-import android.net.ip.IpManager;
+import android.net.ip.IpClient;
 import android.net.wifi.IApInterface;
 import android.net.wifi.IClientInterface;
 import android.net.wifi.IWificond;
@@ -187,12 +187,12 @@ public class WifiStateMachineTest {
         IBinder batteryStatsBinder = mockService(BatteryStats.class, IBatteryStats.class);
         when(facade.getService(BatteryStats.SERVICE_NAME)).thenReturn(batteryStatsBinder);
 
-        when(facade.makeIpManager(any(Context.class), anyString(), any(IpManager.Callback.class)))
+        when(facade.makeIpClient(any(Context.class), anyString(), any(IpClient.Callback.class)))
                 .then(new AnswerWithArguments() {
-                    public IpManager answer(
-                            Context context, String ifname, IpManager.Callback callback) {
-                        mIpManagerCallback = callback;
-                        return mIpManager;
+                    public IpClient answer(
+                            Context context, String ifname, IpClient.Callback callback) {
+                        mIpClientCallback = callback;
+                        return mIpClient;
                     }
                 });
 
@@ -288,13 +288,13 @@ public class WifiStateMachineTest {
     }
 
     private void injectDhcpSuccess(DhcpResults dhcpResults) {
-        mIpManagerCallback.onNewDhcpResults(dhcpResults);
-        mIpManagerCallback.onProvisioningSuccess(new LinkProperties());
+        mIpClientCallback.onNewDhcpResults(dhcpResults);
+        mIpClientCallback.onProvisioningSuccess(new LinkProperties());
     }
 
     private void injectDhcpFailure() {
-        mIpManagerCallback.onNewDhcpResults(null);
-        mIpManagerCallback.onProvisioningFailure(new LinkProperties());
+        mIpClientCallback.onNewDhcpResults(null);
+        mIpClientCallback.onProvisioningFailure(new LinkProperties());
     }
 
     static final String   sSSID = "\"GoogleGuest\"";
@@ -316,7 +316,7 @@ public class WifiStateMachineTest {
     Context mContext;
     MockResources mResources;
     FrameworkFacade mFrameworkFacade;
-    IpManager.Callback mIpManagerCallback;
+    IpClient.Callback mIpClientCallback;
     PhoneStateListener mPhoneStateListener;
 
     final ArgumentCaptor<SoftApManager.Listener> mSoftApManagerListenerCaptor =
@@ -345,7 +345,7 @@ public class WifiStateMachineTest {
     @Mock WifiStateTracker mWifiStateTracker;
     @Mock PasspointManager mPasspointManager;
     @Mock SelfRecovery mSelfRecovery;
-    @Mock IpManager mIpManager;
+    @Mock IpClient mIpClient;
     @Mock TelephonyManager mTelephonyManager;
     @Mock WrongPasswordNotifier mWrongPasswordNotifier;
     @Mock Clock mClock;
