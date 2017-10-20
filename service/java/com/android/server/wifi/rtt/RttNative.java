@@ -23,7 +23,6 @@ import android.hardware.wifi.V1_0.RttConfig;
 import android.hardware.wifi.V1_0.RttPeerType;
 import android.hardware.wifi.V1_0.RttPreamble;
 import android.hardware.wifi.V1_0.RttResult;
-import android.hardware.wifi.V1_0.RttStatus;
 import android.hardware.wifi.V1_0.RttType;
 import android.hardware.wifi.V1_0.WifiChannelWidthInMhz;
 import android.hardware.wifi.V1_0.WifiStatus;
@@ -31,7 +30,6 @@ import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.net.wifi.ScanResult;
 import android.net.wifi.rtt.RangingRequest;
 import android.net.wifi.rtt.RangingResult;
-import android.net.wifi.rtt.RangingResultCallback;
 import android.os.RemoteException;
 import android.util.Log;
 
@@ -128,15 +126,7 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
         if (VDBG) Log.v(TAG, "onResults: cmdId=" + cmdId + ", # of results=" + halResults.size());
         List<RangingResult> results = new ArrayList<>(halResults.size());
 
-        for (RttResult halResult: halResults) {
-            results.add(new RangingResult(
-                    halResult.status == RttStatus.SUCCESS ? RangingResultCallback.STATUS_SUCCESS
-                            : RangingResultCallback.STATUS_FAIL, halResult.addr,
-                    halResult.distanceInMm / 10, halResult.distanceSdInMm / 10, halResult.rssi,
-                    halResult.timeStampInUs));
-        }
-
-        mRttService.onRangingResults(cmdId, results);
+        mRttService.onRangingResults(cmdId, halResults);
     }
 
     private static ArrayList<RttConfig> convertRangingRequestToRttConfigs(RangingRequest request) {
@@ -145,18 +135,17 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
         // Skipping any configurations which have an error (printing out a message).
         // The caller will only get results for valid configurations.
         for (RangingRequest.RttPeer peer: request.mRttPeers) {
+            RttConfig config = new RttConfig();
+
             if (peer instanceof RangingRequest.RttPeerAp) {
                 ScanResult scanResult = ((RangingRequest.RttPeerAp) peer).scanResult;
-                RttConfig config = new RttConfig();
 
                 byte[] addr = NativeUtil.macAddressToByteArray(scanResult.BSSID);
                 if (addr.length != config.addr.length) {
                     Log.e(TAG, "Invalid configuration: unexpected BSSID length -- " + scanResult);
                     continue;
                 }
-                for (int i = 0; i < config.addr.length; ++i) {
-                    config.addr[i] = addr[i];
-                }
+                System.arraycopy(addr, 0, config.addr, 0, config.addr.length);
 
                 try {
                     config.type =
@@ -189,13 +178,40 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
                     Log.e(TAG, "Invalid configuration: " + e.getMessage());
                     continue;
                 }
+            } else if (peer instanceof RangingRequest.RttPeerAware) {
+                RangingRequest.RttPeerAware rttPeerAware = (RangingRequest.RttPeerAware) peer;
 
-                rttConfigs.add(config);
+                if (rttPeerAware.peerMacAddress == null
+                        || rttPeerAware.peerMacAddress.length != config.addr.length) {
+                    Log.e(TAG, "Invalid configuration: null MAC or incorrect length");
+                    continue;
+                }
+                System.arraycopy(rttPeerAware.peerMacAddress, 0, config.addr, 0,
+                        config.addr.length);
+
+                config.type = RttType.TWO_SIDED;
+                config.peer = RttPeerType.NAN;
+                config.channel.width = WifiChannelWidthInMhz.WIDTH_80;
+                config.channel.centerFreq = 5200;
+                config.channel.centerFreq0 = 5210;
+                config.channel.centerFreq1 = 0;
+                config.burstPeriod = 0;
+                config.numBurst = 0;
+                config.numFramesPerBurst = 5;
+                config.numRetriesPerRttFrame = 3;
+                config.numRetriesPerFtmr = 3;
+                config.mustRequestLci = false;
+                config.mustRequestLcr = false;
+                config.burstDuration = 15;
+                config.preamble = RttPreamble.VHT;
+                config.bw = RttBw.BW_80MHZ;
             } else {
                 Log.e(TAG, "convertRangingRequestToRttConfigs: unknown request type -- "
                         + peer.getClass().getCanonicalName());
                 return null;
             }
+
+            rttConfigs.add(config);
         }
 
 
