@@ -25,7 +25,6 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -163,8 +162,7 @@ public class RttServiceImplTest {
             mMockLooper.dispatchAll();
 
             // (4) verify that results dispatched
-            verify(mockCallback).onRangingResults(RangingResultCallback.STATUS_SUCCESS,
-                    results.get(i).second);
+            verify(mockCallback).onRangingResults(results.get(i).second);
 
             // (5) replicate results - shouldn't dispatch another callback
             mDut.onRangingResults(mIntCaptor.getValue(), results.get(i).first);
@@ -212,8 +210,7 @@ public class RttServiceImplTest {
 
         // verify that results with MAC addresses filtered out and replaced by PeerHandles issued
         // to callback
-        verify(mockCallback).onRangingResults(eq(RangingResultCallback.STATUS_SUCCESS),
-                mResultsCaptor.capture());
+        verify(mockCallback).onRangingResults(mResultsCaptor.capture());
 
         assertTrue(compareListContentsNoOrdering(results.second, mResultsCaptor.getValue()));
 
@@ -251,7 +248,7 @@ public class RttServiceImplTest {
 
             // (3) verify that failure callback dispatched (for the HAL failure)
             if (i == 0) {
-                verify(mockCallback).onRangingResults(RangingResultCallback.STATUS_FAIL, null);
+                verify(mockCallback).onRangingFailure(RangingResultCallback.STATUS_CODE_FAIL);
             }
 
             // (4) on failed HAL: even if native calls back with result we shouldn't dispatch
@@ -260,8 +257,7 @@ public class RttServiceImplTest {
             mMockLooper.dispatchAll();
 
             if (i != 0) {
-                verify(mockCallback).onRangingResults(RangingResultCallback.STATUS_SUCCESS,
-                        results.get(i).second);
+                verify(mockCallback).onRangingResults(results.get(i).second);
             }
         }
 
@@ -291,7 +287,7 @@ public class RttServiceImplTest {
         mDut.onRangingResults(mIntCaptor.getValue(), results.first);
         mMockLooper.dispatchAll();
 
-        verify(mockCallback).onRangingResults(eq(RangingResultCallback.STATUS_FAIL), isNull());
+        verify(mockCallback).onRangingFailure(eq(RangingResultCallback.STATUS_CODE_FAIL));
 
         verifyNoMoreInteractions(mockNative, mockCallback);
     }
@@ -343,8 +339,7 @@ public class RttServiceImplTest {
                 // before the binder death. The callback is called from the service - the app is
                 // dead so in reality this will throw a RemoteException which the service will
                 // handle correctly.
-                verify(mockCallback).onRangingResults(RangingResultCallback.STATUS_SUCCESS,
-                        results.get(i).second);
+                verify(mockCallback).onRangingResults(results.get(i).second);
             }
         }
 
@@ -378,7 +373,7 @@ public class RttServiceImplTest {
         mMockLooper.dispatchAll();
 
         // (5) verify that results dispatched
-        verify(mockCallback).onRangingResults(RangingResultCallback.STATUS_SUCCESS, results.second);
+        verify(mockCallback).onRangingResults(results.second);
 
         verifyNoMoreInteractions(mockNative, mockCallback);
     }
@@ -395,8 +390,7 @@ public class RttServiceImplTest {
         results.first.remove(0);
         RangingResult removed = results.second.remove(0);
         results.second.add(
-                new RangingResult(RangingResultCallback.STATUS_FAIL, removed.getMacAddress(), 0, 0,
-                        0, 0));
+                new RangingResult(RangingResult.STATUS_FAIL, removed.getMacAddress(), 0, 0, 0, 0));
 
         // (1) request ranging operation
         mDut.startRanging(mockIbinder, mPackageName, request, mockCallback);
@@ -410,8 +404,7 @@ public class RttServiceImplTest {
         mMockLooper.dispatchAll();
 
         // (5) verify that (full) results dispatched
-        verify(mockCallback).onRangingResults(eq(RangingResultCallback.STATUS_SUCCESS),
-                mResultsCaptor.capture());
+        verify(mockCallback).onRangingResults(mResultsCaptor.capture());
         assertTrue(compareListContentsNoOrdering(results.second, mResultsCaptor.getValue()));
 
         verifyNoMoreInteractions(mockNative, mockCallback);
