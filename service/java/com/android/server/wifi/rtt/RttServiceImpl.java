@@ -18,6 +18,11 @@ package com.android.server.wifi.rtt;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.hardware.wifi.V1_0.RttResult;
+import android.hardware.wifi.V1_0.RttStatus;
+import android.net.wifi.aware.IWifiAwareMacAddressProvider;
+import android.net.wifi.aware.IWifiAwareManager;
+import android.net.wifi.aware.PeerHandle;
 import android.net.wifi.rtt.IRttCallback;
 import android.net.wifi.rtt.IWifiRttManager;
 import android.net.wifi.rtt.RangingRequest;
@@ -37,12 +42,13 @@ import libcore.util.HexEncoding;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
-import java.util.Set;
+import java.util.Map;
 
 /**
  * Implementation of the IWifiRttManager AIDL interface and of the RttService state manager.
@@ -52,6 +58,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
     private static final boolean VDBG = true; // STOPSHIP if true
 
     private final Context mContext;
+    private IWifiAwareManager mAwareBinder;
     private WifiPermissionsUtil mWifiPermissionsUtil;
 
     private RttServiceSynchronized mRttServiceSynchronized;
@@ -69,10 +76,13 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
      * Initializes the RTT service (usually with objects from an injector).
      *
      * @param looper The looper on which to synchronize operations.
+     * @param awareBinder The Wi-Fi Aware service (binder) if supported on the system.
      * @param rttNative The Native interface to the HAL.
      * @param wifiPermissionsUtil Utility for permission checks.
      */
-    public void start(Looper looper, RttNative rttNative, WifiPermissionsUtil wifiPermissionsUtil) {
+    public void start(Looper looper, IWifiAwareManager awareBinder, RttNative rttNative,
+            WifiPermissionsUtil wifiPermissionsUtil) {
+        mAwareBinder = awareBinder;
         mWifiPermissionsUtil = wifiPermissionsUtil;
         mRttServiceSynchronized = new RttServiceSynchronized(looper, rttNative);
     }
@@ -107,20 +117,10 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         if (request == null || request.mRttPeers == null || request.mRttPeers.size() == 0) {
             throw new IllegalArgumentException("Request must not be null or empty");
         }
-        for (RangingRequest.RttPeer peer: request.mRttPeers) {
-            if (peer == null) {
-                throw new IllegalArgumentException(
-                        "Request must not contain empty peer specifications");
-            }
-            if (!(peer instanceof RangingRequest.RttPeerAp)) {
-                throw new IllegalArgumentException(
-                        "Request contains unknown peer specification types");
-            }
-        }
         if (callback == null) {
             throw new IllegalArgumentException("Callback must not be null");
         }
-        request.enforceValidity();
+        request.enforceValidity(mAwareBinder != null);
 
         final int uid = getMockableCallingUid();
 
@@ -158,7 +158,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
      * Called by HAL to report ranging results. Called on HAL thread - needs to post to local
      * thread.
      */
-    public void onRangingResults(int cmdId, List<RangingResult> results) {
+    public void onRangingResults(int cmdId, List<RttResult> results) {
         if (VDBG) Log.v(TAG, "onRangingResults: cmdId=" + cmdId);
         mRttServiceSynchronized.mHandler.post(() -> {
             mRttServiceSynchronized.onRangingResults(cmdId, results);
@@ -251,10 +251,21 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                 Log.v(TAG, "RttServiceSynchronized.queueRangingRequest: newRequest=" + newRequest);
             }
 
-            executeNextRangingRequestIfPossible();
+            executeNextRangingRequestIfPossible(false);
         }
 
-        private void executeNextRangingRequestIfPossible() {
+        private void executeNextRangingRequestIfPossible(boolean popFirst) {
+            if (VDBG) Log.v(TAG, "executeNextRangingRequestIfPossible: popFirst=" + popFirst);
+
+            if (popFirst) {
+                if (mRttRequestQueue.size() == 0) {
+                    Log.w(TAG, "executeNextRangingRequestIfPossible: pop requested - but empty "
+                            + "queue!? Ignoring pop.");
+                } else {
+                    mRttRequestQueue.remove(0);
+                }
+            }
+
             if (mRttRequestQueue.size() == 0) {
                 if (VDBG) Log.v(TAG, "executeNextRangingRequestIfPossible: no requests pending");
                 return;
@@ -278,6 +289,14 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                 Log.v(TAG, "RttServiceSynchronized.startRanging: nextRequest=" + nextRequest);
             }
 
+            if (processAwarePeerHandles(nextRequest)) {
+                if (VDBG) {
+                    Log.v(TAG, "RttServiceSynchronized.startRanging: deferring due to PeerHandle "
+                            + "Aware requests");
+                }
+                return;
+            }
+
             if (!mRttNative.rangeRequest(nextRequest.cmdId, nextRequest.request)) {
                 Log.w(TAG, "RttServiceSynchronized.startRanging: native rangeRequest call failed");
                 try {
@@ -286,13 +305,98 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                     Log.e(TAG, "RttServiceSynchronized.startRanging: HAL request failed, callback "
                             + "failed -- " + e);
                 }
-
-                mRttRequestQueue.remove(0);
-                executeNextRangingRequestIfPossible();
+                executeNextRangingRequestIfPossible(true);
             }
         }
 
-        private void onRangingResults(int cmdId, List<RangingResult> results) {
+        /**
+         * Check request for any PeerHandle Aware requests. If there are any: issue requests to
+         * translate the peer ID to a MAC address and abort current execution of the range request.
+         * The request will be re-attempted when response is received.
+         *
+         * In cases of failure: pop the current request and execute the next one. Failures:
+         * - Not able to connect to remote service (unlikely)
+         * - Request already processed: but we're missing information
+         *
+         * @return true if need to abort execution, false otherwise.
+         */
+        private boolean processAwarePeerHandles(RttRequestInfo request) {
+            List<Integer> peerIdsNeedingTranslation = new ArrayList<>();
+            for (RangingRequest.RttPeer rttPeer: request.request.mRttPeers) {
+                if (rttPeer instanceof RangingRequest.RttPeerAware) {
+                    RangingRequest.RttPeerAware awarePeer = (RangingRequest.RttPeerAware) rttPeer;
+                    if (awarePeer.peerHandle != null && awarePeer.peerMacAddress == null) {
+                        peerIdsNeedingTranslation.add(awarePeer.peerHandle.peerId);
+                    }
+                }
+            }
+
+            if (peerIdsNeedingTranslation.size() == 0) {
+                return false;
+            }
+
+            if (request.peerHandlesTranslated) {
+                Log.w(TAG, "processAwarePeerHandles: request=" + request
+                        + ": PeerHandles translated - but information still missing!?");
+                try {
+                    request.callback.onRangingResults(RangingResultCallback.STATUS_FAIL, null);
+                } catch (RemoteException e) {
+                    Log.e(TAG, "processAwarePeerHandles: onRangingResults failure -- " + e);
+                }
+                executeNextRangingRequestIfPossible(true);
+                return true; // an abort because we removed request and are executing next one
+            }
+
+            request.peerHandlesTranslated = true;
+            try {
+                mAwareBinder.requestMacAddresses(request.uid, peerIdsNeedingTranslation,
+                        new IWifiAwareMacAddressProvider.Stub() {
+                            @Override
+                            public void macAddress(Map peerIdToMacMap) {
+                                // ASYNC DOMAIN
+                                mHandler.post(() -> {
+                                    // BACK TO SYNC DOMAIN
+                                    processReceivedAwarePeerMacAddresses(request, peerIdToMacMap);
+                                });
+                            }
+                        });
+            } catch (RemoteException e1) {
+                Log.e(TAG,
+                        "processAwarePeerHandles: exception while calling requestMacAddresses -- "
+                                + e1 + ", aborting request=" + request);
+                try {
+                    request.callback.onRangingResults(RangingResultCallback.STATUS_FAIL, null);
+                } catch (RemoteException e2) {
+                    Log.e(TAG, "processAwarePeerHandles: onRangingResults failure -- " + e2);
+                }
+                executeNextRangingRequestIfPossible(true);
+                return true; // an abort because we removed request and are executing next one
+            }
+
+            return true; // a deferral
+        }
+
+        private void processReceivedAwarePeerMacAddresses(RttRequestInfo request,
+                Map<Integer, byte[]> peerIdToMacMap) {
+            if (VDBG) {
+                Log.v(TAG, "processReceivedAwarePeerMacAddresses: request=" + request
+                        + ", peerIdToMacMap=" + peerIdToMacMap);
+            }
+
+            for (RangingRequest.RttPeer rttPeer: request.request.mRttPeers) {
+                if (rttPeer instanceof RangingRequest.RttPeerAware) {
+                    RangingRequest.RttPeerAware awarePeer = (RangingRequest.RttPeerAware) rttPeer;
+                    if (awarePeer.peerHandle != null && awarePeer.peerMacAddress == null) {
+                        awarePeer.peerMacAddress = peerIdToMacMap.get(awarePeer.peerHandle.peerId);
+                    }
+                }
+            }
+
+            // run request again
+            startRanging(request);
+        }
+
+        private void onRangingResults(int cmdId, List<RttResult> results) {
             if (mRttRequestQueue.size() == 0) {
                 Log.e(TAG, "RttServiceSynchronized.onRangingResults: no current RTT request "
                         + "pending!?");
@@ -316,9 +420,14 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                     topOfQueueRequest.callingPackage, topOfQueueRequest.uid);
             try {
                 if (permissionGranted) {
-                    addMissingEntries(topOfQueueRequest.request, results);
+                    List<RangingResult> finalResults = postProcessResults(topOfQueueRequest.request,
+                            results);
+                    if (VDBG) {
+                        Log.v(TAG, "RttServiceSynchronized.onRangingResults: finalResults="
+                                + finalResults);
+                    }
                     topOfQueueRequest.callback.onRangingResults(
-                            RangingResultCallback.STATUS_SUCCESS, results);
+                            RangingResultCallback.STATUS_SUCCESS, finalResults);
                 } else {
                     Log.w(TAG, "RttServiceSynchronized.onRangingResults: location permission "
                             + "revoked - not forwarding results");
@@ -334,39 +443,72 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
             // done with the binder.
             topOfQueueRequest.binder.unlinkToDeath(topOfQueueRequest.dr, 0);
 
-            mRttRequestQueue.remove(0);
-            executeNextRangingRequestIfPossible();
+            executeNextRangingRequestIfPossible(true);
         }
 
         /*
-         * Make sure the results contain an entry for each request. Add results with FAIL status
-         * if missing.
+         * Post process the results:
+         * - For requests without results: add FAILED results
+         * - For Aware requests using PeerHandle: replace MAC address with PeerHandle
+         * - Effectively: throws away results which don't match requests
          */
-        private void addMissingEntries(RangingRequest request,
-                List<RangingResult> results) {
-            Set<String> resultEntries = new HashSet<>(results.size());
-            for (RangingResult result: results) {
-                resultEntries.add(new String(HexEncoding.encode(result.getMacAddress())));
+        private List<RangingResult> postProcessResults(RangingRequest request,
+                List<RttResult> results) {
+            Map<String, RttResult> resultEntries = new HashMap<>();
+            for (RttResult result: results) {
+                resultEntries.put(new String(HexEncoding.encode(result.addr)), result);
             }
+
+            List<RangingResult> finalResults = new ArrayList<>(request.mRttPeers.size());
 
             for (RangingRequest.RttPeer peer: request.mRttPeers) {
                 byte[] addr;
                 if (peer instanceof RangingRequest.RttPeerAp) {
                     addr = NativeUtil.macAddressToByteArray(
                             ((RangingRequest.RttPeerAp) peer).scanResult.BSSID);
+                } else if (peer instanceof RangingRequest.RttPeerAware) {
+                    addr = ((RangingRequest.RttPeerAware) peer).peerMacAddress;
                 } else {
+                    Log.w(TAG, "postProcessResults: unknown peer type -- " + peer.getClass());
                     continue;
                 }
-                String canonicString = new String(HexEncoding.encode(addr));
 
-                if (!resultEntries.contains(canonicString)) {
+                RttResult resultForRequest = resultEntries.get(
+                        new String(HexEncoding.encode(addr)));
+                if (resultForRequest == null) {
                     if (VDBG) {
-                        Log.v(TAG, "padRangingResultsWithMissingResults: missing=" + canonicString);
+                        Log.v(TAG, "postProcessResults: missing=" + new String(
+                                HexEncoding.encode(addr)));
                     }
-                    results.add(new RangingResult(RangingResultCallback.STATUS_FAIL, addr, 0, 0, 0,
-                            0));
+                    finalResults.add(
+                            new RangingResult(RangingResultCallback.STATUS_FAIL, addr, 0, 0, 0, 0));
+                } else {
+                    int status = resultForRequest.status == RttStatus.SUCCESS
+                            ? RangingResultCallback.STATUS_SUCCESS
+                            : RangingResultCallback.STATUS_FAIL;
+                    int distanceCm = resultForRequest.distanceInMm / 10;
+                    int distanceCmStdDev = resultForRequest.distanceSdInMm / 10;
+                    int rssi = resultForRequest.rssi;
+                    long timestamp = resultForRequest.timeStampInUs;
+
+                    PeerHandle peerHandle = null;
+                    if (peer instanceof RangingRequest.RttPeerAware) {
+                        peerHandle = ((RangingRequest.RttPeerAware) peer).peerHandle;
+                    }
+
+                    if (peerHandle == null) {
+                        finalResults.add(
+                                new RangingResult(status, addr, distanceCm, distanceCmStdDev, rssi,
+                                        timestamp));
+                    } else {
+                        finalResults.add(
+                                new RangingResult(status, peerHandle, distanceCm, distanceCmStdDev,
+                                        rssi, timestamp));
+                    }
                 }
             }
+
+            return finalResults;
         }
 
         // dump call (asynchronous most likely)
@@ -387,13 +529,15 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         public IRttCallback callback;
 
         public int cmdId = 0; // uninitialized cmdId value
+        public boolean peerHandlesTranslated = false;
 
         @Override
         public String toString() {
             return new StringBuilder("RttRequestInfo: uid=").append(uid).append(", binder=").append(
                     binder).append(", dr=").append(dr).append(", callingPackage=").append(
                     callingPackage).append(", request=").append(request.toString()).append(
-                    ", callback=").append(callback).append(", cmdId=").append(cmdId).toString();
+                    ", callback=").append(callback).append(", cmdId=").append(cmdId).append(
+                    ", peerHandlesTranslated=").append(peerHandlesTranslated).toString();
         }
     }
 }

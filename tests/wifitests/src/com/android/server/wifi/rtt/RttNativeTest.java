@@ -33,8 +33,6 @@ import android.hardware.wifi.V1_0.RttType;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.net.wifi.rtt.RangingRequest;
-import android.net.wifi.rtt.RangingResult;
-import android.net.wifi.rtt.RangingResultCallback;
 
 import com.android.server.wifi.HalDeviceManager;
 import com.android.server.wifi.WifiNative;
@@ -122,10 +120,16 @@ public class RttNativeTest {
         collector.checkThat("entry 0: MAC", rttConfig.peer, equalTo(RttPeerType.AP));
 
         rttConfig = halRequest.get(1);
-        collector.checkThat("entry 0: MAC", rttConfig.addr,
+        collector.checkThat("entry 1: MAC", rttConfig.addr,
                 equalTo(HexEncoding.decode("0A0B0C0D0E00".toCharArray(), false)));
-        collector.checkThat("entry 0: MAC", rttConfig.type, equalTo(RttType.ONE_SIDED));
-        collector.checkThat("entry 0: MAC", rttConfig.peer, equalTo(RttPeerType.AP));
+        collector.checkThat("entry 1: MAC", rttConfig.type, equalTo(RttType.ONE_SIDED));
+        collector.checkThat("entry 1: MAC", rttConfig.peer, equalTo(RttPeerType.AP));
+
+        rttConfig = halRequest.get(2);
+        collector.checkThat("entry 2: MAC", rttConfig.addr,
+                equalTo(HexEncoding.decode("080908070605".toCharArray(), false)));
+        collector.checkThat("entry 2: MAC", rttConfig.type, equalTo(RttType.TWO_SIDED));
+        collector.checkThat("entry 2: MAC", rttConfig.peer, equalTo(RttPeerType.NAN));
     }
 
     /**
@@ -154,16 +158,16 @@ public class RttNativeTest {
         verify(mockRttServiceImpl).onRangingResults(eq(cmdId), mRttResultCaptor.capture());
 
         // verify contents of the framework results
-        List<RangingResult> fwkResults = mRttResultCaptor.getValue();
+        List<RttResult> rttR = mRttResultCaptor.getValue();
 
-        collector.checkThat("number of entries", fwkResults.size(), equalTo(1));
+        collector.checkThat("number of entries", rttR.size(), equalTo(1));
 
-        RangingResult fwkRes = fwkResults.get(0);
-        collector.checkThat("status", fwkRes.getStatus(),
-                equalTo(RangingResultCallback.STATUS_SUCCESS));
-        collector.checkThat("mac", fwkRes.getMacAddress(),
+        RttResult rttResult = rttR.get(0);
+        collector.checkThat("status", rttResult.status,
+                equalTo(RttStatus.SUCCESS));
+        collector.checkThat("mac", rttResult.addr,
                 equalTo(HexEncoding.decode("05060708090A".toCharArray(), false)));
-        collector.checkThat("distanceCm", fwkRes.getDistanceCm(), equalTo(150));
-        collector.checkThat("timestamp", fwkRes.getRangingTimestamp(), equalTo(666L));
+        collector.checkThat("distanceCm", rttResult.distanceInMm, equalTo(1500));
+        collector.checkThat("timestamp", rttResult.timeStampInUs, equalTo(666L));
     }
 }
