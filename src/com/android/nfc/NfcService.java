@@ -70,6 +70,8 @@ import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.provider.Settings;
 import android.service.vr.IVrManager;
 import android.service.vr.IVrStateCallbacks;
@@ -267,6 +269,8 @@ public class NfcService implements DeviceHostListener {
     private HandoverDataParser mHandoverDataParser;
     private ContentResolver mContentResolver;
     private CardEmulationManager mCardEmulationManager;
+    private Vibrator mVibrator;
+    private VibrationEffect mVibrationEffect;
 
     private ScreenStateHelper mScreenStateHelper;
     private ForegroundUtils mForegroundUtils;
@@ -435,6 +439,8 @@ public class NfcService implements DeviceHostListener {
 
         mKeyguard = (KeyguardManager) mContext.getSystemService(Context.KEYGUARD_SERVICE);
         mUserManager = (UserManager) mContext.getSystemService(Context.USER_SERVICE);
+        mVibrator = (Vibrator) mContext.getSystemService(Context.VIBRATOR_SERVICE);
+        mVibrationEffect = VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE);
 
         mScreenState = mScreenStateHelper.checkScreenState();
 
@@ -2288,6 +2294,7 @@ public class NfcService implements DeviceHostListener {
             if (readerParams != null) {
                 try {
                     if ((readerParams.flags & NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS) == 0) {
+                        mVibrator.vibrate(mVibrationEffect);
                         playSound(SOUND_END);
                     }
                     if (readerParams.callback != null) {
@@ -2310,6 +2317,7 @@ public class NfcService implements DeviceHostListener {
                 unregisterObject(tagEndpoint.getHandle());
                 playSound(SOUND_ERROR);
             } else if (dispatchResult == NfcDispatcher.DISPATCH_SUCCESS) {
+                mVibrator.vibrate(mVibrationEffect);
                 playSound(SOUND_END);
             }
         }
