@@ -1984,6 +1984,8 @@ public class NfcService implements DeviceHostListener {
 
                 case MSG_NDEF_TAG:
                     if (DBG) Log.d(TAG, "Tag detected, notifying applications");
+                    mPowerManager.userActivity(SystemClock.uptimeMillis(),
+                            PowerManager.USER_ACTIVITY_EVENT_OTHER, 0);
                     mNumTagsDetected.incrementAndGet();
                     TagEndpoint tag = (TagEndpoint) msg.obj;
                     byte[] debounceTagUid;
@@ -2067,6 +2069,8 @@ public class NfcService implements DeviceHostListener {
                     dispatchTagEndpoint(tag, readerParams);
                     break;
                 case MSG_LLCP_LINK_ACTIVATION:
+                    mPowerManager.userActivity(SystemClock.uptimeMillis(),
+                            PowerManager.USER_ACTIVITY_EVENT_OTHER, 0);
                     if (mIsDebugBuild) {
                         Intent actIntent = new Intent(ACTION_LLCP_UP);
                         mContext.sendBroadcast(actIntent);
