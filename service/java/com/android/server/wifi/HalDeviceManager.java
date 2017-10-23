@@ -396,43 +396,48 @@ public class HalDeviceManager {
     }
 
     /**
-     * Creates a IWifiRttController corresponding to the input interface. A direct match to the
-     * IWifiChip.createRttController() method.
+     * Creates a IWifiRttController. A direct match to the IWifiChip.createRttController() method.
      *
      * Returns the created IWifiRttController or a null on error.
      */
-    public IWifiRttController createRttController(IWifiIface boundIface) {
-        if (DBG) Log.d(TAG, "createRttController: boundIface(name)=" + getName(boundIface));
+    public IWifiRttController createRttController() {
+        if (DBG) Log.d(TAG, "createRttController");
         synchronized (mLock) {
             if (mWifi == null) {
-                Log.e(TAG, "createRttController: null IWifi -- boundIface(name)="
-                        + getName(boundIface));
+                Log.e(TAG, "createRttController: null IWifi");
                 return null;
             }
 
-            IWifiChip chip = getChip(boundIface);
-            if (chip == null) {
-                Log.e(TAG, "createRttController: null IWifiChip -- boundIface(name)="
-                        + getName(boundIface));
+            WifiChipInfo[] chipInfos = getAllChipInfo();
+            if (chipInfos == null) {
+                Log.e(TAG, "createRttController: no chip info found");
+                stopWifi(); // major error: shutting down
                 return null;
             }
 
-            Mutable<IWifiRttController> rttResp = new Mutable<>();
-            try {
-                chip.createRttController(boundIface,
-                        (WifiStatus status, IWifiRttController rtt) -> {
-                            if (status.code == WifiStatusCode.SUCCESS) {
-                                rttResp.value = rtt;
-                            } else {
-                                Log.e(TAG, "IWifiChip.createRttController failed: " + statusString(
-                                        status));
-                            }
-                        });
-            } catch (RemoteException e) {
-                Log.e(TAG, "IWifiChip.createRttController exception: " + e);
+            for (WifiChipInfo chipInfo : chipInfos) {
+                Mutable<IWifiRttController> rttResp = new Mutable<>();
+                try {
+                    chipInfo.chip.createRttController(null,
+                            (WifiStatus status, IWifiRttController rtt) -> {
+                                if (status.code == WifiStatusCode.SUCCESS) {
+                                    rttResp.value = rtt;
+                                } else {
+                                    Log.e(TAG,
+                                            "IWifiChip.createRttController failed: " + statusString(
+                                                    status));
+                                }
+                            });
+                } catch (RemoteException e) {
+                    Log.e(TAG, "IWifiChip.createRttController exception: " + e);
+                }
+                if (rttResp.value != null) {
+                    return rttResp.value;
+                }
             }
 
-            return rttResp.value;
+            Log.e(TAG, "createRttController: not available from any of the chips");
+            return null;
         }
     }
 

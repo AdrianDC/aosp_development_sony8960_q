@@ -175,8 +175,7 @@ public class WifiVendorHalTest {
                 .thenReturn(mIWifiApIface);
         when(mHalDeviceManager.getChip(any(IWifiIface.class)))
                 .thenReturn(mIWifiChip);
-        when(mHalDeviceManager.createRttController(any(IWifiIface.class)))
-                .thenReturn(mIWifiRttController);
+        when(mHalDeviceManager.createRttController()).thenReturn(mIWifiRttController);
         when(mIWifiChip.registerEventCallback(any(IWifiChipEventCallback.class)))
                 .thenReturn(mWifiStatusSuccess);
         mIWifiStaIfaceEventCallback = null;
@@ -221,7 +220,7 @@ public class WifiVendorHalTest {
         verify(mHalDeviceManager).start();
         verify(mHalDeviceManager).createStaIface(eq(null), eq(null));
         verify(mHalDeviceManager).getChip(eq(mIWifiStaIface));
-        verify(mHalDeviceManager).createRttController(eq(mIWifiStaIface));
+        verify(mHalDeviceManager).createRttController();
         verify(mHalDeviceManager).isReady();
         verify(mHalDeviceManager).isStarted();
         verify(mIWifiStaIface).registerEventCallback(any(IWifiStaIfaceEventCallback.class));
@@ -246,7 +245,7 @@ public class WifiVendorHalTest {
         verify(mHalDeviceManager).isStarted();
 
         verify(mHalDeviceManager, never()).createStaIface(eq(null), eq(null));
-        verify(mHalDeviceManager, never()).createRttController(any(IWifiIface.class));
+        verify(mHalDeviceManager, never()).createRttController();
     }
 
     /**
@@ -270,7 +269,7 @@ public class WifiVendorHalTest {
         verify(mHalDeviceManager, never()).createStaIface(eq(null), eq(null));
         verify(mHalDeviceManager, never()).createApIface(eq(null), eq(null));
         verify(mHalDeviceManager, never()).getChip(any(IWifiIface.class));
-        verify(mHalDeviceManager, never()).createRttController(any(IWifiIface.class));
+        verify(mHalDeviceManager, never()).createRttController();
         verify(mIWifiStaIface, never())
                 .registerEventCallback(any(IWifiStaIfaceEventCallback.class));
     }
@@ -291,7 +290,7 @@ public class WifiVendorHalTest {
 
         verify(mHalDeviceManager, never()).createApIface(eq(null), eq(null));
         verify(mHalDeviceManager, never()).getChip(any(IWifiIface.class));
-        verify(mHalDeviceManager, never()).createRttController(any(IWifiIface.class));
+        verify(mHalDeviceManager, never()).createRttController();
         verify(mIWifiStaIface, never())
                 .registerEventCallback(any(IWifiStaIfaceEventCallback.class));
     }
@@ -302,13 +301,13 @@ public class WifiVendorHalTest {
      */
     @Test
     public void testStartHalFailureInRttControllerCreationInStaMode() throws Exception {
-        when(mHalDeviceManager.createRttController(any(IWifiIface.class))).thenReturn(null);
+        when(mHalDeviceManager.createRttController()).thenReturn(null);
         assertFalse(mWifiVendorHal.startVendorHal(true));
         assertFalse(mWifiVendorHal.isHalStarted());
 
         verify(mHalDeviceManager).start();
         verify(mHalDeviceManager).createStaIface(eq(null), eq(null));
-        verify(mHalDeviceManager).createRttController(eq(mIWifiStaIface));
+        verify(mHalDeviceManager).createRttController();
         verify(mHalDeviceManager).stop();
         verify(mIWifiStaIface).registerEventCallback(any(IWifiStaIfaceEventCallback.class));
 
@@ -328,7 +327,7 @@ public class WifiVendorHalTest {
 
         verify(mHalDeviceManager).start();
         verify(mHalDeviceManager).createStaIface(eq(null), eq(null));
-        verify(mHalDeviceManager).createRttController(eq(mIWifiStaIface));
+        verify(mHalDeviceManager).createRttController();
         verify(mHalDeviceManager).getChip(any(IWifiIface.class));
         verify(mHalDeviceManager).stop();
         verify(mIWifiStaIface).registerEventCallback(any(IWifiStaIfaceEventCallback.class));
@@ -352,7 +351,7 @@ public class WifiVendorHalTest {
         verify(mHalDeviceManager).stop();
         verify(mIWifiStaIface).registerEventCallback(any(IWifiStaIfaceEventCallback.class));
 
-        verify(mHalDeviceManager, never()).createRttController(eq(mIWifiStaIface));
+        verify(mHalDeviceManager, never()).createRttController();
         verify(mHalDeviceManager, never()).getChip(any(IWifiIface.class));
         verify(mHalDeviceManager, never()).createApIface(eq(null), eq(null));
     }
@@ -370,7 +369,7 @@ public class WifiVendorHalTest {
 
         verify(mHalDeviceManager).start();
         verify(mHalDeviceManager).createStaIface(eq(null), eq(null));
-        verify(mHalDeviceManager).createRttController(eq(mIWifiStaIface));
+        verify(mHalDeviceManager).createRttController();
         verify(mHalDeviceManager).getChip(any(IWifiIface.class));
         verify(mHalDeviceManager).stop();
         verify(mIWifiStaIface).registerEventCallback(any(IWifiStaIfaceEventCallback.class));
@@ -395,7 +394,7 @@ public class WifiVendorHalTest {
 
         verify(mHalDeviceManager, never()).createStaIface(eq(null), eq(null));
         verify(mHalDeviceManager, never()).getChip(any(IWifiIface.class));
-        verify(mHalDeviceManager, never()).createRttController(any(IWifiIface.class));
+        verify(mHalDeviceManager, never()).createRttController();
     }
 
     /**
@@ -414,7 +413,7 @@ public class WifiVendorHalTest {
         verify(mHalDeviceManager).stop();
         verify(mHalDeviceManager).createStaIface(eq(null), eq(null));
         verify(mHalDeviceManager).getChip(eq(mIWifiStaIface));
-        verify(mHalDeviceManager).createRttController(eq(mIWifiStaIface));
+        verify(mHalDeviceManager).createRttController();
         verify(mHalDeviceManager, times(2)).isReady();
         verify(mHalDeviceManager, times(2)).isStarted();
 
@@ -441,7 +440,7 @@ public class WifiVendorHalTest {
         verify(mHalDeviceManager, times(2)).isStarted();
 
         verify(mHalDeviceManager, never()).createStaIface(eq(null), eq(null));
-        verify(mHalDeviceManager, never()).createRttController(any(IWifiIface.class));
+        verify(mHalDeviceManager, never()).createRttController();
     }
 
     /**

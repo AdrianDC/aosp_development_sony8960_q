@@ -312,7 +312,7 @@ public class WifiVendorHal {
                 if (!registerStaIfaceCallback()) {
                     return startFailedTo("register sta iface callback");
                 }
-                mIWifiRttController = mHalDeviceManager.createRttController(iface);
+                mIWifiRttController = mHalDeviceManager.createRttController();
                 if (mIWifiRttController == null) {
                     return startFailedTo("create RTT controller");
                 }
