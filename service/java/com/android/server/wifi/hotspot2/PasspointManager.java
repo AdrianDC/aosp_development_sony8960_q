@@ -325,6 +325,44 @@ public class PasspointManager {
      * @return A pair of {@link PasspointProvider} and match status.
      */
     public Pair<PasspointProvider, PasspointMatch> matchProvider(ScanResult scanResult) {
+        List<Pair<PasspointProvider, PasspointMatch>> allMatches = getAllMatchedProviders(
+                scanResult);
+        if (allMatches == null) {
+            return null;
+        }
+
+        Pair<PasspointProvider, PasspointMatch> bestMatch = null;
+        for (Pair<PasspointProvider, PasspointMatch> match : allMatches) {
+            if (match.second == PasspointMatch.HomeProvider) {
+                bestMatch = match;
+                break;
+            }
+            if (match.second == PasspointMatch.RoamingProvider && bestMatch == null) {
+                bestMatch = match;
+            }
+        }
+
+        if (bestMatch != null) {
+            Log.d(TAG, String.format("Matched %s to %s as %s", scanResult.SSID,
+                    bestMatch.first.getConfig().getHomeSp().getFqdn(),
+                    bestMatch.second == PasspointMatch.HomeProvider ? "Home Provider"
+                            : "Roaming Provider"));
+        } else {
+            Log.d(TAG, "Match not found for " + scanResult.SSID);
+        }
+        return bestMatch;
+    }
+
+    /**
+     * Return a list of all providers that can provide service through the given AP.
+     *
+     * @param scanResult The scan result associated with the AP
+     * @return a list of pairs of {@link PasspointProvider} and match status.
+     */
+    public List<Pair<PasspointProvider, PasspointMatch>> getAllMatchedProviders(
+            ScanResult scanResult) {
+        List<Pair<PasspointProvider, PasspointMatch>> allMatches = new ArrayList<>();
+
         // Retrieve the relevant information elements, mainly Roaming Consortium IE and Hotspot 2.0
         // Vendor Specific IE.
         InformationElementUtil.RoamingConsortium roamingConsortium =
@@ -338,7 +376,7 @@ public class PasspointManager {
             bssid = Utils.parseMac(scanResult.BSSID);
         } catch (IllegalArgumentException e) {
             Log.e(TAG, "Invalid BSSID provided in the scan result: " + scanResult.BSSID);
-            return null;
+            return allMatches;
         }
         ANQPNetworkKey anqpKey = ANQPNetworkKey.buildKey(scanResult.SSID, bssid, scanResult.hessid,
                 vsa.anqpDomainID);
@@ -349,30 +387,30 @@ public class PasspointManager {
                     roamingConsortium.anqpOICount > 0,
                     vsa.hsRelease  == NetworkDetail.HSRelease.R2);
             Log.d(TAG, "ANQP entry not found for: " + anqpKey);
-            return null;
+            return allMatches;
         }
 
-        Pair<PasspointProvider, PasspointMatch> bestMatch = null;
         for (Map.Entry<String, PasspointProvider> entry : mProviders.entrySet()) {
             PasspointProvider provider = entry.getValue();
             PasspointMatch matchStatus = provider.match(anqpEntry.getElements());
-            if (matchStatus == PasspointMatch.HomeProvider) {
-                bestMatch = Pair.create(provider, matchStatus);
-                break;
-            }
-            if (matchStatus == PasspointMatch.RoamingProvider && bestMatch == null) {
-                bestMatch = Pair.create(provider, matchStatus);
+            if (matchStatus == PasspointMatch.HomeProvider
+                    || matchStatus == PasspointMatch.RoamingProvider) {
+                allMatches.add(Pair.create(provider, matchStatus));
             }
         }
-        if (bestMatch != null) {
-            Log.d(TAG, String.format("Matched %s to %s as %s", scanResult.SSID,
-                    bestMatch.first.getConfig().getHomeSp().getFqdn(),
-                    bestMatch.second == PasspointMatch.HomeProvider ? "Home Provider"
-                            : "Roaming Provider"));
+
+        if (allMatches.size() != 0) {
+            for (Pair<PasspointProvider, PasspointMatch> match : allMatches) {
+                Log.d(TAG, String.format("Matched %s to %s as %s", scanResult.SSID,
+                        match.first.getConfig().getHomeSp().getFqdn(),
+                        match.second == PasspointMatch.HomeProvider ? "Home Provider"
+                                : "Roaming Provider"));
+            }
         } else {
-            Log.d(TAG, "Match not found for " + scanResult.SSID);
+            Log.d(TAG, "No matches not found for " + scanResult.SSID);
         }
-        return bestMatch;
+
+        return allMatches;
     }
 
     /**
@@ -494,6 +532,38 @@ public class PasspointManager {
             config.isHomeProviderNetwork = true;
         }
         return config;
+    }
+
+    /**
+     * Match the given WiFi AP to all installed Passpoint configurations. Return the list of all
+     * matching configurations (or an empty list if none).
+     *
+     * @param scanResult The scan result of the given AP
+     * @return List of {@link WifiConfiguration}
+     */
+    public List<WifiConfiguration> getAllMatchingWifiConfigs(ScanResult scanResult) {
+        if (scanResult == null) {
+            Log.e(TAG, "Attempt to get matching config for a null ScanResult");
+            return new ArrayList<WifiConfiguration>();
+        }
+        if (!scanResult.isPasspointNetwork()) {
+            Log.e(TAG, "Attempt to get matching config for a non-Passpoint AP");
+            return new ArrayList<WifiConfiguration>();
+        }
+
+        List<Pair<PasspointProvider, PasspointMatch>> matchedProviders = getAllMatchedProviders(
+                scanResult);
+        List<WifiConfiguration> configs = new ArrayList<>();
+        for (Pair<PasspointProvider, PasspointMatch> matchedProvider : matchedProviders) {
+            WifiConfiguration config = matchedProvider.first.getWifiConfig();
+            config.SSID = ScanResultUtil.createQuotedSSID(scanResult.SSID);
+            if (matchedProvider.second == PasspointMatch.HomeProvider) {
+                config.isHomeProviderNetwork = true;
+            }
+            configs.add(config);
+        }
+
+        return configs;
     }
 
     /**
