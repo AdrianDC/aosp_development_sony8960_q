@@ -857,32 +857,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     }
 
     /**
-     * see {@link android.net.wifi.WifiManager#setWifiApEnabled(WifiConfiguration, boolean)}
-     * @param wifiConfig SSID, security and channel details as
-     *        part of WifiConfiguration
-     * @param enabled true to enable and false to disable
-     */
-    @Override
-    public void setWifiApEnabled(WifiConfiguration wifiConfig, boolean enabled) {
-        enforceChangePermission();
-        mWifiPermissionsUtil.enforceTetherChangePermission(mContext);
-
-        mLog.info("setWifiApEnabled uid=% enable=%").c(Binder.getCallingUid()).c(enabled).flush();
-
-        if (mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_TETHERING)) {
-            throw new SecurityException("DISALLOW_CONFIG_TETHERING is enabled for this user.");
-        }
-        // null wifiConfig is a meaningful input for CMD_SET_AP
-        if (wifiConfig == null || isValid(wifiConfig)) {
-            int mode = WifiManager.IFACE_IP_MODE_UNSPECIFIED;
-            SoftApModeConfiguration softApConfig = new SoftApModeConfiguration(mode, wifiConfig);
-            mWifiController.sendMessage(CMD_SET_AP, enabled ? 1 : 0, 0, softApConfig);
-        } else {
-            Slog.e(TAG, "Invalid WifiConfiguration");
-        }
-    }
-
-    /**
      * see {@link WifiManager#getWifiApState()}
      * @return One of {@link WifiManager#WIFI_AP_STATE_DISABLED},
      *         {@link WifiManager#WIFI_AP_STATE_DISABLING},
