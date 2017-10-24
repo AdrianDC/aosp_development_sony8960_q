@@ -701,6 +701,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     /* Enable/Disable AutoJoin when associated */
     static final int CMD_ENABLE_AUTOJOIN_WHEN_ASSOCIATED                = BASE + 167;
 
+    /* Get all matching Passpoint configurations */
+    static final int CMD_GET_ALL_MATCHING_CONFIGS                       = BASE + 168;
+
     /**
      * Used to handle messages bounced between WifiStateMachine and IpManager.
      */
@@ -1935,6 +1938,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         WifiConfiguration config = (WifiConfiguration) resultMsg.obj;
         resultMsg.recycle();
         return config;
+    }
+
+    List<WifiConfiguration> getAllMatchingWifiConfigs(ScanResult scanResult,
+            AsyncChannel channel) {
+        Message resultMsg = channel.sendMessageSynchronously(CMD_GET_ALL_MATCHING_CONFIGS,
+                scanResult);
+        List<WifiConfiguration> configs = (List<WifiConfiguration>) resultMsg.obj;
+        resultMsg.recycle();
+        return configs;
     }
 
     /**
@@ -4130,6 +4142,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mWifiDiagnostics.reportConnectionEvent(
                             (Long) message.obj, BaseWifiDiagnostics.CONNECTION_EVENT_FAILED);
                     break;
+                case CMD_GET_ALL_MATCHING_CONFIGS:
+                    replyToMessage(message, message.what, new ArrayList<WifiConfiguration>());
+                    break;
                 case 0:
                     // We want to notice any empty messages (with what == 0) that might crop up.
                     // For example, we may have recycled a message sent to multiple handlers.
@@ -5492,6 +5507,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_ENABLE_P2P:
                     p2pSendMessage(WifiStateMachine.CMD_ENABLE_P2P);
+                    break;
+                case CMD_GET_ALL_MATCHING_CONFIGS:
+                    replyToMessage(message, message.what,
+                            mPasspointManager.getAllMatchingWifiConfigs((ScanResult) message.obj));
                     break;
                 default:
                     return NOT_HANDLED;
