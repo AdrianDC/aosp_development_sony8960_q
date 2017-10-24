@@ -46,7 +46,7 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
     public HalWifiScannerImpl(Context context, WifiNative wifiNative, WifiMonitor wifiMonitor,
                               Looper looper, Clock clock) {
         mWifiNative = wifiNative;
-        mChannelHelper = new HalChannelHelper(wifiNative);
+        mChannelHelper = new WificondChannelHelper(wifiNative);
         mWificondScannerDelegate =
                 new WificondScannerImpl(context, wifiNative, wifiMonitor, mChannelHelper,
                         looper, clock);

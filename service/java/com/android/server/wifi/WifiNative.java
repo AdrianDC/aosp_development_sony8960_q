@@ -1139,20 +1139,15 @@ public class WifiNative {
      * The result depends on the on the country code that has been set.
      *
      * @param band as specified by one of the WifiScanner.WIFI_BAND_* constants.
+     * The following bands are supported:
+     * WifiScanner.WIFI_BAND_24_GHZ
+     * WifiScanner.WIFI_BAND_5_GHZ
+     * WifiScanner.WIFI_BAND_5_GHZ_DFS_ONLY
      * @return frequencies vector of valid frequencies (MHz), or null for error.
      * @throws IllegalArgumentException if band is not recognized.
      */
     public int [] getChannelsForBand(int band) {
-        return mWifiVendorHal.getChannelsForBand(band);
-    }
-
-    /**
-     * Indicates whether getChannelsForBand is supported.
-     *
-     * @return true if it is.
-     */
-    public boolean isGetChannelsForBandSupported() {
-        return mWifiVendorHal.isGetChannelsForBandSupported();
+        return mWificondControl.getChannelsForBand(band);
     }
 
     /**

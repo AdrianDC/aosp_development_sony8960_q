@@ -271,7 +271,6 @@ public class SoftApManagerTest {
         when(mApInterface.startHostapd()).thenReturn(true);
         when(mApInterface.stopHostapd()).thenReturn(true);
         when(mWifiNative.isHalStarted()).thenReturn(true);
-        when(mWifiNative.isGetChannelsForBandSupported()).thenReturn(true);
 
         SoftApManager newSoftApManager = new SoftApManager(mContext,
                                                            mLooper.getLooper(),
