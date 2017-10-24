@@ -22,6 +22,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.hardware.wifi.V1_0.IWifiRttController;
@@ -35,8 +36,6 @@ import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.net.wifi.rtt.RangingRequest;
 
 import com.android.server.wifi.HalDeviceManager;
-import com.android.server.wifi.WifiNative;
-import com.android.server.wifi.WifiVendorHal;
 
 import libcore.util.HexEncoding;
 
@@ -59,6 +58,8 @@ public class RttNativeTest {
 
     private ArgumentCaptor<ArrayList> mRttConfigCaptor = ArgumentCaptor.forClass(ArrayList.class);
     private ArgumentCaptor<List> mRttResultCaptor = ArgumentCaptor.forClass(List.class);
+    private ArgumentCaptor<HalDeviceManager.ManagerStatusListener> mHdmStatusListener =
+            ArgumentCaptor.forClass(HalDeviceManager.ManagerStatusListener.class);
 
     @Rule
     public ErrorCollector collector = new ErrorCollector();
@@ -70,20 +71,14 @@ public class RttNativeTest {
     public HalDeviceManager mockHalDeviceManager;
 
     @Mock
-    public WifiNative mockWifiNative;
-
-    @Mock
-    public WifiVendorHal mockWifiVendorHal;
-
-    @Mock
     public IWifiRttController mockRttController;
 
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
 
-        when(mockWifiNative.getVendorHal()).thenReturn(mockWifiVendorHal);
-        when(mockWifiVendorHal.getRttController()).thenReturn(mockRttController);
+        when(mockHalDeviceManager.isStarted()).thenReturn(true);
+        when(mockHalDeviceManager.createRttController()).thenReturn(mockRttController);
 
         WifiStatus status = new WifiStatus();
         status.code = WifiStatusCode.SUCCESS;
@@ -91,7 +86,10 @@ public class RttNativeTest {
         when(mockRttController.rangeRequest(anyInt(), any(ArrayList.class))).thenReturn(status);
         when(mockRttController.rangeCancel(anyInt(), any(ArrayList.class))).thenReturn(status);
 
-        mDut = new RttNative(mockRttServiceImpl, mockHalDeviceManager, mockWifiNative);
+        mDut = new RttNative(mockRttServiceImpl, mockHalDeviceManager);
+        mDut.start();
+        verify(mockHalDeviceManager).registerStatusListener(mHdmStatusListener.capture(), any());
+        verify(mockRttController).registerEventCallback(any());
     }
 
     /**
@@ -131,6 +129,26 @@ public class RttNativeTest {
                 equalTo(HexEncoding.decode("080908070605".toCharArray(), false)));
         collector.checkThat("entry 2: MAC", rttConfig.type, equalTo(RttType.TWO_SIDED));
         collector.checkThat("entry 2: MAC", rttConfig.peer, equalTo(RttPeerType.NAN));
+
+        verifyNoMoreInteractions(mockRttController);
+    }
+
+    /**
+     * Validate no range request when Wi-Fi is down
+     */
+    @Test
+    public void testWifiDown() throws Exception {
+        int cmdId = 55;
+        RangingRequest request = RttTestUtils.getDummyRangingRequest((byte) 0);
+
+        // (1) configure Wi-Fi down and send a status change indication
+        when(mockHalDeviceManager.isStarted()).thenReturn(false);
+        mHdmStatusListener.getValue().onStatusChanged();
+
+        // (2) issue range request
+        mDut.rangeRequest(cmdId, request);
+
+        verifyNoMoreInteractions(mockRttController);
     }
 
     /**
@@ -150,6 +168,8 @@ public class RttNativeTest {
 
         // (2) verify HAL call and parameters
         verify(mockRttController).rangeCancel(cmdId, macAddresses);
+
+        verifyNoMoreInteractions(mockRttController);
     }
 
     /**
@@ -189,5 +209,7 @@ public class RttNativeTest {
                 equalTo(HexEncoding.decode("05060708090A".toCharArray(), false)));
         collector.checkThat("distanceCm", rttResult.distanceInMm, equalTo(1500));
         collector.checkThat("timestamp", rttResult.timeStampInUs, equalTo(666L));
+
+        verifyNoMoreInteractions(mockRttController);
     }
 }
