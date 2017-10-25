@@ -238,11 +238,6 @@ public class WifiVendorHal {
         clearState();
     }
 
-    // TODO: b/65014872 remove - have RttService (RTT2) interact directly with HalDeviceManager
-    public IWifiRttController getRttController() {
-        return mIWifiRttController;
-    }
-
     private WifiNative.VendorHalDeathEventHandler mDeathEventHandler;
 
     /**
@@ -312,7 +307,7 @@ public class WifiVendorHal {
                 if (!registerStaIfaceCallback()) {
                     return startFailedTo("register sta iface callback");
                 }
-                mIWifiRttController = mHalDeviceManager.createRttController(iface);
+                mIWifiRttController = mHalDeviceManager.createRttController();
                 if (mIWifiRttController == null) {
                     return startFailedTo("create RTT controller");
                 }

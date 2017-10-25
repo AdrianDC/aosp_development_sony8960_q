@@ -34,8 +34,6 @@ import android.os.RemoteException;
 import android.util.Log;
 
 import com.android.server.wifi.HalDeviceManager;
-import com.android.server.wifi.WifiNative;
-import com.android.server.wifi.WifiVendorHal;
 import com.android.server.wifi.util.NativeUtil;
 
 import java.io.FileDescriptor;
@@ -52,15 +50,55 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
 
     private final RttServiceImpl mRttService;
     private final HalDeviceManager mHalDeviceManager;
-    private final WifiVendorHal mWifiVendorHal;
 
-    private boolean mIsInitialized = false;
+    private Object mLock = new Object();
 
-    public RttNative(RttServiceImpl rttService, HalDeviceManager halDeviceManager,
-            WifiNative wifiNative) {
+    private IWifiRttController mIWifiRttController;
+
+    public RttNative(RttServiceImpl rttService, HalDeviceManager halDeviceManager) {
         mRttService = rttService;
         mHalDeviceManager = halDeviceManager;
-        mWifiVendorHal = wifiNative.getVendorHal();
+    }
+
+    /**
+     * Initialize the object - registering with the HAL device manager.
+     */
+    public void start() {
+        synchronized (mLock) {
+            mHalDeviceManager.initialize();
+            mHalDeviceManager.registerStatusListener(() -> {
+                if (VDBG) Log.d(TAG, "hdm.onStatusChanged");
+                updateController();
+            }, null);
+            updateController();
+        }
+    }
+
+    private void updateController() {
+        if (VDBG) Log.v(TAG, "updateController: mIWifiRttController=" + mIWifiRttController);
+
+        // only care about isStarted (Wi-Fi started) not isReady - since if not
+        // ready then Wi-Fi will also be down.
+        synchronized (mLock) {
+            if (mHalDeviceManager.isStarted()) {
+                if (mIWifiRttController == null) {
+                    mIWifiRttController = mHalDeviceManager.createRttController();
+                    if (mIWifiRttController == null) {
+                        Log.e(TAG, "updateController: Failed creating RTT controller - but Wifi is "
+                                + "started!");
+                    } else {
+                        try {
+                            mIWifiRttController.registerEventCallback(this);
+                        } catch (RemoteException e) {
+                            Log.e(TAG, "updateController: exception registering callback: " + e);
+                            mIWifiRttController = null;
+                        }
+                    }
+                }
+            } else {
+                mIWifiRttController = null;
+            }
+        }
     }
 
     /**
@@ -73,45 +111,31 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
      */
     public boolean rangeRequest(int cmdId, RangingRequest request) {
         if (VDBG) Log.v(TAG, "rangeRequest: cmdId=" + cmdId + ", request=" + request);
-        // TODO: b/65014872 replace by direct access to HalDeviceManager
-        IWifiRttController rttController = mWifiVendorHal.getRttController();
-        if (rttController == null) {
-            Log.e(TAG, "rangeRequest: RttController is null");
-            return false;
-        }
-        if (!mIsInitialized) {
+        synchronized (mLock) {
+            if (mIWifiRttController == null) {
+                Log.e(TAG, "rangeRequest: RttController is null");
+                return false;
+            }
+
+            ArrayList<RttConfig> rttConfig = convertRangingRequestToRttConfigs(request);
+            if (rttConfig == null) {
+                Log.e(TAG, "rangeRequest: invalid request parameters");
+                return false;
+            }
+
             try {
-                WifiStatus status = rttController.registerEventCallback(this);
+                WifiStatus status = mIWifiRttController.rangeRequest(cmdId, rttConfig);
                 if (status.code != WifiStatusCode.SUCCESS) {
-                    Log.e(TAG,
-                            "rangeRequest: cannot register event callback -- code=" + status.code);
+                    Log.e(TAG, "rangeRequest: cannot issue range request -- code=" + status.code);
                     return false;
                 }
             } catch (RemoteException e) {
-                Log.e(TAG, "rangeRequest: exception registering callback: " + e);
+                Log.e(TAG, "rangeRequest: exception issuing range request: " + e);
                 return false;
             }
-            mIsInitialized = true;
-        }
 
-        ArrayList<RttConfig> rttConfig = convertRangingRequestToRttConfigs(request);
-        if (rttConfig == null) {
-            Log.e(TAG, "rangeRequest: invalid request parameters");
-            return false;
+            return true;
         }
-
-        try {
-            WifiStatus status = rttController.rangeRequest(cmdId, rttConfig);
-            if (status.code != WifiStatusCode.SUCCESS) {
-                Log.e(TAG, "rangeRequest: cannot issue range request -- code=" + status.code);
-                return false;
-            }
-        } catch (RemoteException e) {
-            Log.e(TAG, "rangeRequest: exception issuing range request: " + e);
-            return false;
-        }
-
-        return true;
     }
 
     /**
@@ -124,39 +148,25 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
      */
     public boolean rangeCancel(int cmdId, ArrayList<byte[]> macAddresses) {
         if (VDBG) Log.v(TAG, "rangeCancel: cmdId=" + cmdId);
-        // TODO: b/65014872 replace by direct access to HalDeviceManager
-        IWifiRttController rttController = mWifiVendorHal.getRttController();
-        if (rttController == null) {
-            Log.e(TAG, "rangeCancel: RttController is null");
-            return false;
-        }
-        if (!mIsInitialized) {
+        synchronized (mLock) {
+            if (mIWifiRttController == null) {
+                Log.e(TAG, "rangeCancel: RttController is null");
+                return false;
+            }
+
             try {
-                WifiStatus status = rttController.registerEventCallback(this);
+                WifiStatus status = mIWifiRttController.rangeCancel(cmdId, macAddresses);
                 if (status.code != WifiStatusCode.SUCCESS) {
-                    Log.e(TAG,
-                            "rangeCancel: cannot register event callback -- code=" + status.code);
+                    Log.e(TAG, "rangeCancel: cannot issue range cancel -- code=" + status.code);
                     return false;
                 }
             } catch (RemoteException e) {
-                Log.e(TAG, "rangeCancel: exception registering callback: " + e);
+                Log.e(TAG, "rangeCancel: exception issuing range cancel: " + e);
                 return false;
             }
-            mIsInitialized = true;
-        }
 
-        try {
-            WifiStatus status = rttController.rangeCancel(cmdId, macAddresses);
-            if (status.code != WifiStatusCode.SUCCESS) {
-                Log.e(TAG, "rangeCancel: cannot issue range cancel -- code=" + status.code);
-                return false;
-            }
-        } catch (RemoteException e) {
-            Log.e(TAG, "rangeCancel: exception issuing range cancel: " + e);
-            return false;
+            return true;
         }
-
-        return true;
     }
 
     /**
@@ -304,6 +314,7 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
      */
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         pw.println("RttNative:");
-        pw.println("  mIsInitialized: " + mIsInitialized);
+        pw.println("  mHalDeviceManager: " + mHalDeviceManager);
+        pw.println("  mIWifiRttController: " + mIWifiRttController);
     }
 }
