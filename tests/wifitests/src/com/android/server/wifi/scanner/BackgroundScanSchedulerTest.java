@@ -650,113 +650,6 @@ public class BackgroundScanSchedulerTest {
         assertChannels(combinedBucketChannelSet, expectedBucketChannelSet);
     }
 
-    /**
-     * Add 2 background scan requests with different time intervals, but one of the setting channels
-     * is totally contained in the other setting. Ensure that the requests are collapsed into a
-     * common bucket with the lower time period setting.
-     * This is done with NoBandChannelHelper.
-     */
-    @Test
-    public void optimalScheduleFullyCollapsesDuplicateChannelsInBandWithNoBandChannelHelper() {
-        BackgroundScanScheduler scheduler = createSchedulerWithNoBandChannelHelper();
-
-        ArrayList<ScanSettings> requests = new ArrayList<>();
-        requests.add(createRequest(channelsToSpec(2400, 2450), 160000, 0, 20,
-                WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN));
-        requests.add(createRequest(WifiScanner.WIFI_BAND_BOTH_WITH_DFS, 10000, 0, 20,
-                WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN));
-
-        scheduler.setMaxBuckets(2);
-        scheduler.setMaxChannelsPerBucket(2);
-        scheduler.updateSchedule(requests);
-        WifiNative.ScanSettings schedule = scheduler.getSchedule();
-
-        assertEquals("base_period_ms", 10000, schedule.base_period_ms);
-        assertBuckets(schedule, 1);
-
-        assertEquals("scheduled bucket", 0, scheduler.getScheduledBucket(requests.get(0)));
-        assertEquals("scheduled bucket", 0, scheduler.getScheduledBucket(requests.get(1)));
-
-        assertEquals("band", schedule.buckets[0].band, WifiScanner.WIFI_BAND_BOTH_WITH_DFS);
-    }
-
-    /**
-     * Add 2 background scan requests with different time intervals, but one of the setting channels
-     * is partially contained in the other setting. Ensure that the requests are partially split
-     * across the lower time period bucket.
-     */
-    @Test
-    public void optimalSchedulePartiallyCollapsesDuplicateChannelsWithNoBandChannelHelper() {
-        BackgroundScanScheduler scheduler = createSchedulerWithNoBandChannelHelper();
-
-        ArrayList<ScanSettings> requests = new ArrayList<>();
-        requests.add(createRequest(channelsToSpec(2400, 2450), 10000, 0, 20,
-                WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN));
-        requests.add(createRequest(channelsToSpec(2400, 2450, 5175), 240000, 0, 20,
-                WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN));
-
-        scheduler.setMaxBuckets(2);
-        scheduler.setMaxChannelsPerBucket(3);
-        scheduler.updateSchedule(requests);
-        WifiNative.ScanSettings schedule = scheduler.getSchedule();
-
-        assertEquals("base_period_ms", 10000, schedule.base_period_ms);
-        assertBuckets(schedule, 2);
-
-        assertEquals("scheduled bucket", 0, scheduler.getScheduledBucket(requests.get(0)));
-        assertEquals("scheduled bucket", 1, scheduler.getScheduledBucket(requests.get(1)));
-
-        Set<Integer> expectedBucketChannelSet = new ArraySet<>();
-        expectedBucketChannelSet.add(2400);
-        expectedBucketChannelSet.add(2450);
-        assertBucketChannels(schedule.buckets[0], expectedBucketChannelSet);
-
-        expectedBucketChannelSet.clear();
-        expectedBucketChannelSet.add(5175);
-        assertBucketChannels(schedule.buckets[1], expectedBucketChannelSet);
-    }
-
-    /**
-     * Add 2 background scan requests with the second scan request having channels more than the
-     * max, ensure that the last bucket is split.
-     */
-    @Test
-    public void optimalScheduleShouldSplitBucketsWithNoBandChannelHelper() {
-        BackgroundScanScheduler scheduler = createSchedulerWithNoBandChannelHelper();
-
-        ArrayList<ScanSettings> requests = new ArrayList<>();
-        requests.add(createRequest(channelsToSpec(2400, 2450), 10000, 0, 20,
-                WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN));
-        requests.add(createRequest(channelsToSpec(5150, 5175, 5600, 5650), 240000, 0, 20,
-                WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN));
-
-        scheduler.setMaxBuckets(3);
-        scheduler.setMaxChannelsPerBucket(2);
-        scheduler.updateSchedule(requests);
-        WifiNative.ScanSettings schedule = scheduler.getSchedule();
-
-        assertEquals("base_period_ms", 10000, schedule.base_period_ms);
-        assertBuckets(schedule, 3);
-
-        assertEquals("scheduled bucket", 0, scheduler.getScheduledBucket(requests.get(0)));
-        assertEquals("scheduled bucket", 1, scheduler.getScheduledBucket(requests.get(1)));
-
-        Set<Integer> expectedBucketChannelSet = new ArraySet<>();
-        expectedBucketChannelSet.add(2400);
-        expectedBucketChannelSet.add(2450);
-        assertBucketChannels(schedule.buckets[0], expectedBucketChannelSet);
-
-        expectedBucketChannelSet.clear();
-        expectedBucketChannelSet.add(5150);
-        expectedBucketChannelSet.add(5175);
-        assertBucketChannels(schedule.buckets[1], expectedBucketChannelSet);
-
-        expectedBucketChannelSet.clear();
-        expectedBucketChannelSet.add(5600);
-        expectedBucketChannelSet.add(5650);
-        assertBucketChannels(schedule.buckets[2], expectedBucketChannelSet);
-    }
-
     protected Set<Integer> getAllChannels(BucketSettings bucket) {
         KnownBandsChannelCollection collection = mChannelHelper.createChannelCollection();
         collection.addChannels(bucket);
@@ -928,16 +821,6 @@ public class BackgroundScanSchedulerTest {
     private void assertChannels(Set<Integer> channelSet, Set<Integer> expectedChannelSet) {
         assertTrue("expected that " + channelSet + " contained "
                 + expectedChannelSet, channelSet.containsAll(expectedChannelSet));
-    }
-
-    private BackgroundScanScheduler createSchedulerWithNoBandChannelHelper() {
-        NoBandChannelHelper channelHelper = new NoBandChannelHelper();
-        BackgroundScanScheduler scheduler = new BackgroundScanScheduler(channelHelper);
-        scheduler.setMaxBuckets(DEFAULT_MAX_BUCKETS);
-        scheduler.setMaxChannelsPerBucket(DEFAULT_MAX_CHANNELS_PER_BUCKET);
-        scheduler.setMaxBatch(DEFAULT_MAX_BATCH);
-        scheduler.setMaxApPerScan(DEFAULT_MAX_AP_PER_SCAN);
-        return scheduler;
     }
 
     private static int[] getPredefinedBuckets() {

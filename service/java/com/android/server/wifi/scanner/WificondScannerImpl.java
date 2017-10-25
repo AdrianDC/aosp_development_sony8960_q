@@ -128,12 +128,6 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
                 WifiMonitor.SCAN_RESULTS_EVENT, mEventHandler);
     }
 
-    public WificondScannerImpl(Context context, WifiNative wifiNative,
-                                     WifiMonitor wifiMonitor, Looper looper, Clock clock) {
-        // TODO get channel information from wificond.
-        this(context, wifiNative, wifiMonitor, new NoBandChannelHelper(), looper, clock);
-    }
-
     @Override
     public void cleanup() {
         synchronized (mSettingsLock) {

@@ -17,6 +17,7 @@
 package com.android.server.wifi.scanner;
 
 import static com.android.server.wifi.ScanTestUtil.NativeScanSettingsBuilder;
+import static com.android.server.wifi.ScanTestUtil.setupMockChannels;
 
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
@@ -44,8 +45,12 @@ public class WificondScannerTest extends BaseWifiScannerImplTest {
 
     @Before
     public void setup() throws Exception {
+        setupMockChannels(mWifiNative,
+                new int[]{2400, 2450},
+                new int[]{5150, 5175},
+                new int[]{5600, 5650});
         mScanner = new WificondScannerImpl(mContext, mWifiNative, mWifiMonitor,
-                mLooper.getLooper(), mClock);
+                new WificondChannelHelper(mWifiNative), mLooper.getLooper(), mClock);
     }
 
     /**
