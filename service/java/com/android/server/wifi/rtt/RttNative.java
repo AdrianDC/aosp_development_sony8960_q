@@ -74,6 +74,15 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
         }
     }
 
+    /**
+     * Returns true if Wi-Fi is ready for RTT requests, false otherwise.
+     */
+    public boolean isReady() {
+        synchronized (mLock) {
+            return mIWifiRttController != null;
+        }
+    }
+
     private void updateController() {
         if (VDBG) Log.v(TAG, "updateController: mIWifiRttController=" + mIWifiRttController);
 
@@ -98,6 +107,12 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
             } else {
                 mIWifiRttController = null;
             }
+
+            if (mIWifiRttController == null) {
+                mRttService.disable();
+            } else {
+                mRttService.enable();
+            }
         }
     }
 
@@ -112,7 +127,7 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
     public boolean rangeRequest(int cmdId, RangingRequest request) {
         if (VDBG) Log.v(TAG, "rangeRequest: cmdId=" + cmdId + ", request=" + request);
         synchronized (mLock) {
-            if (mIWifiRttController == null) {
+            if (!isReady()) {
                 Log.e(TAG, "rangeRequest: RttController is null");
                 return false;
             }
@@ -149,7 +164,7 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
     public boolean rangeCancel(int cmdId, ArrayList<byte[]> macAddresses) {
         if (VDBG) Log.v(TAG, "rangeCancel: cmdId=" + cmdId);
         synchronized (mLock) {
-            if (mIWifiRttController == null) {
+            if (!isReady()) {
                 Log.e(TAG, "rangeCancel: RttController is null");
                 return false;
             }

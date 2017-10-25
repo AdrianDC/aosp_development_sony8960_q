@@ -17,6 +17,7 @@
 package com.android.server.wifi.rtt;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.hardware.wifi.V1_0.RttResult;
 import android.hardware.wifi.V1_0.RttStatus;
@@ -29,12 +30,14 @@ import android.net.wifi.rtt.IWifiRttManager;
 import android.net.wifi.rtt.RangingRequest;
 import android.net.wifi.rtt.RangingResult;
 import android.net.wifi.rtt.RangingResultCallback;
+import android.net.wifi.rtt.WifiRttManager;
 import android.os.Binder;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.RemoteException;
 import android.os.SystemClock;
+import android.os.UserHandle;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
@@ -63,6 +66,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
 
     private final Context mContext;
     private IWifiAwareManager mAwareBinder;
+    private RttNative mRttNative;
     private WifiPermissionsUtil mWifiPermissionsUtil;
 
     private RttServiceSynchronized mRttServiceSynchronized;
@@ -91,6 +95,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
     public void start(Looper looper, IWifiAwareManager awareBinder, RttNative rttNative,
             WifiPermissionsUtil wifiPermissionsUtil) {
         mAwareBinder = awareBinder;
+        mRttNative = rttNative;
         mWifiPermissionsUtil = wifiPermissionsUtil;
         mRttServiceSynchronized = new RttServiceSynchronized(looper, rttNative);
     }
@@ -105,6 +110,40 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
      */
     public int getMockableCallingUid() {
         return getCallingUid();
+    }
+
+    /**
+     * Enable the API: broadcast notification
+     */
+    public void enable() {
+        if (VDBG) Log.v(TAG, "enable");
+        sendRttStateChangedBroadcast(true);
+        mRttServiceSynchronized.mHandler.post(() -> {
+            // queue should be empty at this point (but this call allows validation)
+            mRttServiceSynchronized.executeNextRangingRequestIfPossible(false);
+        });
+    }
+
+    /**
+     * Disable the API:
+     * - Clean-up (fail) pending requests
+     * - Broadcast notification
+     */
+    public void disable() {
+        if (VDBG) Log.v(TAG, "disable");
+        sendRttStateChangedBroadcast(false);
+        mRttServiceSynchronized.mHandler.post(() -> {
+            mRttServiceSynchronized.cleanUpOnDisable();
+        });
+    }
+
+    /**
+     * Binder interface API to indicate whether the API is currently available. This requires an
+     * immediate asynchronous response.
+     */
+    @Override
+    public boolean isAvailable() {
+        return mRttNative.isReady();
     }
 
     /**
@@ -129,6 +168,15 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
             throw new IllegalArgumentException("Callback must not be null");
         }
         request.enforceValidity(mAwareBinder != null);
+
+        if (!isAvailable()) {
+            try {
+                callback.onRangingFailure(RangingResultCallback.STATUS_CODE_FAIL_RTT_NOT_AVAILABLE);
+            } catch (RemoteException e) {
+                Log.e(TAG, "startRanging: disabled, callback failed -- " + e);
+            }
+            return;
+        }
 
         final int uid = getMockableCallingUid();
 
@@ -186,6 +234,13 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                 TAG);
     }
 
+    private void sendRttStateChangedBroadcast(boolean enabled) {
+        if (VDBG) Log.v(TAG, "sendRttStateChangedBroadcast: enabled=" + enabled);
+        final Intent intent = new Intent(WifiRttManager.ACTION_WIFI_RTT_STATE_CHANGED);
+        intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY);
+        mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
+    }
+
     @Override
     protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         if (mContext.checkCallingOrSelfPermission(
@@ -225,6 +280,11 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         }
 
         private void cancelRanging(RttRequestInfo rri) {
+            if (!isAvailable()) {
+                Log.d(TAG, "RttServiceSynchronized.cancelRanging: native not ready - nop");
+                return;
+            }
+
             ArrayList<byte[]> macAddresses = new ArrayList<>();
             for (RangingRequest.RttPeer peer : rri.request.mRttPeers) {
                 if (peer instanceof RangingRequest.RttPeerAp) {
@@ -247,6 +307,23 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
             }
 
             mRttNative.rangeCancel(rri.cmdId, macAddresses);
+        }
+
+        private void cleanUpOnDisable() {
+            if (VDBG) Log.v(TAG, "RttServiceSynchronized.cleanUpOnDisable");
+            for (RttRequestInfo rri : mRttRequestQueue) {
+                try {
+                    // not trying to cancel request - assuming that Wi-Fi disabled and firmware will
+                    // take care of it.
+                    rri.callback.onRangingFailure(
+                            RangingResultCallback.STATUS_CODE_FAIL_RTT_NOT_AVAILABLE);
+                } catch (RemoteException e) {
+                    Log.e(TAG, "RttServiceSynchronized.startRanging: disabled, callback failed -- "
+                            + e);
+                }
+            }
+            mRttRequestQueue.clear();
+            mRangingTimeoutMessage.cancel();
         }
 
         private void cleanUpOnClientDeath(int uid) {
@@ -349,6 +426,19 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         private void startRanging(RttRequestInfo nextRequest) {
             if (VDBG) {
                 Log.v(TAG, "RttServiceSynchronized.startRanging: nextRequest=" + nextRequest);
+            }
+
+            if (!isAvailable()) {
+                Log.d(TAG, "RttServiceSynchronized.startRanging: disabled");
+                try {
+                    nextRequest.callback.onRangingFailure(
+                            RangingResultCallback.STATUS_CODE_FAIL_RTT_NOT_AVAILABLE);
+                } catch (RemoteException e) {
+                    Log.e(TAG, "RttServiceSynchronized.startRanging: disabled, callback failed -- "
+                            + e);
+                    executeNextRangingRequestIfPossible(true);
+                    return;
+                }
             }
 
             if (processAwarePeerHandles(nextRequest)) {
