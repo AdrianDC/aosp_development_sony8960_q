@@ -115,6 +115,51 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
     }
 
     /**
+     * Cancel an outstanding ranging request: no guarantees of execution - we will ignore any
+     * results which are returned for the canceled request.
+     *
+     * @param cmdId The cmdId issued with the original rangeRequest command.
+     * @param macAddresses A list of MAC addresses for which to cancel the operation.
+     * @return Success status: true for success, false for failure.
+     */
+    public boolean rangeCancel(int cmdId, ArrayList<byte[]> macAddresses) {
+        if (VDBG) Log.v(TAG, "rangeCancel: cmdId=" + cmdId);
+        // TODO: b/65014872 replace by direct access to HalDeviceManager
+        IWifiRttController rttController = mWifiVendorHal.getRttController();
+        if (rttController == null) {
+            Log.e(TAG, "rangeCancel: RttController is null");
+            return false;
+        }
+        if (!mIsInitialized) {
+            try {
+                WifiStatus status = rttController.registerEventCallback(this);
+                if (status.code != WifiStatusCode.SUCCESS) {
+                    Log.e(TAG,
+                            "rangeCancel: cannot register event callback -- code=" + status.code);
+                    return false;
+                }
+            } catch (RemoteException e) {
+                Log.e(TAG, "rangeCancel: exception registering callback: " + e);
+                return false;
+            }
+            mIsInitialized = true;
+        }
+
+        try {
+            WifiStatus status = rttController.rangeCancel(cmdId, macAddresses);
+            if (status.code != WifiStatusCode.SUCCESS) {
+                Log.e(TAG, "rangeCancel: cannot issue range cancel -- code=" + status.code);
+                return false;
+            }
+        } catch (RemoteException e) {
+            Log.e(TAG, "rangeCancel: exception issuing range cancel: " + e);
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Callback from HAL with range results.
      *
      * @param cmdId Command ID specified in the original request

@@ -89,6 +89,7 @@ public class RttNativeTest {
         status.code = WifiStatusCode.SUCCESS;
         when(mockRttController.registerEventCallback(any())).thenReturn(status);
         when(mockRttController.rangeRequest(anyInt(), any(ArrayList.class))).thenReturn(status);
+        when(mockRttController.rangeCancel(anyInt(), any(ArrayList.class))).thenReturn(status);
 
         mDut = new RttNative(mockRttServiceImpl, mockHalDeviceManager, mockWifiNative);
     }
@@ -130,6 +131,25 @@ public class RttNativeTest {
                 equalTo(HexEncoding.decode("080908070605".toCharArray(), false)));
         collector.checkThat("entry 2: MAC", rttConfig.type, equalTo(RttType.TWO_SIDED));
         collector.checkThat("entry 2: MAC", rttConfig.peer, equalTo(RttPeerType.NAN));
+    }
+
+    /**
+     * Validate ranging cancel flow.
+     */
+    @Test
+    public void testRangeCancel() throws Exception {
+        int cmdId = 66;
+        ArrayList<byte[]> macAddresses = new ArrayList<>();
+        byte[] mac1 = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05 };
+        byte[] mac2 = { 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F };
+        macAddresses.add(mac1);
+        macAddresses.add(mac2);
+
+        // (1) issue cancel request
+        mDut.rangeCancel(cmdId, macAddresses);
+
+        // (2) verify HAL call and parameters
+        verify(mockRttController).rangeCancel(cmdId, macAddresses);
     }
 
     /**
