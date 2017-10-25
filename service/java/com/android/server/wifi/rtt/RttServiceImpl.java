@@ -20,6 +20,7 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.hardware.wifi.V1_0.RttResult;
 import android.hardware.wifi.V1_0.RttStatus;
+import android.net.wifi.ScanResult;
 import android.net.wifi.aware.IWifiAwareMacAddressProvider;
 import android.net.wifi.aware.IWifiAwareManager;
 import android.net.wifi.aware.PeerHandle;
@@ -33,8 +34,11 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.RemoteException;
+import android.os.SystemClock;
 import android.util.Log;
 
+import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.util.WakeupMessage;
 import com.android.server.wifi.util.NativeUtil;
 import com.android.server.wifi.util.WifiPermissionsUtil;
 
@@ -63,6 +67,10 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
 
     private RttServiceSynchronized mRttServiceSynchronized;
 
+    @VisibleForTesting
+    public static final String HAL_RANGING_TIMEOUT_TAG = TAG + " HAL Ranging Timeout";
+
+    private static final long HAL_RANGING_TIMEOUT_MS = 5_000;
 
     public RttServiceImpl(Context context) {
         mContext = context;
@@ -204,11 +212,41 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         private RttNative mRttNative;
         private int mNextCommandId = 1000;
         private List<RttRequestInfo> mRttRequestQueue = new LinkedList<>();
+        private WakeupMessage mRangingTimeoutMessage = null;
 
         RttServiceSynchronized(Looper looper, RttNative rttNative) {
             mRttNative = rttNative;
 
             mHandler = new Handler(looper);
+            mRangingTimeoutMessage = new WakeupMessage(mContext, mHandler,
+                    HAL_RANGING_TIMEOUT_TAG, () -> {
+                timeoutRangingRequest();
+            });
+        }
+
+        private void cancelRanging(RttRequestInfo rri) {
+            ArrayList<byte[]> macAddresses = new ArrayList<>();
+            for (RangingRequest.RttPeer peer : rri.request.mRttPeers) {
+                if (peer instanceof RangingRequest.RttPeerAp) {
+                    ScanResult scanResult =
+                            ((RangingRequest.RttPeerAp) peer).scanResult;
+
+                    byte[] addr = NativeUtil.macAddressToByteArray(scanResult.BSSID);
+                    if (addr.length != 6) {
+                        Log.e(TAG, "Invalid configuration: unexpected BSSID length -- "
+                                + peer);
+                        continue;
+                    }
+                    macAddresses.add(addr);
+                } else if (peer instanceof RangingRequest.RttPeerAware) {
+                    if (((RangingRequest.RttPeerAware) peer).peerMacAddress != null) {
+                        macAddresses.add(
+                                ((RangingRequest.RttPeerAware) peer).peerMacAddress);
+                    }
+                }
+            }
+
+            mRttNative.rangeCancel(rri.cmdId, macAddresses);
         }
 
         private void cleanUpOnClientDeath(int uid) {
@@ -220,12 +258,13 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
             while (it.hasNext()) {
                 RttRequestInfo rri = it.next();
                 if (rri.uid == uid) {
-                    // TODO: actually abort operation - though API is not clear or clean
-                    if (rri.cmdId == 0) {
-                        // Until that happens we will get results for the last operation: which is
-                        // why we don't dispatch a new range request off the queue and keep the
-                        // currently running operation in the queue
+                    if (!rri.dispatchedToNative) {
                         it.remove();
+                    } else {
+                        Log.d(TAG, "Client death - cancelling RTT operation in progress: cmdId="
+                                + rri.cmdId);
+                        mRangingTimeoutMessage.cancel();
+                        cancelRanging(rri);
                     }
                 }
             }
@@ -234,6 +273,30 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                 Log.v(TAG, "RttServiceSynchronized.cleanUpOnClientDeath: uid=" + uid
                         + ", after cleanup - mRttRequestQueue=" + mRttRequestQueue);
             }
+        }
+
+        private void timeoutRangingRequest() {
+            if (VDBG) {
+                Log.v(TAG, "RttServiceSynchronized.timeoutRangingRequest mRttRequestQueue="
+                        + mRttRequestQueue);
+            }
+            if (mRttRequestQueue.size() == 0) {
+                Log.w(TAG, "RttServiceSynchronized.timeoutRangingRequest: but nothing in queue!?");
+                return;
+            }
+            RttRequestInfo rri = mRttRequestQueue.get(0);
+            if (!rri.dispatchedToNative) {
+                Log.w(TAG, "RttServiceSynchronized.timeoutRangingRequest: command not dispatched "
+                        + "to native!?");
+                return;
+            }
+            cancelRanging(rri);
+            try {
+                rri.callback.onRangingFailure(RangingResultCallback.STATUS_CODE_FAIL);
+            } catch (RemoteException e) {
+                Log.e(TAG, "RttServiceSynchronized.timeoutRangingRequest: callback failed: " + e);
+            }
+            executeNextRangingRequestIfPossible(true);
         }
 
         private void queueRangingRequest(int uid, IBinder binder, IBinder.DeathRecipient dr,
@@ -272,7 +335,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
             }
 
             RttRequestInfo nextRequest = mRttRequestQueue.get(0);
-            if (nextRequest.cmdId != 0) {
+            if (nextRequest.peerHandlesTranslated || nextRequest.dispatchedToNative) {
                 if (VDBG) {
                     Log.v(TAG, "executeNextRangingRequestIfPossible: called but a command is "
                             + "executing. topOfQueue=" + nextRequest);
@@ -280,7 +343,6 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                 return;
             }
 
-            nextRequest.cmdId = mNextCommandId++;
             startRanging(nextRequest);
         }
 
@@ -297,7 +359,11 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                 return;
             }
 
-            if (!mRttNative.rangeRequest(nextRequest.cmdId, nextRequest.request)) {
+            nextRequest.cmdId = mNextCommandId++;
+            if (mRttNative.rangeRequest(nextRequest.cmdId, nextRequest.request)) {
+                mRangingTimeoutMessage.schedule(
+                        SystemClock.elapsedRealtime() + HAL_RANGING_TIMEOUT_MS);
+            } else {
                 Log.w(TAG, "RttServiceSynchronized.startRanging: native rangeRequest call failed");
                 try {
                     nextRequest.callback.onRangingFailure(RangingResultCallback.STATUS_CODE_FAIL);
@@ -307,6 +373,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                 }
                 executeNextRangingRequestIfPossible(true);
             }
+            nextRequest.dispatchedToNative = true;
         }
 
         /**
@@ -402,6 +469,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                         + "pending!?");
                 return;
             }
+            mRangingTimeoutMessage.cancel();
             RttRequestInfo topOfQueueRequest = mRttRequestQueue.get(0);
 
             if (VDBG) {
@@ -520,10 +588,10 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         public IBinder.DeathRecipient dr;
         public String callingPackage;
         public RangingRequest request;
-        public byte[] mac;
         public IRttCallback callback;
 
         public int cmdId = 0; // uninitialized cmdId value
+        public boolean dispatchedToNative = false;
         public boolean peerHandlesTranslated = false;
 
         @Override
