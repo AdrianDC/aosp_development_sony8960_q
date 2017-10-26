@@ -55,6 +55,7 @@ public class WifiStateMachinePrimeTest {
     @Mock WifiApConfigStore mWifiApConfigStore;
     TestLooper mLooper;
     @Mock INetworkManagementService mNMService;
+    @Mock ScanOnlyModeManager mScanOnlyModeManager;
     @Mock SoftApManager mSoftApManager;
     SoftApManager.Listener mSoftApListener;
     WifiStateMachinePrime mWifiStateMachinePrime;
@@ -94,6 +95,27 @@ public class WifiStateMachinePrimeTest {
     private void enterSoftApActiveMode() throws Exception {
         enterSoftApActiveMode(
                 new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null));
+    }
+
+    /**
+     * Helper method to enter the ScanOnlyModeActiveState for WifiStateMachinePrime.
+     */
+    private void enterScanOnlyModeActiveState() throws Exception {
+        String fromState = mWifiStateMachinePrime.getCurrentMode();
+        doAnswer(
+                new Answer<Object>() {
+                        public ScanOnlyModeManager answer(InvocationOnMock invocation) {
+                            return mScanOnlyModeManager;
+                        }
+                }).when(mWifiInjector).makeScanOnlyModeManager();
+        mWifiStateMachinePrime.enterScanOnlyMode();
+        mLooper.dispatchAll();
+        Log.e("WifiStateMachinePrimeTest", "check fromState: " + fromState);
+        if (!fromState.equals(WIFI_DISABLED_STATE_STRING)) {
+            verify(mWifiNative).tearDown();
+        }
+        assertEquals(SCAN_ONLY_MODE_ACTIVE_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
+        verify(mScanOnlyModeManager).start();
     }
 
     /**
@@ -146,6 +168,15 @@ public class WifiStateMachinePrimeTest {
     }
 
     /**
+     * Test that WifiStateMachinePrime properly enters the ScanOnlyModeActiveState from the
+     * WifiDisabled state.
+     */
+    @Test
+    public void testEnterScanOnlyModeFromDisabled() throws Exception {
+        enterScanOnlyModeActiveState();
+    }
+
+    /**
      * Test that WifiStateMachinePrime properly enters the SoftApModeActiveState from the
      * WifiDisabled state.
      */
@@ -167,6 +198,19 @@ public class WifiStateMachinePrimeTest {
     }
 
     /**
+     * Test that we can disable wifi fully from the ScanOnlyModeActiveState.
+     */
+    @Test
+    public void testDisableWifiFromScanOnlyModeActiveState() throws Exception {
+        enterScanOnlyModeActiveState();
+
+        mWifiStateMachinePrime.disableWifi();
+        mLooper.dispatchAll();
+        verify(mScanOnlyModeManager).stop();
+        assertEquals(WIFI_DISABLED_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
+    }
+
+    /**
      * Test that we can disable wifi fully from the SoftApModeActiveState.
      */
     @Test
@@ -178,6 +222,15 @@ public class WifiStateMachinePrimeTest {
         verify(mSoftApManager).stop();
         verifyCleanupCalled();
         assertEquals(WIFI_DISABLED_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
+    }
+
+    /**
+     * Test that we can disable wifi fully from the ScanOnlyModeState.
+     */
+    @Test
+    public void testDisableWifiFromScanOnlyModeState() throws Exception {
+        // TODO: implement this test when we can inject a failure to prevent ScanOnlyMode from
+        // entering the active state.
     }
 
     /**
@@ -195,6 +248,20 @@ public class WifiStateMachinePrimeTest {
         mLooper.dispatchAll();
         verifyCleanupCalled();
         assertEquals(WIFI_DISABLED_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
+    }
+
+    /**
+     * Thest that we can switch from ScanOnlyActiveMode to another mode.
+     * Expectation: When switching out of ScanOlyModeActivState we stop the ScanOnlyModeManager.
+     */
+    @Test
+    public void testSwitchModeWhenScanOnlyModeActiveState() throws Exception {
+        enterScanOnlyModeActiveState();
+
+        mWifiStateMachinePrime.enterClientMode();
+        mLooper.dispatchAll();
+        verify(mScanOnlyModeManager).stop();
+        assertEquals(CLIENT_MODE_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
     }
 
     /**

@@ -231,6 +231,12 @@ public class WifiStateMachinePrime {
         class ScanOnlyModeState extends State {
             @Override
             public void enter() {
+                final Message message = mModeStateMachine.getCurrentMessage();
+                if (message.what != ModeStateMachine.CMD_START_SCAN_ONLY_MODE) {
+                    Log.d(TAG, "Entering ScanOnlyMode (idle)");
+                    return;
+                }
+                mModeStateMachine.transitionTo(mScanOnlyModeActiveState);
             }
 
             @Override
@@ -350,7 +356,9 @@ public class WifiStateMachinePrime {
         class ScanOnlyModeActiveState extends ModeActiveState {
             @Override
             public void enter() {
-                this.mActiveModeManager = new ScanOnlyModeManager();
+                Log.d(TAG, "Entering ScanOnlyModeActiveState");
+                this.mActiveModeManager = mWifiInjector.makeScanOnlyModeManager();
+                this.mActiveModeManager.start();
             }
         }
 

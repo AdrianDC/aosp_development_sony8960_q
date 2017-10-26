@@ -414,6 +414,15 @@ public class WifiInjector {
     }
 
     /**
+     * Create a ScanOnlyModeManager
+     *
+     * @return a new instance of ScanOnlyModeManager
+     */
+    public ScanOnlyModeManager makeScanOnlyModeManager() {
+        return new ScanOnlyModeManager(mWifiStateMachineHandlerThread.getLooper());
+    }
+
+    /**
      * Create a WifiLog instance.
      * @param tag module name to include in all log messages
      */
