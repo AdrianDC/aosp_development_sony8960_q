@@ -25,7 +25,6 @@ import android.util.Log;
 import com.android.server.SystemService;
 import com.android.server.wifi.HalDeviceManager;
 import com.android.server.wifi.WifiInjector;
-import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.util.WifiPermissionsUtil;
 
 /**
@@ -61,13 +60,13 @@ public class RttService extends SystemService {
 
             HalDeviceManager halDeviceManager = wifiInjector.getHalDeviceManager();
             HandlerThread handlerThread = wifiInjector.getRttHandlerThread();
-            WifiNative wifiNative = wifiInjector.getWifiNative();
             WifiPermissionsUtil wifiPermissionsUtil = wifiInjector.getWifiPermissionsUtil();
 
             IWifiAwareManager awareBinder = (IWifiAwareManager) ServiceManager.getService(
                     Context.WIFI_AWARE_SERVICE);
 
-            RttNative rttNative = new RttNative(mImpl, halDeviceManager, wifiNative);
+            RttNative rttNative = new RttNative(mImpl, halDeviceManager);
+            rttNative.start();
             mImpl.start(handlerThread.getLooper(), awareBinder, rttNative, wifiPermissionsUtil);
         }
     }
