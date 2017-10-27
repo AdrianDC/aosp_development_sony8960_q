@@ -381,9 +381,8 @@ public class WifiInjector {
                                            @NonNull String ifaceName,
                                            @NonNull SoftApModeConfiguration config) {
         return new SoftApManager(mContext, mWifiStateMachineHandlerThread.getLooper(),
-                                 mWifiNative, mCountryCode.getCountryCode(),
-                                 listener, apInterface, ifaceName, nmService,
-                                 mWifiApConfigStore, config, mWifiMetrics);
+                mFrameworkFacade, mWifiNative, mCountryCode.getCountryCode(), listener, apInterface,
+                ifaceName, nmService, mWifiApConfigStore, config, mWifiMetrics);
     }
 
     /**
