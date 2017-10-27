@@ -506,7 +506,7 @@ public class HalDeviceManagerTest {
     @Test
     public void testCreateStaInterfaceNoInitModeTestChipV1() throws Exception {
         runCreateSingleXxxInterfaceNoInitMode(new TestChipV1(), IfaceType.STA, "sta0",
-                TestChipV1.STA_CHIP_MODE_ID);
+                TestChipV1.STA_CHIP_MODE_ID, 1);
     }
 
     /**
@@ -515,7 +515,7 @@ public class HalDeviceManagerTest {
     @Test
     public void testCreateApInterfaceNoInitModeTestChipV1() throws Exception {
         runCreateSingleXxxInterfaceNoInitMode(new TestChipV1(), IfaceType.AP, "ap0",
-                TestChipV1.AP_CHIP_MODE_ID);
+                TestChipV1.AP_CHIP_MODE_ID, 1);
     }
 
     /**
@@ -524,7 +524,7 @@ public class HalDeviceManagerTest {
     @Test
     public void testCreateP2pInterfaceNoInitModeTestChipV1() throws Exception {
         runCreateSingleXxxInterfaceNoInitMode(new TestChipV1(), IfaceType.P2P, "p2p0",
-                TestChipV1.STA_CHIP_MODE_ID);
+                TestChipV1.STA_CHIP_MODE_ID, 1);
     }
 
     /**
@@ -533,7 +533,49 @@ public class HalDeviceManagerTest {
     @Test
     public void testCreateNanInterfaceNoInitModeTestChipV1() throws Exception {
         runCreateSingleXxxInterfaceNoInitMode(new TestChipV1(), IfaceType.NAN, "nan0",
-                TestChipV1.STA_CHIP_MODE_ID);
+                TestChipV1.STA_CHIP_MODE_ID, 1);
+    }
+
+    // TestChipV2
+
+    /**
+     * Validate creation of STA interface from blank start-up. The remove interface.
+     */
+    @Test
+    public void testCreateStaInterfaceNoInitModeTestChipV2() throws Exception {
+        // Note: we expected 2 available callbacks since we now have 2 STAs possible. So
+        // we get callback 1 after creating the first STA (since we can create another STA),
+        // and we get callback 2 after destroying the first STA (since we can create another STA -
+        // as expected).
+        runCreateSingleXxxInterfaceNoInitMode(new TestChipV2(), IfaceType.STA, "sta0",
+                TestChipV2.CHIP_MODE_ID, 2);
+    }
+
+    /**
+     * Validate creation of AP interface from blank start-up. The remove interface.
+     */
+    @Test
+    public void testCreateApInterfaceNoInitModeTestChipV2() throws Exception {
+        runCreateSingleXxxInterfaceNoInitMode(new TestChipV2(), IfaceType.AP, "ap0",
+                TestChipV2.CHIP_MODE_ID, 1);
+    }
+
+    /**
+     * Validate creation of P2P interface from blank start-up. The remove interface.
+     */
+    @Test
+    public void testCreateP2pInterfaceNoInitModeTestChipV2() throws Exception {
+        runCreateSingleXxxInterfaceNoInitMode(new TestChipV2(), IfaceType.P2P, "p2p0",
+                TestChipV2.CHIP_MODE_ID, 1);
+    }
+
+    /**
+     * Validate creation of NAN interface from blank start-up. The remove interface.
+     */
+    @Test
+    public void testCreateNanInterfaceNoInitModeTestChipV2() throws Exception {
+        runCreateSingleXxxInterfaceNoInitMode(new TestChipV2(), IfaceType.NAN, "nan0",
+                TestChipV2.CHIP_MODE_ID, 1);
     }
 
     //////////////////////////////////////////////////////////////////////////////////////
@@ -1053,7 +1095,7 @@ public class HalDeviceManagerTest {
     }
 
     private void runCreateSingleXxxInterfaceNoInitMode(ChipMockBase chipMock, int ifaceTypeToCreate,
-            String ifaceName, int finalChipMode) throws Exception {
+            String ifaceName, int finalChipMode, int expectedAvailableCalls) throws Exception {
         chipMock.initialize();
         mInOrder = inOrder(mServiceManagerMock, mWifiMock, chipMock.chip,
                 mManagerStatusListenerMock);
@@ -1098,7 +1140,7 @@ public class HalDeviceManagerTest {
         }
 
         verify(idl).onDestroyed();
-        verify(iafrl).onAvailableForRequest();
+        verify(iafrl, times(expectedAvailableCalls)).onAvailableForRequest();
 
         verifyNoMoreInteractions(mManagerStatusListenerMock, idl, iafrl);
     }
@@ -1545,9 +1587,9 @@ public class HalDeviceManagerTest {
         }
     }
 
-    // emulate baseline/legacy config:
-    // mode: STA + NAN || P2P
-    // mode: NAN
+    // test chip configuration V1:
+    // mode: STA + (NAN || P2P)
+    // mode: AP
     private class TestChipV1 extends ChipMockBase {
         static final int STA_CHIP_MODE_ID = 0;
         static final int AP_CHIP_MODE_ID = 1;
@@ -1598,6 +1640,61 @@ public class HalDeviceManagerTest {
             cicl = new IWifiChip.ChipIfaceCombinationLimit();
             cicl.maxIfaces = 1;
             cicl.types.add(IfaceType.AP);
+            cic.limits.add(cicl);
+            cm.availableCombinations.add(cic);
+            availableModes.add(cm);
+
+            doAnswer(new GetAvailableModesAnswer(this)).when(chip)
+                    .getAvailableModes(any(IWifiChip.getAvailableModesCallback.class));
+        }
+    }
+
+    // test chip configuration V2:
+    // mode: STA + (STA || AP) + (NAN || P2P)
+    private class TestChipV2 extends ChipMockBase {
+        static final int CHIP_MODE_ID = 0; // only mode
+
+        void initialize() throws Exception {
+            super.initialize();
+
+            // chip Id configuration
+            ArrayList<Integer> chipIds;
+            chipId = 12;
+            chipIds = new ArrayList<>();
+            chipIds.add(chipId);
+            doAnswer(new GetChipIdsAnswer(mStatusOk, chipIds)).when(mWifiMock).getChipIds(
+                    any(IWifi.getChipIdsCallback.class));
+
+            doAnswer(new GetChipAnswer(mStatusOk, chip)).when(mWifiMock).getChip(eq(12),
+                    any(IWifi.getChipCallback.class));
+
+            // initialize dummy chip modes
+            IWifiChip.ChipMode cm;
+            IWifiChip.ChipIfaceCombination cic;
+            IWifiChip.ChipIfaceCombinationLimit cicl;
+
+            //   Mode 0 (only one): 1xSTA + 1x{STA,AP} + 1x{P2P,NAN}
+            availableModes = new ArrayList<>();
+            cm = new IWifiChip.ChipMode();
+            cm.id = CHIP_MODE_ID;
+
+            cic = new IWifiChip.ChipIfaceCombination();
+
+            cicl = new IWifiChip.ChipIfaceCombinationLimit();
+            cicl.maxIfaces = 1;
+            cicl.types.add(IfaceType.STA);
+            cic.limits.add(cicl);
+
+            cicl = new IWifiChip.ChipIfaceCombinationLimit();
+            cicl.maxIfaces = 1;
+            cicl.types.add(IfaceType.STA);
+            cicl.types.add(IfaceType.AP);
+            cic.limits.add(cicl);
+
+            cicl = new IWifiChip.ChipIfaceCombinationLimit();
+            cicl.maxIfaces = 1;
+            cicl.types.add(IfaceType.P2P);
+            cicl.types.add(IfaceType.NAN);
             cic.limits.add(cicl);
             cm.availableCombinations.add(cic);
             availableModes.add(cm);
