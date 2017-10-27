@@ -58,7 +58,7 @@ import android.net.RouteInfo;
 import android.net.StaticIpConfiguration;
 import android.net.TrafficStats;
 import android.net.dhcp.DhcpClient;
-import android.net.ip.IpManager;
+import android.net.ip.IpClient;
 import android.net.wifi.IApInterface;
 import android.net.wifi.IClientInterface;
 import android.net.wifi.RssiPacketCountInfo;
@@ -445,7 +445,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         return true;
     }
 
-    private final IpManager mIpManager;
+    private final IpClient mIpClient;
 
     // Channel for sending replies.
     private AsyncChannel mReplyChannel = new AsyncChannel();
@@ -700,7 +700,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     static final int CMD_ENABLE_AUTOJOIN_WHEN_ASSOCIATED                = BASE + 167;
 
     /**
-     * Used to handle messages bounced between WifiStateMachine and IpManager.
+     * Used to handle messages bounced between WifiStateMachine and IpClient.
      */
     static final int CMD_IPV4_PROVISIONING_SUCCESS                      = BASE + 200;
     static final int CMD_IPV4_PROVISIONING_FAILURE                      = BASE + 201;
@@ -954,8 +954,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mLastNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
         mLastSignalLevel = -1;
 
-        mIpManager = mFacade.makeIpManager(mContext, mInterfaceName, new IpManagerCallback());
-        mIpManager.setMulticastFilter(true);
+        mIpClient = mFacade.makeIpClient(mContext, mInterfaceName, new IpClientCallback());
+        mIpClient.setMulticastFilter(true);
 
         mNoNetworksPeriodicScan = mContext.getResources().getInteger(
                 R.integer.config_wifi_no_network_periodic_scan_interval);
@@ -1134,7 +1134,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
     }
 
-    class IpManagerCallback extends IpManager.Callback {
+    class IpClientCallback extends IpClient.Callback {
         @Override
         public void onPreDhcpAction() {
             sendMessage(DhcpClient.CMD_PRE_DHCP_ACTION);
@@ -1197,10 +1197,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
     }
 
-    private void stopIpManager() {
+    private void stopIpClient() {
         /* Restore power save and suspend optimizations */
         handlePostDhcpSetup();
-        mIpManager.stop();
+        mIpClient.stop();
     }
 
     PendingIntent getPrivateBroadcast(String action, int requestCode) {
@@ -2063,14 +2063,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      * Start filtering Multicast v4 packets
      */
     public void startFilteringMulticastPackets() {
-        mIpManager.setMulticastFilter(true);
+        mIpClient.setMulticastFilter(true);
     }
 
     /**
      * Stop filtering Multicast v4 packets
      */
     public void stopFilteringMulticastPackets() {
-        mIpManager.setMulticastFilter(false);
+        mIpClient.setMulticastFilter(false);
     }
 
     /**
@@ -2186,8 +2186,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
     }
 
-    public void dumpIpManager(FileDescriptor fd, PrintWriter pw, String[] args) {
-        mIpManager.dump(fd, pw, args);
+    public void dumpIpClient(FileDescriptor fd, PrintWriter pw, String[] args) {
+        mIpClient.dump(fd, pw, args);
     }
 
     @Override
@@ -2234,7 +2234,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         pw.println();
         mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_USER_ACTION);
         mWifiDiagnostics.dump(fd, pw, args);
-        dumpIpManager(fd, pw, args);
+        dumpIpClient(fd, pw, args);
         if (mWifiConnectivityManager != null) {
             mWifiConnectivityManager.dump(fd, pw, args);
         } else {
@@ -3020,7 +3020,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             log("Link configuration changed for netId: " + mLastNetworkId
                     + " old: " + mLinkProperties + " new: " + newLp);
         }
-        // We own this instance of LinkProperties because IpManager passes us a copy.
+        // We own this instance of LinkProperties because IpClient passes us a copy.
         mLinkProperties = newLp;
         if (mNetworkAgent != null) {
             mNetworkAgent.sendLinkProperties(mLinkProperties);
@@ -3050,7 +3050,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      */
     private void clearLinkProperties() {
         // Clear the link properties obtained from DHCP. The only caller of this
-        // function has already called IpManager#stop(), which clears its state.
+        // function has already called IpClient#stop(), which clears its state.
         synchronized (mDhcpResultsLock) {
             if (mDhcpResults != null) {
                 mDhcpResults.clear();
@@ -3304,7 +3304,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         clearTargetBssid("handleNetworkDisconnect");
 
-        stopIpManager();
+        stopIpClient();
 
         /* Reset data structures */
         mWifiScoreReport.reset();
@@ -3434,7 +3434,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 // short in two ways:
                 // - at the time of the CMD_IP_CONFIGURATION_SUCCESSFUL event, we don't know if we
                 //   actually have ARP reachability. it might be better to wait until the wifi
-                //   network has been validated by IpManager.
+                //   network has been validated by IpClient.
                 // - in the case of a roaming event (intra-SSID), we probably trigger when L2 is
                 //   complete.
                 //
@@ -4350,7 +4350,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             // Disable legacy multicast filtering, which on some chipsets defaults to enabled.
             // Legacy IPv6 multicast filtering blocks ICMPv6 router advertisements which breaks IPv6
             // provisioning. Legacy IPv4 multicast filtering may be re-enabled later via
-            // IpManager.Callback.setFallbackMulticastFilter()
+            // IpClient.Callback.setFallbackMulticastFilter()
             mWifiNative.stopFilteringMulticastV4Packets();
             mWifiNative.stopFilteringMulticastV6Packets();
 
@@ -5012,7 +5012,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     // DNAv4/DNAv6 -style probing for on-link neighbors of
                     // interest (e.g. routers); harmless if none are configured.
                     if (state == SupplicantState.COMPLETED) {
-                        mIpManager.confirmConfiguration();
+                        mIpClient.confirmConfiguration();
                     }
                     break;
                 case WifiP2pServiceImpl.DISCONNECT_WIFI_REQUEST:
@@ -5290,7 +5290,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         } else {
                             if (result.hasProxyChanged()) {
                                 log("Reconfiguring proxy on connection");
-                                mIpManager.setHttpProxy(
+                                mIpClient.setHttpProxy(
                                         getCurrentWifiConfiguration().getHttpProxy());
                             }
                             if (result.hasIpChanged()) {
@@ -5750,7 +5750,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         @Override
         public void exit() {
-            mIpManager.stop();
+            mIpClient.stop();
 
             // This is handled by receiving a NETWORK_DISCONNECTION_EVENT in ConnectModeState
             // Bug: 15347363
@@ -5780,17 +5780,17 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     handlePreDhcpSetup();
                     break;
                 case DhcpClient.CMD_PRE_DHCP_ACTION_COMPLETE:
-                    mIpManager.completedPreDhcpAction();
+                    mIpClient.completedPreDhcpAction();
                     break;
                 case DhcpClient.CMD_POST_DHCP_ACTION:
                     handlePostDhcpSetup();
-                    // We advance to mConnectedState because IpManager will also send a
+                    // We advance to mConnectedState because IpClient will also send a
                     // CMD_IPV4_PROVISIONING_SUCCESS message, which calls handleIPv4Success(),
                     // which calls updateLinkProperties, which then sends
                     // CMD_IP_CONFIGURATION_SUCCESSFUL.
                     //
                     // In the event of failure, we transition to mDisconnectingState
-                    // similarly--via messages sent back from IpManager.
+                    // similarly--via messages sent back from IpClient.
                     break;
                 case CMD_IPV4_PROVISIONING_SUCCESS: {
                     handleIPv4Success((DhcpResults) message.obj);
@@ -6022,7 +6022,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             // cause the roam to fail and the device to disconnect.
             clearTargetBssid("ObtainingIpAddress");
 
-            // Stop IpManager in case we're switching from DHCP to static
+            // Stop IpClient in case we're switching from DHCP to static
             // configuration or vice versa.
             //
             // TODO: Only ever enter this state the first time we connect to a
@@ -6032,15 +6032,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             // disconnected, because DHCP might take a long time during which
             // connectivity APIs such as getActiveNetworkInfo should not return
             // CONNECTED.
-            stopIpManager();
+            stopIpClient();
 
-            mIpManager.setHttpProxy(currentConfig.getHttpProxy());
+            mIpClient.setHttpProxy(currentConfig.getHttpProxy());
             if (!TextUtils.isEmpty(mTcpBufferSizes)) {
-                mIpManager.setTcpBufferSizes(mTcpBufferSizes);
+                mIpClient.setTcpBufferSizes(mTcpBufferSizes);
             }
-            final IpManager.ProvisioningConfiguration prov;
+            final IpClient.ProvisioningConfiguration prov;
             if (!isUsingStaticIp) {
-                prov = IpManager.buildProvisioningConfiguration()
+                prov = IpClient.buildProvisioningConfiguration()
                             .withPreDhcpAction()
                             .withApfCapabilities(mWifiNative.getApfCapabilities())
                             .withNetwork(getCurrentNetwork())
@@ -6048,14 +6048,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             .build();
             } else {
                 StaticIpConfiguration staticIpConfig = currentConfig.getStaticIpConfiguration();
-                prov = IpManager.buildProvisioningConfiguration()
+                prov = IpClient.buildProvisioningConfiguration()
                             .withStaticConfiguration(staticIpConfig)
                             .withApfCapabilities(mWifiNative.getApfCapabilities())
                             .withNetwork(getCurrentNetwork())
                             .withDisplayName(currentConfig.SSID)
                             .build();
             }
-            mIpManager.startProvisioning(prov);
+            mIpClient.startProvisioning(prov);
             // Get Link layer stats so as we get fresh tx packet counters
             getWifiLinkLayerStats();
         }
@@ -6249,10 +6249,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         // We used to transition to ObtainingIpState in an
                         // attempt to do DHCPv4 RENEWs on framework roams.
                         // DHCP can take too long to time out, and we now rely
-                        // upon IpManager's use of IpReachabilityMonitor to
+                        // upon IpClient's use of IpReachabilityMonitor to
                         // confirm our current network configuration.
                         //
-                        // mIpManager.confirmConfiguration() is called within
+                        // mIpClient.confirmConfiguration() is called within
                         // the handling of SupplicantState.COMPLETED.
                         transitionTo(mConnectedState);
                     } else {

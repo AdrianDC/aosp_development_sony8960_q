@@ -996,7 +996,7 @@ public class WifiConfigManager {
         }
 
         boolean newNetwork = (existingInternalConfig == null);
-        // This is needed to inform IpManager about any IP configuration changes.
+        // This is needed to inform IpClient about any IP configuration changes.
         boolean hasIpChanged =
                 newNetwork || WifiConfigurationUtil.hasIpChanged(
                         existingInternalConfig, newInternalConfig);
