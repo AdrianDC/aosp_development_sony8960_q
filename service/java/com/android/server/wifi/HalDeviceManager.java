@@ -38,6 +38,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
 import android.util.Log;
+import android.util.LongSparseArray;
 import android.util.MutableBoolean;
 import android.util.MutableInt;
 import android.util.SparseArray;
@@ -70,8 +71,12 @@ public class HalDeviceManager {
     @VisibleForTesting
     public static final String HAL_INSTANCE_NAME = "default";
 
+    private final Clock mClock;
+
     // public API
-    public HalDeviceManager() {
+    public HalDeviceManager(Clock clock) {
+        mClock = clock;
+
         mInterfaceAvailableForRequestListeners.put(IfaceType.STA, new HashSet<>());
         mInterfaceAvailableForRequestListeners.put(IfaceType.AP, new HashSet<>());
         mInterfaceAvailableForRequestListeners.put(IfaceType.P2P, new HashSet<>());
@@ -474,12 +479,14 @@ public class HalDeviceManager {
         public String name;
         public int type;
         public Set<InterfaceDestroyedListenerProxy> destroyedListeners = new HashSet<>();
+        public long creationTime;
 
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
             sb.append("{name=").append(name).append(", type=").append(type)
                     .append(", destroyedListeners.size()=").append(destroyedListeners.size())
+                    .append(", creationTime=").append(creationTime)
                     .append("}");
             return sb.toString();
         }
@@ -1344,6 +1351,7 @@ public class HalDeviceManager {
                                 new InterfaceDestroyedListenerProxy(destroyedListener,
                                         looper == null ? Looper.myLooper() : looper));
                     }
+                    cacheEntry.creationTime = mClock.getUptimeSinceBootMillis();
 
                     if (DBG) Log.d(TAG, "createIfaceIfPossible: added cacheEntry=" + cacheEntry);
                     mInterfaceInfoCache.put(cacheEntry.name, cacheEntry);
@@ -1468,7 +1476,8 @@ public class HalDeviceManager {
         if (isChipModeChangeProposed) {
             for (int type: IFACE_TYPES_BY_PRIORITY) {
                 if (chipInfo.ifaces[type].length != 0) {
-                    if (!allowedToDeleteIfaceTypeForRequestedType(type, ifaceType)) {
+                    if (!allowedToDeleteIfaceTypeForRequestedType(type, ifaceType,
+                            chipInfo.ifaces[ifaceType].length != 0)) {
                         if (DBG) {
                             Log.d(TAG, "Couldn't delete existing type " + type
                                     + " interfaces for requested type");
@@ -1498,17 +1507,17 @@ public class HalDeviceManager {
             }
 
             if (tooManyInterfaces > 0) { // may need to delete some
-                if (!allowedToDeleteIfaceTypeForRequestedType(type, ifaceType)) {
+                if (!allowedToDeleteIfaceTypeForRequestedType(type, ifaceType,
+                        chipInfo.ifaces[ifaceType].length != 0)) {
                     if (DBG) {
                         Log.d(TAG, "Would need to delete some higher priority interfaces");
                     }
                     return null;
                 }
 
-                // arbitrarily pick the first interfaces to delete
-                for (int i = 0; i < tooManyInterfaces; ++i) {
-                    interfacesToBeRemovedFirst.add(chipInfo.ifaces[type][i]);
-                }
+                // delete the most recently created interfaces
+                interfacesToBeRemovedFirst = selectInterfacesToDelete(tooManyInterfaces,
+                        chipInfo.ifaces[type]);
             }
         }
 
@@ -1576,14 +1585,20 @@ public class HalDeviceManager {
      * interface type.
      *
      * Rules:
-     * 1. Request for AP or STA will destroy any other interface (except see #4)
+     * 1. Request for AP or STA will destroy any other interface (except see #4 and #5)
      * 2. Request for P2P will destroy NAN-only
      * 3. Request for NAN will not destroy any interface
      * --
      * 4. No interface will be destroyed for a requested interface of the same type
+     * 5. No interface will be destroyed if one of the requested interfaces already exists
      */
     private boolean allowedToDeleteIfaceTypeForRequestedType(int existingIfaceType,
-            int requestedIfaceType) {
+            int requestedIfaceType, boolean requestedIfaceTypeAlreadyExists) {
+        // rule 5
+        if (requestedIfaceTypeAlreadyExists) {
+            return false;
+        }
+
         // rule 4
         if (existingIfaceType == requestedIfaceType) {
             return false;
@@ -1601,6 +1616,46 @@ public class HalDeviceManager {
 
         // rule 1, the requestIfaceType is either AP or STA
         return true;
+    }
+
+    /**
+     * Selects the interfaces to delete.
+     *
+     * Rule: select the most recently created interfaces in order.
+     *
+     * @param excessInterfaces Number of interfaces which need to be selected.
+     * @param interfaces Array of interfaces.
+     */
+    private List<WifiIfaceInfo> selectInterfacesToDelete(int excessInterfaces,
+            WifiIfaceInfo[] interfaces) {
+        if (DBG) {
+            Log.d(TAG, "selectInterfacesToDelete: excessInterfaces=" + excessInterfaces
+                    + ", interfaces=" + Arrays.toString(interfaces));
+        }
+
+        boolean lookupError = false;
+        LongSparseArray<WifiIfaceInfo> orderedList = new LongSparseArray(interfaces.length);
+        for (WifiIfaceInfo info : interfaces) {
+            InterfaceCacheEntry cacheEntry = mInterfaceInfoCache.get(info.name);
+            if (cacheEntry == null) {
+                Log.e(TAG,
+                        "selectInterfacesToDelete: can't find cache entry with name=" + info.name);
+                lookupError = true;
+                break;
+            }
+            orderedList.append(cacheEntry.creationTime, info);
+        }
+
+        if (lookupError) {
+            Log.e(TAG, "selectInterfacesToDelete: falling back to arbitary selection");
+            return Arrays.asList(Arrays.copyOf(interfaces, excessInterfaces));
+        } else {
+            List<WifiIfaceInfo> result = new ArrayList<>(excessInterfaces);
+            for (int i = 0; i < excessInterfaces; ++i) {
+                result.add(orderedList.valueAt(orderedList.size() - i - 1));
+            }
+            return result;
+        }
     }
 
     /**
