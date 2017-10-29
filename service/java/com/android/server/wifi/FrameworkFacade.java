@@ -25,7 +25,7 @@ import android.content.Intent;
 import android.database.ContentObserver;
 import android.net.TrafficStats;
 import android.net.Uri;
-import android.net.ip.IpManager;
+import android.net.ip.IpClient;
 import android.os.BatteryStats;
 import android.os.Handler;
 import android.os.IBinder;
@@ -137,9 +137,9 @@ public class FrameworkFacade {
         return TrafficStats.getRxPackets(iface);
     }
 
-    public IpManager makeIpManager(
-            Context context, String iface, IpManager.Callback callback) {
-        return new IpManager(context, iface, callback);
+    public IpClient makeIpClient(
+            Context context, String iface, IpClient.Callback callback) {
+        return new IpClient(context, iface, callback);
     }
 
     /**
