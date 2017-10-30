@@ -16,8 +16,10 @@
 
 package com.android.server.wifi.rtt;
 
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.hardware.wifi.V1_0.RttResult;
 import android.hardware.wifi.V1_0.RttStatus;
@@ -35,6 +37,7 @@ import android.os.Binder;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.UserHandle;
@@ -68,6 +71,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
     private IWifiAwareManager mAwareBinder;
     private RttNative mRttNative;
     private WifiPermissionsUtil mWifiPermissionsUtil;
+    private PowerManager mPowerManager;
 
     private RttServiceSynchronized mRttServiceSynchronized;
 
@@ -98,6 +102,25 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         mRttNative = rttNative;
         mWifiPermissionsUtil = wifiPermissionsUtil;
         mRttServiceSynchronized = new RttServiceSynchronized(looper, rttNative);
+
+        mPowerManager = mContext.getSystemService(PowerManager.class);
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED);
+        mContext.registerReceiver(new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String action = intent.getAction();
+                if (VDBG) Log.v(TAG, "BroadcastReceiver: action=" + action);
+
+                if (PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED.equals(action)) {
+                    if (mPowerManager.isDeviceIdleMode()) {
+                        disable();
+                    } else {
+                        enable();
+                    }
+                }
+            }
+        }, intentFilter);
     }
 
     /*
@@ -143,7 +166,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
      */
     @Override
     public boolean isAvailable() {
-        return mRttNative.isReady();
+        return mRttNative.isReady() && !mPowerManager.isDeviceIdleMode();
     }
 
     /**
@@ -280,11 +303,6 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         }
 
         private void cancelRanging(RttRequestInfo rri) {
-            if (!isAvailable()) {
-                Log.d(TAG, "RttServiceSynchronized.cancelRanging: native not ready - nop");
-                return;
-            }
-
             ArrayList<byte[]> macAddresses = new ArrayList<>();
             for (RangingRequest.RttPeer peer : rri.request.mRttPeers) {
                 if (peer instanceof RangingRequest.RttPeerAp) {
@@ -313,8 +331,12 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
             if (VDBG) Log.v(TAG, "RttServiceSynchronized.cleanUpOnDisable");
             for (RttRequestInfo rri : mRttRequestQueue) {
                 try {
-                    // not trying to cancel request - assuming that Wi-Fi disabled and firmware will
-                    // take care of it.
+                    if (rri.dispatchedToNative) {
+                        // may not be necessary in some cases (e.g. Wi-Fi disable may already clear
+                        // up active RTT), but in other cases will be needed (doze disabling RTT
+                        // but Wi-Fi still up). Doesn't hurt - worst case will fail.
+                        cancelRanging(rri);
+                    }
                     rri.callback.onRangingFailure(
                             RangingResultCallback.STATUS_CODE_FAIL_RTT_NOT_AVAILABLE);
                 } catch (RemoteException e) {
