@@ -1625,7 +1625,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                     waitForResponse = endDataPathLocal(mCurrentTransactionId, msg.arg2);
                     break;
                 case COMMAND_TYPE_DELAYED_INITIALIZATION:
-                    mWifiAwareNativeManager.start();
+                    mWifiAwareNativeManager.start(getHandler());
                     waitForResponse = false;
                     break;
                 default:

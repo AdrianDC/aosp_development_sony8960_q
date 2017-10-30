@@ -249,7 +249,8 @@ public class WifiVendorHal {
     public boolean initialize(WifiNative.VendorHalDeathEventHandler handler) {
         synchronized (sLock) {
             mHalDeviceManager.initialize();
-            mHalDeviceManager.registerStatusListener(mHalDeviceManagerStatusCallbacks, mLooper);
+            mHalDeviceManager.registerStatusListener(mHalDeviceManagerStatusCallbacks,
+                    mHalEventHandler);
             mDeathEventHandler = handler;
             return true;
         }

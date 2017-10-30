@@ -20,6 +20,7 @@ import android.hardware.wifi.V1_0.IWifiNanIface;
 import android.hardware.wifi.V1_0.IfaceType;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
+import android.os.Handler;
 import android.os.RemoteException;
 import android.util.Log;
 
@@ -41,6 +42,7 @@ public class WifiAwareNativeManager {
 
     private WifiAwareStateManager mWifiAwareStateManager;
     private HalDeviceManager mHalDeviceManager;
+    private Handler mHandler;
     private WifiAwareNativeCallback mWifiAwareNativeCallback;
     private IWifiNanIface mWifiNanIface = null;
     private InterfaceDestroyedListener mInterfaceDestroyedListener =
@@ -56,7 +58,13 @@ public class WifiAwareNativeManager {
         mWifiAwareNativeCallback = wifiAwareNativeCallback;
     }
 
-    public void start() {
+    /**
+     * Initialize the class - intended for late initialization.
+     *
+     * @param handler Handler on which to execute interface available callbacks.
+     */
+    public void start(Handler handler) {
+        mHandler = handler;
         mHalDeviceManager.initialize();
         mHalDeviceManager.registerStatusListener(
                 new HalDeviceManager.ManagerStatusListener() {
@@ -69,7 +77,7 @@ public class WifiAwareNativeManager {
                             // 1. no problem registering duplicates - only one will be called
                             // 2. will be called immediately if available
                             mHalDeviceManager.registerInterfaceAvailableForRequestListener(
-                                    IfaceType.NAN, mInterfaceAvailableForRequestListener, null);
+                                    IfaceType.NAN, mInterfaceAvailableForRequestListener, mHandler);
                         } else {
                             awareIsDown();
                         }
@@ -77,7 +85,7 @@ public class WifiAwareNativeManager {
                 }, null);
         if (mHalDeviceManager.isStarted()) {
             mHalDeviceManager.registerInterfaceAvailableForRequestListener(
-                    IfaceType.NAN, mInterfaceAvailableForRequestListener, null);
+                    IfaceType.NAN, mInterfaceAvailableForRequestListener, mHandler);
             tryToGetAware();
         }
     }
@@ -104,7 +112,7 @@ public class WifiAwareNativeManager {
                 return;
             }
             IWifiNanIface iface = mHalDeviceManager.createNanIface(mInterfaceDestroyedListener,
-                    null);
+                    mHandler);
             if (iface == null) {
                 if (DBG) Log.d(TAG, "Was not able to obtain an IWifiNanIface");
             } else {

@@ -51,6 +51,7 @@ import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.hidl.manager.V1_0.IServiceNotification;
+import android.os.Handler;
 import android.os.IHwBinder;
 import android.os.test.TestLooper;
 import android.util.Log;
@@ -84,6 +85,7 @@ public class HalDeviceManagerTest {
     @Mock HalDeviceManager.ManagerStatusListener mManagerStatusListenerMock;
     @Mock private Clock mClock;
     private TestLooper mTestLooper;
+    private Handler mHandler;
     private ArgumentCaptor<IHwBinder.DeathRecipient> mDeathRecipientCaptor =
             ArgumentCaptor.forClass(IHwBinder.DeathRecipient.class);
     private ArgumentCaptor<IServiceNotification.Stub> mServiceNotificationCaptor =
@@ -116,6 +118,7 @@ public class HalDeviceManagerTest {
         MockitoAnnotations.initMocks(this);
 
         mTestLooper = new TestLooper();
+        mHandler = new Handler(mTestLooper.getLooper());
 
         // initialize dummy status objects
         mStatusOk = getStatus(WifiStatusCode.SUCCESS);
@@ -205,9 +208,9 @@ public class HalDeviceManagerTest {
                 HalDeviceManager.ManagerStatusListener.class);
         HalDeviceManager.ManagerStatusListener callback2 = mock(
                 HalDeviceManager.ManagerStatusListener.class);
-        mDut.registerStatusListener(callback2, mTestLooper.getLooper());
-        mDut.registerStatusListener(callback1, mTestLooper.getLooper());
-        mDut.registerStatusListener(callback2, mTestLooper.getLooper());
+        mDut.registerStatusListener(callback2, mHandler);
+        mDut.registerStatusListener(callback1, mHandler);
+        mDut.registerStatusListener(callback2, mHandler);
 
         // startup
         executeAndValidateStartupSequence();
@@ -336,9 +339,9 @@ public class HalDeviceManagerTest {
         chipMock.interfaceNames.get(IfaceType.STA).remove("sta0");
 
         // now try to request another NAN
-        nanIface = mDut.createNanIface(nanDestroyedListener, mTestLooper.getLooper());
+        nanIface = mDut.createNanIface(nanDestroyedListener, mHandler);
         mDut.registerInterfaceAvailableForRequestListener(IfaceType.NAN, nanAvailListener,
-                mTestLooper.getLooper());
+                mHandler);
         collector.checkThat("NAN can't be created", nanIface, IsNull.nullValue());
 
         // verify that Wi-Fi is shut-down: should also get all onDestroyed messages that are
@@ -389,9 +392,9 @@ public class HalDeviceManagerTest {
 
         // act: register the same listener twice
         mDut.registerInterfaceAvailableForRequestListener(IfaceType.STA, staAvailListener,
-                mTestLooper.getLooper());
+                mHandler);
         mDut.registerInterfaceAvailableForRequestListener(IfaceType.STA, staAvailListener,
-                mTestLooper.getLooper());
+                mHandler);
         mTestLooper.dispatchAll();
 
         // remove STA interface -> should trigger callbacks
@@ -732,10 +735,13 @@ public class HalDeviceManagerTest {
         InOrder inOrderNanAvail = inOrder(nanAvailListener);
 
         // register listeners for interface availability
-        mDut.registerInterfaceAvailableForRequestListener(IfaceType.STA, staAvailListener, null);
-        mDut.registerInterfaceAvailableForRequestListener(IfaceType.AP, apAvailListener, null);
-        mDut.registerInterfaceAvailableForRequestListener(IfaceType.P2P, p2pAvailListener, null);
-        mDut.registerInterfaceAvailableForRequestListener(IfaceType.NAN, nanAvailListener, null);
+        mDut.registerInterfaceAvailableForRequestListener(IfaceType.STA, staAvailListener,
+                mHandler);
+        mDut.registerInterfaceAvailableForRequestListener(IfaceType.AP, apAvailListener, mHandler);
+        mDut.registerInterfaceAvailableForRequestListener(IfaceType.P2P, p2pAvailListener,
+                mHandler);
+        mDut.registerInterfaceAvailableForRequestListener(IfaceType.NAN, nanAvailListener,
+                mHandler);
         mTestLooper.dispatchAll();
 
         inOrderStaAvail.verify(staAvailListener).onAvailableForRequest();
@@ -766,8 +772,8 @@ public class HalDeviceManagerTest {
 
         // register additional InterfaceDestroyedListeners - including a duplicate (verify that
         // only called once!)
-        mDut.registerDestroyedListener(staIface, staDestroyedListener2, mTestLooper.getLooper());
-        mDut.registerDestroyedListener(staIface, staDestroyedListener, mTestLooper.getLooper());
+        mDut.registerDestroyedListener(staIface, staDestroyedListener2, mHandler);
+        mDut.registerDestroyedListener(staIface, staDestroyedListener, mHandler);
 
         // Request P2P
         IWifiIface p2pIface = validateInterfaceSequence(chipMock,
@@ -806,7 +812,7 @@ public class HalDeviceManagerTest {
         collector.checkThat("AP2 should not be created", apIface2, IsNull.nullValue());
 
         // Request P2P: expect failure
-        p2pIface = mDut.createP2pIface(p2pDestroyedListener, mTestLooper.getLooper());
+        p2pIface = mDut.createP2pIface(p2pDestroyedListener, mHandler);
         collector.checkThat("P2P can't be created", p2pIface, IsNull.nullValue());
 
         // Request STA: expect success
@@ -845,9 +851,9 @@ public class HalDeviceManagerTest {
         inOrderApAvail.verify(apAvailListener).onAvailableForRequest();
 
         // Request NAN: should fail
-        IWifiIface nanIface = mDut.createNanIface(nanDestroyedListener, mTestLooper.getLooper());
+        IWifiIface nanIface = mDut.createNanIface(nanDestroyedListener, mHandler);
         mDut.registerInterfaceAvailableForRequestListener(IfaceType.NAN, nanAvailListener,
-                mTestLooper.getLooper());
+                mHandler);
         collector.checkThat("NAN can't be created", nanIface, IsNull.nullValue());
 
         // Tear down P2P
@@ -934,7 +940,7 @@ public class HalDeviceManagerTest {
         collector.checkThat("STA created", staIface1, IsNull.notNullValue());
 
         // get STA interface again
-        IWifiIface staIface2 = mDut.createStaIface(staDestroyedListener2, mTestLooper.getLooper());
+        IWifiIface staIface2 = mDut.createStaIface(staDestroyedListener2, mHandler);
         collector.checkThat("STA created", staIface2, IsNull.nullValue());
 
         verifyNoMoreInteractions(mManagerStatusListenerMock, staDestroyedListener1,
@@ -1047,10 +1053,13 @@ public class HalDeviceManagerTest {
         InOrder inOrderNanAvail = inOrder(nanAvailListener);
 
         // register listeners for interface availability
-        mDut.registerInterfaceAvailableForRequestListener(IfaceType.STA, staAvailListener, null);
-        mDut.registerInterfaceAvailableForRequestListener(IfaceType.AP, apAvailListener, null);
-        mDut.registerInterfaceAvailableForRequestListener(IfaceType.P2P, p2pAvailListener, null);
-        mDut.registerInterfaceAvailableForRequestListener(IfaceType.NAN, nanAvailListener, null);
+        mDut.registerInterfaceAvailableForRequestListener(IfaceType.STA, staAvailListener,
+                mHandler);
+        mDut.registerInterfaceAvailableForRequestListener(IfaceType.AP, apAvailListener, mHandler);
+        mDut.registerInterfaceAvailableForRequestListener(IfaceType.P2P, p2pAvailListener,
+                mHandler);
+        mDut.registerInterfaceAvailableForRequestListener(IfaceType.NAN, nanAvailListener,
+                mHandler);
         mTestLooper.dispatchAll();
 
         inOrderStaAvail.verify(staAvailListener).onAvailableForRequest();
@@ -1305,7 +1314,7 @@ public class HalDeviceManagerTest {
     private void executeAndValidateStartupSequence(int numAttempts, boolean success)
             throws Exception {
         // act: register listener & start Wi-Fi
-        mDut.registerStatusListener(mManagerStatusListenerMock, mTestLooper.getLooper());
+        mDut.registerStatusListener(mManagerStatusListenerMock, mHandler);
         collector.checkThat(mDut.start(), equalTo(success));
 
         // verify
@@ -1447,9 +1456,9 @@ public class HalDeviceManagerTest {
         );
 
         // Request NAN: expect failure
-        nanIface = mDut.createNanIface(nanDestroyedListener, mTestLooper.getLooper());
+        nanIface = mDut.createNanIface(nanDestroyedListener, mHandler);
         mDut.registerInterfaceAvailableForRequestListener(IfaceType.NAN, nanAvailListener,
-                mTestLooper.getLooper());
+                mHandler);
         collector.checkThat("NAN can't be created", nanIface, IsNull.nullValue());
 
         // Destroy P2P interface
@@ -1507,7 +1516,7 @@ public class HalDeviceManagerTest {
                 doAnswer(new CreateXxxIfaceAnswer(chipMock, mStatusOk, iface)).when(
                         chipMock.chip).createStaIface(any(IWifiChip.createStaIfaceCallback.class));
 
-                mDut.createStaIface(destroyedListener, mTestLooper.getLooper());
+                mDut.createStaIface(destroyedListener, mHandler);
                 break;
             case IfaceType.AP:
                 iface = mock(IWifiApIface.class);
@@ -1518,7 +1527,7 @@ public class HalDeviceManagerTest {
                 doAnswer(new CreateXxxIfaceAnswer(chipMock, mStatusOk, iface)).when(
                         chipMock.chip).createApIface(any(IWifiChip.createApIfaceCallback.class));
 
-                mDut.createApIface(destroyedListener, mTestLooper.getLooper());
+                mDut.createApIface(destroyedListener, mHandler);
                 break;
             case IfaceType.P2P:
                 iface = mock(IWifiP2pIface.class);
@@ -1529,7 +1538,7 @@ public class HalDeviceManagerTest {
                 doAnswer(new CreateXxxIfaceAnswer(chipMock, mStatusOk, iface)).when(
                         chipMock.chip).createP2pIface(any(IWifiChip.createP2pIfaceCallback.class));
 
-                mDut.createP2pIface(destroyedListener, mTestLooper.getLooper());
+                mDut.createP2pIface(destroyedListener, mHandler);
                 break;
             case IfaceType.NAN:
                 iface = mock(IWifiNanIface.class);
@@ -1540,12 +1549,12 @@ public class HalDeviceManagerTest {
                 doAnswer(new CreateXxxIfaceAnswer(chipMock, mStatusOk, iface)).when(
                         chipMock.chip).createNanIface(any(IWifiChip.createNanIfaceCallback.class));
 
-                mDut.createNanIface(destroyedListener, mTestLooper.getLooper());
+                mDut.createNanIface(destroyedListener, mHandler);
                 break;
         }
         if (availableListener != null) {
             mDut.registerInterfaceAvailableForRequestListener(ifaceTypeToCreate, availableListener,
-                    mTestLooper.getLooper());
+                    mHandler);
         }
 
         // validate: optional tear down of interfaces
