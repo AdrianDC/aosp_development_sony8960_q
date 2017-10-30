@@ -5399,7 +5399,6 @@ public class WifiStateMachine extends StateMachine {
         }
 
         setNetworkDetailedState(DetailedState.CONNECTED);
-        mWifiConfigManager.updateNetworkAfterConnect(mLastNetworkId);
         sendNetworkStateChangeBroadcast(mLastBssid);
     }
 

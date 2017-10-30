@@ -1042,6 +1042,8 @@ public class WifiStateMachineTest {
         assertEquals(sBSSID, wifiInfo.getBSSID());
         assertEquals(sFreq, wifiInfo.getFrequency());
         assertTrue(sWifiSsid.equals(wifiInfo.getWifiSsid()));
+        // Ensure the connection stats for the network is updated.
+        verify(mWifiConfigManager).updateNetworkAfterConnect(FRAMEWORK_NETWORK_ID);
 
         assertEquals("ConnectedState", getCurrentState().getName());
     }
