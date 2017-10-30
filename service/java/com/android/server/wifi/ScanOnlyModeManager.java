@@ -17,9 +17,12 @@
 package com.android.server.wifi;
 
 import android.annotation.NonNull;
+import android.net.wifi.IClientInterface;
 import android.os.Looper;
 import android.os.Message;
+import android.os.RemoteException;
 import android.util.Log;
+import android.util.Pair;
 
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
@@ -33,8 +36,16 @@ public class ScanOnlyModeManager implements ActiveModeManager {
 
     private static final String TAG = "ScanOnlyModeManager";
 
-    ScanOnlyModeManager(@NonNull Looper looper) {
+    private final WifiNative mWifiNative;
+    private final WifiMetrics mWifiMetrics;
+
+    private IClientInterface mClientInterface;
+    private String mClientInterfaceName;
+
+    ScanOnlyModeManager(@NonNull Looper looper, WifiNative wifiNative, WifiMetrics wifiMetrics) {
         mStateMachine = new ScanOnlyModeStateMachine(looper);
+        mWifiNative = wifiNative;
+        mWifiMetrics = wifiMetrics;
     }
 
     /**
@@ -52,6 +63,20 @@ public class ScanOnlyModeManager implements ActiveModeManager {
         // stop and clean up the state.
         mStateMachine.sendMessage(ScanOnlyModeStateMachine.CMD_STOP);
         mStateMachine.getCurrentState().exit();
+    }
+
+    /**
+     * Helper function to increment the appropriate setup failure metrics.
+     *
+     * Note: metrics about these failures will move to where the issues are actually detected
+     * (b/69426063)
+     */
+    private void incrementMetricsForSetupFailure(int failureReason) {
+        if (failureReason == WifiNative.SETUP_FAILURE_HAL) {
+            mWifiMetrics.incrementNumWifiOnFailureDueToHal();
+        } else if (failureReason == WifiNative.SETUP_FAILURE_WIFICOND) {
+            mWifiMetrics.incrementNumWifiOnFailureDueToWificond();
+        }
     }
 
     private class ScanOnlyModeStateMachine extends StateMachine {
@@ -85,6 +110,24 @@ public class ScanOnlyModeManager implements ActiveModeManager {
             public boolean processMessage(Message message) {
                 switch (message.what) {
                     case CMD_START:
+                        mClientInterface = null;
+                        Pair<Integer, IClientInterface> statusAndInterface =
+                                mWifiNative.setupForClientMode(mWifiNative.getInterfaceName());
+                        if (statusAndInterface.first == WifiNative.SETUP_SUCCESS) {
+                            mClientInterface = statusAndInterface.second;
+                        } else {
+                            incrementMetricsForSetupFailure(statusAndInterface.first);
+                        }
+                        if (mClientInterface == null) {
+                            Log.e(TAG, "Failed to create ClientInterface.");
+                            break;
+                        }
+                        try {
+                            mClientInterfaceName = mClientInterface.getInterfaceName();
+                        } catch (RemoteException e) {
+                            Log.e(TAG, "Failed to retrieve ClientInterface name.");
+                            break;
+                        }
                         transitionTo(mStartedState);
                         break;
                     case CMD_STOP:

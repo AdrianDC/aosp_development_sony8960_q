@@ -207,6 +207,7 @@ public class WifiStateMachinePrimeTest {
         mWifiStateMachinePrime.disableWifi();
         mLooper.dispatchAll();
         verify(mScanOnlyModeManager).stop();
+        verifyCleanupCalled();
         assertEquals(WIFI_DISABLED_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
     }
 
@@ -222,15 +223,6 @@ public class WifiStateMachinePrimeTest {
         verify(mSoftApManager).stop();
         verifyCleanupCalled();
         assertEquals(WIFI_DISABLED_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
-    }
-
-    /**
-     * Test that we can disable wifi fully from the ScanOnlyModeState.
-     */
-    @Test
-    public void testDisableWifiFromScanOnlyModeState() throws Exception {
-        // TODO: implement this test when we can inject a failure to prevent ScanOnlyMode from
-        // entering the active state.
     }
 
     /**
