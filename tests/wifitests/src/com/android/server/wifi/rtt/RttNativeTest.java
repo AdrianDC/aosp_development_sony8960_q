@@ -18,6 +18,8 @@
 package com.android.server.wifi.rtt;
 
 import static org.hamcrest.core.IsEqual.equalTo;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -90,6 +92,8 @@ public class RttNativeTest {
         mDut.start();
         verify(mockHalDeviceManager).registerStatusListener(mHdmStatusListener.capture(), any());
         verify(mockRttController).registerEventCallback(any());
+        verify(mockRttServiceImpl).enable();
+        assertTrue(mDut.isReady());
     }
 
     /**
@@ -144,11 +148,13 @@ public class RttNativeTest {
         // (1) configure Wi-Fi down and send a status change indication
         when(mockHalDeviceManager.isStarted()).thenReturn(false);
         mHdmStatusListener.getValue().onStatusChanged();
+        verify(mockRttServiceImpl).disable();
+        assertFalse(mDut.isReady());
 
         // (2) issue range request
         mDut.rangeRequest(cmdId, request);
 
-        verifyNoMoreInteractions(mockRttController);
+        verifyNoMoreInteractions(mockRttServiceImpl, mockRttController);
     }
 
     /**
