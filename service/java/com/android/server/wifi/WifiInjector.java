@@ -163,7 +163,7 @@ public class WifiInjector {
         mWifiMetrics = new WifiMetrics(mClock, wifiStateMachineLooper, awareMetrics);
         // Modules interacting with Native.
         mWifiMonitor = new WifiMonitor(this);
-        mHalDeviceManager = new HalDeviceManager();
+        mHalDeviceManager = new HalDeviceManager(mClock);
         mWifiVendorHal =
                 new WifiVendorHal(mHalDeviceManager, mWifiStateMachineHandlerThread.getLooper());
         mSupplicantStaIfaceHal = new SupplicantStaIfaceHal(mContext, mWifiMonitor);

@@ -21,14 +21,17 @@ import static com.android.server.wifi.rtt.RttTestUtils.compareListContentsNoOrde
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -37,7 +40,10 @@ import static org.mockito.Mockito.when;
 import android.app.AlarmManager;
 import android.app.test.MockAnswerUtil;
 import android.app.test.TestAlarmManager;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.hardware.wifi.V1_0.RttResult;
 import android.net.wifi.aware.IWifiAwareMacAddressProvider;
 import android.net.wifi.aware.IWifiAwareManager;
@@ -46,9 +52,13 @@ import android.net.wifi.rtt.IRttCallback;
 import android.net.wifi.rtt.RangingRequest;
 import android.net.wifi.rtt.RangingResult;
 import android.net.wifi.rtt.RangingResultCallback;
+import android.net.wifi.rtt.WifiRttManager;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.IPowerManager;
+import android.os.PowerManager;
 import android.os.RemoteException;
+import android.os.UserHandle;
 import android.os.test.TestLooper;
 import android.util.Pair;
 
@@ -75,6 +85,8 @@ public class RttServiceImplTest {
     private RttServiceImplSpy mDut;
     private TestLooper mMockLooper;
     private TestAlarmManager mAlarmManager;
+    private PowerManager mMockPowerManager;
+    private BroadcastReceiver mPowerBcastReceiver;
 
     private final String mPackageName = "some.package.name.for.rtt.app";
     private int mDefaultUid = 1500;
@@ -138,13 +150,27 @@ public class RttServiceImplTest {
         mAlarmManager = new TestAlarmManager();
         when(mockContext.getSystemService(Context.ALARM_SERVICE))
                 .thenReturn(mAlarmManager.getAlarmManager());
-        mInOrder = inOrder(mAlarmManager.getAlarmManager());
+        mInOrder = inOrder(mAlarmManager.getAlarmManager(), mockContext);
 
         when(mockPermissionUtil.checkCallersLocationPermission(eq(mPackageName),
                 anyInt())).thenReturn(true);
+        when(mockNative.isReady()).thenReturn(true);
         when(mockNative.rangeRequest(anyInt(), any(RangingRequest.class))).thenReturn(true);
 
+        mMockPowerManager = new PowerManager(mockContext, mock(IPowerManager.class),
+                new Handler(mMockLooper.getLooper()));
+        when(mMockPowerManager.isDeviceIdleMode()).thenReturn(false);
+        when(mockContext.getSystemServiceName(PowerManager.class)).thenReturn(
+                Context.POWER_SERVICE);
+        when(mockContext.getSystemService(PowerManager.class)).thenReturn(mMockPowerManager);
+
         mDut.start(mMockLooper.getLooper(), mockAwareManagerBinder, mockNative, mockPermissionUtil);
+        ArgumentCaptor<BroadcastReceiver> bcastRxCaptor = ArgumentCaptor.forClass(
+                BroadcastReceiver.class);
+        verify(mockContext).registerReceiver(bcastRxCaptor.capture(), any(IntentFilter.class));
+        mPowerBcastReceiver = bcastRxCaptor.getValue();
+
+        assertTrue(mDut.isAvailable());
     }
 
     /**
@@ -185,6 +211,7 @@ public class RttServiceImplTest {
             mMockLooper.dispatchAll();
         }
 
+        verify(mockNative, atLeastOnce()).isReady();
         verifyNoMoreInteractions(mockNative, mockCallback, mAlarmManager.getAlarmManager());
     }
 
@@ -232,6 +259,7 @@ public class RttServiceImplTest {
 
         assertTrue(compareListContentsNoOrdering(results.second, mListCaptor.getValue()));
 
+        verify(mockNative, atLeastOnce()).isReady();
         verifyNoMoreInteractions(mockNative, mockCallback, mAlarmManager.getAlarmManager());
     }
 
@@ -282,6 +310,7 @@ public class RttServiceImplTest {
             }
         }
 
+        verify(mockNative, atLeastOnce()).isReady();
         verifyNoMoreInteractions(mockNative, mockCallback, mAlarmManager.getAlarmManager());
     }
 
@@ -312,6 +341,7 @@ public class RttServiceImplTest {
         verify(mockCallback).onRangingFailure(eq(RangingResultCallback.STATUS_CODE_FAIL));
         verifyWakeupCancelled();
 
+        verify(mockNative, atLeastOnce()).isReady();
         verifyNoMoreInteractions(mockNative, mockCallback, mAlarmManager.getAlarmManager());
     }
 
@@ -379,6 +409,7 @@ public class RttServiceImplTest {
             }
         }
 
+        verify(mockNative, atLeastOnce()).isReady();
         verifyNoMoreInteractions(mockNative, mockCallback, mAlarmManager.getAlarmManager());
     }
 
@@ -413,6 +444,7 @@ public class RttServiceImplTest {
         verify(mockCallback).onRangingResults(results.second);
         verifyWakeupCancelled();
 
+        verify(mockNative, atLeastOnce()).isReady();
         verifyNoMoreInteractions(mockNative, mockCallback, mAlarmManager.getAlarmManager());
     }
 
@@ -447,6 +479,7 @@ public class RttServiceImplTest {
         assertTrue(compareListContentsNoOrdering(results.second, mListCaptor.getValue()));
         verifyWakeupCancelled();
 
+        verify(mockNative, atLeastOnce()).isReady();
         verifyNoMoreInteractions(mockNative, mockCallback, mAlarmManager.getAlarmManager());
     }
 
@@ -492,12 +525,102 @@ public class RttServiceImplTest {
         verify(mockCallback).onRangingResults(result2.second);
         verifyWakeupCancelled();
 
+        verify(mockNative, atLeastOnce()).isReady();
         verifyNoMoreInteractions(mockNative, mockCallback, mAlarmManager.getAlarmManager());
+    }
+
+    /**
+     * Validate that when Wi-Fi gets disabled (HAL level) the ranging queue gets cleared.
+     */
+    @Test
+    public void testDisableWifiFlow() throws Exception {
+        runDisableRttFlow(true);
+    }
+
+    /**
+     * Validate that when Doze mode starts, RTT gets disabled and the ranging queue gets cleared.
+     */
+    @Test
+    public void testDozeModeFlow() throws Exception {
+        runDisableRttFlow(false);
+    }
+
+    /**
+     * Actually execute the disable RTT flow: either by disabling Wi-Fi or enabling doze.
+     *
+     * @param disableWifi true to disable Wi-Fi, false to enable doze
+     */
+    private void runDisableRttFlow(boolean disableWifi) throws Exception {
+        RangingRequest request1 = RttTestUtils.getDummyRangingRequest((byte) 1);
+        RangingRequest request2 = RttTestUtils.getDummyRangingRequest((byte) 2);
+        RangingRequest request3 = RttTestUtils.getDummyRangingRequest((byte) 3);
+
+        IRttCallback mockCallback2 = mock(IRttCallback.class);
+        IRttCallback mockCallback3 = mock(IRttCallback.class);
+
+        // (1) request 2 ranging operations: request 1 should be sent to HAL
+        mDut.startRanging(mockIbinder, mPackageName, request1, mockCallback);
+        mDut.startRanging(mockIbinder, mPackageName, request2, mockCallback2);
+        mMockLooper.dispatchAll();
+
+        verify(mockNative).rangeRequest(mIntCaptor.capture(), eq(request1));
+        verifyWakeupSet();
+
+        // (2) disable RTT: all requests should "fail"
+        if (disableWifi) {
+            when(mockNative.isReady()).thenReturn(false);
+            mDut.disable();
+        } else {
+            simulatePowerStateChangeDoze(true);
+        }
+        mMockLooper.dispatchAll();
+
+        assertFalse(mDut.isAvailable());
+        validateCorrectRttStatusChangeBroadcast(false);
+        verify(mockNative).rangeCancel(eq(mIntCaptor.getValue()), any());
+        verify(mockCallback).onRangingFailure(
+                RangingResultCallback.STATUS_CODE_FAIL_RTT_NOT_AVAILABLE);
+        verify(mockCallback2).onRangingFailure(
+                RangingResultCallback.STATUS_CODE_FAIL_RTT_NOT_AVAILABLE);
+        verifyWakeupCancelled();
+
+        // (3) issue another request: it should fail
+        mDut.startRanging(mockIbinder, mPackageName, request3, mockCallback3);
+        mMockLooper.dispatchAll();
+
+        verify(mockCallback3).onRangingFailure(
+                RangingResultCallback.STATUS_CODE_FAIL_RTT_NOT_AVAILABLE);
+
+        // (4) enable RTT: nothing should happen (no requests in queue!)
+        if (disableWifi) {
+            when(mockNative.isReady()).thenReturn(true);
+            mDut.enable();
+        } else {
+            simulatePowerStateChangeDoze(false);
+        }
+        mMockLooper.dispatchAll();
+
+        assertTrue(mDut.isAvailable());
+        validateCorrectRttStatusChangeBroadcast(true);
+        verify(mockNative, atLeastOnce()).isReady();
+        verifyNoMoreInteractions(mockNative, mockCallback, mockCallback2, mockCallback3,
+                mAlarmManager.getAlarmManager());
     }
 
     /*
      * Utilities
      */
+
+    /**
+     * Simulate power state change due to doze. Changes the power manager return values and
+     * dispatches a broadcast.
+     */
+    private void simulatePowerStateChangeDoze(boolean isDozeOn) {
+        when(mMockPowerManager.isDeviceIdleMode()).thenReturn(isDozeOn);
+
+        Intent intent = new Intent(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED);
+        mPowerBcastReceiver.onReceive(mockContext, intent);
+    }
 
     private void verifyWakeupSet() {
         mInOrder.verify(mAlarmManager.getAlarmManager()).setExact(anyInt(), anyLong(),
@@ -508,6 +631,19 @@ public class RttServiceImplTest {
     private void verifyWakeupCancelled() {
         mInOrder.verify(mAlarmManager.getAlarmManager()).cancel(
                 any(AlarmManager.OnAlarmListener.class));
+    }
+
+    /**
+     * Validates that the broadcast sent on RTT status change is correct.
+     *
+     * @param expectedEnabled The expected change status - i.e. are we expected to announce that
+     *                        RTT is enabled (true) or disabled (false).
+     */
+    private void validateCorrectRttStatusChangeBroadcast(boolean expectedEnabled) {
+        ArgumentCaptor<Intent> intent = ArgumentCaptor.forClass(Intent.class);
+
+        mInOrder.verify(mockContext).sendBroadcastAsUser(intent.capture(), eq(UserHandle.ALL));
+        assertEquals(intent.getValue().getAction(), WifiRttManager.ACTION_WIFI_RTT_STATE_CHANGED);
     }
 
     private class AwareTranslatePeerHandlesToMac extends MockAnswerUtil.AnswerWithArguments {
