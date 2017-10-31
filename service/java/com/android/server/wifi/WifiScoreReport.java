@@ -49,7 +49,7 @@ public class WifiScoreReport {
 
     ConnectedScore mConnectedScore;
     ConnectedScore mAggressiveConnectedScore;
-    ConnectedScore mFancyConnectedScore;
+    VelocityBasedConnectedScore mFancyConnectedScore;
 
     WifiScoreReport(Context context, WifiConfigManager wifiConfigManager, Clock clock) {
         mClock = clock;
@@ -171,6 +171,8 @@ public class WifiScoreReport {
     private void logLinkMetrics(WifiInfo wifiInfo, long now, int s0, int s1, int s2) {
         if (now < FIRST_REASONABLE_WALL_CLOCK) return;
         double rssi = wifiInfo.getRssi();
+        double filteredRssi = mFancyConnectedScore.getFilteredRssi();
+        double rssiThreshold = mFancyConnectedScore.getAdjustedRssiThreshold();
         int freq = wifiInfo.getFrequency();
         int linkSpeed = wifiInfo.getLinkSpeed();
         double txSuccessRate = wifiInfo.txSuccessRate;
@@ -180,8 +182,8 @@ public class WifiScoreReport {
         try {
             String timestamp = new SimpleDateFormat("MM-dd HH:mm:ss.SSS").format(new Date(now));
             String s = String.format(Locale.US, // Use US to avoid comma/decimal confusion
-                    "%s,%d,%.1f,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%d,%d",
-                    timestamp, mSessionNumber, rssi, freq, linkSpeed,
+                    "%s,%d,%.1f,%.1f,%.1f,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%d,%d",
+                    timestamp, mSessionNumber, rssi, filteredRssi, rssiThreshold, freq, linkSpeed,
                     txSuccessRate, txRetriesRate, txBadRate, rxSuccessRate,
                     s0, s1, s2);
             mLinkMetricsHistory.add(s);
@@ -205,7 +207,8 @@ public class WifiScoreReport {
      * @param args unused
      */
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-        pw.println("time,session,rssi,freq,linkspeed,tx_good,tx_retry,tx_bad,rx,s0,s1,s2");
+        pw.println("time,session,rssi,filtered_rssi,rssi_threshold,"
+                + "freq,linkspeed,tx_good,tx_retry,tx_bad,rx,s0,s1,s2");
         for (String line : mLinkMetricsHistory) {
             pw.println(line);
         }

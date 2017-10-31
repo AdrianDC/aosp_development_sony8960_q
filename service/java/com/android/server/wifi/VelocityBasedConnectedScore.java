@@ -34,7 +34,8 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
     private final int mThresholdMinimumRssi24;     // -85
 
     private int mFrequency = 5000;
-    private int mRssi = 0;
+    private double mThresholdMinimumRssi;
+    private double mThresholdAdjustment;
     private final KalmanFilter mFilter;
     private long mLastMillis;
 
@@ -44,6 +45,7 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
                 R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_5GHz);
         mThresholdMinimumRssi24 = context.getResources().getInteger(
                 R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_24GHz);
+        mThresholdMinimumRssi = mThresholdMinimumRssi5;
         mFilter = new KalmanFilter();
         mFilter.mH = new Matrix(2, new double[]{1.0, 0.0});
         mFilter.mR = new Matrix(1, new double[]{1.0});
@@ -69,6 +71,7 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
     @Override
     public void reset() {
         mLastMillis = 0;
+        mThresholdAdjustment = 0.0;
     }
 
     /**
@@ -97,6 +100,8 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
         mFilter.predict();
         mLastMillis = millis;
         mFilter.update(new Matrix(1, new double[]{rssi}));
+        mFilteredRssi = mFilter.mx.get(0, 0);
+        mEstimatedRateOfRssiChange = mFilter.mx.get(1, 0);
     }
 
     /**
@@ -106,10 +111,63 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
     public void updateUsingWifiInfo(WifiInfo wifiInfo, long millis) {
         int frequency = wifiInfo.getFrequency();
         if (frequency != mFrequency) {
-            reset(); // Probably roamed
+            mLastMillis = 0; // Probably roamed; reset filter but retain threshold adjustment
+            // Consider resetting or partially resetting threshold adjustment
+            // Consider checking bssid
             mFrequency = frequency;
+            mThresholdMinimumRssi =
+                    mFrequency >= 5000 ? mThresholdMinimumRssi5 : mThresholdMinimumRssi24;
         }
         updateUsingRssi(wifiInfo.getRssi(), millis, mDefaultRssiStandardDeviation);
+        adjustThreshold(wifiInfo);
+    }
+
+    private double mFilteredRssi;
+    private double mEstimatedRateOfRssiChange;
+
+    /**
+     * Returns the most recently computed extimate of the RSSI.
+     */
+    public double getFilteredRssi() {
+        return mFilteredRssi;
+    }
+
+    /**
+     * Returns the estimated rate of change of RSSI, in dB/second
+     */
+    public double getEstimatedRateOfRssiChange() {
+        return mEstimatedRateOfRssiChange;
+    }
+
+    /**
+     * Returns the adjusted RSSI threshold
+     */
+    public double getAdjustedRssiThreshold() {
+        return mThresholdMinimumRssi + mThresholdAdjustment;
+    }
+
+    /**
+     * Adjusts the threshold if appropriate
+     * <p>
+     * If the (filtered) rssi is near or below the current effective threshold, and the
+     * rate of rssi change is small, and there is traffic, and the error rate is looking
+     * reasonable, then decrease the effective threshold to keep from dropping a perfectly good
+     * connection.
+     *
+     */
+    private void adjustThreshold(WifiInfo wifiInfo) {
+        if (mThresholdAdjustment < -7) return;
+        if (mFilteredRssi >= getAdjustedRssiThreshold() + 2.0) return;
+        if (Math.abs(mEstimatedRateOfRssiChange) >= 0.2) return;
+        if (wifiInfo.txSuccessRate < 10) return;
+        if (wifiInfo.rxSuccessRate < 10) return;
+        double probabilityOfSuccessfulTx = (
+                wifiInfo.txSuccessRate / (wifiInfo.txSuccessRate + wifiInfo.txBadRate)
+        );
+        if (probabilityOfSuccessfulTx >= 0.2) {
+            // May want this amount to vary with how close to threshold we are
+            mThresholdAdjustment -= 0.5;
+        }
     }
 
     /**
@@ -117,7 +175,7 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
      */
     @Override
     public int generateScore() {
-        int badRssi = mFrequency >= 5000 ? mThresholdMinimumRssi5 : mThresholdMinimumRssi24;
+        double badRssi = getAdjustedRssiThreshold();
         double horizonSeconds = 15.0;
         Matrix x = new Matrix(mFilter.mx);
         double filteredRssi = x.get(0, 0);
