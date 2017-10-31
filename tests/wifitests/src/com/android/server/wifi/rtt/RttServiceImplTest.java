@@ -165,9 +165,11 @@ public class RttServiceImplTest {
         when(mockContext.getSystemService(PowerManager.class)).thenReturn(mMockPowerManager);
 
         mDut.start(mMockLooper.getLooper(), mockAwareManagerBinder, mockNative, mockPermissionUtil);
+        mMockLooper.dispatchAll();
         ArgumentCaptor<BroadcastReceiver> bcastRxCaptor = ArgumentCaptor.forClass(
                 BroadcastReceiver.class);
         verify(mockContext).registerReceiver(bcastRxCaptor.capture(), any(IntentFilter.class));
+        verify(mockNative).start();
         mPowerBcastReceiver = bcastRxCaptor.getValue();
 
         assertTrue(mDut.isAvailable());
