@@ -59,6 +59,7 @@ import android.os.IPowerManager;
 import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.UserHandle;
+import android.os.WorkSource;
 import android.os.test.TestLooper;
 import android.util.Pair;
 
@@ -66,6 +67,7 @@ import com.android.server.wifi.util.WifiPermissionsUtil;
 
 import libcore.util.HexEncoding;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -75,8 +77,10 @@ import org.mockito.MockitoAnnotations;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Unit test harness for the RttServiceImpl class.
@@ -97,6 +101,9 @@ public class RttServiceImplTest {
     private ArgumentCaptor<RangingRequest> mRequestCaptor = ArgumentCaptor.forClass(
             RangingRequest.class);
     private ArgumentCaptor<List> mListCaptor = ArgumentCaptor.forClass(List.class);
+
+    private BinderLinkToDeathAnswer mBinderLinkToDeathCounter = new BinderLinkToDeathAnswer();
+    private BinderUnlinkToDeathAnswer mBinderUnlinkToDeathCounter = new BinderUnlinkToDeathAnswer();
 
     private InOrder mInOrder;
 
@@ -164,6 +171,9 @@ public class RttServiceImplTest {
                 Context.POWER_SERVICE);
         when(mockContext.getSystemService(PowerManager.class)).thenReturn(mMockPowerManager);
 
+        doAnswer(mBinderLinkToDeathCounter).when(mockIbinder).linkToDeath(any(), anyInt());
+        doAnswer(mBinderUnlinkToDeathCounter).when(mockIbinder).unlinkToDeath(any(), anyInt());
+
         mDut.start(mMockLooper.getLooper(), mockAwareManagerBinder, mockNative, mockPermissionUtil);
         mMockLooper.dispatchAll();
         ArgumentCaptor<BroadcastReceiver> bcastRxCaptor = ArgumentCaptor.forClass(
@@ -173,6 +183,12 @@ public class RttServiceImplTest {
         mPowerBcastReceiver = bcastRxCaptor.getValue();
 
         assertTrue(mDut.isAvailable());
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        assertEquals("Binder links != unlinks to death", mBinderLinkToDeathCounter.mUniqueExecs,
+                mBinderUnlinkToDeathCounter.mUniqueExecs);
     }
 
     /**
@@ -191,7 +207,7 @@ public class RttServiceImplTest {
 
         // (1) request 10 ranging operations
         for (int i = 0; i < numIter; ++i) {
-            mDut.startRanging(mockIbinder, mPackageName, requests[i], mockCallback);
+            mDut.startRanging(mockIbinder, mPackageName, null, requests[i], mockCallback);
         }
         mMockLooper.dispatchAll();
 
@@ -234,7 +250,7 @@ public class RttServiceImplTest {
         doAnswer(answer).when(mockAwareManagerBinder).requestMacAddresses(anyInt(), any(), any());
 
         // issue request
-        mDut.startRanging(mockIbinder, mPackageName, request, mockCallback);
+        mDut.startRanging(mockIbinder, mPackageName, null, request, mockCallback);
         mMockLooper.dispatchAll();
 
         // verify that requested with MAC address translated from the PeerHandle issued to Native
@@ -281,12 +297,12 @@ public class RttServiceImplTest {
 
         // (1) request 10 ranging operations: fail the first one
         when(mockNative.rangeRequest(anyInt(), any(RangingRequest.class))).thenReturn(false);
-        mDut.startRanging(mockIbinder, mPackageName, requests[0], mockCallback);
+        mDut.startRanging(mockIbinder, mPackageName, null, requests[0], mockCallback);
         mMockLooper.dispatchAll();
 
         when(mockNative.rangeRequest(anyInt(), any(RangingRequest.class))).thenReturn(true);
         for (int i = 1; i < numIter; ++i) {
-            mDut.startRanging(mockIbinder, mPackageName, requests[i], mockCallback);
+            mDut.startRanging(mockIbinder, mPackageName, null, requests[i], mockCallback);
         }
         mMockLooper.dispatchAll();
 
@@ -326,7 +342,7 @@ public class RttServiceImplTest {
                 request);
 
         // (1) request ranging operation
-        mDut.startRanging(mockIbinder, mPackageName, request, mockCallback);
+        mDut.startRanging(mockIbinder, mPackageName, null, request, mockCallback);
         mMockLooper.dispatchAll();
 
         // (2) verify that request issued to native
@@ -365,7 +381,7 @@ public class RttServiceImplTest {
         // (1) request 10 ranging operations: even/odd with different UIDs
         for (int i = 0; i < numIter; ++i) {
             mDut.fakeUid = mDefaultUid + i % 2;
-            mDut.startRanging(mockIbinder, mPackageName, requests[i], mockCallback);
+            mDut.startRanging(mockIbinder, mPackageName, null, requests[i], mockCallback);
         }
         mMockLooper.dispatchAll();
 
@@ -396,20 +412,138 @@ public class RttServiceImplTest {
                         (byte[]) mListCaptor.getValue().get(2));
             }
 
-            // (5) native calls back with results - should get requests for the odd attempts and
-            // should only get callbacks for the odd attempts (the non-dead UID)
-            if (i == 0 || i % 2 == 1) {
-                mDut.onRangingResults(mIntCaptor.getValue(), results.get(i).first);
-                mMockLooper.dispatchAll();
-
-                // note that we are getting a callback for the first operation - it was dispatched
-                // before the binder death. The callback is called from the service - the app is
-                // dead so in reality this will throw a RemoteException which the service will
-                // handle correctly.
+            // (5) native calls back with all results - should get requests for the odd attempts and
+            // should only get callbacks for the odd attempts (the non-dead UID), but this simulates
+            // invalid results (or possibly the firmware not cancelling some requests)
+            mDut.onRangingResults(mIntCaptor.getValue(), results.get(i).first);
+            mMockLooper.dispatchAll();
+            if (i == 0) {
+                verifyWakeupCancelled(); // as the first (dispatched) request is aborted
+            }
+            if (i % 2 == 1) {
                 verify(mockCallback).onRangingResults(results.get(i).second);
                 verifyWakeupCancelled();
             }
         }
+
+        verify(mockNative, atLeastOnce()).isReady();
+        verifyNoMoreInteractions(mockNative, mockCallback, mAlarmManager.getAlarmManager());
+    }
+
+    /**
+     * Validate that a ranging app which uses WorkSource and dies (binder death) results in the
+     * request cleanup.
+     */
+    @Test
+    public void testBinderDeathWithWorkSource() throws Exception {
+        WorkSource ws = new WorkSource(100);
+
+        RangingRequest request = RttTestUtils.getDummyRangingRequest((byte) 0);
+        Pair<List<RttResult>, List<RangingResult>> results = RttTestUtils.getDummyRangingResults(
+                request);
+
+        // (1) request ranging operation
+        mDut.startRanging(mockIbinder, mPackageName, ws, request, mockCallback);
+        mMockLooper.dispatchAll();
+
+        verify(mockIbinder).linkToDeath(mDeathRecipientCaptor.capture(), anyInt());
+        verify(mockNative).rangeRequest(mIntCaptor.capture(), eq(request));
+        verifyWakeupSet();
+
+        // (2) execute binder death
+        mDeathRecipientCaptor.getValue().binderDied();
+        mMockLooper.dispatchAll();
+
+        verify(mockNative).rangeCancel(eq(mIntCaptor.getValue()), any());
+        verifyWakeupCancelled();
+
+        // (3) provide results back - should be ignored
+        mDut.onRangingResults(mIntCaptor.getValue(), results.first);
+        mMockLooper.dispatchAll();
+
+        verify(mockNative, atLeastOnce()).isReady();
+        verifyNoMoreInteractions(mockNative, mockCallback, mAlarmManager.getAlarmManager());
+    }
+
+    /**
+     * Validate that when a cancelRanging is called, using the same work source specification as the
+     * request, that the request is cancelled.
+     */
+    @Test
+    public void testCancelRangingFullMatch() throws Exception {
+        int uid1 = 10;
+        int uid2 = 20;
+        int uid3 = 30;
+        WorkSource worksourceRequest = new WorkSource(uid1);
+        worksourceRequest.add(uid2);
+        worksourceRequest.add(uid3);
+        WorkSource worksourceCancel = new WorkSource(uid2);
+        worksourceCancel.add(uid3);
+        worksourceCancel.add(uid1);
+
+        RangingRequest request = RttTestUtils.getDummyRangingRequest((byte) 0);
+        Pair<List<RttResult>, List<RangingResult>> results = RttTestUtils.getDummyRangingResults(
+                request);
+
+        // (1) request ranging operation
+        mDut.startRanging(mockIbinder, mPackageName, worksourceRequest, request, mockCallback);
+        mMockLooper.dispatchAll();
+
+        // (2) verify that request issued to native
+        verify(mockNative).rangeRequest(mIntCaptor.capture(), eq(request));
+        verifyWakeupSet();
+
+        // (3) cancel the request
+        mDut.cancelRanging(worksourceCancel);
+        mMockLooper.dispatchAll();
+
+        verify(mockNative).rangeCancel(eq(mIntCaptor.getValue()), any());
+        verifyWakeupCancelled();
+
+        // (4) send results back from native
+        mDut.onRangingResults(mIntCaptor.getValue(), results.first);
+        mMockLooper.dispatchAll();
+
+        verify(mockNative, atLeastOnce()).isReady();
+        verifyNoMoreInteractions(mockNative, mockCallback, mAlarmManager.getAlarmManager());
+    }
+
+    /**
+     * Validate that when a cancelRanging is called - but specifies a subset of the WorkSource
+     * uids then the ranging proceeds.
+     */
+    @Test
+    public void testCancelRangingPartialMatch() throws Exception {
+        int uid1 = 10;
+        int uid2 = 20;
+        int uid3 = 30;
+        WorkSource worksourceRequest = new WorkSource(uid1);
+        worksourceRequest.add(uid2);
+        worksourceRequest.add(uid3);
+        WorkSource worksourceCancel = new WorkSource(uid1);
+        worksourceCancel.add(uid2);
+
+        RangingRequest request = RttTestUtils.getDummyRangingRequest((byte) 0);
+        Pair<List<RttResult>, List<RangingResult>> results = RttTestUtils.getDummyRangingResults(
+                request);
+
+        // (1) request ranging operation
+        mDut.startRanging(mockIbinder, mPackageName, worksourceRequest, request, mockCallback);
+        mMockLooper.dispatchAll();
+
+        // (2) verify that request issued to native
+        verify(mockNative).rangeRequest(mIntCaptor.capture(), eq(request));
+        verifyWakeupSet();
+
+        // (3) cancel the request
+        mDut.cancelRanging(worksourceCancel);
+
+        // (4) send results back from native
+        mDut.onRangingResults(mIntCaptor.getValue(), results.first);
+        mMockLooper.dispatchAll();
+
+        verify(mockCallback).onRangingResults(results.second);
+        verifyWakeupCancelled();
 
         verify(mockNative, atLeastOnce()).isReady();
         verifyNoMoreInteractions(mockNative, mockCallback, mAlarmManager.getAlarmManager());
@@ -426,7 +560,7 @@ public class RttServiceImplTest {
                 request);
 
         // (1) request ranging operation
-        mDut.startRanging(mockIbinder, mPackageName, request, mockCallback);
+        mDut.startRanging(mockIbinder, mPackageName, null, request, mockCallback);
         mMockLooper.dispatchAll();
 
         // (2) verify that request issued to native
@@ -465,7 +599,7 @@ public class RttServiceImplTest {
                 new RangingResult(RangingResult.STATUS_FAIL, removed.getMacAddress(), 0, 0, 0, 0));
 
         // (1) request ranging operation
-        mDut.startRanging(mockIbinder, mPackageName, request, mockCallback);
+        mDut.startRanging(mockIbinder, mPackageName, null, request, mockCallback);
         mMockLooper.dispatchAll();
 
         // (2) verify that request issued to native
@@ -499,8 +633,8 @@ public class RttServiceImplTest {
                 request2);
 
         // (1) request 2 ranging operation
-        mDut.startRanging(mockIbinder, mPackageName, request1, mockCallback);
-        mDut.startRanging(mockIbinder, mPackageName, request2, mockCallback);
+        mDut.startRanging(mockIbinder, mPackageName, null, request1, mockCallback);
+        mDut.startRanging(mockIbinder, mPackageName, null, request2, mockCallback);
         mMockLooper.dispatchAll();
 
         // verify that request 1 issued to native
@@ -561,8 +695,8 @@ public class RttServiceImplTest {
         IRttCallback mockCallback3 = mock(IRttCallback.class);
 
         // (1) request 2 ranging operations: request 1 should be sent to HAL
-        mDut.startRanging(mockIbinder, mPackageName, request1, mockCallback);
-        mDut.startRanging(mockIbinder, mPackageName, request2, mockCallback2);
+        mDut.startRanging(mockIbinder, mPackageName, null, request1, mockCallback);
+        mDut.startRanging(mockIbinder, mPackageName, null, request2, mockCallback2);
         mMockLooper.dispatchAll();
 
         verify(mockNative).rangeRequest(mIntCaptor.capture(), eq(request1));
@@ -587,7 +721,7 @@ public class RttServiceImplTest {
         verifyWakeupCancelled();
 
         // (3) issue another request: it should fail
-        mDut.startRanging(mockIbinder, mPackageName, request3, mockCallback3);
+        mDut.startRanging(mockIbinder, mPackageName, null, request3, mockCallback3);
         mMockLooper.dispatchAll();
 
         verify(mockCallback3).onRangingFailure(
@@ -677,4 +811,22 @@ public class RttServiceImplTest {
             }
         }
     }
+
+    private class BinderDeathAnswerBase extends MockAnswerUtil.AnswerWithArguments {
+        protected Set<IBinder.DeathRecipient> mUniqueExecs = new HashSet<>();
+    }
+
+    private class BinderLinkToDeathAnswer extends BinderDeathAnswerBase {
+        public void answer(IBinder.DeathRecipient recipient, int flags) {
+            mUniqueExecs.add(recipient);
+        }
+    }
+
+    private class BinderUnlinkToDeathAnswer extends BinderDeathAnswerBase {
+        public boolean answer(IBinder.DeathRecipient recipient, int flags) {
+            mUniqueExecs.add(recipient);
+            return true;
+        }
+    }
+
 }
