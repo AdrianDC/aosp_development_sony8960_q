@@ -529,7 +529,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                     synchronized (mLock) {
                         mIWifiP2pIface = null;
                     }
-                }, mP2pStateMachine.getHandler().getLooper());
+                }, mP2pStateMachine.getHandler());
             }
 
             return messenger;

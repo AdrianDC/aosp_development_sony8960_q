@@ -3060,7 +3060,7 @@ public class WifiAwareStateManagerTest {
         ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
         IWifiAwareEventCallback mockCallback = mock(IWifiAwareEventCallback.class);
         InOrder inOrder = inOrder(mMockContext, mMockNativeManager, mMockNative, mockCallback);
-        inOrder.verify(mMockNativeManager).start();
+        inOrder.verify(mMockNativeManager).start(any(Handler.class));
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();

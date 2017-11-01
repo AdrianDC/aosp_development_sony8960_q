@@ -28,6 +28,7 @@ import android.hardware.wifi.V1_0.IWifiNanIface;
 import android.hardware.wifi.V1_0.IfaceType;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
+import android.os.Handler;
 
 import com.android.server.wifi.HalDeviceManager;
 
@@ -49,6 +50,7 @@ public class WifiAwareNativeManagerTest {
     @Mock private HalDeviceManager mHalDeviceManager;
     @Mock private WifiAwareNativeCallback mWifiAwareNativeCallback;
     @Mock private IWifiNanIface mWifiNanIfaceMock;
+    @Mock private Handler mHandlerMock;
     private ArgumentCaptor<HalDeviceManager.ManagerStatusListener> mManagerStatusListenerCaptor =
             ArgumentCaptor.forClass(HalDeviceManager.ManagerStatusListener.class);
     private ArgumentCaptor<HalDeviceManager.InterfaceDestroyedListener>
@@ -73,7 +75,7 @@ public class WifiAwareNativeManagerTest {
 
         mDut = new WifiAwareNativeManager(mWifiAwareStateManagerMock,
                 mHalDeviceManager, mWifiAwareNativeCallback);
-        mDut.start();
+        mDut.start(mHandlerMock);
 
         mInOrder = inOrder(mWifiAwareStateManagerMock, mHalDeviceManager);
     }
@@ -106,7 +108,7 @@ public class WifiAwareNativeManagerTest {
 
         mManagerStatusListenerCaptor.getValue().onStatusChanged();
         mInOrder.verify(mHalDeviceManager).registerInterfaceAvailableForRequestListener(
-                eq(IfaceType.NAN), mAvailListenerCaptor.capture(), any());
+                eq(IfaceType.NAN), mAvailListenerCaptor.capture(), any(Handler.class));
         mAvailListenerCaptor.getValue().onAvailableForRequest();
 
         mInOrder.verify(mHalDeviceManager).createNanIface(
@@ -137,7 +139,7 @@ public class WifiAwareNativeManagerTest {
 
         mManagerStatusListenerCaptor.getValue().onStatusChanged();
         mInOrder.verify(mHalDeviceManager).registerInterfaceAvailableForRequestListener(
-                eq(IfaceType.NAN), mAvailListenerCaptor.capture(), any());
+                eq(IfaceType.NAN), mAvailListenerCaptor.capture(), any(Handler.class));
         mAvailListenerCaptor.getValue().onAvailableForRequest();
 
         mInOrder.verify(mHalDeviceManager).createNanIface(
