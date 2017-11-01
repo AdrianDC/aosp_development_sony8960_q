@@ -141,11 +141,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private static final boolean DBG = true;
     private static final boolean VDBG = false;
 
-    // Dumpsys argument to enable/disable disconnect on IP reachability failures.
-    private static final String DUMP_ARG_SET_IPREACH_DISCONNECT = "set-ipreach-disconnect";
-    private static final String DUMP_ARG_SET_IPREACH_DISCONNECT_ENABLED = "enabled";
-    private static final String DUMP_ARG_SET_IPREACH_DISCONNECT_DISABLED = "disabled";
-
     // Default scan background throttling interval if not overriden in settings
     private static final long DEFAULT_SCAN_BACKGROUND_THROTTLE_INTERVAL_MS = 30 * 60 * 1000;
 
