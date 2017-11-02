@@ -17,6 +17,7 @@
 package com.android.server.wifi;
 
 import android.annotation.Nullable;
+import android.net.KeepalivePacketData;
 import android.net.apf.ApfCapabilities;
 import android.net.wifi.IApInterface;
 import android.net.wifi.IClientInterface;
@@ -34,7 +35,6 @@ import android.util.SparseArray;
 
 import com.android.internal.annotations.Immutable;
 import com.android.internal.util.HexDump;
-import com.android.server.connectivity.KeepalivePacketData;
 import com.android.server.wifi.util.FrameParser;
 
 import java.io.PrintWriter;
