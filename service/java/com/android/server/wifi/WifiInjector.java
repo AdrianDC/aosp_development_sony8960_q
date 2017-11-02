@@ -16,6 +16,7 @@
 
 package com.android.server.wifi;
 
+import android.annotation.NonNull;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.net.NetworkKey;
@@ -23,7 +24,6 @@ import android.net.NetworkScoreManager;
 import android.net.wifi.IApInterface;
 import android.net.wifi.IWifiScanner;
 import android.net.wifi.IWificond;
-import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiNetworkScoreCache;
 import android.net.wifi.WifiScanner;
@@ -370,16 +370,18 @@ public class WifiInjector {
      * changes
      * @param listener listener for SoftApManager
      * @param apInterface network interface to start hostapd against
-     * @param config softAp WifiConfiguration
+     * @param ifaceName name of the ap interface
+     * @param config SoftApModeConfiguration object holding the config and mode
      * @return an instance of SoftApManager
      */
     public SoftApManager makeSoftApManager(INetworkManagementService nmService,
                                            SoftApManager.Listener listener,
-                                           IApInterface apInterface,
-                                           WifiConfiguration config) {
-        return new SoftApManager(mWifiServiceHandlerThread.getLooper(),
+                                           @NonNull IApInterface apInterface,
+                                           @NonNull String ifaceName,
+                                           @NonNull SoftApModeConfiguration config) {
+        return new SoftApManager(mContext, mWifiServiceHandlerThread.getLooper(),
                                  mWifiNative, mCountryCode.getCountryCode(),
-                                 listener, apInterface, nmService,
+                                 listener, apInterface, ifaceName, nmService,
                                  mWifiApConfigStore, config, mWifiMetrics);
     }
 

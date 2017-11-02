@@ -401,8 +401,9 @@ public class WifiStateMachineTest {
         when(mWifiInjector.makeWifiConnectivityManager(any(WifiInfo.class), anyBoolean()))
                 .thenReturn(mWifiConnectivityManager);
         when(mWifiInjector.makeSoftApManager(any(INetworkManagementService.class),
-                mSoftApManagerListenerCaptor.capture(), any(IApInterface.class),
-                any(WifiConfiguration.class)))
+                                             mSoftApManagerListenerCaptor.capture(),
+                                             any(IApInterface.class), anyString(),
+                                             any(SoftApModeConfiguration.class)))
                 .thenReturn(mSoftApManager);
         when(mWifiInjector.getPasspointManager()).thenReturn(mPasspointManager);
         when(mWifiInjector.getWifiStateTracker()).thenReturn(mWifiStateTracker);
@@ -588,30 +589,17 @@ public class WifiStateMachineTest {
         verify(mWifiNative).setupForSoftApMode(WIFI_IFACE_NAME);
         verify(mSoftApManager).start();
 
-        // reset expectations for mContext due to previously sent AP broadcast
-        reset(mContext);
-
         // get the SoftApManager.Listener and trigger some updates
         SoftApManager.Listener listener = mSoftApManagerListenerCaptor.getValue();
         listener.onStateChanged(WIFI_AP_STATE_ENABLING, 0);
+        assertEquals(WIFI_AP_STATE_ENABLING, mWsm.syncGetWifiApState());
         listener.onStateChanged(WIFI_AP_STATE_ENABLED, 0);
+        assertEquals(WIFI_AP_STATE_ENABLED, mWsm.syncGetWifiApState());
         listener.onStateChanged(WIFI_AP_STATE_DISABLING, 0);
+        assertEquals(WIFI_AP_STATE_DISABLING, mWsm.syncGetWifiApState());
         // note, this will trigger a mode change when TestLooper is dispatched
         listener.onStateChanged(WIFI_AP_STATE_DISABLED, 0);
-
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext, times(4))
-                .sendStickyBroadcastAsUser(intentCaptor.capture(), eq(UserHandle.ALL));
-
-        List<Intent> capturedIntents = intentCaptor.getAllValues();
-        checkApStateChangedBroadcast(capturedIntents.get(0), WIFI_AP_STATE_ENABLING,
-                WIFI_AP_STATE_DISABLED, HOTSPOT_NO_ERROR, WIFI_IFACE_NAME, mode);
-        checkApStateChangedBroadcast(capturedIntents.get(1), WIFI_AP_STATE_ENABLED,
-                WIFI_AP_STATE_ENABLING, HOTSPOT_NO_ERROR, WIFI_IFACE_NAME, mode);
-        checkApStateChangedBroadcast(capturedIntents.get(2), WIFI_AP_STATE_DISABLING,
-                WIFI_AP_STATE_ENABLED, HOTSPOT_NO_ERROR, WIFI_IFACE_NAME, mode);
-        checkApStateChangedBroadcast(capturedIntents.get(3), WIFI_AP_STATE_DISABLED,
-                WIFI_AP_STATE_DISABLING, HOTSPOT_NO_ERROR, WIFI_IFACE_NAME, mode);
+        assertEquals(WIFI_AP_STATE_DISABLED, mWsm.syncGetWifiApState());
     }
 
     @Test
