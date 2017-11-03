@@ -421,8 +421,8 @@ public class WifiInjector {
      * @return a new instance of ScanOnlyModeManager
      */
     public ScanOnlyModeManager makeScanOnlyModeManager(INetworkManagementService nmService) {
-        return new ScanOnlyModeManager(mWifiStateMachineHandlerThread.getLooper(), mWifiNative,
-                nmService, mWifiMetrics);
+        return new ScanOnlyModeManager(mContext, mWifiStateMachineHandlerThread.getLooper(),
+                mWifiNative, nmService, mWifiMetrics);
     }
 
     /**

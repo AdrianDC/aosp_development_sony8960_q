@@ -17,11 +17,15 @@
 package com.android.server.wifi;
 
 import android.annotation.NonNull;
+import android.content.Context;
+import android.content.Intent;
 import android.net.wifi.IClientInterface;
+import android.net.wifi.WifiManager;
 import android.os.INetworkManagementService;
 import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
+import android.os.UserHandle;
 import android.util.Log;
 import android.util.Pair;
 
@@ -38,19 +42,22 @@ public class ScanOnlyModeManager implements ActiveModeManager {
 
     private static final String TAG = "ScanOnlyModeManager";
 
+    private final Context mContext;
     private final WifiNative mWifiNative;
+
     private final INetworkManagementService mNwService;
     private final WifiMetrics mWifiMetrics;
 
     private IClientInterface mClientInterface;
     private String mClientInterfaceName;
 
-    ScanOnlyModeManager(@NonNull Looper looper, WifiNative wifiNative,
+    ScanOnlyModeManager(Context context, @NonNull Looper looper, WifiNative wifiNative,
              INetworkManagementService networkManagementService, WifiMetrics wifiMetrics) {
-        mStateMachine = new ScanOnlyModeStateMachine(looper);
+        mContext = context;
         mWifiNative = wifiNative;
         mNwService = networkManagementService;
         mWifiMetrics = wifiMetrics;
+        mStateMachine = new ScanOnlyModeStateMachine(looper);
     }
 
     /**
@@ -153,12 +160,14 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                         }
                         if (mClientInterface == null) {
                             Log.e(TAG, "Failed to create ClientInterface.");
+                            sendScanAvailableBroadcast(false);
                             break;
                         }
                         try {
                             mClientInterfaceName = mClientInterface.getInterfaceName();
                         } catch (RemoteException e) {
                             Log.e(TAG, "Failed to retrieve ClientInterface name.");
+                            sendScanAvailableBroadcast(false);
                             break;
                         }
 
@@ -168,7 +177,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                             mNwService.registerObserver(mNetworkObserver);
                         } catch (RemoteException e) {
                             unregisterObserver();
-                            // TODO: update wifi scan state
+                            sendScanAvailableBroadcast(false);
                             break;
                         }
 
@@ -195,7 +204,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                 mIfaceIsUp = isUp;
                 if (isUp) {
                     Log.d(TAG, "Wifi is ready to use for scanning");
-                    // TODO: send scan available broadcast
+                    sendScanAvailableBroadcast(true);
                 } else {
                     // if the interface goes down we should exit and go back to idle state.
                     mStateMachine.sendMessage(CMD_STOP);
@@ -205,6 +214,10 @@ public class ScanOnlyModeManager implements ActiveModeManager {
             @Override
             public void enter() {
                 Log.d(TAG, "entering StartedState");
+                if (mIfaceIsUp) {
+                    // we already received the interface up notification when we were setting up
+                    sendScanAvailableBroadcast(true);
+                }
             }
 
             @Override
@@ -237,10 +250,23 @@ public class ScanOnlyModeManager implements ActiveModeManager {
              */
             @Override
             public void exit() {
-                // TODO: update WifiScanner about wifi state
+                // let WifiScanner know that wifi is down.
+                sendScanAvailableBroadcast(false);
 
                 unregisterObserver();
             }
+        }
+
+        private void sendScanAvailableBroadcast(boolean available) {
+            Log.d(TAG, "sending scan available broadcast: " + available);
+            final Intent intent = new Intent(WifiManager.WIFI_SCAN_AVAILABLE);
+            intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
+            if (available) {
+                intent.putExtra(WifiManager.EXTRA_SCAN_AVAILABLE, WifiManager.WIFI_STATE_ENABLED);
+            } else {
+                intent.putExtra(WifiManager.EXTRA_SCAN_AVAILABLE, WifiManager.WIFI_STATE_DISABLED);
+            }
+            mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
         }
     }
 }
