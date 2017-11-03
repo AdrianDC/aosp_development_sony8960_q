@@ -26,6 +26,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
 import android.os.UserHandle;
+import android.text.TextUtils;
 import android.util.Log;
 import android.util.Pair;
 
@@ -47,14 +48,18 @@ public class ScanOnlyModeManager implements ActiveModeManager {
 
     private final INetworkManagementService mNwService;
     private final WifiMetrics mWifiMetrics;
+    private final Listener mListener;
 
     private IClientInterface mClientInterface;
     private String mClientInterfaceName;
 
+
     ScanOnlyModeManager(Context context, @NonNull Looper looper, WifiNative wifiNative,
-             INetworkManagementService networkManagementService, WifiMetrics wifiMetrics) {
+            Listener listener, INetworkManagementService networkManagementService,
+            WifiMetrics wifiMetrics) {
         mContext = context;
         mWifiNative = wifiNative;
+        mListener = listener;
         mNwService = networkManagementService;
         mWifiMetrics = wifiMetrics;
         mStateMachine = new ScanOnlyModeStateMachine(looper);
@@ -85,6 +90,27 @@ public class ScanOnlyModeManager implements ActiveModeManager {
             mWifiMetrics.incrementNumWifiOnFailureDueToHal();
         } else if (failureReason == WifiNative.SETUP_FAILURE_WIFICOND) {
             mWifiMetrics.incrementNumWifiOnFailureDueToWificond();
+        }
+    }
+
+    /**
+     * Listener for ScanOnlyMode state changes.
+     */
+    public interface Listener {
+        /**
+         * Invoke when wifi state changes.
+         * @param state new wifi state
+         */
+        void onStateChanged(int state);
+    }
+
+    /**
+     * Update Wifi state.
+     * @param state new Wifi state
+     */
+    private void updateWifiState(int state) {
+        if (mListener != null) {
+            mListener.onStateChanged(state);
         }
     }
 
@@ -161,6 +187,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                         if (mClientInterface == null) {
                             Log.e(TAG, "Failed to create ClientInterface.");
                             sendScanAvailableBroadcast(false);
+                            updateWifiState(WifiManager.WIFI_STATE_UNKNOWN);
                             break;
                         }
                         try {
@@ -168,6 +195,14 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                         } catch (RemoteException e) {
                             Log.e(TAG, "Failed to retrieve ClientInterface name.");
                             sendScanAvailableBroadcast(false);
+                            updateWifiState(WifiManager.WIFI_STATE_UNKNOWN);
+                            break;
+                        }
+
+                        if (TextUtils.isEmpty(mClientInterfaceName)) {
+                            Log.e(TAG, "Failed to retrieve ClientInterface name. Sit in Idle");
+                            sendScanAvailableBroadcast(false);
+                            updateWifiState(WifiManager.WIFI_STATE_UNKNOWN);
                             break;
                         }
 
@@ -178,6 +213,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                         } catch (RemoteException e) {
                             unregisterObserver();
                             sendScanAvailableBroadcast(false);
+                            updateWifiState(WifiManager.WIFI_STATE_UNKNOWN);
                             break;
                         }
 
@@ -205,6 +241,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                 if (isUp) {
                     Log.d(TAG, "Wifi is ready to use for scanning");
                     sendScanAvailableBroadcast(true);
+                    updateWifiState(WifiManager.WIFI_STATE_ENABLED);
                 } else {
                     // if the interface goes down we should exit and go back to idle state.
                     mStateMachine.sendMessage(CMD_STOP);
@@ -217,6 +254,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                 if (mIfaceIsUp) {
                     // we already received the interface up notification when we were setting up
                     sendScanAvailableBroadcast(true);
+                    updateWifiState(WifiManager.WIFI_STATE_ENABLED);
                 }
             }
 
@@ -238,6 +276,11 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                         boolean isUp = message.arg1 == 1;
                         onUpChanged(isUp);
                         break;
+                    case CMD_CLIENT_INTERFACE_BINDER_DEATH:
+                        Log.d(TAG, "interface binder death!  restart services?");
+                        updateWifiState(WifiManager.WIFI_STATE_UNKNOWN);
+                        transitionTo(mIdleState);
+                        break;
                     default:
                         return NOT_HANDLED;
                 }
@@ -252,6 +295,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
             public void exit() {
                 // let WifiScanner know that wifi is down.
                 sendScanAvailableBroadcast(false);
+                updateWifiState(WifiManager.WIFI_STATE_DISABLED);
 
                 unregisterObserver();
             }

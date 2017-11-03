@@ -366,10 +366,31 @@ public class WifiStateMachinePrime {
         }
 
         class ScanOnlyModeActiveState extends ModeActiveState {
+            private class ScanOnlyListener implements ScanOnlyModeManager.Listener {
+                @Override
+                public void onStateChanged(int state) {
+                    Log.d(TAG, "State changed from scan only mode.");
+                    if (state == WifiManager.WIFI_STATE_UNKNOWN) {
+                        // error while setting up scan mode or an unexpected failure.
+                        mModeStateMachine.sendMessage(CMD_SCAN_ONLY_MODE_FAILED);
+                    } else if (state == WifiManager.WIFI_STATE_DISABLED) {
+                        //scan only mode stopped
+                        mModeStateMachine.sendMessage(CMD_SCAN_ONLY_MODE_STOPPED);
+                    } else if (state == WifiManager.WIFI_STATE_ENABLED) {
+                        // scan mode is ready to go
+                        Log.d(TAG, "scan mode active");
+                    } else {
+                        Log.d(TAG, "unexpected state update: " + state);
+                    }
+                }
+            }
+
             @Override
             public void enter() {
                 Log.d(TAG, "Entering ScanOnlyModeActiveState");
-                this.mActiveModeManager = mWifiInjector.makeScanOnlyModeManager(mNMService);
+
+                this.mActiveModeManager = mWifiInjector.makeScanOnlyModeManager(
+                        new ScanOnlyListener(), mNMService);
                 this.mActiveModeManager.start();
             }
 
@@ -378,6 +399,14 @@ public class WifiStateMachinePrime {
                 switch(message.what) {
                     case CMD_START_SCAN_ONLY_MODE:
                         Log.d(TAG, "Received CMD_START_SCAN_ONLY_MODE when active - drop");
+                        break;
+                    case CMD_SCAN_ONLY_MODE_FAILED:
+                        Log.d(TAG, "ScanOnlyMode failed, return to idle state.");
+                        mModeStateMachine.transitionTo(mScanOnlyModeState);
+                        break;
+                    case CMD_SCAN_ONLY_MODE_STOPPED:
+                        Log.d(TAG, "ScanOnlyMode stopped, return to idle state.");
+                        mModeStateMachine.transitionTo(mScanOnlyModeState);
                         break;
                     default:
                         return NOT_HANDLED;
