@@ -20,13 +20,17 @@ import static org.mockito.Mockito.*;
 
 import android.net.wifi.IClientInterface;
 import android.os.IBinder;
+import android.os.INetworkManagementService;
 import android.os.RemoteException;
 import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Pair;
 
+import com.android.server.net.BaseNetworkObserver;
+
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -37,15 +41,21 @@ import org.mockito.MockitoAnnotations;
 public class ScanOnlyModeManagerTest {
     private static final String TAG = "ScanOnlyModeManagerTest";
     private static final String TEST_INTERFACE_NAME = "testif0";
+    private static final String OTHER_INTERFACE_NAME = "notTestIf";
 
     TestLooper mLooper;
 
     ScanOnlyModeManager mScanOnlyModeManager;
+    BaseNetworkObserver mNetworkObserver;
 
     @Mock IClientInterface mClientInterface;
     @Mock IBinder mClientInterfaceBinder;
     @Mock WifiMetrics mWifiMetrics;
     @Mock WifiNative mWifiNative;
+    @Mock INetworkManagementService mNmService;
+
+    final ArgumentCaptor<BaseNetworkObserver> mNetworkObserverCaptor =
+            ArgumentCaptor.forClass(BaseNetworkObserver.class);
 
     @Before
     public void setUp() {
@@ -58,7 +68,7 @@ public class ScanOnlyModeManagerTest {
     }
 
     private ScanOnlyModeManager createScanOnlyModeManager() {
-        return new ScanOnlyModeManager(mLooper.getLooper(), mWifiNative, mWifiMetrics);
+        return new ScanOnlyModeManager(mLooper.getLooper(), mWifiNative, mNmService, mWifiMetrics);
     }
 
     private void startScanOnlyModeAndVerifyEnabled() throws Exception {
@@ -69,8 +79,15 @@ public class ScanOnlyModeManagerTest {
         mScanOnlyModeManager.start();
         mLooper.dispatchAll();
 
-        // Verification will be added when the ScanStateChangedBroadcast is moved over to
-        // ScanModeManager
+        verify(mWifiNative).setupForClientMode(eq(TEST_INTERFACE_NAME));
+        verify(mNmService).registerObserver(mNetworkObserverCaptor.capture());
+        mNetworkObserver = (BaseNetworkObserver) mNetworkObserverCaptor.getValue();
+
+        // now mark the interface as up
+        mNetworkObserver.interfaceLinkStateChanged(TEST_INTERFACE_NAME, true);
+        mLooper.dispatchAll();
+
+        // TODO: verify WifiScanner is notified about scan mode being ready
     }
 
     /**
@@ -79,7 +96,6 @@ public class ScanOnlyModeManagerTest {
     @Test
     public void scanModeStartCreatesClientInterface() throws Exception {
         startScanOnlyModeAndVerifyEnabled();
-        verify(mWifiNative).setupForClientMode(eq(TEST_INTERFACE_NAME));
     }
 
     /**
@@ -167,16 +183,6 @@ public class ScanOnlyModeManagerTest {
     }
 
     /**
-     * This is a basic test that will be enhanced as funtionality is added to the class.
-     */
-    @Test
-    public void scanModeStopDoesNotCrash() throws Exception {
-        startScanOnlyModeAndVerifyEnabled();
-        mScanOnlyModeManager.stop();
-        mLooper.dispatchAll();
-    }
-
-    /**
      * Calling ScanOnlyModeManager.start twice does not crash or restart scan mode.
      */
     @Test
@@ -189,11 +195,109 @@ public class ScanOnlyModeManagerTest {
     }
 
     /**
+     * ScanMode stop properly cleans up state
+     */
+    @Test
+    public void scanModeStopCleansUpState() throws Exception {
+        startScanOnlyModeAndVerifyEnabled();
+        mScanOnlyModeManager.stop();
+        mLooper.dispatchAll();
+        verify(mNmService).unregisterObserver(eq(mNetworkObserver));
+
+        //TODO: verify proper notification is sent to WifiScanning service
+    }
+
+    /**
      * Calling stop when ScanMode is not started should not crash.
      */
     @Test
     public void scanModeStopWhenNotStartedDoesNotCrash() throws Exception {
+        startScanOnlyModeAndVerifyEnabled();
         mScanOnlyModeManager.stop();
         mLooper.dispatchAll();
+        reset(mNmService);
+
+        // now call stop again
+        mScanOnlyModeManager.stop();
+        mLooper.dispatchAll();
+        //TODO: add checks for broadcasts indicating scanning is disabled in a follow-on CL
+        //TODO: confirm callback is triggered with the scan mode failure.
+    }
+
+    /**
+     * Triggering interface down when ScanOnlyMode is active properly exits the active state.
+     */
+    @Test
+    public void scanModeStartedStopsWhenInterfaceDown() throws Exception {
+        startScanOnlyModeAndVerifyEnabled();
+        mNetworkObserver.interfaceLinkStateChanged(TEST_INTERFACE_NAME, false);
+        mLooper.dispatchAll();
+        verify(mNmService).unregisterObserver(eq(mNetworkObserver));
+    }
+
+    /**
+     * This is a basic test that will be enhanced as functionality is added to the class.
+     * Test that failing to register the Networkobserver for the interface does not crash.  Later
+     * CLs will expand the test to verify proper failure reporting and other error signals.
+     */
+    @Test
+    public void startScanModeNetworkObserverFailureReportsError() throws Exception {
+        when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
+        when(mClientInterface.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
+        when(mWifiNative.setupForClientMode(eq(TEST_INTERFACE_NAME)))
+                .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mClientInterface));
+        doThrow(new RemoteException()).when(mNmService).registerObserver(any());
+
+        mScanOnlyModeManager.start();
+        mLooper.dispatchAll();
+        verify(mNmService).unregisterObserver(any());
+    }
+
+
+    /**
+     * Triggering interface down for a different interface when ScanOnlyMode is active dows not exit
+     * the active state.
+     */
+    @Test
+    public void scanModeStartedDoesNotStopForDifferentInterfaceDown() throws Exception {
+        startScanOnlyModeAndVerifyEnabled();
+        mNetworkObserver.interfaceLinkStateChanged(OTHER_INTERFACE_NAME, false);
+        mLooper.dispatchAll();
+        verify(mNmService, never()).unregisterObserver(eq(mNetworkObserver));
+    }
+
+    /**
+     * Triggering an interface up for a different interface does not trigger a notification to
+     * Scanning service that ScanOnlyMode is ready.
+     * This test will be enhanced when the broadcast is added.
+     */
+    @Test
+    public void scanModeStartDoesNotNotifyScanningServiceForDifferentInterfaceUp()
+            throws Exception {
+        startScanOnlyModeAndVerifyEnabled();
+
+        // now mark a different interface as up
+        mNetworkObserver.interfaceLinkStateChanged(OTHER_INTERFACE_NAME, true);
+        mLooper.dispatchAll();
+
+        // TODO: verify WifiScanner is not notified until the proper interface is up
+
+    }
+
+    /**
+     * Callbacks from an old NetworkObserver do not trigger changes with a current NetworkObserver.
+     */
+    @Test
+    public void scanModeNetworkObserverCallbacksOnlyForCurrentObserver() throws Exception {
+        startScanOnlyModeAndVerifyEnabled();
+        BaseNetworkObserver firstObserver = mNetworkObserver;
+        mScanOnlyModeManager.stop();
+        mLooper.dispatchAll();
+        reset(mNmService, mClientInterfaceBinder, mWifiNative);
+        startScanOnlyModeAndVerifyEnabled();
+
+        firstObserver.interfaceLinkStateChanged(TEST_INTERFACE_NAME, false);
+        mLooper.dispatchAll();
+        verify(mNmService, never()).unregisterObserver(eq(mNetworkObserver));
     }
 }

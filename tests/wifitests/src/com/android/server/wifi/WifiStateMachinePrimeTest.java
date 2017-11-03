@@ -107,7 +107,7 @@ public class WifiStateMachinePrimeTest {
                         public ScanOnlyModeManager answer(InvocationOnMock invocation) {
                             return mScanOnlyModeManager;
                         }
-                }).when(mWifiInjector).makeScanOnlyModeManager();
+                }).when(mWifiInjector).makeScanOnlyModeManager(mNMService);
         mWifiStateMachinePrime.enterScanOnlyMode();
         mLooper.dispatchAll();
         Log.e("WifiStateMachinePrimeTest", "check fromState: " + fromState);

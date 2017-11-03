@@ -369,7 +369,7 @@ public class WifiStateMachinePrime {
             @Override
             public void enter() {
                 Log.d(TAG, "Entering ScanOnlyModeActiveState");
-                this.mActiveModeManager = mWifiInjector.makeScanOnlyModeManager();
+                this.mActiveModeManager = mWifiInjector.makeScanOnlyModeManager(mNMService);
                 this.mActiveModeManager.start();
             }
 

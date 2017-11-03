@@ -18,6 +18,7 @@ package com.android.server.wifi;
 
 import android.annotation.NonNull;
 import android.net.wifi.IClientInterface;
+import android.os.INetworkManagementService;
 import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
@@ -26,6 +27,7 @@ import android.util.Pair;
 
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
+import com.android.server.net.BaseNetworkObserver;
 
 /**
  * Manager WiFi in Scan Only Mode - no network connections.
@@ -37,14 +39,17 @@ public class ScanOnlyModeManager implements ActiveModeManager {
     private static final String TAG = "ScanOnlyModeManager";
 
     private final WifiNative mWifiNative;
+    private final INetworkManagementService mNwService;
     private final WifiMetrics mWifiMetrics;
 
     private IClientInterface mClientInterface;
     private String mClientInterfaceName;
 
-    ScanOnlyModeManager(@NonNull Looper looper, WifiNative wifiNative, WifiMetrics wifiMetrics) {
+    ScanOnlyModeManager(@NonNull Looper looper, WifiNative wifiNative,
+             INetworkManagementService networkManagementService, WifiMetrics wifiMetrics) {
         mStateMachine = new ScanOnlyModeStateMachine(looper);
         mWifiNative = wifiNative;
+        mNwService = networkManagementService;
         mWifiMetrics = wifiMetrics;
     }
 
@@ -59,10 +64,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
      * Cancel any pending scans and stop scan mode.
      */
     public void stop() {
-        // explicitly exit the current state this is a no-op if it is not running, otherwise it will
-        // stop and clean up the state.
         mStateMachine.sendMessage(ScanOnlyModeStateMachine.CMD_STOP);
-        mStateMachine.getCurrentState().exit();
     }
 
     /**
@@ -89,6 +91,36 @@ public class ScanOnlyModeManager implements ActiveModeManager {
         private final State mIdleState = new IdleState();
         private final State mStartedState = new StartedState();
 
+        private NetworkObserver mNetworkObserver;
+        private boolean mIfaceIsUp = false;
+
+        private class NetworkObserver extends BaseNetworkObserver {
+            private final String mIfaceName;
+            NetworkObserver(String ifaceName) {
+                mIfaceName = ifaceName;
+            }
+
+            @Override
+            public void interfaceLinkStateChanged(String iface, boolean up) {
+                Log.d(TAG, "iface update: " + iface + " our iface: " + mIfaceName);
+                if (mIfaceName.equals(iface)) {
+                    ScanOnlyModeStateMachine.this.sendMessage(
+                            CMD_INTERFACE_STATUS_CHANGED, up ? 1 : 0 , 0, this);
+                    Log.d(TAG, "sent interface status changed message");
+                }
+            }
+        }
+
+        private void unregisterObserver() {
+            if (mNetworkObserver == null) {
+                return;
+            }
+            try {
+                mNwService.unregisterObserver(mNetworkObserver);
+            } catch (RemoteException e) { }
+            mNetworkObserver = null;
+        }
+
         ScanOnlyModeStateMachine(Looper looper) {
             super(TAG, looper);
 
@@ -104,6 +136,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
             @Override
             public void enter() {
                 Log.d(TAG, "entering IdleState");
+                unregisterObserver();
             }
 
             @Override
@@ -128,6 +161,17 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                             Log.e(TAG, "Failed to retrieve ClientInterface name.");
                             break;
                         }
+
+                        try {
+                            mNetworkObserver =
+                                    new NetworkObserver(mClientInterface.getInterfaceName());
+                            mNwService.registerObserver(mNetworkObserver);
+                        } catch (RemoteException e) {
+                            unregisterObserver();
+                            // TODO: update wifi scan state
+                            break;
+                        }
+
                         transitionTo(mStartedState);
                         break;
                     case CMD_STOP:
@@ -144,6 +188,20 @@ public class ScanOnlyModeManager implements ActiveModeManager {
 
         private class StartedState extends State {
 
+            private void onUpChanged(boolean isUp) {
+                if (isUp == mIfaceIsUp) {
+                    return;  // no change
+                }
+                mIfaceIsUp = isUp;
+                if (isUp) {
+                    Log.d(TAG, "Wifi is ready to use for scanning");
+                    // TODO: send scan available broadcast
+                } else {
+                    // if the interface goes down we should exit and go back to idle state.
+                    mStateMachine.sendMessage(CMD_STOP);
+                }
+            }
+
             @Override
             public void enter() {
                 Log.d(TAG, "entering StartedState");
@@ -159,10 +217,29 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                         Log.d(TAG, "Stopping scan mode.");
                         transitionTo(mIdleState);
                         break;
+                    case CMD_INTERFACE_STATUS_CHANGED:
+                        if (message.obj != mNetworkObserver) {
+                            // This is not from our current observer
+                            break;
+                        }
+                        boolean isUp = message.arg1 == 1;
+                        onUpChanged(isUp);
+                        break;
                     default:
                         return NOT_HANDLED;
                 }
                 return HANDLED;
+            }
+
+            /**
+             * Clean up state, unregister listeners and send broadcast to tell WifiScanner
+             * that wifi is disabled.
+             */
+            @Override
+            public void exit() {
+                // TODO: update WifiScanner about wifi state
+
+                unregisterObserver();
             }
         }
     }
