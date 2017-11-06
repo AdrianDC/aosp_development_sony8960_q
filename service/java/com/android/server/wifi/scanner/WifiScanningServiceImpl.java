@@ -1336,7 +1336,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
      *   -Started State
      *     -Hw Pno Scan state
      *       -Single Scan state
-     *     -Sw Pno Scan state
      *
      * These are the main state transitions:
      * 1. Start at |Default State|
@@ -1348,11 +1347,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
      *        contains IE (information elements). If yes, send the results to the client, else
      *        switch to |Single Scan state| and send the result to the client when the scan result
      *        is obtained.
-     *   b.1. Switch to |Sw Pno Scan state| when the device does not supports HW PNO
-     *        (This is for older devices which do not support HW PNO and for connected PNO on
-     *         devices which support wificond based PNO)
-     *   b.2. In |Sw Pno Scan state| send the result to the client when the background scan result
-     *        is obtained
      *
      * Note: PNO scans only work for a single client today. We don't have support in HW to support
      * multiple requests at the same time, so will need non-trivial changes to support (if at all
@@ -1363,7 +1357,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         private final DefaultState mDefaultState = new DefaultState();
         private final StartedState mStartedState = new StartedState();
         private final HwPnoScanState mHwPnoScanState = new HwPnoScanState();
-        private final SwPnoScanState mSwPnoScanState = new SwPnoScanState();
         private final SingleScanState mSingleScanState = new SingleScanState();
         private InternalClientInfo mInternalClientInfo;
 
@@ -1381,7 +1374,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 addState(mStartedState, mDefaultState);
                     addState(mHwPnoScanState, mStartedState);
                         addState(mSingleScanState, mHwPnoScanState);
-                    addState(mSwPnoScanState, mStartedState);
             // CHECKSTYLE:ON IndentationCheck
 
             setInitialState(mDefaultState);
@@ -1461,12 +1453,11 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         pnoParams.setDefusable(true);
                         PnoSettings pnoSettings =
                                 pnoParams.getParcelable(WifiScanner.PNO_PARAMS_PNO_SETTINGS_KEY);
-                        // This message is handled after the transition to SwPnoScan/HwPnoScan state
-                        deferMessage(msg);
                         if (mScannerImpl.isHwPnoSupported(pnoSettings.isConnected)) {
+                            deferMessage(msg);
                             transitionTo(mHwPnoScanState);
                         } else {
-                            transitionTo(mSwPnoScanState);
+                            replyFailed(msg, WifiScanner.REASON_INVALID_REQUEST, "not supported");
                         }
                         break;
                     case WifiScanner.CMD_STOP_PNO_SCAN:
@@ -1577,68 +1568,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             }
         }
 
-        class SwPnoScanState extends State {
-            private final ArrayList<ScanResult> mSwPnoFullScanResults = new ArrayList<>();
-
-            @Override
-            public void enter() {
-                if (DBG) localLog("SwPnoScanState");
-                mSwPnoFullScanResults.clear();
-            }
-
-            @Override
-            public void exit() {
-                removeInternalClient();
-            }
-
-            @Override
-            public boolean processMessage(Message msg) {
-                ClientInfo ci = mClients.get(msg.replyTo);
-                switch (msg.what) {
-                    case WifiScanner.CMD_START_PNO_SCAN:
-                        Bundle pnoParams = (Bundle) msg.obj;
-                        if (pnoParams == null) {
-                            replyFailed(msg, WifiScanner.REASON_INVALID_REQUEST, "params null");
-                            return HANDLED;
-                        }
-                        pnoParams.setDefusable(true);
-                        PnoSettings pnoSettings =
-                                pnoParams.getParcelable(WifiScanner.PNO_PARAMS_PNO_SETTINGS_KEY);
-                        ScanSettings scanSettings =
-                                pnoParams.getParcelable(WifiScanner.PNO_PARAMS_SCAN_SETTINGS_KEY);
-                        if (addSwPnoScanRequest(ci, msg.arg2, scanSettings, pnoSettings)) {
-                            replySucceeded(msg);
-                        } else {
-                            replyFailed(msg, WifiScanner.REASON_INVALID_REQUEST, "bad request");
-                            transitionTo(mStartedState);
-                        }
-                        break;
-                    case WifiScanner.CMD_STOP_PNO_SCAN:
-                        removeSwPnoScanRequest(ci, msg.arg2);
-                        transitionTo(mStartedState);
-                        break;
-                    case WifiScanner.CMD_FULL_SCAN_RESULT:
-                        // Aggregate full scan results until we get the |CMD_SCAN_RESULT| message
-                        mSwPnoFullScanResults.add((ScanResult) msg.obj);
-                        break;
-                    case WifiScanner.CMD_SCAN_RESULT:
-                        ScanResult[] scanResults = mSwPnoFullScanResults.toArray(
-                                new ScanResult[mSwPnoFullScanResults.size()]);
-                        reportPnoNetworkFound(scanResults);
-                        mSwPnoFullScanResults.clear();
-                        break;
-                    case WifiScanner.CMD_OP_FAILED:
-                        sendPnoScanFailedToAllAndClear(
-                                WifiScanner.REASON_UNSPECIFIED, "background scan failed");
-                        transitionTo(mStartedState);
-                        break;
-                    default:
-                        return NOT_HANDLED;
-                }
-                return HANDLED;
-            }
-        }
-
         private WifiNative.PnoSettings convertSettingsToPnoNative(ScanSettings scanSettings,
                                                                   PnoSettings pnoSettings) {
             WifiNative.PnoSettings nativePnoSetting = new WifiNative.PnoSettings();
@@ -1731,34 +1660,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             }
         }
 
-        private boolean addSwPnoScanRequest(ClientInfo ci, int handler, ScanSettings scanSettings,
-                PnoSettings pnoSettings) {
-            if (ci == null) {
-                Log.d(TAG, "Failing scan request ClientInfo not found " + handler);
-                return false;
-            }
-            if (!mActivePnoScans.isEmpty()) {
-                loge("Failing scan request because there is already an active scan");
-                return false;
-            }
-            logScanRequest("addSwPnoScanRequest", ci, handler, null, scanSettings, pnoSettings);
-            addPnoScanRequest(ci, handler, scanSettings, pnoSettings);
-            // HW PNO is not supported, we need to revert to normal background scans and
-            // report events after each scan and we need full scan results to get the IE information
-            scanSettings.reportEvents = WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN
-                    | WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT;
-            addBackgroundScanRequest(scanSettings);
-            return true;
-        }
-
-        private void removeSwPnoScanRequest(ClientInfo ci, int handler) {
-            if (ci != null) {
-                Pair<PnoSettings, ScanSettings> settings = removePnoScanRequest(ci, handler);
-                logScanRequest("removeSwPnoScanRequest", ci, handler, null,
-                        settings.second, settings.first);
-            }
-        }
-
         private void reportPnoNetworkFound(ScanResult[] results) {
             WifiScanner.ParcelableScanResults parcelableScanResults =
                     new WifiScanner.ParcelableScanResults(results);
@@ -1779,15 +1680,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         new WifiScanner.OperationResult(reason, description));
             }
             mActivePnoScans.clear();
-        }
-
-        private void addBackgroundScanRequest(ScanSettings settings) {
-            if (DBG) localLog("Starting background scan");
-            if (mInternalClientInfo != null) {
-                mInternalClientInfo.sendRequestToClientHandler(
-                        WifiScanner.CMD_START_BACKGROUND_SCAN, settings,
-                        WifiStateMachine.WIFI_WORK_SOURCE);
-            }
         }
 
         private void addSingleScanRequest(ScanSettings settings) {
