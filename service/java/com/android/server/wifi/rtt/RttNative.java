@@ -238,12 +238,12 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
                     config.mustRequestLci = false;
                     config.mustRequestLcr = false;
                     config.burstDuration = 15;
-                    if (config.channel.centerFreq > 5000) {
+                    config.bw = halChannelBandwidthFromScanResult(scanResult.channelWidth);
+                    if (config.bw == RttBw.BW_80MHZ || config.bw == RttBw.BW_160MHZ) {
                         config.preamble = RttPreamble.VHT;
                     } else {
                         config.preamble = RttPreamble.HT;
                     }
-                    config.bw = halChannelBandwidthFromScanResult(scanResult.channelWidth);
                 } catch (IllegalArgumentException e) {
                     Log.e(TAG, "Invalid configuration: " + e.getMessage());
                     continue;
