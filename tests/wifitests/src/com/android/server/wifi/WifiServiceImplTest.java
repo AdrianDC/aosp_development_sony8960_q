@@ -1552,6 +1552,31 @@ public class WifiServiceImplTest {
     }
 
     /**
+     * Verify that a call to {@link WifiServiceImpl#enableVerboseLogging(int)} is allowed from
+     * callers with the signature only NETWORK_SETTINGS permission.
+     */
+    public void testEnableVerboseLoggingWithNetworkSettingsPermission() {
+        doNothing().when(mContext)
+                .enforceCallingOrSelfPermission(eq(android.Manifest.permission.NETWORK_SETTINGS),
+                        eq("WifiService"));
+        mWifiServiceImpl.enableVerboseLogging(1);
+        verify(mWifiStateMachine).enableVerboseLogging(anyInt());
+    }
+
+    /**
+     * Verify that a call to {@link WifiServiceImpl#enableVerboseLogging(int)} is not allowed from
+     * callers without the signature only NETWORK_SETTINGS permission.
+     */
+    @Test(expected = SecurityException.class)
+    public void testEnableVerboseLoggingWithNoNetworkSettingsPermission() {
+        doThrow(new SecurityException()).when(mContext)
+                .enforceCallingOrSelfPermission(eq(android.Manifest.permission.NETWORK_SETTINGS),
+                        eq("WifiService"));
+        mWifiServiceImpl.enableVerboseLogging(1);
+        verify(mWifiStateMachine, never()).enableVerboseLogging(anyInt());
+    }
+
+    /**
      * Helper to test handling of async messages by wifi service when the message comes from an
      * app without {@link android.Manifest.permission#CHANGE_WIFI_STATE} permission.
      */

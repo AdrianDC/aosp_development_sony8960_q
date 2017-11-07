@@ -2377,6 +2377,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public void enableVerboseLogging(int verbose) {
         enforceAccessPermission();
+        enforceNetworkSettingsPermission();
         mLog.info("enableVerboseLogging uid=% verbose=%")
                 .c(Binder.getCallingUid())
                 .c(verbose).flush();
