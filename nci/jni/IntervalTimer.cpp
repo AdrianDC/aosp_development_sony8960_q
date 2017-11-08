@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#define LOG_TAG "IntervalTimer"
 
 /*
  *  Asynchronous interval timer.
@@ -57,7 +56,7 @@ bool IntervalTimer::set(int ms, TIMER_FUNC cb)
 
     stat = timer_settime(mTimerId, 0, &ts, 0);
     if (stat == -1)
-        ALOGE("fail set timer");
+        LOG(ERROR) << StringPrintf("fail set timer");
     return stat == 0;
 }
 
@@ -95,6 +94,6 @@ bool IntervalTimer::create(TIMER_FUNC cb)
     mCb = cb;
     stat = timer_create(CLOCK_MONOTONIC, &se, &mTimerId);
     if (stat == -1)
-        ALOGE("fail create timer");
+        LOG(ERROR) << StringPrintf("fail create timer");
     return stat == 0;
 }
