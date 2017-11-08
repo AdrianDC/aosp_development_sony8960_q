@@ -24,8 +24,10 @@
 #include <errno.h>
 #include <string.h>
 
-#include <log/log.h>
+#include <base/logging.h>
+#include <android-base/stringprintf.h>
 
+using android::base::StringPrintf;
 /*******************************************************************************
 **
 ** Function:        CondVar
@@ -44,7 +46,7 @@ CondVar::CondVar ()
     int const res = pthread_cond_init (&mCondition, &attr);
     if (res)
     {
-        ALOGE("CondVar::CondVar: fail init; error=0x%X", res);
+        LOG(ERROR) << StringPrintf("CondVar::CondVar: fail init; error=0x%X", res);
     }
 }
 
@@ -63,7 +65,7 @@ CondVar::~CondVar ()
     int const res = pthread_cond_destroy (&mCondition);
     if (res)
     {
-        ALOGE("CondVar::~CondVar: fail destroy; error=0x%X", res);
+        LOG(ERROR) << StringPrintf("CondVar::~CondVar: fail destroy; error=0x%X", res);
     }
 }
 
@@ -82,7 +84,7 @@ void CondVar::wait (Mutex& mutex)
     int const res = pthread_cond_wait (&mCondition, mutex.nativeHandle());
     if (res)
     {
-        ALOGE("CondVar::wait: fail wait; error=0x%X", res);
+        LOG(ERROR) << StringPrintf("CondVar::wait: fail wait; error=0x%X", res);
     }
 }
 
@@ -104,7 +106,7 @@ bool CondVar::wait (Mutex& mutex, long millisec)
 
     if (clock_gettime (CLOCK_MONOTONIC, &absoluteTime) == -1)
     {
-        ALOGE("CondVar::wait: fail get time; errno=0x%X", errno);
+        LOG(ERROR) << StringPrintf("CondVar::wait: fail get time; errno=0x%X", errno);
     }
     else
     {
@@ -121,7 +123,7 @@ bool CondVar::wait (Mutex& mutex, long millisec)
 
     int waitResult = pthread_cond_timedwait (&mCondition, mutex.nativeHandle(), &absoluteTime);
     if ((waitResult != 0) && (waitResult != ETIMEDOUT))
-        ALOGE("CondVar::wait: fail timed wait; error=0x%X", waitResult);
+        LOG(ERROR) << StringPrintf("CondVar::wait: fail timed wait; error=0x%X", waitResult);
     retVal = (waitResult == 0); //waited successfully
     return retVal;
 }
@@ -141,7 +143,7 @@ void CondVar::notifyOne ()
     int const res = pthread_cond_signal (&mCondition);
     if (res)
     {
-        ALOGE("CondVar::notifyOne: fail signal; error=0x%X", res);
+        LOG(ERROR) << StringPrintf("CondVar::notifyOne: fail signal; error=0x%X", res);
     }
 }
 
