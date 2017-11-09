@@ -1340,7 +1340,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             return false;
         }
         if (!mWifiConfigManager.enableNetwork(netId, true, uid)
-                || !mWifiConfigManager.checkAndUpdateLastConnectUid(netId, uid)) {
+                || !mWifiConfigManager.updateLastConnectUid(netId, uid)) {
             logi("connectToUserSelectNetwork Allowing uid " + uid
                     + " with insufficient permissions to connect=" + netId);
         } else {
