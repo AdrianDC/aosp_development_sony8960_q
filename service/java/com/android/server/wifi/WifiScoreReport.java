@@ -127,9 +127,9 @@ public class WifiScoreReport {
         int s2 = mFancyConnectedScore.generateScore();
 
         if (aggressiveHandover == 0) {
-            score = s0;
-        } else {
             score = s2;
+        } else {
+            score = s2; // TODO Remove aggressive handover plumbing (b/27877641)
         }
 
         //sanitize boundaries
