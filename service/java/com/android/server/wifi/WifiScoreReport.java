@@ -179,19 +179,23 @@ public class WifiScoreReport {
         double txRetriesRate = wifiInfo.txRetriesRate;
         double txBadRate = wifiInfo.txBadRate;
         double rxSuccessRate = wifiInfo.rxSuccessRate;
+        String s;
         try {
             String timestamp = new SimpleDateFormat("MM-dd HH:mm:ss.SSS").format(new Date(now));
-            String s = String.format(Locale.US, // Use US to avoid comma/decimal confusion
+            s = String.format(Locale.US, // Use US to avoid comma/decimal confusion
                     "%s,%d,%.1f,%.1f,%.1f,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%d,%d",
                     timestamp, mSessionNumber, rssi, filteredRssi, rssiThreshold, freq, linkSpeed,
                     txSuccessRate, txRetriesRate, txBadRate, rxSuccessRate,
                     s0, s1, s2);
-            mLinkMetricsHistory.add(s);
         } catch (Exception e) {
             Log.e(TAG, "format problem", e);
+            return;
         }
-        while (mLinkMetricsHistory.size() > DUMPSYS_ENTRY_COUNT_LIMIT) {
-            mLinkMetricsHistory.removeFirst();
+        synchronized (mLinkMetricsHistory) {
+            mLinkMetricsHistory.add(s);
+            while (mLinkMetricsHistory.size() > DUMPSYS_ENTRY_COUNT_LIMIT) {
+                mLinkMetricsHistory.removeFirst();
+            }
         }
     }
 
@@ -207,10 +211,15 @@ public class WifiScoreReport {
      * @param args unused
      */
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+        LinkedList<String> history;
+        synchronized (mLinkMetricsHistory) {
+            history = new LinkedList<>(mLinkMetricsHistory);
+        }
         pw.println("time,session,rssi,filtered_rssi,rssi_threshold,"
                 + "freq,linkspeed,tx_good,tx_retry,tx_bad,rx,s0,s1,s2");
-        for (String line : mLinkMetricsHistory) {
+        for (String line : history) {
             pw.println(line);
         }
+        history.clear();
     }
 }
