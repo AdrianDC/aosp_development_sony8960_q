@@ -1844,6 +1844,28 @@ static void nfcManager_doDisableScreenOffSuspend(JNIEnv* e, jobject o) {
       PowerSwitch::POWER_STATE_OFF);
 }
 
+/*******************************************************************************
+**
+** Function:        nfcManager_getIsoDepMaxTransceiveLength
+**
+** Description:     Get maximum ISO DEP Transceive Length supported by the NFC
+**                  chip. Returns default 261 bytes if the property is not set.
+**
+** Returns:         max value.
+**
+*******************************************************************************/
+static jint nfcManager_getIsoDepMaxTransceiveLength(JNIEnv*, jobject) {
+  unsigned long maxLength;
+  /* Check if extended APDU is supported by the chip.
+   * If not, default value is returned.
+   * The maximum length of a default IsoDep frame consists of:
+   * CLA, INS, P1, P2, LC, LE + 255 payload bytes = 261 bytes
+   */
+  if (!GetNumValue(NAME_ISO_DEP_MAX_TRANSCEIVE, &maxLength, sizeof(maxLength)))
+    maxLength = 261;
+  return maxLength;
+}
+
 /*****************************************************************************
 **
 ** JNI functions for android-4.0.1_r1
@@ -1921,7 +1943,10 @@ static JNINativeMethod gMethods[] = {
 
     {"getNciVersion", "()I", (void*)nfcManager_doGetNciVersion},
     {"doEnableDtaMode", "()V", (void*)nfcManager_doEnableDtaMode},
-    {"doDisableDtaMode", "()V", (void*)nfcManager_doDisableDtaMode}
+    {"doDisableDtaMode", "()V", (void*)nfcManager_doDisableDtaMode},
+
+    {"getIsoDepMaxTransceiveLength", "()I",
+     (void*)nfcManager_getIsoDepMaxTransceiveLength}
 
 };
 
