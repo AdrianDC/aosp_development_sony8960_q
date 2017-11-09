@@ -452,7 +452,7 @@ void RoutingManager::notifyDeactivated (uint8_t technology)
 
 void RoutingManager::handleData (uint8_t technology, const uint8_t* data, uint32_t dataLen, tNFA_STATUS status)
 {
-    if (status == NFA_STATUS_CONTINUE)
+    if (status == NFC_STATUS_CONTINUE)
     {
         if (dataLen > 0)
         {
