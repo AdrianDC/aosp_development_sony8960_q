@@ -18,18 +18,21 @@ package com.android.server.wifi;
 
 import android.annotation.NonNull;
 import android.net.wifi.IApInterface;
+import android.net.wifi.IApInterfaceEventCallback;
 import android.net.wifi.IClientInterface;
 import android.net.wifi.IPnoScanEvent;
 import android.net.wifi.IScanEvent;
 import android.net.wifi.IWifiScannerImpl;
 import android.net.wifi.IWificond;
 import android.net.wifi.ScanResult;
+import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
 import android.os.Binder;
 import android.os.RemoteException;
 import android.util.Log;
 
+import com.android.server.wifi.WifiNative.SoftApListener;
 import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.util.InformationElementUtil;
 import com.android.server.wifi.util.NativeUtil;
@@ -41,6 +44,7 @@ import com.android.server.wifi.wificond.PnoNetwork;
 import com.android.server.wifi.wificond.PnoSettings;
 import com.android.server.wifi.wificond.SingleScanSettings;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Set;
 
@@ -70,6 +74,7 @@ public class WificondControl {
     private IWifiScannerImpl mWificondScanner;
     private IScanEvent mScanEventHandler;
     private IPnoScanEvent mPnoScanEventHandler;
+    private IApInterfaceEventCallback mApInterfaceListener;
 
     private String mClientInterfaceName;
 
@@ -119,6 +124,22 @@ public class WificondControl {
         public void OnPnoScanOverOffloadFailed(int reason) {
             Log.d(TAG, "Pno scan over offload failed");
             mWifiInjector.getWifiMetrics().incrementPnoScanFailedOverOffloadCount();
+        }
+    }
+
+    /**
+     * Listener for AP Interface events.
+     */
+    private class ApInterfaceEventCallback extends IApInterfaceEventCallback.Stub {
+        private SoftApListener mSoftApListener;
+
+        ApInterfaceEventCallback(SoftApListener listener) {
+            mSoftApListener = listener;
+        }
+
+        @Override
+        public void onNumAssociatedStationsChanged(int numStations) {
+            mSoftApListener.onNumAssociatedStationsChanged(numStations);
         }
     }
 
@@ -526,7 +547,6 @@ public class WificondControl {
         }
     }
 
-
     /**
      * Query the list of valid frequencies for the provided band.
      * The result depends on the on the country code that has been set.
@@ -559,5 +579,91 @@ public class WificondControl {
             Log.e(TAG, "Failed to request getChannelsForBand due to remote exception");
         }
         return null;
+    }
+
+    /**
+     * Start Soft AP operation using the provided configuration.
+     *
+     * @param config Configuration to use for the soft ap created.
+     * @param listener Callback for AP events.
+     * @return true on success, false otherwise.
+     */
+    public boolean startSoftAp(WifiConfiguration config, SoftApListener listener) {
+        if (mApInterface == null) {
+            Log.e(TAG, "No valid ap interface handler");
+            return false;
+        }
+        int encryptionType = getIApInterfaceEncryptionType(config);
+        try {
+            // TODO(b/67745880) Note that config.SSID is intended to be either a
+            // hex string or "double quoted".
+            // However, it seems that whatever is handing us these configurations does not obey
+            // this convention.
+            boolean success = mApInterface.writeHostapdConfig(
+                    config.SSID.getBytes(StandardCharsets.UTF_8), config.hiddenSSID,
+                    config.apChannel, encryptionType,
+                    (config.preSharedKey != null)
+                            ? config.preSharedKey.getBytes(StandardCharsets.UTF_8)
+                            : new byte[0]);
+            if (!success) {
+                Log.e(TAG, "Failed to write hostapd configuration");
+                return false;
+            }
+            mApInterfaceListener = new ApInterfaceEventCallback(listener);
+            success = mApInterface.startHostapd(mApInterfaceListener);
+            if (!success) {
+                Log.e(TAG, "Failed to start hostapd.");
+                return false;
+            }
+        } catch (RemoteException e) {
+            Log.e(TAG, "Exception in starting soft AP: " + e);
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Stop the ongoing Soft AP operation.
+     *
+     * @return true on success, false otherwise.
+     */
+    public boolean stopSoftAp() {
+        if (mApInterface == null) {
+            Log.e(TAG, "No valid ap interface handler");
+            return false;
+        }
+        try {
+            boolean success = mApInterface.stopHostapd();
+            if (!success) {
+                Log.e(TAG, "Failed to stop hostapd.");
+                return false;
+            }
+        } catch (RemoteException e) {
+            Log.e(TAG, "Exception in stopping soft AP: " + e);
+            return false;
+        }
+        mApInterfaceListener = null;
+        return true;
+    }
+
+    private static int getIApInterfaceEncryptionType(WifiConfiguration localConfig) {
+        int encryptionType;
+        switch (localConfig.getAuthType()) {
+            case WifiConfiguration.KeyMgmt.NONE:
+                encryptionType = IApInterface.ENCRYPTION_TYPE_NONE;
+                break;
+            case WifiConfiguration.KeyMgmt.WPA_PSK:
+                encryptionType = IApInterface.ENCRYPTION_TYPE_WPA;
+                break;
+            case WifiConfiguration.KeyMgmt.WPA2_PSK:
+                encryptionType = IApInterface.ENCRYPTION_TYPE_WPA2;
+                break;
+            default:
+                // We really shouldn't default to None, but this was how NetworkManagementService
+                // used to do this.
+                encryptionType = IApInterface.ENCRYPTION_TYPE_NONE;
+                break;
+        }
+        return encryptionType;
     }
 }

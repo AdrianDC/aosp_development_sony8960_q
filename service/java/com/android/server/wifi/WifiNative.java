@@ -273,6 +273,36 @@ public class WifiNative {
         return mWificondControl.stopPnoScan();
     }
 
+    /**
+     * Callbacks for SoftAp interface.
+     */
+    public interface SoftApListener {
+        /**
+         * Invoked when the number of associated stations changes.
+         */
+        void onNumAssociatedStationsChanged(int numStations);
+    }
+
+    /**
+     * Start Soft AP operation using the provided configuration.
+     *
+     * @param config Configuration to use for the soft ap created.
+     * @param listener Callback for AP events.
+     * @return true on success, false otherwise.
+     */
+    public boolean startSoftAp(WifiConfiguration config, SoftApListener listener) {
+        return mWificondControl.startSoftAp(config, listener);
+    }
+
+    /**
+     * Stop the ongoing Soft AP operation.
+     *
+     * @return true on success, false otherwise.
+     */
+    public boolean stopSoftAp() {
+        return mWificondControl.stopSoftAp();
+    }
+
     /********************************************************
      * Supplicant operations
      ********************************************************/
