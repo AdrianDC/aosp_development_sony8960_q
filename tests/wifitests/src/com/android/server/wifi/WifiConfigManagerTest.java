@@ -43,7 +43,6 @@ import android.text.TextUtils;
 import android.util.Pair;
 
 import com.android.internal.R;
-import com.android.server.wifi.WifiConfigStoreLegacy.WifiConfigStoreDataLegacy;
 import com.android.server.wifi.util.WifiPermissionsUtil;
 import com.android.server.wifi.util.WifiPermissionsWrapper;
 
@@ -101,7 +100,6 @@ public class WifiConfigManagerTest {
     @Mock private TelephonyManager mTelephonyManager;
     @Mock private WifiKeyStore mWifiKeyStore;
     @Mock private WifiConfigStore mWifiConfigStore;
-    @Mock private WifiConfigStoreLegacy mWifiConfigStoreLegacy;
     @Mock private PackageManager mPackageManager;
     @Mock private DevicePolicyManagerInternal mDevicePolicyManagerInternal;
     @Mock private WifiPermissionsUtil mWifiPermissionsUtil;
@@ -1144,7 +1142,7 @@ public class WifiConfigManagerTest {
         ScanDetailCache retrievedScanDetailCache =
                 mWifiConfigManager.getScanDetailCacheForNetwork(result.getNetworkId());
         assertEquals(1, retrievedScanDetailCache.size());
-        ScanResult retrievedScanResult = retrievedScanDetailCache.get(scanResult.BSSID);
+        ScanResult retrievedScanResult = retrievedScanDetailCache.getScanResult(scanResult.BSSID);
 
         ScanTestUtil.assertScanResultEquals(scanResult, retrievedScanResult);
     }
@@ -1518,6 +1516,45 @@ public class WifiConfigManagerTest {
                 mWifiConfigManager.retrievePnoNetworkList();
         assertEquals(1, pnoNetworks.size());
         assertEquals(savedOpenNetwork.SSID, pnoNetworks.get(0).ssid);
+    }
+
+    /**
+     * Verifies that the list of PNO networks does not contain any permanently or temporarily
+     * disabled networks.
+     * {@link WifiConfigManager#retrievePnoNetworkList()}.
+     */
+    @Test
+    public void testRetrievePnoListDoesNotContainDisabledNetworks() throws Exception {
+        // Create and add 2 networks.
+        WifiConfiguration network1 = WifiConfigurationTestUtil.createEapNetwork();
+        WifiConfiguration network2 = WifiConfigurationTestUtil.createPskNetwork();
+
+        NetworkUpdateResult result1 = verifyAddNetworkToWifiConfigManager(network1);
+        NetworkUpdateResult result2 = verifyAddNetworkToWifiConfigManager(network2);
+
+        // Enable all of them.
+        verifyUpdateNetworkSelectionStatus(
+                result1.getNetworkId(), NetworkSelectionStatus.NETWORK_SELECTION_ENABLE, 0);
+        verifyUpdateNetworkSelectionStatus(
+                result2.getNetworkId(), NetworkSelectionStatus.NETWORK_SELECTION_ENABLE, 0);
+
+        // Set network1 to temporarily disabled. The threshold for association rejection is 5, so
+        // disable it 5 times to actually mark it temporarily disabled.
+        int assocRejectReason = NetworkSelectionStatus.DISABLED_ASSOCIATION_REJECTION;
+        int assocRejectThreshold =
+                WifiConfigManager.NETWORK_SELECTION_DISABLE_THRESHOLD[assocRejectReason];
+        for (int i = 1; i <= assocRejectThreshold; i++) {
+            verifyUpdateNetworkSelectionStatus(result1.getNetworkId(), assocRejectReason, i);
+        }
+
+        // Set network 2 to permanently disabled.
+        verifyUpdateNetworkSelectionStatus(
+                result2.getNetworkId(), NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER, 0);
+
+        // Retrieve the Pno network list & verify both networks are not included.
+        List<WifiScanner.PnoSettings.PnoNetwork> pnoNetworks =
+                mWifiConfigManager.retrievePnoNetworkList();
+        assertEquals(0, pnoNetworks.size());
     }
 
     /**
@@ -2369,7 +2406,7 @@ public class WifiConfigManagerTest {
     }
 
     /**
-     * Verifies that the foreground user stop using {@link WifiConfigManager#handleUserStop(int)}
+     * Verifies that the user stop handling using {@link WifiConfigManager#handleUserStop(int)}
      * and ensures that the store is written only when the foreground user is stopped.
      */
     @Test
@@ -2389,6 +2426,49 @@ public class WifiConfigManagerTest {
         mContextConfigStoreMockOrder.verify(mWifiConfigStore, never())
                 .switchUserStoreAndRead(any(WifiConfigStore.StoreFile.class));
         mContextConfigStoreMockOrder.verify(mWifiConfigStore).write(anyBoolean());
+    }
+
+    /**
+     * Verifies that the user stop handling using {@link WifiConfigManager#handleUserStop(int)}
+     * and ensures that the shared data is not lost when the foreground user is stopped.
+     */
+    @Test
+    public void testHandleUserStopDoesNotClearSharedData() throws Exception {
+        int user1 = TEST_DEFAULT_USER;
+
+        //
+        // Setup the database for the user before initiating stop.
+        //
+        int appId = 674;
+        // Create 2 networks. 1 for user1, and 1 shared.
+        final WifiConfiguration user1Network = WifiConfigurationTestUtil.createPskNetwork();
+        user1Network.shared = false;
+        user1Network.creatorUid = UserHandle.getUid(user1, appId);
+        final WifiConfiguration sharedNetwork = WifiConfigurationTestUtil.createPskNetwork();
+
+        // Set up the store data that is loaded initially.
+        List<WifiConfiguration> sharedNetworks = new ArrayList<WifiConfiguration>() {
+            {
+                add(sharedNetwork);
+            }
+        };
+        List<WifiConfiguration> user1Networks = new ArrayList<WifiConfiguration>() {
+            {
+                add(user1Network);
+            }
+        };
+        setupStoreDataForRead(sharedNetworks, user1Networks, new HashSet<String>());
+        assertTrue(mWifiConfigManager.loadFromStore());
+        verify(mWifiConfigStore).read();
+
+        // Ensure that we have 2 networks in the database before the stop.
+        assertEquals(2, mWifiConfigManager.getConfiguredNetworks().size());
+
+        mWifiConfigManager.handleUserStop(user1);
+
+        // Ensure that we only have 1 shared network in the database after the stop.
+        assertEquals(1, mWifiConfigManager.getConfiguredNetworks().size());
+        assertEquals(sharedNetwork.SSID, mWifiConfigManager.getConfiguredNetworks().get(0).SSID);
     }
 
     /**
@@ -2539,55 +2619,6 @@ public class WifiConfigManagerTest {
     }
 
     /**
-     * Verifies the loading of networks using {@link WifiConfigManager#migrateFromLegacyStore()} ()}
-     * attempts to migrate data from legacy stores when the legacy store files are present.
-     */
-    @Test
-    public void testMigrationFromLegacyStore() throws Exception {
-        // Create the store data to be returned from legacy stores.
-        List<WifiConfiguration> networks = new ArrayList<>();
-        networks.add(WifiConfigurationTestUtil.createPskNetwork());
-        networks.add(WifiConfigurationTestUtil.createEapNetwork());
-        networks.add(WifiConfigurationTestUtil.createWepNetwork());
-        String deletedEphemeralSSID = "EphemeralSSID";
-        Set<String> deletedEphermalSSIDs = new HashSet<>(Arrays.asList(deletedEphemeralSSID));
-        WifiConfigStoreDataLegacy storeData =
-                new WifiConfigStoreDataLegacy(networks, deletedEphermalSSIDs);
-
-        when(mWifiConfigStoreLegacy.areStoresPresent()).thenReturn(true);
-        when(mWifiConfigStoreLegacy.read()).thenReturn(storeData);
-
-        // Now trigger the migration from legacy store. This should populate the in memory list with
-        // all the networks above from the legacy store.
-        assertTrue(mWifiConfigManager.migrateFromLegacyStore());
-
-        verify(mWifiConfigStoreLegacy).read();
-        verify(mWifiConfigStoreLegacy).removeStores();
-
-        List<WifiConfiguration> retrievedNetworks =
-                mWifiConfigManager.getConfiguredNetworksWithPasswords();
-        WifiConfigurationTestUtil.assertConfigurationsEqualForConfigManagerAddOrUpdate(
-                networks, retrievedNetworks);
-        assertTrue(mWifiConfigManager.wasEphemeralNetworkDeleted(deletedEphemeralSSID));
-    }
-
-    /**
-     * Verifies the loading of networks using {@link WifiConfigManager#migrateFromLegacyStore()} ()}
-     * does not attempt to migrate data from legacy stores when the legacy store files are absent
-     * (i.e migration was already done once).
-     */
-    @Test
-    public void testNoDuplicateMigrationFromLegacyStore() throws Exception {
-        when(mWifiConfigStoreLegacy.areStoresPresent()).thenReturn(false);
-
-        // Now trigger a migration from legacy store.
-        assertTrue(mWifiConfigManager.migrateFromLegacyStore());
-
-        verify(mWifiConfigStoreLegacy, never()).read();
-        verify(mWifiConfigStoreLegacy, never()).removeStores();
-    }
-
-    /**
      * Verifies the loading of networks using {@link WifiConfigManager#loadFromStore()} does
      * not attempt to read from any of the stores (new or legacy) when the store files are
      * not present.
@@ -2595,12 +2626,10 @@ public class WifiConfigManagerTest {
     @Test
     public void testFreshInstallDoesNotLoadFromStore() throws Exception {
         when(mWifiConfigStore.areStoresPresent()).thenReturn(false);
-        when(mWifiConfigStoreLegacy.areStoresPresent()).thenReturn(false);
 
         assertTrue(mWifiConfigManager.loadFromStore());
 
         verify(mWifiConfigStore, never()).read();
-        verify(mWifiConfigStoreLegacy, never()).read();
 
         assertTrue(mWifiConfigManager.getConfiguredNetworksWithPasswords().isEmpty());
     }
@@ -2613,11 +2642,9 @@ public class WifiConfigManagerTest {
     public void testHandleUserSwitchAfterFreshInstall() throws Exception {
         int user2 = TEST_DEFAULT_USER + 1;
         when(mWifiConfigStore.areStoresPresent()).thenReturn(false);
-        when(mWifiConfigStoreLegacy.areStoresPresent()).thenReturn(false);
 
         assertTrue(mWifiConfigManager.loadFromStore());
         verify(mWifiConfigStore, never()).read();
-        verify(mWifiConfigStoreLegacy, never()).read();
 
         setupStoreDataForUserRead(new ArrayList<WifiConfiguration>(), new HashSet<String>());
         // Now switch the user to user 2.
@@ -3376,7 +3403,7 @@ public class WifiConfigManagerTest {
         mWifiConfigManager =
                 new WifiConfigManager(
                         mContext, mClock, mUserManager, mTelephonyManager,
-                        mWifiKeyStore, mWifiConfigStore, mWifiConfigStoreLegacy,
+                        mWifiKeyStore, mWifiConfigStore,
                         mWifiPermissionsUtil, mWifiPermissionsWrapper, mNetworkListStoreData,
                         mDeletedEphemeralSsidsStoreData);
         mWifiConfigManager.enableVerboseLogging(1);
@@ -3971,7 +3998,7 @@ public class WifiConfigManagerTest {
         ScanDetailCache retrievedScanDetailCache =
                 mWifiConfigManager.getScanDetailCacheForNetwork(network.networkId);
         assertEquals(1, retrievedScanDetailCache.size());
-        ScanResult retrievedScanResult = retrievedScanDetailCache.get(scanResult.BSSID);
+        ScanResult retrievedScanResult = retrievedScanDetailCache.getScanResult(scanResult.BSSID);
 
         ScanTestUtil.assertScanResultEquals(scanResult, retrievedScanResult);
     }

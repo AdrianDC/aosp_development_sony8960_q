@@ -26,9 +26,12 @@ wifi_system_iface_cflags = [
 
 // Device independent wifi system logic.
 // ============================================================
-cc_library_shared {
+cc_library {
     name: "libwifi-system-iface",
     vendor_available: true,
+    vndk: {
+        enabled: true,
+    },
     cflags: wifi_system_iface_cflags,
     local_include_dirs: ["include"],
     export_include_dirs: ["include"],

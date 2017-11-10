@@ -16,6 +16,7 @@
 package com.android.server.wifi;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.*;
 
@@ -37,6 +38,8 @@ import com.android.server.wifi.hotspot2.PasspointManager;
 import com.android.server.wifi.hotspot2.PasspointMatch;
 import com.android.server.wifi.hotspot2.PasspointProvider;
 import com.android.server.wifi.nano.WifiMetricsProto;
+import com.android.server.wifi.nano.WifiMetricsProto.ConnectToNetworkNotificationAndActionCount;
+import com.android.server.wifi.nano.WifiMetricsProto.PnoScanMetrics;
 import com.android.server.wifi.nano.WifiMetricsProto.StaEvent;
 
 import org.junit.Before;
@@ -252,6 +255,24 @@ public class WifiMetricsTest {
     private static final int NUM_PASSPOINT_PROVIDER_UNINSTALL_SUCCESS = 2;
     private static final int NUM_PASSPOINT_PROVIDERS_SUCCESSFULLY_CONNECTED = 1;
     private static final int NUM_PARTIAL_SCAN_RESULTS = 73;
+    private static final int NUM_PNO_SCAN_ATTEMPTS = 20;
+    private static final int NUM_PNO_SCAN_FAILED = 5;
+    private static final int NUM_PNO_SCAN_STARTED_OVER_OFFLOAD = 17;
+    private static final int NUM_PNO_SCAN_FAILED_OVER_OFFLOAD = 8;
+    private static final int NUM_PNO_FOUND_NETWORK_EVENTS = 10;
+    /** Number of notifications per "Connect to Network" notification type. */
+    private static final int[] NUM_CONNECT_TO_NETWORK_NOTIFICATIONS = {0, 10, 20, 30, 40};
+    /** Number of notifications per "Connect to Network notification type and action type. */
+    private static final int[][] NUM_CONNECT_TO_NETWORK_NOTIFICATION_ACTIONS = {
+            {0, 1, 2, 3, 4},
+            {10, 11, 12, 13, 14},
+            {20, 21, 22, 23, 24},
+            {30, 31, 32, 33, 34},
+            {40, 41, 42, 43, 44}};
+    private static final int SIZE_OPEN_NETWORK_RECOMMENDER_BLACKLIST = 10;
+    private static final boolean IS_WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON = true;
+    private static final int NUM_OPEN_NETWORK_CONNECT_MESSAGE_FAILED_TO_SEND = 5;
+    private static final int NUM_OPEN_NETWORK_RECOMMENDATION_UPDATES = 8;
 
     private ScanDetail buildMockScanDetail(boolean hidden, NetworkDetail.HSRelease hSRelease,
             String capabilities) {
@@ -474,6 +495,50 @@ public class WifiMetricsTest {
         for (int i = 0; i < NUM_PASSPOINT_PROVIDER_UNINSTALL_SUCCESS; i++) {
             mWifiMetrics.incrementNumPasspointProviderUninstallSuccess();
         }
+
+        // increment pno scan metrics
+        for (int i = 0; i < NUM_PNO_SCAN_ATTEMPTS; i++) {
+            mWifiMetrics.incrementPnoScanStartAttempCount();
+        }
+        for (int i = 0; i < NUM_PNO_SCAN_FAILED; i++) {
+            mWifiMetrics.incrementPnoScanFailedCount();
+        }
+        for (int i = 0; i < NUM_PNO_SCAN_STARTED_OVER_OFFLOAD; i++) {
+            mWifiMetrics.incrementPnoScanStartedOverOffloadCount();
+        }
+        for (int i = 0; i < NUM_PNO_SCAN_FAILED_OVER_OFFLOAD; i++) {
+            mWifiMetrics.incrementPnoScanFailedOverOffloadCount();
+        }
+        for (int i = 0; i < NUM_PNO_FOUND_NETWORK_EVENTS; i++) {
+            mWifiMetrics.incrementPnoFoundNetworkEventCount();
+        }
+
+        // set and increment "connect to network" notification metrics
+        for (int i = 0; i < NUM_CONNECT_TO_NETWORK_NOTIFICATIONS.length; i++) {
+            int count = NUM_CONNECT_TO_NETWORK_NOTIFICATIONS[i];
+            for (int j = 0; j < count; j++) {
+                mWifiMetrics.incrementConnectToNetworkNotification(i);
+            }
+        }
+        for (int i = 0; i < NUM_CONNECT_TO_NETWORK_NOTIFICATION_ACTIONS.length; i++) {
+            int[] actions = NUM_CONNECT_TO_NETWORK_NOTIFICATION_ACTIONS[i];
+            for (int j = 0; j < actions.length; j++) {
+                int count = actions[j];
+                for (int k = 0; k < count; k++) {
+                    mWifiMetrics.incrementConnectToNetworkNotificationAction(i, j);
+                }
+            }
+        }
+        mWifiMetrics.setOpenNetworkRecommenderBlacklistSize(
+                SIZE_OPEN_NETWORK_RECOMMENDER_BLACKLIST);
+        mWifiMetrics.setIsWifiNetworksAvailableNotificationEnabled(
+                IS_WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON);
+        for (int i = 0; i < NUM_OPEN_NETWORK_RECOMMENDATION_UPDATES; i++) {
+            mWifiMetrics.incrementNumOpenNetworkRecommendationUpdates();
+        }
+        for (int i = 0; i < NUM_OPEN_NETWORK_CONNECT_MESSAGE_FAILED_TO_SEND; i++) {
+            mWifiMetrics.incrementNumOpenNetworkConnectMessageFailedToSend();
+        }
     }
 
     /**
@@ -618,6 +683,40 @@ public class WifiMetricsTest {
                 mDecodedProto.numPasspointProviderUninstallSuccess);
         assertEquals(NUM_PASSPOINT_PROVIDERS_SUCCESSFULLY_CONNECTED,
                 mDecodedProto.numPasspointProvidersSuccessfullyConnected);
+
+        PnoScanMetrics pno_metrics = mDecodedProto.pnoScanMetrics;
+        assertNotNull(pno_metrics);
+        assertEquals(NUM_PNO_SCAN_ATTEMPTS, pno_metrics.numPnoScanAttempts);
+        assertEquals(NUM_PNO_SCAN_FAILED, pno_metrics.numPnoScanFailed);
+        assertEquals(NUM_PNO_SCAN_STARTED_OVER_OFFLOAD, pno_metrics.numPnoScanStartedOverOffload);
+        assertEquals(NUM_PNO_SCAN_FAILED_OVER_OFFLOAD, pno_metrics.numPnoScanFailedOverOffload);
+        assertEquals(NUM_PNO_FOUND_NETWORK_EVENTS, pno_metrics.numPnoFoundNetworkEvents);
+
+        for (ConnectToNetworkNotificationAndActionCount notificationCount
+                : mDecodedProto.connectToNetworkNotificationCount) {
+            assertEquals(NUM_CONNECT_TO_NETWORK_NOTIFICATIONS[notificationCount.notification],
+                    notificationCount.count);
+            assertEquals(ConnectToNetworkNotificationAndActionCount.RECOMMENDER_OPEN,
+                    notificationCount.recommender);
+        }
+        for (ConnectToNetworkNotificationAndActionCount notificationActionCount
+                : mDecodedProto.connectToNetworkNotificationActionCount) {
+            assertEquals(NUM_CONNECT_TO_NETWORK_NOTIFICATION_ACTIONS
+                            [notificationActionCount.notification]
+                            [notificationActionCount.action],
+                    notificationActionCount.count);
+            assertEquals(ConnectToNetworkNotificationAndActionCount.RECOMMENDER_OPEN,
+                    notificationActionCount.recommender);
+        }
+
+        assertEquals(SIZE_OPEN_NETWORK_RECOMMENDER_BLACKLIST,
+                mDecodedProto.openNetworkRecommenderBlacklistSize);
+        assertEquals(IS_WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON,
+                mDecodedProto.isWifiNetworksAvailableNotificationOn);
+        assertEquals(NUM_OPEN_NETWORK_RECOMMENDATION_UPDATES,
+                mDecodedProto.numOpenNetworkRecommendationUpdates);
+        assertEquals(NUM_OPEN_NETWORK_CONNECT_MESSAGE_FAILED_TO_SEND,
+                mDecodedProto.numOpenNetworkConnectMessageFailedToSend);
     }
 
     /**
@@ -1169,6 +1268,39 @@ public class WifiMetricsTest {
                 a(WifiMetrics.MAX_CONNECTABLE_BSSID_NETWORK_BUCKET), a(1));
         verifyHist(mDecodedProto.availableOpenOrSavedBssidsInScanHistogram, 1,
                 a(WifiMetrics.MAX_CONNECTABLE_BSSID_NETWORK_BUCKET), a(1));
+    }
+
+    /**
+     * Test Open Network Notification blacklist size and feature state are not cleared when proto
+     * is dumped.
+     */
+    public void testOpenNetworkNotificationBlacklistSizeAndFeatureStateNotCleared()
+            throws Exception {
+        mWifiMetrics.setOpenNetworkRecommenderBlacklistSize(
+                SIZE_OPEN_NETWORK_RECOMMENDER_BLACKLIST);
+        mWifiMetrics.setIsWifiNetworksAvailableNotificationEnabled(
+                IS_WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON);
+        for (int i = 0; i < NUM_OPEN_NETWORK_RECOMMENDATION_UPDATES; i++) {
+            mWifiMetrics.incrementNumOpenNetworkRecommendationUpdates();
+        }
+
+        // This should clear most metrics in mWifiMetrics
+        dumpProtoAndDeserialize();
+        assertEquals(SIZE_OPEN_NETWORK_RECOMMENDER_BLACKLIST,
+                mDecodedProto.openNetworkRecommenderBlacklistSize);
+        assertEquals(IS_WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON,
+                mDecodedProto.isWifiNetworksAvailableNotificationOn);
+        assertEquals(NUM_OPEN_NETWORK_RECOMMENDATION_UPDATES,
+                mDecodedProto.numOpenNetworkRecommendationUpdates);
+
+        // Check that blacklist size and feature state persist on next dump but
+        // others do not.
+        dumpProtoAndDeserialize();
+        assertEquals(SIZE_OPEN_NETWORK_RECOMMENDER_BLACKLIST,
+                mDecodedProto.openNetworkRecommenderBlacklistSize);
+        assertEquals(IS_WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON,
+                mDecodedProto.isWifiNetworksAvailableNotificationOn);
+        assertEquals(0, mDecodedProto.numOpenNetworkRecommendationUpdates);
     }
 
     /** short hand for instantiating an anonymous int array, instead of 'new int[]{a1, a2, ...}' */

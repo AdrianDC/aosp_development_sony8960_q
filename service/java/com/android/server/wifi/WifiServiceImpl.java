@@ -591,7 +591,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public void startScan(ScanSettings settings, WorkSource workSource, String packageName) {
         enforceChangePermission();
 
-        mLog.trace("startScan uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("startScan uid=%").c(Binder.getCallingUid()).flush();
         // Check and throttle background apps for wifi scan.
         if (isRequestFromBackground(packageName)) {
             long lastScanMs = mLastScanTimestamps.getOrDefault(packageName, 0L);
@@ -683,7 +683,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public String getCurrentNetworkWpsNfcConfigurationToken() {
         enforceConnectivityInternalPermission();
-        mLog.trace("getCurrentNetworkWpsNfcConfigurationToken uid=%")
+        mLog.info("getCurrentNetworkWpsNfcConfigurationToken uid=%")
                 .c(Binder.getCallingUid()).flush();
         // TODO Add private logging for netId b/33807876
         return mWifiStateMachine.syncGetCurrentNetworkWpsNfcConfigurationToken();
@@ -711,6 +711,11 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             // The package name doesn't matter as the request comes from System UID.
             startScan(null, null, "");
         }
+    }
+
+    private boolean checkNetworkSettingsPermission(int pid, int uid) {
+        return mContext.checkPermission(android.Manifest.permission.NETWORK_SETTINGS, pid, uid)
+                == PackageManager.PERMISSION_GRANTED;
     }
 
     private void enforceNetworkSettingsPermission() {
@@ -777,15 +782,15 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         enforceChangePermission();
         Slog.d(TAG, "setWifiEnabled: " + enable + " pid=" + Binder.getCallingPid()
                     + ", uid=" + Binder.getCallingUid() + ", package=" + packageName);
-        mLog.trace("setWifiEnabled package=% uid=% enable=%").c(packageName)
+        mLog.info("setWifiEnabled package=% uid=% enable=%").c(packageName)
                 .c(Binder.getCallingUid()).c(enable).flush();
 
-        boolean isFromSettings =
-                mWifiPermissionsUtil.checkNetworkSettingsPermission(Binder.getCallingUid());
+        boolean isFromSettings = checkNetworkSettingsPermission(
+                Binder.getCallingPid(), Binder.getCallingUid());
 
         // If Airplane mode is enabled, only Settings is allowed to toggle Wifi
         if (mSettingsStore.isAirplaneModeOn() && !isFromSettings) {
-            mLog.trace("setWifiEnabled in Airplane mode: only Settings can enable wifi").flush();
+            mLog.info("setWifiEnabled in Airplane mode: only Settings can enable wifi").flush();
             return false;
         }
 
@@ -794,7 +799,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 mWifiStateMachine.syncGetWifiApState() != WifiManager.WIFI_AP_STATE_DISABLED;
 
         if (apEnabled && !isFromSettings) {
-            mLog.trace("setWifiEnabled SoftAp not disabled: only Settings can enable wifi").flush();
+            mLog.info("setWifiEnabled SoftAp not disabled: only Settings can enable wifi").flush();
             return false;
         }
 
@@ -847,7 +852,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public int getWifiEnabledState() {
         enforceAccessPermission();
-        mLog.trace("getWifiEnabledState uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("getWifiEnabledState uid=%").c(Binder.getCallingUid()).flush();
         return mWifiStateMachine.syncGetWifiState();
     }
 
@@ -862,7 +867,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         enforceChangePermission();
         mWifiPermissionsUtil.enforceTetherChangePermission(mContext);
 
-        mLog.trace("setWifiApEnabled uid=% enable=%").c(Binder.getCallingUid()).c(enabled).flush();
+        mLog.info("setWifiApEnabled uid=% enable=%").c(Binder.getCallingUid()).c(enabled).flush();
 
         if (mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_TETHERING)) {
             throw new SecurityException("DISALLOW_CONFIG_TETHERING is enabled for this user.");
@@ -888,7 +893,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public int getWifiApEnabledState() {
         enforceAccessPermission();
-        mLog.trace("getWifiApEnabledState uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("getWifiApEnabledState uid=%").c(Binder.getCallingUid()).flush();
         return mWifiStateMachine.syncGetWifiApState();
     }
 
@@ -963,7 +968,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                     }
                     break;
                 default:
-                    mLog.trace("updateInterfaceIpStateInternal: unknown mode %").c(mode).flush();
+                    mLog.warn("updateInterfaceIpStateInternal: unknown mode %").c(mode).flush();
             }
         }
     }
@@ -979,7 +984,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         // NETWORK_STACK is a signature only permission.
         enforceNetworkStackPermission();
 
-        mLog.trace("startSoftAp uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("startSoftAp uid=%").c(Binder.getCallingUid()).flush();
 
         synchronized (mLocalOnlyHotspotRequests) {
             // If a tethering request comes in while we have LOHS running (or requested), call stop
@@ -1023,7 +1028,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         // only permitted callers are allowed to this point - they must have gone through
         // connectivity service since this method is protected with the NETWORK_STACK PERMISSION
 
-        mLog.trace("stopSoftAp uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("stopSoftAp uid=%").c(Binder.getCallingUid()).flush();
 
         synchronized (mLocalOnlyHotspotRequests) {
             // If a tethering request comes in while we have LOHS running (or requested), call stop
@@ -1212,17 +1217,17 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 return LocalOnlyHotspotCallback.ERROR_INCOMPATIBLE_MODE;
             }
         } catch (RemoteException e) {
-            mLog.trace("RemoteException during isAppForeground when calling startLOHS");
+            mLog.warn("RemoteException during isAppForeground when calling startLOHS");
             return LocalOnlyHotspotCallback.ERROR_INCOMPATIBLE_MODE;
         }
 
-        mLog.trace("startLocalOnlyHotspot uid=% pid=%").c(uid).c(pid).flush();
+        mLog.info("startLocalOnlyHotspot uid=% pid=%").c(uid).c(pid).flush();
 
         synchronized (mLocalOnlyHotspotRequests) {
             // check if we are currently tethering
             if (mIfaceIpModes.contains(WifiManager.IFACE_IP_MODE_TETHERED)) {
                 // Tethering is enabled, cannot start LocalOnlyHotspot
-                mLog.trace("Cannot start localOnlyHotspot when WiFi Tethering is active.");
+                mLog.info("Cannot start localOnlyHotspot when WiFi Tethering is active.");
                 return LocalOnlyHotspotCallback.ERROR_INCOMPATIBLE_MODE;
             }
 
@@ -1272,7 +1277,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         final int uid = Binder.getCallingUid();
         final int pid = Binder.getCallingPid();
 
-        mLog.trace("stopLocalOnlyHotspot uid=% pid=%").c(uid).c(pid).flush();
+        mLog.info("stopLocalOnlyHotspot uid=% pid=%").c(uid).c(pid).flush();
 
         synchronized (mLocalOnlyHotspotRequests) {
             // was the caller already registered?  check request tracker - return false if not
@@ -1360,7 +1365,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             throw new SecurityException("App not allowed to read or update stored WiFi Ap config "
                     + "(uid = " + uid + ")");
         }
-        mLog.trace("getWifiApConfiguration uid=%").c(uid).flush();
+        mLog.info("getWifiApConfiguration uid=%").c(uid).flush();
         return mWifiStateMachine.syncGetWifiApConfiguration();
     }
 
@@ -1379,7 +1384,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             throw new SecurityException("App not allowed to read or update stored WiFi AP config "
                     + "(uid = " + uid + ")");
         }
-        mLog.trace("setWifiApConfiguration uid=%").c(uid).flush();
+        mLog.info("setWifiApConfiguration uid=%").c(uid).flush();
         if (wifiConfig == null)
             return;
         if (isValid(wifiConfig)) {
@@ -1395,7 +1400,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public boolean isScanAlwaysAvailable() {
         enforceAccessPermission();
-        mLog.trace("isScanAlwaysAvailable uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("isScanAlwaysAvailable uid=%").c(Binder.getCallingUid()).flush();
         return mSettingsStore.isScanAlwaysAvailable();
     }
 
@@ -1405,7 +1410,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public void disconnect() {
         enforceChangePermission();
-        mLog.trace("disconnect uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("disconnect uid=%").c(Binder.getCallingUid()).flush();
         mWifiStateMachine.disconnectCommand();
     }
 
@@ -1415,8 +1420,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public void reconnect() {
         enforceChangePermission();
-        mLog.trace("reconnect uid=%").c(Binder.getCallingUid()).flush();
-        mWifiStateMachine.reconnectCommand();
+        mLog.info("reconnect uid=%").c(Binder.getCallingUid()).flush();
+        mWifiStateMachine.reconnectCommand(new WorkSource(Binder.getCallingUid()));
     }
 
     /**
@@ -1425,7 +1430,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public void reassociate() {
         enforceChangePermission();
-        mLog.trace("reassociate uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("reassociate uid=%").c(Binder.getCallingUid()).flush();
         mWifiStateMachine.reassociateCommand();
     }
 
@@ -1435,7 +1440,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public int getSupportedFeatures() {
         enforceAccessPermission();
-        mLog.trace("getSupportedFeatures uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("getSupportedFeatures uid=%").c(Binder.getCallingUid()).flush();
         if (mWifiStateMachineChannel != null) {
             return mWifiStateMachine.syncGetSupportedFeatures(mWifiStateMachineChannel);
         } else {
@@ -1447,7 +1452,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public void requestActivityInfo(ResultReceiver result) {
         Bundle bundle = new Bundle();
-        mLog.trace("requestActivityInfo uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("requestActivityInfo uid=%").c(Binder.getCallingUid()).flush();
         bundle.putParcelable(BatteryStats.RESULT_RECEIVER_CONTROLLER_KEY, reportActivityInfo());
         result.send(0, bundle);
     }
@@ -1458,7 +1463,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public WifiActivityEnergyInfo reportActivityInfo() {
         enforceAccessPermission();
-        mLog.trace("reportActivityInfo uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("reportActivityInfo uid=%").c(Binder.getCallingUid()).flush();
         if ((getSupportedFeatures() & WifiManager.WIFI_FEATURE_LINK_LAYER_STATS) == 0) {
             return null;
         }
@@ -1531,7 +1536,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public ParceledListSlice<WifiConfiguration> getConfiguredNetworks() {
         enforceAccessPermission();
-        mLog.trace("getConfiguredNetworks uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("getConfiguredNetworks uid=%").c(Binder.getCallingUid()).flush();
         if (mWifiStateMachineChannel != null) {
             List<WifiConfiguration> configs = mWifiStateMachine.syncGetConfiguredNetworks(
                     Binder.getCallingUid(), mWifiStateMachineChannel);
@@ -1552,7 +1557,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public ParceledListSlice<WifiConfiguration> getPrivilegedConfiguredNetworks() {
         enforceReadCredentialPermission();
         enforceAccessPermission();
-        mLog.trace("getPrivilegedConfiguredNetworks uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("getPrivilegedConfiguredNetworks uid=%").c(Binder.getCallingUid()).flush();
         if (mWifiStateMachineChannel != null) {
             List<WifiConfiguration> configs =
                     mWifiStateMachine.syncGetPrivilegedConfiguredNetwork(mWifiStateMachineChannel);
@@ -1574,7 +1579,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public WifiConfiguration getMatchingWifiConfig(ScanResult scanResult) {
         enforceAccessPermission();
-        mLog.trace("getMatchingWifiConfig uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("getMatchingWifiConfig uid=%").c(Binder.getCallingUid()).flush();
         if (!mContext.getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_WIFI_PASSPOINT)) {
             throw new UnsupportedOperationException("Passpoint not enabled");
@@ -1591,7 +1596,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public List<OsuProvider> getMatchingOsuProviders(ScanResult scanResult) {
         enforceAccessPermission();
-        mLog.trace("getMatchingOsuProviders uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("getMatchingOsuProviders uid=%").c(Binder.getCallingUid()).flush();
         if (!mContext.getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_WIFI_PASSPOINT)) {
             throw new UnsupportedOperationException("Passpoint not enabled");
@@ -1607,7 +1612,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public int addOrUpdateNetwork(WifiConfiguration config) {
         enforceChangePermission();
-        mLog.trace("addOrUpdateNetwork uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("addOrUpdateNetwork uid=%").c(Binder.getCallingUid()).flush();
 
         // Previously, this API is overloaded for installing Passpoint profiles.  Now
         // that we have a dedicated API for doing it, redirect the call to the dedicated API.
@@ -1678,7 +1683,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public boolean removeNetwork(int netId) {
         enforceChangePermission();
-        mLog.trace("removeNetwork uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("removeNetwork uid=%").c(Binder.getCallingUid()).flush();
         // TODO Add private logging for netId b/33807876
         if (mWifiStateMachineChannel != null) {
             return mWifiStateMachine.syncRemoveNetwork(mWifiStateMachineChannel, netId);
@@ -1699,7 +1704,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public boolean enableNetwork(int netId, boolean disableOthers) {
         enforceChangePermission();
         // TODO b/33807876 Log netId
-        mLog.trace("enableNetwork uid=% disableOthers=%")
+        mLog.info("enableNetwork uid=% disableOthers=%")
                 .c(Binder.getCallingUid())
                 .c(disableOthers).flush();
 
@@ -1722,7 +1727,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public boolean disableNetwork(int netId) {
         enforceChangePermission();
         // TODO b/33807876 Log netId
-        mLog.trace("disableNetwork uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("disableNetwork uid=%").c(Binder.getCallingUid()).flush();
 
         if (mWifiStateMachineChannel != null) {
             return mWifiStateMachine.syncDisableNetwork(mWifiStateMachineChannel, netId);
@@ -1737,14 +1742,14 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * @return the Wi-Fi information, contained in {@link WifiInfo}.
      */
     @Override
-    public WifiInfo getConnectionInfo() {
+    public WifiInfo getConnectionInfo(String callingPackage) {
         enforceAccessPermission();
-        mLog.trace("getConnectionInfo uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("getConnectionInfo uid=%").c(Binder.getCallingUid()).flush();
         /*
          * Make sure we have the latest information, by sending
          * a status request to the supplicant.
          */
-        return mWifiStateMachine.syncRequestConnectionInfo();
+        return mWifiStateMachine.syncRequestConnectionInfo(callingPackage);
     }
 
     /**
@@ -1780,7 +1785,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public boolean addOrUpdatePasspointConfiguration(PasspointConfiguration config) {
         enforceChangePermission();
-        mLog.trace("addorUpdatePasspointConfiguration uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("addorUpdatePasspointConfiguration uid=%").c(Binder.getCallingUid()).flush();
         if (!mContext.getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_WIFI_PASSPOINT)) {
             throw new UnsupportedOperationException("Passpoint not enabled");
@@ -1798,7 +1803,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public boolean removePasspointConfiguration(String fqdn) {
         enforceChangePermission();
-        mLog.trace("removePasspointConfiguration uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("removePasspointConfiguration uid=%").c(Binder.getCallingUid()).flush();
         if (!mContext.getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_WIFI_PASSPOINT)) {
             throw new UnsupportedOperationException("Passpoint not enabled");
@@ -1816,7 +1821,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public List<PasspointConfiguration> getPasspointConfigurations() {
         enforceAccessPermission();
-        mLog.trace("getPasspointConfigurations uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("getPasspointConfigurations uid=%").c(Binder.getCallingUid()).flush();
         if (!mContext.getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_WIFI_PASSPOINT)) {
             throw new UnsupportedOperationException("Passpoint not enabled");
@@ -1832,7 +1837,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public void queryPasspointIcon(long bssid, String fileName) {
         enforceAccessPermission();
-        mLog.trace("queryPasspointIcon uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("queryPasspointIcon uid=%").c(Binder.getCallingUid()).flush();
         if (!mContext.getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_WIFI_PASSPOINT)) {
             throw new UnsupportedOperationException("Passpoint not enabled");
@@ -1847,7 +1852,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      */
     @Override
     public int matchProviderWithCurrentNetwork(String fqdn) {
-        mLog.trace("matchProviderWithCurrentNetwork uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("matchProviderWithCurrentNetwork uid=%").c(Binder.getCallingUid()).flush();
         return mWifiStateMachine.matchProviderWithCurrentNetwork(mWifiStateMachineChannel, fqdn);
     }
 
@@ -1858,7 +1863,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      */
     @Override
     public void deauthenticateNetwork(long holdoff, boolean ess) {
-        mLog.trace("deauthenticateNetwork uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("deauthenticateNetwork uid=%").c(Binder.getCallingUid()).flush();
         mWifiStateMachine.deauthenticateNetwork(mWifiStateMachineChannel, holdoff, ess);
     }
 
@@ -1871,7 +1876,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public boolean saveConfiguration() {
         enforceChangePermission();
-        mLog.trace("saveConfiguration uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("saveConfiguration uid=%").c(Binder.getCallingUid()).flush();
         if (mWifiStateMachineChannel != null) {
             return mWifiStateMachine.syncSaveConfig(mWifiStateMachineChannel);
         } else {
@@ -1894,7 +1899,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         Slog.i(TAG, "WifiService trying to set country code to " + countryCode +
                 " with persist set to " + persist);
         enforceConnectivityInternalPermission();
-        mLog.trace("setCountryCode uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("setCountryCode uid=%").c(Binder.getCallingUid()).flush();
         final long token = Binder.clearCallingIdentity();
         mCountryCode.setCountryCode(countryCode);
         Binder.restoreCallingIdentity(token);
@@ -1909,7 +1914,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public String getCountryCode() {
         enforceConnectivityInternalPermission();
-        mLog.trace("getCountryCode uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("getCountryCode uid=%").c(Binder.getCallingUid()).flush();
         String country = mCountryCode.getCountryCode();
         return country;
     }
@@ -1917,7 +1922,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public boolean isDualBandSupported() {
         //TODO: Should move towards adding a driver API that checks at runtime
-        mLog.trace("isDualBandSupported uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("isDualBandSupported uid=%").c(Binder.getCallingUid()).flush();
         return mContext.getResources().getBoolean(
                 com.android.internal.R.bool.config_wifi_dual_band_support);
     }
@@ -1932,7 +1937,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Deprecated
     public DhcpInfo getDhcpInfo() {
         enforceAccessPermission();
-        mLog.trace("getDhcpInfo uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("getDhcpInfo uid=%").c(Binder.getCallingUid()).flush();
         DhcpResults dhcpResults = mWifiStateMachine.syncGetDhcpResults();
 
         DhcpInfo info = new DhcpInfo();
@@ -2045,7 +2050,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         if (remoteAddress == null) {
           throw new IllegalArgumentException("remoteAddress cannot be null");
         }
-        mLog.trace("enableTdls uid=% enable=%").c(Binder.getCallingUid()).c(enable).flush();
+        mLog.info("enableTdls uid=% enable=%").c(Binder.getCallingUid()).c(enable).flush();
         TdlsTaskParams params = new TdlsTaskParams();
         params.remoteIpAddress = remoteAddress;
         params.enable = enable;
@@ -2055,7 +2060,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
     @Override
     public void enableTdlsWithMacAddress(String remoteMacAddress, boolean enable) {
-        mLog.trace("enableTdlsWithMacAddress uid=% enable=%")
+        mLog.info("enableTdlsWithMacAddress uid=% enable=%")
                 .c(Binder.getCallingUid())
                 .c(enable)
                 .flush();
@@ -2074,7 +2079,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public Messenger getWifiServiceMessenger() {
         enforceAccessPermission();
         enforceChangePermission();
-        mLog.trace("getWifiServiceMessenger uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("getWifiServiceMessenger uid=%").c(Binder.getCallingUid()).flush();
         return new Messenger(mClientHandler);
     }
 
@@ -2085,7 +2090,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public void disableEphemeralNetwork(String SSID) {
         enforceAccessPermission();
         enforceChangePermission();
-        mLog.trace("disableEphemeralNetwork uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("disableEphemeralNetwork uid=%").c(Binder.getCallingUid()).flush();
         mWifiStateMachine.disableEphemeralNetwork(SSID);
     }
 
@@ -2321,7 +2326,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
     @Override
     public boolean acquireWifiLock(IBinder binder, int lockMode, String tag, WorkSource ws) {
-        mLog.trace("acquireWifiLock uid=% lockMode=%")
+        mLog.info("acquireWifiLock uid=% lockMode=%")
                 .c(Binder.getCallingUid())
                 .c(lockMode).flush();
         if (mWifiLockManager.acquireWifiLock(lockMode, tag, binder, ws)) {
@@ -2333,13 +2338,13 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
     @Override
     public void updateWifiLockWorkSource(IBinder binder, WorkSource ws) {
-        mLog.trace("updateWifiLockWorkSource uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("updateWifiLockWorkSource uid=%").c(Binder.getCallingUid()).flush();
         mWifiLockManager.updateWifiLockWorkSource(binder, ws);
     }
 
     @Override
     public boolean releaseWifiLock(IBinder binder) {
-        mLog.trace("releaseWifiLock uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("releaseWifiLock uid=%").c(Binder.getCallingUid()).flush();
         if (mWifiLockManager.releaseWifiLock(binder)) {
             mWifiController.sendMessage(CMD_LOCKS_CHANGED);
             return true;
@@ -2350,35 +2355,35 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public void initializeMulticastFiltering() {
         enforceMulticastChangePermission();
-        mLog.trace("initializeMulticastFiltering uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("initializeMulticastFiltering uid=%").c(Binder.getCallingUid()).flush();
         mWifiMulticastLockManager.initializeFiltering();
     }
 
     @Override
     public void acquireMulticastLock(IBinder binder, String tag) {
         enforceMulticastChangePermission();
-        mLog.trace("acquireMulticastLock uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("acquireMulticastLock uid=%").c(Binder.getCallingUid()).flush();
         mWifiMulticastLockManager.acquireLock(binder, tag);
     }
 
     @Override
     public void releaseMulticastLock() {
         enforceMulticastChangePermission();
-        mLog.trace("releaseMulticastLock uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("releaseMulticastLock uid=%").c(Binder.getCallingUid()).flush();
         mWifiMulticastLockManager.releaseLock();
     }
 
     @Override
     public boolean isMulticastEnabled() {
         enforceAccessPermission();
-        mLog.trace("isMulticastEnabled uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("isMulticastEnabled uid=%").c(Binder.getCallingUid()).flush();
         return mWifiMulticastLockManager.isMulticastEnabled();
     }
 
     @Override
     public void enableVerboseLogging(int verbose) {
         enforceAccessPermission();
-        mLog.trace("enableVerboseLogging uid=% verbose=%")
+        mLog.info("enableVerboseLogging uid=% verbose=%")
                 .c(Binder.getCallingUid())
                 .c(verbose).flush();
         mFacade.setIntegerSetting(
@@ -2398,7 +2403,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public int getVerboseLoggingLevel() {
         enforceAccessPermission();
-        mLog.trace("getVerboseLoggingLevel uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("getVerboseLoggingLevel uid=%").c(Binder.getCallingUid()).flush();
         return mFacade.getIntegerSetting(
                 mContext, Settings.Global.WIFI_VERBOSE_LOGGING_ENABLED, 0);
     }
@@ -2406,7 +2411,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public void enableAggressiveHandover(int enabled) {
         enforceAccessPermission();
-        mLog.trace("enableAggressiveHandover uid=% enabled=%")
+        mLog.info("enableAggressiveHandover uid=% enabled=%")
             .c(Binder.getCallingUid())
             .c(enabled)
             .flush();
@@ -2416,14 +2421,14 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public int getAggressiveHandover() {
         enforceAccessPermission();
-        mLog.trace("getAggressiveHandover uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("getAggressiveHandover uid=%").c(Binder.getCallingUid()).flush();
         return mWifiStateMachine.getAggressiveHandover();
     }
 
     @Override
     public void setAllowScansWithTraffic(int enabled) {
         enforceAccessPermission();
-        mLog.trace("setAllowScansWithTraffic uid=% enabled=%")
+        mLog.info("setAllowScansWithTraffic uid=% enabled=%")
                 .c(Binder.getCallingUid())
                 .c(enabled).flush();
         mWifiStateMachine.setAllowScansWithTraffic(enabled);
@@ -2432,14 +2437,14 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public int getAllowScansWithTraffic() {
         enforceAccessPermission();
-        mLog.trace("getAllowScansWithTraffic uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("getAllowScansWithTraffic uid=%").c(Binder.getCallingUid()).flush();
         return mWifiStateMachine.getAllowScansWithTraffic();
     }
 
     @Override
     public boolean setEnableAutoJoinWhenAssociated(boolean enabled) {
         enforceChangePermission();
-        mLog.trace("setEnableAutoJoinWhenAssociated uid=% enabled=%")
+        mLog.info("setEnableAutoJoinWhenAssociated uid=% enabled=%")
                 .c(Binder.getCallingUid())
                 .c(enabled).flush();
         return mWifiStateMachine.setEnableAutoJoinWhenAssociated(enabled);
@@ -2448,7 +2453,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public boolean getEnableAutoJoinWhenAssociated() {
         enforceAccessPermission();
-        mLog.trace("getEnableAutoJoinWhenAssociated uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("getEnableAutoJoinWhenAssociated uid=%").c(Binder.getCallingUid()).flush();
         return mWifiStateMachine.getEnableAutoJoinWhenAssociated();
     }
 
@@ -2457,7 +2462,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public WifiConnectionStatistics getConnectionStatistics() {
         enforceAccessPermission();
         enforceReadCredentialPermission();
-        mLog.trace("getConnectionStatistics uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("getConnectionStatistics uid=%").c(Binder.getCallingUid()).flush();
         if (mWifiStateMachineChannel != null) {
             return mWifiStateMachine.syncGetConnectionStatistics(mWifiStateMachineChannel);
         } else {
@@ -2469,7 +2474,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public void factoryReset() {
         enforceConnectivityInternalPermission();
-        mLog.trace("factoryReset uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("factoryReset uid=%").c(Binder.getCallingUid()).flush();
         if (mUserManager.hasUserRestriction(UserManager.DISALLOW_NETWORK_RESET)) {
             return;
         }
@@ -2543,7 +2548,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public Network getCurrentNetwork() {
         enforceAccessPermission();
-        mLog.trace("getCurrentNetwork uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("getCurrentNetwork uid=%").c(Binder.getCallingUid()).flush();
         return mWifiStateMachine.getCurrentNetwork();
     }
 
@@ -2575,9 +2580,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public void enableWifiConnectivityManager(boolean enabled) {
         enforceConnectivityInternalPermission();
-        mLog.trace("enableWifiConnectivityManager uid=% enabled=%")
-            .c(Binder.getCallingUid())
-            .c(enabled).flush();
+        mLog.info("enableWifiConnectivityManager uid=% enabled=%")
+                .c(Binder.getCallingUid())
+                .c(enabled).flush();
         mWifiStateMachine.enableWifiConnectivityManager(enabled);
     }
 
@@ -2589,7 +2594,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public byte[] retrieveBackupData() {
         enforceNetworkSettingsPermission();
-        mLog.trace("retrieveBackupData uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("retrieveBackupData uid=%").c(Binder.getCallingUid()).flush();
         if (mWifiStateMachineChannel == null) {
             Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
             return null;
@@ -2634,7 +2639,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public void restoreBackupData(byte[] data) {
         enforceNetworkSettingsPermission();
-        mLog.trace("restoreBackupData uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("restoreBackupData uid=%").c(Binder.getCallingUid()).flush();
         if (mWifiStateMachineChannel == null) {
             Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
             return;

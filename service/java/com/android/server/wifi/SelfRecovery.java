@@ -72,7 +72,7 @@ public class SelfRecovery {
             Log.e(TAG, "Invalid trigger reason. Ignoring...");
             return;
         }
-        Log.wtf(TAG, "Triggering recovery for reason: " + REASON_STRINGS[reason]);
+        Log.e(TAG, "Triggering recovery for reason: " + REASON_STRINGS[reason]);
         if (reason == REASON_WIFICOND_CRASH || reason == REASON_HAL_CRASH) {
             trimPastRestartTimes();
             // Ensure there haven't been too many restarts within MAX_RESTARTS_TIME_WINDOW

@@ -204,7 +204,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
     private volatile Characteristics mCharacteristics = null;
     private WifiAwareStateMachine mSm;
     private WifiAwareRttStateManager mRtt;
-    private WifiAwareDataPathStateManager mDataPathMgr;
+    public WifiAwareDataPathStateManager mDataPathMgr;
     private PowerManager mPowerManager;
 
     private final SparseArray<WifiAwareClientState> mClients = new SparseArray<>();

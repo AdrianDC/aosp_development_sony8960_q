@@ -575,15 +575,15 @@ public class WifiNetworkSelector {
         mLocalLog = localLog;
 
         mThresholdQualifiedRssi24 = context.getResources().getInteger(
-                            R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_24GHz);
+                R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_24GHz);
         mThresholdQualifiedRssi5 = context.getResources().getInteger(
-                            R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_5GHz);
+                R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_5GHz);
         mThresholdMinimumRssi24 = context.getResources().getInteger(
-                            R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_24GHz);
+                R.integer.config_wifi_framework_wifi_score_entry_rssi_threshold_24GHz);
         mThresholdMinimumRssi5 = context.getResources().getInteger(
-                            R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_5GHz);
+                R.integer.config_wifi_framework_wifi_score_entry_rssi_threshold_5GHz);
         mEnableAutoJoinWhenAssociated = context.getResources().getBoolean(
-                            R.bool.config_wifi_framework_enable_associated_network_selection);
+                R.bool.config_wifi_framework_enable_associated_network_selection);
         mStayOnNetworkMinimumTxRate = context.getResources().getInteger(
                 R.integer.config_wifi_framework_min_tx_rate_for_staying_on_network);
         mStayOnNetworkMinimumRxRate = context.getResources().getInteger(
