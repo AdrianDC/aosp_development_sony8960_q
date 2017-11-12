@@ -200,12 +200,6 @@ public class WifiConfigManager {
     @VisibleForTesting
     public static final int LINK_CONFIGURATION_BSSID_MATCH_LENGTH = 16;
     /**
-     * Flags to be passed in for |canModifyNetwork| to decide if the change is minor and can
-     * bypass the lockdown checks.
-     */
-    private static final boolean ALLOW_LOCKDOWN_CHECK_BYPASS = true;
-    private static final boolean DISALLOW_LOCKDOWN_CHECK_BYPASS = false;
-    /**
      * Log tag for this class.
      */
     private static final String TAG = "WifiConfigManager";
@@ -646,9 +640,8 @@ public class WifiConfigManager {
      *
      * @param config         WifiConfiguration object corresponding to the network to be modified.
      * @param uid            UID of the app requesting the modification.
-     * @param ignoreLockdown Ignore the configuration lockdown checks for connection attempts.
      */
-    private boolean canModifyNetwork(WifiConfiguration config, int uid, boolean ignoreLockdown) {
+    private boolean canModifyNetwork(WifiConfiguration config, int uid) {
         // System internals can always update networks; they're typically only
         // making meteredHint or meteredOverride changes
         if (uid == Process.SYSTEM_UID) {
@@ -684,12 +677,6 @@ public class WifiConfigManager {
         }
 
         final boolean isCreator = (config.creatorUid == uid);
-
-        // Check if the |uid| holds the |NETWORK_SETTINGS| permission if the caller asks us to
-        // bypass the lockdown checks.
-        if (ignoreLockdown) {
-            return mWifiPermissionsUtil.checkNetworkSettingsPermission(uid);
-        }
 
         // Check if device has DPM capability. If it has and |dpmi| is still null, then we
         // treat this case with suspicion and bail out.
@@ -980,7 +967,7 @@ public class WifiConfigManager {
                 return new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID);
             }
             // Check for the app's permission before we let it update this network.
-            if (!canModifyNetwork(existingInternalConfig, uid, DISALLOW_LOCKDOWN_CHECK_BYPASS)) {
+            if (!canModifyNetwork(existingInternalConfig, uid)) {
                 Log.e(TAG, "UID " + uid + " does not have permission to update configuration "
                         + config.configKey());
                 return new NetworkUpdateResult(WifiConfiguration.INVALID_NETWORK_ID);
@@ -1150,7 +1137,7 @@ public class WifiConfigManager {
         if (config == null) {
             return false;
         }
-        if (!canModifyNetwork(config, uid, DISALLOW_LOCKDOWN_CHECK_BYPASS)) {
+        if (!canModifyNetwork(config, uid)) {
             Log.e(TAG, "UID " + uid + " does not have permission to delete configuration "
                     + config.configKey());
             return false;
@@ -1483,7 +1470,7 @@ public class WifiConfigManager {
         if (config == null) {
             return false;
         }
-        if (!canModifyNetwork(config, uid, DISALLOW_LOCKDOWN_CHECK_BYPASS)) {
+        if (!canModifyNetwork(config, uid)) {
             Log.e(TAG, "UID " + uid + " does not have permission to update configuration "
                     + config.configKey());
             return false;
@@ -1518,7 +1505,7 @@ public class WifiConfigManager {
         if (config == null) {
             return false;
         }
-        if (!canModifyNetwork(config, uid, DISALLOW_LOCKDOWN_CHECK_BYPASS)) {
+        if (!canModifyNetwork(config, uid)) {
             Log.e(TAG, "UID " + uid + " does not have permission to update configuration "
                     + config.configKey());
             return false;
@@ -1535,18 +1522,13 @@ public class WifiConfigManager {
     }
 
     /**
-     * Checks if the |uid| has the necessary permission to force a connection to a network
-     * and updates the last connected UID for the provided configuration.
+     * Updates the last connected UID for the provided configuration.
      *
      * @param networkId network ID corresponding to the network.
      * @param uid       uid of the app requesting the connection.
-     * @return true if |uid| has the necessary permission to trigger explicit connection to the
-     * network, false otherwise.
-     * Note: This returns true only for the system settings/sysui app which holds the
-     * {@link android.Manifest.permission#NETWORK_SETTINGS} permission. We don't want to let
-     * any other app force connection to a network.
+     * @return true if the network was found, false otherwise.
      */
-    public boolean checkAndUpdateLastConnectUid(int networkId, int uid) {
+    public boolean updateLastConnectUid(int networkId, int uid) {
         if (mVerboseLoggingEnabled) {
             Log.v(TAG, "Update network last connect UID for " + networkId);
         }
@@ -1556,11 +1538,6 @@ public class WifiConfigManager {
         }
         WifiConfiguration config = getInternalConfiguredNetwork(networkId);
         if (config == null) {
-            return false;
-        }
-        if (!canModifyNetwork(config, uid, ALLOW_LOCKDOWN_CHECK_BYPASS)) {
-            Log.e(TAG, "UID " + uid + " does not have permission to update configuration "
-                    + config.configKey());
             return false;
         }
         config.lastConnectUid = uid;

@@ -796,7 +796,7 @@ public class WifiConfigManagerTest {
 
     /**
      * Verifies the updation of network's connectUid using
-     * {@link WifiConfigManager#checkAndUpdateLastConnectUid(int, int)}.
+     * {@link WifiConfigManager#updateLastConnectUid(int, int)}.
      */
     @Test
     public void testUpdateLastConnectUid() throws Exception {
@@ -805,20 +805,10 @@ public class WifiConfigManagerTest {
         NetworkUpdateResult result = verifyAddNetworkToWifiConfigManager(openNetwork);
 
         assertTrue(
-                mWifiConfigManager.checkAndUpdateLastConnectUid(
+                mWifiConfigManager.updateLastConnectUid(
                         result.getNetworkId(), TEST_CREATOR_UID));
         WifiConfiguration retrievedNetwork =
                 mWifiConfigManager.getConfiguredNetwork(result.getNetworkId());
-        assertEquals(TEST_CREATOR_UID, retrievedNetwork.lastConnectUid);
-
-        when(mWifiPermissionsUtil.checkNetworkSettingsPermission(anyInt())).thenReturn(false);
-
-        // Now try to update the last connect UID with |TEST_UPDATE_UID|, it should fail and
-        // the lastConnectUid should remain the same.
-        assertFalse(
-                mWifiConfigManager.checkAndUpdateLastConnectUid(
-                        result.getNetworkId(), TEST_UPDATE_UID));
-        retrievedNetwork = mWifiConfigManager.getConfiguredNetwork(result.getNetworkId());
         assertEquals(TEST_CREATOR_UID, retrievedNetwork.lastConnectUid);
     }
 
@@ -867,7 +857,7 @@ public class WifiConfigManagerTest {
      * This invokes {@link WifiConfigManager#enableNetwork(int, boolean, int)},
      * {@link WifiConfigManager#disableNetwork(int, int)},
      * {@link WifiConfigManager#updateNetworkSelectionStatus(int, int)} and
-     * {@link WifiConfigManager#checkAndUpdateLastConnectUid(int, int)}.
+     * {@link WifiConfigManager#updateLastConnectUid(int, int)}.
      */
     @Test
     public void testChangeConfigurationWithInvalidNetworkId() {
@@ -880,7 +870,7 @@ public class WifiConfigManagerTest {
         assertFalse(mWifiConfigManager.disableNetwork(result.getNetworkId() + 1, TEST_CREATOR_UID));
         assertFalse(mWifiConfigManager.updateNetworkSelectionStatus(
                 result.getNetworkId() + 1, NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER));
-        assertFalse(mWifiConfigManager.checkAndUpdateLastConnectUid(
+        assertFalse(mWifiConfigManager.updateLastConnectUid(
                 result.getNetworkId() + 1, TEST_CREATOR_UID));
     }
 

@@ -71,6 +71,7 @@ public class SoftApManagerTest {
     private static final String TEST_COUNTRY_CODE = "TestCountry";
     private static final Integer[] ALLOWED_2G_CHANNELS = {1, 2, 3, 4};
     private static final String TEST_INTERFACE_NAME = "testif0";
+    private static final int TEST_NUM_CONNECTED_CLIENTS = 4;
 
     private final ArrayList<Integer> mAllowed2GChannels =
             new ArrayList<>(Arrays.asList(ALLOWED_2G_CHANNELS));
@@ -91,6 +92,8 @@ public class SoftApManagerTest {
             ArgumentCaptor.forClass(DeathRecipient.class);
     final ArgumentCaptor<BaseNetworkObserver> mNetworkObserverCaptor =
             ArgumentCaptor.forClass(BaseNetworkObserver.class);
+    final ArgumentCaptor<SoftApManager.ApInterfaceListener> mApInterfaceListenerCaptor =
+            ArgumentCaptor.forClass(SoftApManager.ApInterfaceListener.class);
 
     SoftApManager mSoftApManager;
 
@@ -101,7 +104,7 @@ public class SoftApManagerTest {
         mLooper = new TestLooper();
 
         when(mApInterface.asBinder()).thenReturn(mApInterfaceBinder);
-        when(mApInterface.startHostapd()).thenReturn(true);
+        when(mApInterface.startHostapd(any())).thenReturn(true);
         when(mApInterface.stopHostapd()).thenReturn(true);
         when(mApInterface.writeHostapdConfig(
                 any(), anyBoolean(), anyInt(), anyInt(), any())).thenReturn(true);
@@ -116,7 +119,7 @@ public class SoftApManagerTest {
 
     private SoftApManager createSoftApManager(SoftApModeConfiguration config) throws Exception {
         when(mApInterface.asBinder()).thenReturn(mApInterfaceBinder);
-        when(mApInterface.startHostapd()).thenReturn(true);
+        when(mApInterface.startHostapd(any())).thenReturn(true);
         when(mApInterface.stopHostapd()).thenReturn(true);
         if (config.getWifiConfiguration() == null) {
             when(mWifiApConfigStore.getApConfiguration()).thenReturn(mDefaultApConfig);
@@ -175,7 +178,7 @@ public class SoftApManagerTest {
     @Test
     public void startSoftApDefaultConfigFailedToLoad() throws Exception {
         when(mApInterface.asBinder()).thenReturn(mApInterfaceBinder);
-        when(mApInterface.startHostapd()).thenReturn(true);
+        when(mApInterface.startHostapd(any())).thenReturn(true);
         when(mApInterface.stopHostapd()).thenReturn(true);
         when(mWifiApConfigStore.getApConfiguration()).thenReturn(null);
         SoftApModeConfiguration nullApConfig =
@@ -222,7 +225,7 @@ public class SoftApManagerTest {
                 new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, config);
 
         when(mApInterface.asBinder()).thenReturn(mApInterfaceBinder);
-        when(mApInterface.startHostapd()).thenReturn(true);
+        when(mApInterface.startHostapd(any())).thenReturn(true);
         when(mApInterface.stopHostapd()).thenReturn(true);
         when(mWifiNative.isHalStarted()).thenReturn(true);
 
@@ -268,7 +271,7 @@ public class SoftApManagerTest {
                 new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, config);
 
         when(mApInterface.asBinder()).thenReturn(mApInterfaceBinder);
-        when(mApInterface.startHostapd()).thenReturn(true);
+        when(mApInterface.startHostapd(any())).thenReturn(true);
         when(mApInterface.stopHostapd()).thenReturn(true);
         when(mWifiNative.isHalStarted()).thenReturn(true);
         when(mWifiNative.isGetChannelsForBandSupported()).thenReturn(true);
@@ -301,6 +304,34 @@ public class SoftApManagerTest {
                 TEST_INTERFACE_NAME, softApConfig.getTargetMode());
     }
 
+    /**
+     * Tests startup when Ap Interface fails to start successfully.
+     */
+    @Test
+    public void startSoftApApInterfaceFailedToStart() throws Exception {
+        when(mApInterface.asBinder()).thenReturn(mApInterfaceBinder);
+        when(mApInterface.startHostapd(any())).thenReturn(false);
+        when(mApInterface.stopHostapd()).thenReturn(true);
+        SoftApModeConfiguration softApModeConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, mDefaultApConfig);
+        SoftApManager newSoftApManager = new SoftApManager(mContext,
+                                                           mLooper.getLooper(),
+                                                           mWifiNative,
+                                                           TEST_COUNTRY_CODE,
+                                                           mListener,
+                                                           mApInterface,
+                                                           TEST_INTERFACE_NAME,
+                                                           mNmService,
+                                                           mWifiApConfigStore,
+                                                           softApModeConfig,
+                                                           mWifiMetrics);
+
+        mLooper.dispatchAll();
+        newSoftApManager.start();
+        mLooper.dispatchAll();
+        verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
+                WifiManager.SAP_START_FAILURE_GENERAL);
+    }
 
     /**
      * Tests the handling of stop command when soft AP is not started.
@@ -380,6 +411,77 @@ public class SoftApManagerTest {
                 softApModeConfig.getTargetMode());
     }
 
+    @Test
+    public void updatesNumAssociatedStations() throws Exception {
+        SoftApModeConfiguration apConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
+        startSoftApAndVerifyEnabled(apConfig);
+
+        mApInterfaceListenerCaptor.getValue().onNumAssociatedStationsChanged(
+                TEST_NUM_CONNECTED_CLIENTS);
+        mLooper.dispatchAll();
+        assertEquals(TEST_NUM_CONNECTED_CLIENTS, mSoftApManager.getNumAssociatedStations());
+    }
+
+    @Test
+    public void handlesNumAssociatedStationsWhenNotStarted() throws Exception {
+        SoftApModeConfiguration apConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
+        startSoftApAndVerifyEnabled(apConfig);
+        mSoftApManager.stop();
+        mLooper.dispatchAll();
+
+        mApInterfaceListenerCaptor.getValue().onNumAssociatedStationsChanged(
+                TEST_NUM_CONNECTED_CLIENTS);
+        mLooper.dispatchAll();
+        /* Verify numAssociatedStations is not updated when soft AP is not started */
+        assertEquals(0, mSoftApManager.getNumAssociatedStations());
+    }
+
+    @Test
+    public void handlesInvalidNumAssociatedStations() throws Exception {
+        SoftApModeConfiguration apConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
+        startSoftApAndVerifyEnabled(apConfig);
+
+        mApInterfaceListenerCaptor.getValue().onNumAssociatedStationsChanged(
+                TEST_NUM_CONNECTED_CLIENTS);
+        /* Invalid values should be ignored */
+        mApInterfaceListenerCaptor.getValue().onNumAssociatedStationsChanged(-1);
+        mLooper.dispatchAll();
+        assertEquals(TEST_NUM_CONNECTED_CLIENTS, mSoftApManager.getNumAssociatedStations());
+    }
+
+    @Test
+    public void resetsNumAssociatedStationsWhenStopped() throws Exception {
+        SoftApModeConfiguration apConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
+        startSoftApAndVerifyEnabled(apConfig);
+
+        mApInterfaceListenerCaptor.getValue().onNumAssociatedStationsChanged(
+                TEST_NUM_CONNECTED_CLIENTS);
+        mSoftApManager.stop();
+        mLooper.dispatchAll();
+        assertEquals(0, mSoftApManager.getNumAssociatedStations());
+    }
+
+    @Test
+    public void resetsNumAssociatedStationsOnFailure() throws Exception {
+        SoftApModeConfiguration apConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
+        startSoftApAndVerifyEnabled(apConfig);
+
+        mApInterfaceListenerCaptor.getValue().onNumAssociatedStationsChanged(
+                TEST_NUM_CONNECTED_CLIENTS);
+        /* Force soft AP to fail */
+        mDeathListenerCaptor.getValue().binderDied();
+        mLooper.dispatchAll();
+        verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
+                WifiManager.SAP_START_FAILURE_GENERAL);
+
+        assertEquals(0, mSoftApManager.getNumAssociatedStations());
+    }
+
     /** Starts soft AP and verifies that it is enabled successfully. */
     protected void startSoftApAndVerifyEnabled(
             SoftApModeConfiguration softApConfig) throws Exception {
@@ -412,7 +514,7 @@ public class SoftApManagerTest {
         order.verify(mApInterface).writeHostapdConfig(
                 eq(expectedSSID.getBytes(StandardCharsets.UTF_8)), eq(expectedHiddenSsid),
                 anyInt(), anyInt(), any());
-        order.verify(mApInterface).startHostapd();
+        order.verify(mApInterface).startHostapd(mApInterfaceListenerCaptor.capture());
         mNetworkObserverCaptor.getValue().interfaceLinkStateChanged(TEST_INTERFACE_NAME, true);
         mLooper.dispatchAll();
         order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_ENABLED, 0);
@@ -425,6 +527,7 @@ public class SoftApManagerTest {
         checkApStateChangedBroadcast(capturedIntents.get(1), WIFI_AP_STATE_ENABLED,
                 WIFI_AP_STATE_ENABLING, HOTSPOT_NO_ERROR, TEST_INTERFACE_NAME,
                 softApConfig.getTargetMode());
+        assertEquals(0, mSoftApManager.getNumAssociatedStations());
     }
 
     /** Verifies that soft AP was not disabled. */

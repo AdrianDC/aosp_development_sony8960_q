@@ -17,10 +17,13 @@
 package com.android.server.wifi;
 
 import static org.junit.Assert.assertTrue;
+import static org.mockito.AdditionalAnswers.answerVoid;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.atMost;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -266,6 +269,21 @@ public class WifiScoreReportTest {
     }
 
     /**
+     * This setup causes some reports to be generated when println
+     * methods are called, to check for "concurrent" modification
+     * errors.
+     */
+    private void setupToGenerateAReportWhenPrintlnIsCalled() {
+        int[] counter = new int[1];
+        doAnswer(answerVoid((String line) -> {
+            if (counter[0]++ < 3) {
+                mWifiScoreReport.calculateAndReportScore(
+                        mWifiInfo, mNetworkAgent, mAggr, mWifiMetrics);
+            }
+        })).when(mPrintWriter).println(anyString());
+    }
+
+    /**
      * Test data logging
      */
     @Test
@@ -281,8 +299,9 @@ public class WifiScoreReportTest {
             mWifiInfo.rxSuccessRate = 0.3 + i;
             mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mAggr, mWifiMetrics);
         }
+        setupToGenerateAReportWhenPrintlnIsCalled();
         mWifiScoreReport.dump(null, mPrintWriter, null);
-        verify(mPrintWriter, atLeast(11)).println(anyString());
+        verify(mPrintWriter, times(11)).println(anyString());
     }
 
     /**

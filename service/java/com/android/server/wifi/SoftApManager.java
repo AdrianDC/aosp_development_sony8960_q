@@ -25,6 +25,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.InterfaceConfiguration;
 import android.net.wifi.IApInterface;
+import android.net.wifi.IApInterfaceEventCallback;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.KeyMgmt;
 import android.net.wifi.WifiManager;
@@ -36,6 +37,7 @@ import android.os.UserHandle;
 import android.text.TextUtils;
 import android.util.Log;
 
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 import com.android.server.net.BaseNetworkObserver;
@@ -71,6 +73,19 @@ public class SoftApManager implements ActiveModeManager {
 
     private final int mMode;
     private WifiConfiguration mApConfig;
+
+    private int mNumAssociatedStations = 0;
+
+    /**
+     * Listener for AP Interface events.
+     */
+    public class ApInterfaceListener extends IApInterfaceEventCallback.Stub {
+        @Override
+        public void onNumAssociatedStationsChanged(int numStations) {
+            mStateMachine.sendMessage(
+                    SoftApStateMachine.CMD_NUM_ASSOCIATED_STATIONS_CHANGED, numStations);
+        }
+    }
 
     /**
      * Listener for soft AP state changes.
@@ -127,6 +142,27 @@ public class SoftApManager implements ActiveModeManager {
      */
     public void stop() {
         mStateMachine.sendMessage(SoftApStateMachine.CMD_STOP);
+    }
+
+    /**
+     * Get number of stations associated with this soft AP
+     */
+    @VisibleForTesting
+    public int getNumAssociatedStations() {
+        return mNumAssociatedStations;
+    }
+
+    /**
+     * Set number of stations associated with this soft AP
+     * @param numStations Number of connected stations
+     */
+    private void setNumAssociatedStations(int numStations) {
+        if (mNumAssociatedStations == numStations) {
+            return;
+        }
+        mNumAssociatedStations = numStations;
+        Log.d(TAG, "Number of associated stations changed: " + mNumAssociatedStations);
+        // TODO:(b/63906412) send it up to settings.
     }
 
     /**
@@ -211,7 +247,7 @@ public class SoftApManager implements ActiveModeManager {
                 return ERROR_GENERIC;
             }
 
-            success = mApInterface.startHostapd();
+            success = mApInterface.startHostapd(new ApInterfaceListener());
             if (!success) {
                 Log.e(TAG, "Failed to start hostapd.");
                 return ERROR_GENERIC;
@@ -265,6 +301,7 @@ public class SoftApManager implements ActiveModeManager {
         public static final int CMD_STOP = 1;
         public static final int CMD_AP_INTERFACE_BINDER_DEATH = 2;
         public static final int CMD_INTERFACE_STATUS_CHANGED = 3;
+        public static final int CMD_NUM_ASSOCIATED_STATIONS_CHANGED = 4;
 
         private final State mIdleState = new IdleState();
         private final State mStartedState = new StartedState();
@@ -324,6 +361,7 @@ public class SoftApManager implements ActiveModeManager {
                         }
                         updateApState(WifiManager.WIFI_AP_STATE_ENABLING,
                                 WifiManager.WIFI_AP_STATE_DISABLED, 0);
+                        setNumAssociatedStations(0);
                         if (!mDeathRecipient.linkToDeath(mApInterface.asBinder())) {
                             mDeathRecipient.unlinkToDeath();
                             updateApState(WifiManager.WIFI_AP_STATE_FAILED,
@@ -400,6 +438,8 @@ public class SoftApManager implements ActiveModeManager {
                 } else {
                     // TODO: handle the case where the interface was up, but goes down
                 }
+
+                setNumAssociatedStations(0);
             }
 
             @Override
@@ -418,6 +458,13 @@ public class SoftApManager implements ActiveModeManager {
             @Override
             public boolean processMessage(Message message) {
                 switch (message.what) {
+                    case CMD_NUM_ASSOCIATED_STATIONS_CHANGED:
+                        if (message.arg1 < 0) {
+                            Log.e(TAG, "Invalid number of associated stations: " + message.arg1);
+                            break;
+                        }
+                        setNumAssociatedStations(message.arg1);
+                        break;
                     case CMD_INTERFACE_STATUS_CHANGED:
                         if (message.obj != mNetworkObserver) {
                             // This is from some time before the most recent configuration.
@@ -433,6 +480,7 @@ public class SoftApManager implements ActiveModeManager {
                     case CMD_STOP:
                         updateApState(WifiManager.WIFI_AP_STATE_DISABLING,
                                 WifiManager.WIFI_AP_STATE_ENABLED, 0);
+                        setNumAssociatedStations(0);
                         stopSoftAp();
                         if (message.what == CMD_AP_INTERFACE_BINDER_DEATH) {
                             updateApState(WifiManager.WIFI_AP_STATE_FAILED,
