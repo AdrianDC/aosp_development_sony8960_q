@@ -526,4 +526,38 @@ public class WificondControl {
         }
     }
 
+
+    /**
+     * Query the list of valid frequencies for the provided band.
+     * The result depends on the on the country code that has been set.
+     *
+     * @param band as specified by one of the WifiScanner.WIFI_BAND_* constants.
+     * The following bands are supported:
+     * WifiScanner.WIFI_BAND_24_GHZ
+     * WifiScanner.WIFI_BAND_5_GHZ
+     * WifiScanner.WIFI_BAND_5_GHZ_DFS_ONLY
+     * @return frequencies vector of valid frequencies (MHz), or null for error.
+     * @throws IllegalArgumentException if band is not recognized.
+     */
+    public int [] getChannelsForBand(int band) {
+        if (mWificond == null) {
+            Log.e(TAG, "No valid wificond scanner interface handler");
+            return null;
+        }
+        try {
+            switch (band) {
+                case WifiScanner.WIFI_BAND_24_GHZ:
+                    return mWificond.getAvailable2gChannels();
+                case WifiScanner.WIFI_BAND_5_GHZ:
+                    return mWificond.getAvailable5gNonDFSChannels();
+                case WifiScanner.WIFI_BAND_5_GHZ_DFS_ONLY:
+                    return mWificond.getAvailableDFSChannels();
+                default:
+                    throw new IllegalArgumentException("unsupported band " + band);
+            }
+        } catch (RemoteException e1) {
+            Log.e(TAG, "Failed to request getChannelsForBand due to remote exception");
+        }
+        return null;
+    }
 }

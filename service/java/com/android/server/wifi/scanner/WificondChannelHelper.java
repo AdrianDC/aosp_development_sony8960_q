@@ -22,15 +22,15 @@ import android.util.Log;
 import com.android.server.wifi.WifiNative;
 
 /**
- * KnownBandsChannelHelper that uses band to channel mappings retrieved from the HAL.
- * Also supporting updating the channel list from the HAL on demand.
+ * KnownBandsChannelHelper that uses band to channel mappings retrieved from wificond.
+ * Also supporting updating the channel list from the wificond on demand.
  */
-public class HalChannelHelper extends KnownBandsChannelHelper {
-    private static final String TAG = "HalChannelHelper";
+public class WificondChannelHelper extends KnownBandsChannelHelper {
+    private static final String TAG = "WificondChannelHelper";
 
     private final WifiNative mWifiNative;
 
-    public HalChannelHelper(WifiNative wifiNative) {
+    public WificondChannelHelper(WifiNative wifiNative) {
         mWifiNative = wifiNative;
         final int[] emptyFreqList = new int[0];
         setBandChannels(emptyFreqList, emptyFreqList, emptyFreqList);
@@ -39,11 +39,13 @@ public class HalChannelHelper extends KnownBandsChannelHelper {
 
     @Override
     public void updateChannels() {
-        int[] channels24G = mWifiNative.getChannelsForBand(WifiScanner.WIFI_BAND_24_GHZ);
+        int[] channels24G =
+                mWifiNative.getChannelsForBand(WifiScanner.WIFI_BAND_24_GHZ);
         if (channels24G == null) Log.e(TAG, "Failed to get channels for 2.4GHz band");
         int[] channels5G = mWifiNative.getChannelsForBand(WifiScanner.WIFI_BAND_5_GHZ);
         if (channels5G == null) Log.e(TAG, "Failed to get channels for 5GHz band");
-        int[] channelsDfs = mWifiNative.getChannelsForBand(WifiScanner.WIFI_BAND_5_GHZ_DFS_ONLY);
+        int[] channelsDfs =
+                mWifiNative.getChannelsForBand(WifiScanner.WIFI_BAND_5_GHZ_DFS_ONLY);
         if (channelsDfs == null) Log.e(TAG, "Failed to get channels for 5GHz DFS only band");
         if (channels24G == null || channels5G == null || channelsDfs == null) {
             Log.e(TAG, "Failed to get all channels for band, not updating band channel lists");
