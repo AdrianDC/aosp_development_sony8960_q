@@ -42,6 +42,7 @@ import com.android.server.wifi.hotspot2.PasspointProvider;
 import com.android.server.wifi.nano.WifiMetricsProto;
 import com.android.server.wifi.nano.WifiMetricsProto.ConnectToNetworkNotificationAndActionCount;
 import com.android.server.wifi.nano.WifiMetricsProto.PnoScanMetrics;
+import com.android.server.wifi.nano.WifiMetricsProto.SoftApConnectedClientsEvent;
 import com.android.server.wifi.nano.WifiMetricsProto.StaEvent;
 
 import org.junit.Before;
@@ -275,6 +276,8 @@ public class WifiMetricsTest {
     private static final boolean IS_WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON = true;
     private static final int NUM_OPEN_NETWORK_CONNECT_MESSAGE_FAILED_TO_SEND = 5;
     private static final int NUM_OPEN_NETWORK_RECOMMENDATION_UPDATES = 8;
+    private static final int NUM_SOFT_AP_EVENT_ENTRIES = 3;
+    private static final int NUM_SOFT_AP_ASSOCIATED_STATIONS = 3;
 
     private ScanDetail buildMockScanDetail(boolean hidden, NetworkDetail.HSRelease hSRelease,
             String capabilities) {
@@ -558,6 +561,52 @@ public class WifiMetricsTest {
         for (int i = 0; i < NUM_OPEN_NETWORK_CONNECT_MESSAGE_FAILED_TO_SEND; i++) {
             mWifiMetrics.incrementNumOpenNetworkConnectMessageFailedToSend();
         }
+
+        addSoftApEventsToMetrics();
+    }
+
+    private void addSoftApEventsToMetrics() {
+        // Total number of events recorded is NUM_SOFT_AP_EVENT_ENTRIES in both modes
+
+        mWifiMetrics.addSoftApUpChangedEvent(true, WifiManager.IFACE_IP_MODE_TETHERED);
+        mWifiMetrics.addSoftApNumAssociatedStationsChangedEvent(NUM_SOFT_AP_ASSOCIATED_STATIONS,
+                WifiManager.IFACE_IP_MODE_TETHERED);
+        mWifiMetrics.addSoftApNumAssociatedStationsChangedEvent(NUM_SOFT_AP_ASSOCIATED_STATIONS,
+                WifiManager.IFACE_IP_MODE_UNSPECIFIED);  // Should be dropped.
+        mWifiMetrics.addSoftApUpChangedEvent(false, WifiManager.IFACE_IP_MODE_TETHERED);
+
+        mWifiMetrics.addSoftApUpChangedEvent(true, WifiManager.IFACE_IP_MODE_LOCAL_ONLY);
+        mWifiMetrics.addSoftApNumAssociatedStationsChangedEvent(NUM_SOFT_AP_ASSOCIATED_STATIONS,
+                WifiManager.IFACE_IP_MODE_LOCAL_ONLY);
+        // Should be dropped.
+        mWifiMetrics.addSoftApUpChangedEvent(false, WifiManager.IFACE_IP_MODE_CONFIGURATION_ERROR);
+        mWifiMetrics.addSoftApUpChangedEvent(false, WifiManager.IFACE_IP_MODE_LOCAL_ONLY);
+    }
+
+    private void verifySoftApEventsStoredInProto() {
+        assertEquals(NUM_SOFT_AP_EVENT_ENTRIES,
+                mDecodedProto.softApConnectedClientsEventsTethered.length);
+        assertEquals(SoftApConnectedClientsEvent.SOFT_AP_UP,
+                mDecodedProto.softApConnectedClientsEventsTethered[0].eventType);
+        assertEquals(0, mDecodedProto.softApConnectedClientsEventsTethered[0].numConnectedClients);
+        assertEquals(SoftApConnectedClientsEvent.NUM_CLIENTS_CHANGED,
+                mDecodedProto.softApConnectedClientsEventsTethered[1].eventType);
+        assertEquals(NUM_SOFT_AP_ASSOCIATED_STATIONS,
+                mDecodedProto.softApConnectedClientsEventsTethered[1].numConnectedClients);
+        assertEquals(SoftApConnectedClientsEvent.SOFT_AP_DOWN,
+                mDecodedProto.softApConnectedClientsEventsTethered[2].eventType);
+        assertEquals(0, mDecodedProto.softApConnectedClientsEventsTethered[2].numConnectedClients);
+
+        assertEquals(SoftApConnectedClientsEvent.SOFT_AP_UP,
+                mDecodedProto.softApConnectedClientsEventsLocalOnly[0].eventType);
+        assertEquals(0, mDecodedProto.softApConnectedClientsEventsLocalOnly[0].numConnectedClients);
+        assertEquals(SoftApConnectedClientsEvent.NUM_CLIENTS_CHANGED,
+                mDecodedProto.softApConnectedClientsEventsLocalOnly[1].eventType);
+        assertEquals(NUM_SOFT_AP_ASSOCIATED_STATIONS,
+                mDecodedProto.softApConnectedClientsEventsLocalOnly[1].numConnectedClients);
+        assertEquals(SoftApConnectedClientsEvent.SOFT_AP_DOWN,
+                mDecodedProto.softApConnectedClientsEventsLocalOnly[2].eventType);
+        assertEquals(0, mDecodedProto.softApConnectedClientsEventsLocalOnly[2].numConnectedClients);
     }
 
     /**
@@ -736,6 +785,8 @@ public class WifiMetricsTest {
                 mDecodedProto.numOpenNetworkRecommendationUpdates);
         assertEquals(NUM_OPEN_NETWORK_CONNECT_MESSAGE_FAILED_TO_SEND,
                 mDecodedProto.numOpenNetworkConnectMessageFailedToSend);
+
+        verifySoftApEventsStoredInProto();
     }
 
     /**

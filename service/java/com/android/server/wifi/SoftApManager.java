@@ -162,7 +162,9 @@ public class SoftApManager implements ActiveModeManager {
         }
         mNumAssociatedStations = numStations;
         Log.d(TAG, "Number of associated stations changed: " + mNumAssociatedStations);
+
         // TODO:(b/63906412) send it up to settings.
+        mWifiMetrics.addSoftApNumAssociatedStationsChangedEvent(mNumAssociatedStations, mMode);
     }
 
     /**
@@ -439,6 +441,7 @@ public class SoftApManager implements ActiveModeManager {
                     // TODO: handle the case where the interface was up, but goes down
                 }
 
+                mWifiMetrics.addSoftApUpChangedEvent(isUp, mMode);
                 setNumAssociatedStations(0);
             }
 
@@ -491,6 +494,10 @@ public class SoftApManager implements ActiveModeManager {
                                     WifiManager.WIFI_AP_STATE_DISABLING, 0);
                         }
                         transitionTo(mIdleState);
+
+                        // Need this here since we are exiting |Started| state and won't handle any
+                        // future CMD_INTERFACE_STATUS_CHANGED events after this point
+                        mWifiMetrics.addSoftApUpChangedEvent(false, mMode);
                         break;
                     default:
                         return NOT_HANDLED;
