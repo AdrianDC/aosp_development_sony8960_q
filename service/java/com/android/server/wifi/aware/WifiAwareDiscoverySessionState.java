@@ -244,13 +244,20 @@ public class WifiAwareDiscoverySessionState {
      *            (usually not used in the match decisions).
      * @param matchFilter The filter from the discovery advertisement (which was
      *            used in the match decision).
+     * @param rangingIndication Bit mask indicating the type of ranging event triggered.
+     * @param rangeMm The range to the peer in mm (valid if rangingIndication specifies ingress
+     *                or egress events - i.e. non-zero).
      */
     public void onMatch(int requestorInstanceId, byte[] peerMac, byte[] serviceSpecificInfo,
-            byte[] matchFilter) {
+            byte[] matchFilter, int rangingIndication, int rangeMm) {
         int peerId = getPeerIdOrAddIfNew(requestorInstanceId, peerMac);
 
         try {
-            mCallback.onMatch(peerId, serviceSpecificInfo, matchFilter);
+            if (rangingIndication == 0) {
+                mCallback.onMatch(peerId, serviceSpecificInfo, matchFilter);
+            } else {
+                mCallback.onMatchWithDistance(peerId, serviceSpecificInfo, matchFilter, rangeMm);
+            }
         } catch (RemoteException e) {
             Log.w(TAG, "onMatch: RemoteException (FYI): " + e);
         }

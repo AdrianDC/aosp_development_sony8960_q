@@ -21,6 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyShort;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -28,9 +29,14 @@ import android.hardware.wifi.V1_0.IWifiNanIface;
 import android.hardware.wifi.V1_0.NanBandIndex;
 import android.hardware.wifi.V1_0.NanConfigRequest;
 import android.hardware.wifi.V1_0.NanEnableRequest;
+import android.hardware.wifi.V1_0.NanPublishRequest;
+import android.hardware.wifi.V1_0.NanRangingIndication;
+import android.hardware.wifi.V1_0.NanSubscribeRequest;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.net.wifi.aware.ConfigRequest;
+import android.net.wifi.aware.PublishConfig;
+import android.net.wifi.aware.SubscribeConfig;
 import android.os.RemoteException;
 
 import org.junit.Before;
@@ -67,6 +73,8 @@ public class WifiAwareNativeApiTest {
         status.code = WifiStatusCode.SUCCESS;
         when(mIWifiNanIfaceMock.enableRequest(anyShort(), any())).thenReturn(status);
         when(mIWifiNanIfaceMock.configRequest(anyShort(), any())).thenReturn(status);
+        when(mIWifiNanIfaceMock.startPublishRequest(anyShort(), any())).thenReturn(status);
+        when(mIWifiNanIfaceMock.startSubscribeRequest(anyShort(), any())).thenReturn(status);
 
         mDut = new WifiAwareNativeApi(mWifiAwareNativeManagerMock);
     }
@@ -162,6 +170,105 @@ public class WifiAwareNativeApiTest {
         collector.checkThat("validDiscoveryWindowIntervalVal-24", false,
                 equalTo(config.bandSpecificConfig[NanBandIndex.NAN_BAND_24GHZ]
                         .validDiscoveryWindowIntervalVal));
+    }
+
+    @Test
+    public void testDiscoveryRangingSettings() throws RemoteException {
+        short tid = 666;
+        byte pid = 34;
+        int minDistanceMm = 100;
+        int maxDistanceMm = 555;
+        // TODO: b/69428593 remove once HAL is converted from CM to MM
+        short minDistanceCm = (short) (minDistanceMm / 10);
+        short maxDistanceCm = (short) (maxDistanceMm / 10);
+
+        ArgumentCaptor<NanPublishRequest> pubCaptor = ArgumentCaptor.forClass(
+                NanPublishRequest.class);
+        ArgumentCaptor<NanSubscribeRequest> subCaptor = ArgumentCaptor.forClass(
+                NanSubscribeRequest.class);
+
+        PublishConfig pubDefault = new PublishConfig.Builder().setServiceName("XXX").build();
+        PublishConfig pubWithRanging = new PublishConfig.Builder().setServiceName(
+                "XXX").setRangingEnabled(true).build();
+        SubscribeConfig subDefault = new SubscribeConfig.Builder().setServiceName("XXX").build();
+        SubscribeConfig subWithMin = new SubscribeConfig.Builder().setServiceName(
+                "XXX").setMinDistanceMm(minDistanceMm).build();
+        SubscribeConfig subWithMax = new SubscribeConfig.Builder().setServiceName(
+                "XXX").setMaxDistanceMm(maxDistanceMm).build();
+        SubscribeConfig subWithMinMax = new SubscribeConfig.Builder().setServiceName(
+                "XXX").setMinDistanceMm(minDistanceMm).setMaxDistanceMm(maxDistanceMm).build();
+
+        mDut.publish(tid, pid, pubDefault);
+        mDut.publish(tid, pid, pubWithRanging);
+        mDut.subscribe(tid, pid, subDefault);
+        mDut.subscribe(tid, pid, subWithMin);
+        mDut.subscribe(tid, pid, subWithMax);
+        mDut.subscribe(tid, pid, subWithMinMax);
+
+        verify(mIWifiNanIfaceMock, times(2)).startPublishRequest(eq(tid), pubCaptor.capture());
+        verify(mIWifiNanIfaceMock, times(4)).startSubscribeRequest(eq(tid), subCaptor.capture());
+
+        NanPublishRequest halPubReq;
+        NanSubscribeRequest halSubReq;
+
+        // pubDefault
+        halPubReq = pubCaptor.getAllValues().get(0);
+        collector.checkThat("pubDefault.baseConfigs.sessionId", pid,
+                equalTo(halPubReq.baseConfigs.sessionId));
+        collector.checkThat("pubDefault.baseConfigs.rangingRequired", false,
+                equalTo(halPubReq.baseConfigs.rangingRequired));
+
+        // pubWithRanging
+        halPubReq = pubCaptor.getAllValues().get(1);
+        collector.checkThat("pubWithRanging.baseConfigs.sessionId", pid,
+                equalTo(halPubReq.baseConfigs.sessionId));
+        collector.checkThat("pubWithRanging.baseConfigs.rangingRequired", true,
+                equalTo(halPubReq.baseConfigs.rangingRequired));
+
+        // subDefault
+        halSubReq = subCaptor.getAllValues().get(0);
+        collector.checkThat("subDefault.baseConfigs.sessionId", pid,
+                equalTo(halSubReq.baseConfigs.sessionId));
+        collector.checkThat("subDefault.baseConfigs.rangingRequired", false,
+                equalTo(halSubReq.baseConfigs.rangingRequired));
+
+        // subWithMin
+        halSubReq = subCaptor.getAllValues().get(1);
+        collector.checkThat("subWithMin.baseConfigs.sessionId", pid,
+                equalTo(halSubReq.baseConfigs.sessionId));
+        collector.checkThat("subWithMin.baseConfigs.rangingRequired", true,
+                equalTo(halSubReq.baseConfigs.rangingRequired));
+        collector.checkThat("subWithMin.baseConfigs.configRangingIndications",
+                NanRangingIndication.INGRESS_MET_MASK,
+                equalTo(halSubReq.baseConfigs.configRangingIndications));
+        collector.checkThat("subWithMin.baseConfigs.distanceIngressCm", minDistanceCm,
+                equalTo(halSubReq.baseConfigs.distanceIngressCm));
+
+        // subWithMax
+        halSubReq = subCaptor.getAllValues().get(2);
+        collector.checkThat("subWithMax.baseConfigs.sessionId", pid,
+                equalTo(halSubReq.baseConfigs.sessionId));
+        collector.checkThat("subWithMax.baseConfigs.rangingRequired", true,
+                equalTo(halSubReq.baseConfigs.rangingRequired));
+        collector.checkThat("subWithMax.baseConfigs.configRangingIndications",
+                NanRangingIndication.EGRESS_MET_MASK,
+                equalTo(halSubReq.baseConfigs.configRangingIndications));
+        collector.checkThat("subWithMin.baseConfigs.distanceEgressCm", maxDistanceCm,
+                equalTo(halSubReq.baseConfigs.distanceEgressCm));
+
+        // subWithMinMax
+        halSubReq = subCaptor.getAllValues().get(3);
+        collector.checkThat("subWithMinMax.baseConfigs.sessionId", pid,
+                equalTo(halSubReq.baseConfigs.sessionId));
+        collector.checkThat("subWithMinMax.baseConfigs.rangingRequired", true,
+                equalTo(halSubReq.baseConfigs.rangingRequired));
+        collector.checkThat("subWithMinMax.baseConfigs.configRangingIndications",
+                NanRangingIndication.INGRESS_MET_MASK | NanRangingIndication.EGRESS_MET_MASK,
+                equalTo(halSubReq.baseConfigs.configRangingIndications));
+        collector.checkThat("subWithMin.baseConfigs.distanceIngressCm", minDistanceCm,
+                equalTo(halSubReq.baseConfigs.distanceIngressCm));
+        collector.checkThat("subWithMin.baseConfigs.distanceEgressCm", maxDistanceCm,
+                equalTo(halSubReq.baseConfigs.distanceEgressCm));
     }
 
     // utilities

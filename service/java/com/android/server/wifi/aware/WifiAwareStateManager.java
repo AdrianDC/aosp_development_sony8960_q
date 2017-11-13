@@ -183,6 +183,8 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
     private static final String MESSAGE_BUNDLE_KEY_PMK = "pmk";
     private static final String MESSAGE_BUNDLE_KEY_PASSPHRASE = "passphrase";
     private static final String MESSAGE_BUNDLE_KEY_OOB = "out_of_band";
+    private static final String MESSAGE_RANGING_INDICATION = "ranging_indication";
+    private static final String MESSAGE_RANGE_MM = "range_mm";
 
     private WifiAwareNativeApi mWifiAwareNativeApi;
     private WifiAwareNativeManager mWifiAwareNativeManager;
@@ -944,7 +946,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
      * matching service (to the one we were looking for).
      */
     public void onMatchNotification(int pubSubId, int requestorInstanceId, byte[] peerMac,
-            byte[] serviceSpecificInfo, byte[] matchFilter) {
+            byte[] serviceSpecificInfo, byte[] matchFilter, int rangingIndication, int rangeMm) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_NOTIFICATION);
         msg.arg1 = NOTIFICATION_TYPE_MATCH;
         msg.arg2 = pubSubId;
@@ -952,6 +954,8 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS, peerMac);
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_SSI_DATA, serviceSpecificInfo);
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_FILTER_DATA, matchFilter);
+        msg.getData().putInt(MESSAGE_RANGING_INDICATION, rangingIndication);
+        msg.getData().putInt(MESSAGE_RANGE_MM, rangeMm);
         mSm.sendMessage(msg);
     }
 
@@ -1255,9 +1259,11 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                     byte[] serviceSpecificInfo = msg.getData()
                             .getByteArray(MESSAGE_BUNDLE_KEY_SSI_DATA);
                     byte[] matchFilter = msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_FILTER_DATA);
+                    int rangingIndication = msg.getData().getInt(MESSAGE_RANGING_INDICATION);
+                    int rangeMm = msg.getData().getInt(MESSAGE_RANGE_MM);
 
                     onMatchLocal(pubSubId, requestorInstanceId, peerMac, serviceSpecificInfo,
-                            matchFilter);
+                            matchFilter, rangingIndication, rangeMm);
                     break;
                 }
                 case NOTIFICATION_TYPE_SESSION_TERMINATED: {
@@ -2788,13 +2794,14 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
     }
 
     private void onMatchLocal(int pubSubId, int requestorInstanceId, byte[] peerMac,
-            byte[] serviceSpecificInfo, byte[] matchFilter) {
+            byte[] serviceSpecificInfo, byte[] matchFilter, int rangingIndication, int rangeMm) {
         if (VDBG) {
             Log.v(TAG,
                     "onMatch: pubSubId=" + pubSubId + ", requestorInstanceId=" + requestorInstanceId
                             + ", peerDiscoveryMac=" + String.valueOf(HexEncoding.encode(peerMac))
                             + ", serviceSpecificInfo=" + Arrays.toString(serviceSpecificInfo)
-                            + ", matchFilter=" + Arrays.toString(matchFilter));
+                            + ", matchFilter=" + Arrays.toString(matchFilter)
+                            + ", rangingIndication=" + rangingIndication + ", rangeMm=" + rangeMm);
         }
 
         Pair<WifiAwareClientState, WifiAwareDiscoverySessionState> data =
@@ -2804,7 +2811,8 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
             return;
         }
 
-        data.second.onMatch(requestorInstanceId, peerMac, serviceSpecificInfo, matchFilter);
+        data.second.onMatch(requestorInstanceId, peerMac, serviceSpecificInfo, matchFilter,
+                rangingIndication, rangeMm);
     }
 
     private void onSessionTerminatedLocal(int pubSubId, boolean isPublish, int reason) {
