@@ -1285,8 +1285,9 @@ public class WifiAwareDataPathStateManagerTest {
         NetworkCapabilities nc = new NetworkCapabilities();
         nc.clearAll();
         nc.addTransportType(NetworkCapabilities.TRANSPORT_WIFI_AWARE);
-        nc.addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN).addCapability(
-                NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
+        nc.addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_ROAMING);
         nc.setNetworkSpecifier(ns);
         nc.setLinkUpstreamBandwidthKbps(1);
         nc.setLinkDownstreamBandwidthKbps(1);
