@@ -252,8 +252,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private String mLastBssid;
     private int mLastNetworkId; // The network Id we successfully joined
     private boolean mIsLinkDebouncing = false;
-    private final StateMachineDeathRecipient mDeathRecipient =
-            new StateMachineDeathRecipient(this, CMD_CLIENT_INTERFACE_BINDER_DEATH);
+    private final WifiNative.WificondDeathEventHandler mWificondDeathRecipient = () -> {
+        sendMessage(CMD_WIFICOND_BINDER_DEATH);
+    };
     private final WifiNative.VendorHalDeathEventHandler mVendorHalDeathRecipient = () -> {
         sendMessage(CMD_VENDOR_HAL_HWBINDER_DEATH);
     };
@@ -730,8 +731,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     /* used to indicate that the foreground user was switched */
     static final int CMD_USER_STOP                                      = BASE + 207;
 
-    /* Signals that IClientInterface instance underpinning our state is dead. */
-    private static final int CMD_CLIENT_INTERFACE_BINDER_DEATH          = BASE + 250;
+    /* Signals that wificond is dead. */
+    private static final int CMD_WIFICOND_BINDER_DEATH          = BASE + 250;
 
     /* Signals that the Vendor HAL instance underpinning our state is dead. */
     private static final int CMD_VENDOR_HAL_HWBINDER_DEATH              = BASE + 251;
@@ -4139,7 +4140,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         mWifiNative.stopFilteringMulticastV4Packets();
                     }
                     break;
-                case CMD_CLIENT_INTERFACE_BINDER_DEATH:
+                case CMD_WIFICOND_BINDER_DEATH:
                     Log.e(TAG, "wificond died unexpectedly. Triggering recovery");
                     mWifiMetrics.incrementNumWificondCrashes();
                     mWifiDiagnostics.captureBugReportData(
@@ -4178,7 +4179,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             // Tearing down the client interfaces below is going to stop our supplicant.
             mWifiMonitor.stopAllMonitoring();
 
-            mDeathRecipient.unlinkToDeath();
+            mWifiNative.deregisterWificondDeathHandler();
             mWifiNative.tearDown();
         }
 
@@ -4201,7 +4202,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         incrementMetricsForSetupFailure(statusAndInterface.first);
                     }
                     if (mClientInterface == null
-                            || !mDeathRecipient.linkToDeath(mClientInterface.asBinder())) {
+                            || !mWifiNative.registerWificondDeathHandler(mWificondDeathRecipient)) {
                         setWifiState(WifiManager.WIFI_STATE_UNKNOWN);
                         cleanup();
                         break;

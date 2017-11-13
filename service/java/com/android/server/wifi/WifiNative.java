@@ -179,6 +179,32 @@ public class WifiNative {
     }
 
     /**
+     * Callback to notify wificond death.
+     */
+    public interface WificondDeathEventHandler {
+        /**
+         * Invoked when the wificond dies.
+         */
+        void onDeath();
+    }
+
+    /**
+     * Registers a death notification for wificond.
+     * @return Returns true on success.
+     */
+    public boolean registerWificondDeathHandler(@NonNull WificondDeathEventHandler handler) {
+        return mWificondControl.registerDeathHandler(handler);
+    }
+
+    /**
+     * Deregisters a death notification for wificond.
+     * @return Returns true on success.
+     */
+    public boolean deregisterWificondDeathHandler() {
+        return mWificondControl.deregisterDeathHandler();
+    }
+
+    /**
     * Disable wpa_supplicant via wificond.
     * @return Returns true on success.
     */

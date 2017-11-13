@@ -29,6 +29,7 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
 import android.os.Binder;
+import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Log;
 
@@ -52,7 +53,7 @@ import java.util.Set;
  * This class provides methods for WifiNative to send control commands to wificond.
  * NOTE: This class should only be used from WifiNative.
  */
-public class WificondControl {
+public class WificondControl implements IBinder.DeathRecipient {
     private boolean mVerboseLoggingEnabled = false;
 
     private static final String TAG = "WificondControl";
@@ -75,6 +76,7 @@ public class WificondControl {
     private IScanEvent mScanEventHandler;
     private IPnoScanEvent mPnoScanEventHandler;
     private IApInterfaceEventCallback mApInterfaceListener;
+    private WifiNative.WificondDeathEventHandler mDeathEventHandler;
 
     private String mClientInterfaceName;
 
@@ -143,11 +145,78 @@ public class WificondControl {
         }
     }
 
+    /**
+     * Called by the binder subsystem upon remote object death.
+     * Invoke all the register death handlers and clear state.
+     */
+    @Override
+    public void binderDied() {
+        Log.e(TAG, "Wificond died!");
+        if (mDeathEventHandler != null) {
+            mDeathEventHandler.onDeath();
+        }
+        clearState();
+        // Invalidate the global wificond handle on death. Will be refereshed
+        // on the next setup call.
+        mWificond = null;
+    }
+
     /** Enable or disable verbose logging of WificondControl.
      *  @param enable True to enable verbose logging. False to disable verbose logging.
      */
     public void enableVerboseLogging(boolean enable) {
         mVerboseLoggingEnabled = enable;
+    }
+
+    /**
+     * Registers a death notification for wificond.
+     * @return Returns true on success.
+     */
+    public boolean registerDeathHandler(@NonNull WifiNative.WificondDeathEventHandler handler) {
+        if (mDeathEventHandler != null) {
+            Log.e(TAG, "Death handler already present");
+            return false;
+        }
+        mDeathEventHandler = handler;
+        return true;
+    }
+
+    /**
+     * Deregisters a death notification for wificond.
+     * @return Returns true on success.
+     */
+    public boolean deregisterDeathHandler() {
+        if (mDeathEventHandler == null) {
+            Log.e(TAG, "No Death handler present");
+            return false;
+        }
+        mDeathEventHandler = null;
+        return true;
+    }
+
+    /**
+     * Helper method to retrieve the global wificond handle and register for
+     * death notifications.
+     */
+    private boolean retrieveWificondAndRegisterForDeath() {
+        if (mWificond != null) {
+            Log.d(TAG, "Wificond handle already retrieved");
+            // We already have a wificond handle.
+            return true;
+        }
+        mWificond = mWifiInjector.makeWificond();
+        if (mWificond == null) {
+            Log.e(TAG, "Failed to get reference to wificond");
+            return false;
+        }
+        try {
+            mWificond.asBinder().linkToDeath(this, 0);
+        } catch (RemoteException e) {
+            Log.e(TAG, "Failed to register death notification for wificond");
+            // The remote has already died.
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -157,9 +226,7 @@ public class WificondControl {
     */
     public IClientInterface setupDriverForClientMode(@NonNull String ifaceName) {
         Log.d(TAG, "Setting up driver for client mode");
-        mWificond = mWifiInjector.makeWificond();
-        if (mWificond == null) {
-            Log.e(TAG, "Failed to get reference to wificond");
+        if (!retrieveWificondAndRegisterForDeath()) {
             return null;
         }
 
@@ -205,9 +272,7 @@ public class WificondControl {
     */
     public IApInterface setupDriverForSoftApMode(@NonNull String ifaceName) {
         Log.d(TAG, "Setting up driver for soft ap mode");
-        mWificond = mWifiInjector.makeWificond();
-        if (mWificond == null) {
-            Log.e(TAG, "Failed to get reference to wificond");
+        if (!retrieveWificondAndRegisterForDeath()) {
             return null;
         }
 
@@ -239,9 +304,7 @@ public class WificondControl {
         Log.d(TAG, "tearing down interfaces in wificond");
         // Explicitly refresh the wificodn handler because |tearDownInterfaces()|
         // could be used to cleanup before we setup any interfaces.
-        mWificond = mWifiInjector.makeWificond();
-        if (mWificond == null) {
-            Log.e(TAG, "Failed to get reference to wificond");
+        if (!retrieveWificondAndRegisterForDeath()) {
             return false;
         }
 
@@ -251,14 +314,7 @@ public class WificondControl {
                 mWificondScanner.unsubscribePnoScanEvents();
             }
             mWificond.tearDownInterfaces();
-
-            // Refresh handlers
-            mClientInterface = null;
-            mWificondScanner = null;
-            mPnoScanEventHandler = null;
-            mScanEventHandler = null;
-            mApInterface = null;
-
+            clearState();
             return true;
         } catch (RemoteException e) {
             Log.e(TAG, "Failed to tear down interfaces due to remote exception");
@@ -272,8 +328,7 @@ public class WificondControl {
     * @return Returns true on success.
     */
     public boolean disableSupplicant() {
-        if (mWificond == null) {
-            Log.e(TAG, "No valid handler");
+        if (!retrieveWificondAndRegisterForDeath()) {
             return false;
         }
         try {
@@ -289,11 +344,9 @@ public class WificondControl {
     * @return Returns true on success.
     */
     public boolean enableSupplicant() {
-        if (mWificond == null) {
-            Log.e(TAG, "No valid wificond handler");
+        if (!retrieveWificondAndRegisterForDeath()) {
             return false;
         }
-
         try {
             return mWificond.enableSupplicant();
         } catch (RemoteException e) {
@@ -665,5 +718,17 @@ public class WificondControl {
                 break;
         }
         return encryptionType;
+    }
+
+    /**
+     * Clear all internal handles.
+     */
+    private void clearState() {
+        // Refresh handlers
+        mClientInterface = null;
+        mWificondScanner = null;
+        mPnoScanEventHandler = null;
+        mScanEventHandler = null;
+        mApInterface = null;
     }
 }

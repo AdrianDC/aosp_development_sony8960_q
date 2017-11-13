@@ -737,5 +737,4 @@ public class WifiNativeTest {
         verify(mWificondControl).abortScan();
         verify(mStaIfaceHal).roamToNetwork(config);
     }
-
 }

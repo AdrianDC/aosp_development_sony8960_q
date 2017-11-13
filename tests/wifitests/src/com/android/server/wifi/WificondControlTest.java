@@ -37,6 +37,7 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiScanner;
+import android.os.IBinder;
 import android.os.RemoteException;
 import android.test.suitebuilder.annotation.SmallTest;
 
@@ -70,6 +71,7 @@ public class WificondControlTest {
     @Mock private WifiMonitor mWifiMonitor;
     @Mock private WifiMetrics mWifiMetrics;
     @Mock private IWificond mWificond;
+    @Mock private IBinder mWifiCondBinder;
     @Mock private IClientInterface mClientInterface;
     @Mock private IWifiScannerImpl mWifiScannerImpl;
     @Mock private CarrierNetworkConfig mCarrierNetworkConfig;
@@ -157,6 +159,7 @@ public class WificondControlTest {
         // created in specific tests
         MockitoAnnotations.initMocks(this);
         when(mWifiInjector.makeWificond()).thenReturn(mWificond);
+        when(mWificond.asBinder()).thenReturn(mWifiCondBinder);
         when(mClientInterface.getWifiScannerImpl()).thenReturn(mWifiScannerImpl);
         when(mWificond.createClientInterface(TEST_INTERFACE_NAME)).thenReturn(mClientInterface);
         when(mClientInterface.getWifiScannerImpl()).thenReturn(mWifiScannerImpl);
@@ -165,6 +168,8 @@ public class WificondControlTest {
         mWificondControl = new WificondControl(mWifiInjector, mWifiMonitor, mCarrierNetworkConfig);
         assertEquals(
                 mClientInterface, mWificondControl.setupDriverForClientMode(TEST_INTERFACE_NAME));
+        verify(mWifiInjector).makeWificond();
+        verify(mWifiCondBinder).linkToDeath(any(IBinder.DeathRecipient.class), anyInt());
     }
 
     /**
@@ -191,10 +196,13 @@ public class WificondControlTest {
      */
     @Test
     public void testSetupDriverForClientModeErrorWhenWificondIsNotStarted() throws Exception {
+        // Invoke wificond death handler to clear the handle.
+        mWificondControl.binderDied();
         when(mWifiInjector.makeWificond()).thenReturn(null);
         IClientInterface returnedClientInterface =
                 mWificondControl.setupDriverForClientMode(TEST_INTERFACE_NAME);
         assertEquals(null, returnedClientInterface);
+        verify(mWifiInjector, times(2)).makeWificond();
     }
 
     /**
@@ -223,6 +231,8 @@ public class WificondControlTest {
         IApInterface returnedApInterface =
                 mWificondControl.setupDriverForSoftApMode(TEST_INTERFACE_NAME);
         assertEquals(mApInterface, returnedApInterface);
+        verify(mWifiInjector).makeWificond();
+        verify(mWifiCondBinder).linkToDeath(any(IBinder.DeathRecipient.class), anyInt());
         verify(mWificond).createApInterface(TEST_INTERFACE_NAME);
     }
 
@@ -231,12 +241,15 @@ public class WificondControlTest {
      */
     @Test
     public void testSetupDriverForSoftApModeErrorWhenWificondIsNotStarted() throws Exception {
+        // Invoke wificond death handler to clear the handle.
+        mWificondControl.binderDied();
         when(mWifiInjector.makeWificond()).thenReturn(null);
 
         IApInterface returnedApInterface =
                 mWificondControl.setupDriverForSoftApMode(TEST_INTERFACE_NAME);
 
         assertEquals(null, returnedApInterface);
+        verify(mWifiInjector, times(2)).makeWificond();
     }
 
     /**
@@ -260,11 +273,10 @@ public class WificondControlTest {
     @Test
     public void testEnableSupplicant() throws Exception {
         when(mWifiInjector.makeWificond()).thenReturn(mWificond);
-        when(mWificond.createClientInterface(TEST_INTERFACE_NAME)).thenReturn(mClientInterface);
         when(mWificond.enableSupplicant()).thenReturn(true);
 
-        mWificondControl.setupDriverForClientMode(TEST_INTERFACE_NAME);
         assertTrue(mWificondControl.enableSupplicant());
+        verify(mWifiInjector).makeWificond();
         verify(mWificond).enableSupplicant();
     }
 
@@ -274,11 +286,10 @@ public class WificondControlTest {
     @Test
     public void testDisableSupplicant() throws Exception {
         when(mWifiInjector.makeWificond()).thenReturn(mWificond);
-        when(mWificond.createClientInterface(TEST_INTERFACE_NAME)).thenReturn(mClientInterface);
         when(mWificond.disableSupplicant()).thenReturn(true);
 
-        mWificondControl.setupDriverForClientMode(TEST_INTERFACE_NAME);
         assertTrue(mWificondControl.disableSupplicant());
+        verify(mWifiInjector).makeWificond();
         verify(mWificond).disableSupplicant();
     }
 
@@ -308,6 +319,8 @@ public class WificondControlTest {
      */
     @Test
     public void testTearDownInterfacesErrorWhenWificondIsNotStarterd() throws Exception {
+        // Invoke wificond death handler to clear the handle.
+        mWificondControl.binderDied();
         when(mWifiInjector.makeWificond()).thenReturn(null);
         assertFalse(mWificondControl.tearDownInterfaces());
     }
@@ -837,6 +850,69 @@ public class WificondControlTest {
 
         assertFalse(mWificondControl.stopSoftAp());
         verify(mApInterface).stopHostapd();
+    }
+
+    /**
+     * Verifies registration and invocation of wificond death handler.
+     */
+    @Test
+    public void testRegisterDeathHandler() throws Exception {
+        WifiNative.WificondDeathEventHandler handler =
+                mock(WifiNative.WificondDeathEventHandler.class);
+        assertTrue(mWificondControl.registerDeathHandler(handler));
+        mWificondControl.binderDied();
+        verify(handler).onDeath();
+    }
+
+    /**
+     * Verifies registration and invocation of 2 wificond death handlers.
+     */
+    @Test
+    public void testRegisterTwoDeathHandlers() throws Exception {
+        WifiNative.WificondDeathEventHandler handler1 =
+                mock(WifiNative.WificondDeathEventHandler.class);
+        WifiNative.WificondDeathEventHandler handler2 =
+                mock(WifiNative.WificondDeathEventHandler.class);
+        assertTrue(mWificondControl.registerDeathHandler(handler1));
+        assertFalse(mWificondControl.registerDeathHandler(handler2));
+        mWificondControl.binderDied();
+        verify(handler1).onDeath();
+        verify(handler2, never()).onDeath();
+    }
+
+    /**
+     * Verifies de-registration of wificond death handler.
+     */
+    @Test
+    public void testDeregisterDeathHandler() throws Exception {
+        WifiNative.WificondDeathEventHandler handler =
+                mock(WifiNative.WificondDeathEventHandler.class);
+        assertTrue(mWificondControl.registerDeathHandler(handler));
+        assertTrue(mWificondControl.deregisterDeathHandler());
+        mWificondControl.binderDied();
+        verify(handler, never()).onDeath();
+    }
+
+    /**
+     * Verifies handling of wificond death and ensures that all internal state is cleared and
+     * handlers are invoked.
+     */
+    @Test
+    public void testDeathHandling() throws Exception {
+        WifiNative.WificondDeathEventHandler handler =
+                mock(WifiNative.WificondDeathEventHandler.class);
+        assertTrue(mWificondControl.registerDeathHandler(handler));
+
+        testSetupDriverForClientMode();
+
+        mWificondControl.binderDied();
+        verify(handler).onDeath();
+
+        // The handles should be cleared after death, so these should retrieve new handles.
+        when(mWificond.enableSupplicant()).thenReturn(true);
+        assertTrue(mWificondControl.enableSupplicant());
+        verify(mWifiInjector, times(2)).makeWificond();
+        verify(mWificond).enableSupplicant();
     }
 
     // Create a ArgumentMatcher which captures a SingleScanSettings parameter and checks if it
