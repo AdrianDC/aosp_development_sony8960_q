@@ -18,6 +18,7 @@ package com.android.server.wifi.scanner;
 
 import static com.android.server.wifi.ScanTestUtil.NativeScanSettingsBuilder;
 import static com.android.server.wifi.ScanTestUtil.assertScanDataEquals;
+import static com.android.server.wifi.ScanTestUtil.setupMockChannels;
 
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
@@ -71,6 +72,11 @@ public class WificondPnoScannerTest {
         mWifiMonitor = new MockWifiMonitor();
         mResources = new MockResources();
 
+        setupMockChannels(mWifiNative,
+                new int[]{2400, 2450},
+                new int[]{5150, 5175},
+                new int[]{5600, 5650});
+
         when(mWifiNative.getInterfaceName()).thenReturn("a_test_interface_name");
         when(mContext.getSystemService(Context.ALARM_SERVICE))
                 .thenReturn(mAlarmManager.getAlarmManager());
@@ -108,8 +114,8 @@ public class WificondPnoScannerTest {
         WifiNative.PnoEventHandler pnoEventHandler = mock(WifiNative.PnoEventHandler.class);
         WifiNative.PnoSettings pnoSettings = createDummyPnoSettings(false);
         WifiNative.ScanEventHandler eventHandler = mock(WifiNative.ScanEventHandler.class);
-        WifiNative.ScanSettings settings = createDummyScanSettings();
-        ScanResults scanResults = createDummyScanResults(true);
+        WifiNative.ScanSettings settings = createDummyScanSettings(false);
+        ScanResults scanResults = createDummyScanResults(false);
 
         InOrder order = inOrder(eventHandler, mWifiNative);
         // Start PNO scan
@@ -147,8 +153,8 @@ public class WificondPnoScannerTest {
         WifiNative.PnoEventHandler pnoEventHandler = mock(WifiNative.PnoEventHandler.class);
         WifiNative.PnoSettings pnoSettings = createDummyPnoSettings(false);
         WifiNative.ScanEventHandler eventHandler = mock(WifiNative.ScanEventHandler.class);
-        WifiNative.ScanSettings settings = createDummyScanSettings();
-        ScanResults scanResults = createDummyScanResults(true);
+        WifiNative.ScanSettings settings = createDummyScanSettings(false);
+        ScanResults scanResults = createDummyScanResults(false);
 
         InOrder order = inOrder(eventHandler, mWifiNative);
         // Start PNO scan
@@ -298,7 +304,7 @@ public class WificondPnoScannerTest {
     private void createScannerWithHwPnoScanSupport() {
         mResources.setBoolean(R.bool.config_wifi_background_scan_support, true);
         mScanner = new WificondScannerImpl(mContext, mWifiNative, mWifiMonitor,
-                mLooper.getLooper(), mClock);
+                new WificondChannelHelper(mWifiNative), mLooper.getLooper(), mClock);
     }
 
     private WifiNative.PnoNetwork createDummyPnoNetwork(String ssid) {
@@ -316,12 +322,15 @@ public class WificondPnoScannerTest {
         return pnoSettings;
     }
 
-    private WifiNative.ScanSettings createDummyScanSettings() {
+    private WifiNative.ScanSettings createDummyScanSettings(boolean allChannelsScanned) {
         WifiNative.ScanSettings settings = new NativeScanSettingsBuilder()
                 .withBasePeriod(10000)
                 .withMaxApPerScan(10)
-                .addBucketWithBand(10000, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN,
-                        WifiScanner.WIFI_BAND_24_GHZ)
+                .addBucketWithBand(
+                    10000,
+                    WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN,
+                    allChannelsScanned
+                            ? WifiScanner.WIFI_BAND_BOTH_WITH_DFS : WifiScanner.WIFI_BAND_24_GHZ)
                 .build();
         return settings;
     }

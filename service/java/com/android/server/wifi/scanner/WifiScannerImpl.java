@@ -53,8 +53,8 @@ public abstract class WifiScannerImpl {
                 if (wifiNative.getBgScanCapabilities(new WifiNative.ScanCapabilities())) {
                     return new HalWifiScannerImpl(context, wifiNative, wifiMonitor, looper, clock);
                 } else {
-                    return new WificondScannerImpl(context, wifiNative, wifiMonitor, looper,
-                            clock);
+                    return new WificondScannerImpl(context, wifiNative, wifiMonitor,
+                            new WificondChannelHelper(wifiNative), looper, clock);
                 }
             }
         };
