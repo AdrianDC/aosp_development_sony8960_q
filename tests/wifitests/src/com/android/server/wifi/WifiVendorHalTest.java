@@ -195,6 +195,7 @@ public class WifiVendorHalTest {
                 .thenReturn(mIWifiStaIface);
         when(mHalDeviceManager.createApIface(eq(null), eq(null)))
                 .thenReturn(mIWifiApIface);
+        when(mHalDeviceManager.removeIface(any())).thenReturn(true);
         when(mHalDeviceManager.getChip(any(IWifiIface.class)))
                 .thenReturn(mIWifiChip);
         when(mHalDeviceManager.createRttController()).thenReturn(mIWifiRttController);
@@ -218,6 +219,19 @@ public class WifiVendorHalTest {
         when(mIWifiRttController.registerEventCallback(any(IWifiRttControllerEventCallback.class)))
                 .thenReturn(mWifiStatusSuccess);
 
+        doAnswer(new AnswerWithArguments() {
+            public void answer(IWifiIface.getNameCallback cb)
+                    throws RemoteException {
+                cb.onValues(mWifiStatusSuccess, "wlan0");
+            }
+        }).when(mIWifiStaIface).getName(any(IWifiIface.getNameCallback.class));
+        doAnswer(new AnswerWithArguments() {
+            public void answer(IWifiIface.getNameCallback cb)
+                    throws RemoteException {
+                cb.onValues(mWifiStatusSuccess, "wlan0");
+            }
+        }).when(mIWifiApIface).getName(any(IWifiIface.getNameCallback.class));
+
         // Create the vendor HAL object under test.
         mWifiVendorHal = new WifiVendorHal(mHalDeviceManager, mLooper.getLooper());
 
@@ -233,11 +247,11 @@ public class WifiVendorHalTest {
 
     /**
      * Tests the successful starting of HAL in STA mode using
-     * {@link WifiVendorHal#startVendorHal(boolean)}.
+     * {@link WifiVendorHal#startVendorHalSta()}.
      */
     @Test
     public void testStartHalSuccessInStaMode() throws  Exception {
-        assertTrue(mWifiVendorHal.startVendorHal(true));
+        assertTrue(mWifiVendorHal.startVendorHalSta());
         assertTrue(mWifiVendorHal.isHalStarted());
 
         verify(mHalDeviceManager).start();
@@ -254,11 +268,11 @@ public class WifiVendorHalTest {
 
     /**
      * Tests the successful starting of HAL in AP mode using
-     * {@link WifiVendorHal#startVendorHal(boolean)}.
+     * {@link WifiVendorHal#startVendorHalAp()}.
      */
     @Test
     public void testStartHalSuccessInApMode() throws Exception {
-        assertTrue(mWifiVendorHal.startVendorHal(false));
+        assertTrue(mWifiVendorHal.startVendorHalAp());
         assertTrue(mWifiVendorHal.isHalStarted());
 
         verify(mHalDeviceManager).start();
@@ -273,7 +287,7 @@ public class WifiVendorHalTest {
 
     /**
      * Tests the failure to start HAL in STA mode using
-     * {@link WifiVendorHal#startVendorHal(boolean)}.
+     * {@link WifiVendorHal#startVendorHalSta()}.
      */
     @Test
     public void testStartHalFailureInStaMode() throws Exception {
@@ -284,7 +298,7 @@ public class WifiVendorHalTest {
                 return false;
             }
         }).when(mHalDeviceManager).start();
-        assertFalse(mWifiVendorHal.startVendorHal(true));
+        assertFalse(mWifiVendorHal.startVendorHalSta());
         assertFalse(mWifiVendorHal.isHalStarted());
 
         verify(mHalDeviceManager).start();
@@ -299,12 +313,12 @@ public class WifiVendorHalTest {
 
     /**
      * Tests the failure to start HAL in STA mode using
-     * {@link WifiVendorHal#startVendorHal(boolean)}.
+     * {@link WifiVendorHal#startVendorHalSta()}.
      */
     @Test
     public void testStartHalFailureInIfaceCreationInStaMode() throws Exception {
         when(mHalDeviceManager.createStaIface(eq(null), eq(null))).thenReturn(null);
-        assertFalse(mWifiVendorHal.startVendorHal(true));
+        assertFalse(mWifiVendorHal.startVendorHalSta());
         assertFalse(mWifiVendorHal.isHalStarted());
 
         verify(mHalDeviceManager).start();
@@ -320,12 +334,12 @@ public class WifiVendorHalTest {
 
     /**
      * Tests the failure to start HAL in STA mode using
-     * {@link WifiVendorHal#startVendorHal(boolean)}.
+     * {@link WifiVendorHal#startVendorHalSta()}.
      */
     @Test
     public void testStartHalFailureInRttControllerCreationInStaMode() throws Exception {
         when(mHalDeviceManager.createRttController()).thenReturn(null);
-        assertFalse(mWifiVendorHal.startVendorHal(true));
+        assertFalse(mWifiVendorHal.startVendorHalSta());
         assertFalse(mWifiVendorHal.isHalStarted());
 
         verify(mHalDeviceManager).start();
@@ -340,12 +354,12 @@ public class WifiVendorHalTest {
 
     /**
      * Tests the failure to start HAL in STA mode using
-     * {@link WifiVendorHal#startVendorHal(boolean)}.
+     * {@link WifiVendorHal#startVendorHalSta()}.
      */
     @Test
     public void testStartHalFailureInChipGetInStaMode() throws Exception {
         when(mHalDeviceManager.getChip(any(IWifiIface.class))).thenReturn(null);
-        assertFalse(mWifiVendorHal.startVendorHal(true));
+        assertFalse(mWifiVendorHal.startVendorHalSta());
         assertFalse(mWifiVendorHal.isHalStarted());
 
         verify(mHalDeviceManager).start();
@@ -360,13 +374,13 @@ public class WifiVendorHalTest {
 
     /**
      * Tests the failure to start HAL in STA mode using
-     * {@link WifiVendorHal#startVendorHal(boolean)}.
+     * {@link WifiVendorHal#startVendorHalSta()}.
      */
     @Test
     public void testStartHalFailureInStaIfaceCallbackRegistration() throws Exception {
         when(mIWifiStaIface.registerEventCallback(any(IWifiStaIfaceEventCallback.class)))
                 .thenReturn(mWifiStatusFailure);
-        assertFalse(mWifiVendorHal.startVendorHal(true));
+        assertFalse(mWifiVendorHal.startVendorHalSta());
         assertFalse(mWifiVendorHal.isHalStarted());
 
         verify(mHalDeviceManager).start();
@@ -381,13 +395,13 @@ public class WifiVendorHalTest {
 
     /**
      * Tests the failure to start HAL in STA mode using
-     * {@link WifiVendorHal#startVendorHal(boolean)}.
+     * {@link WifiVendorHal#startVendorHalSta()}.
      */
     @Test
     public void testStartHalFailureInChipCallbackRegistration() throws Exception {
         when(mIWifiChip.registerEventCallback(any(IWifiChipEventCallback.class)))
                 .thenReturn(mWifiStatusFailure);
-        assertFalse(mWifiVendorHal.startVendorHal(true));
+        assertFalse(mWifiVendorHal.startVendorHalSta());
         assertFalse(mWifiVendorHal.isHalStarted());
 
         verify(mHalDeviceManager).start();
@@ -402,13 +416,13 @@ public class WifiVendorHalTest {
     }
 
     /**
-     * Tests the failure to start HAL in STA mode using
-     * {@link WifiVendorHal#startVendorHal(boolean)}.
+     * Tests the failure to start HAL in AP mode using
+     * {@link WifiVendorHal#startVendorHalAp()}.
      */
     @Test
     public void testStartHalFailureInApMode() throws Exception {
         when(mHalDeviceManager.createApIface(eq(null), eq(null))).thenReturn(null);
-        assertFalse(mWifiVendorHal.startVendorHal(false));
+        assertFalse(mWifiVendorHal.startVendorHalAp());
         assertFalse(mWifiVendorHal.isHalStarted());
 
         verify(mHalDeviceManager).start();
@@ -426,7 +440,7 @@ public class WifiVendorHalTest {
      */
     @Test
     public void testStopHalInStaMode() {
-        assertTrue(mWifiVendorHal.startVendorHal(true));
+        assertTrue(mWifiVendorHal.startVendorHalSta());
         assertTrue(mWifiVendorHal.isHalStarted());
 
         mWifiVendorHal.stopVendorHal();
@@ -449,7 +463,7 @@ public class WifiVendorHalTest {
      */
     @Test
     public void testStopHalInApMode() {
-        assertTrue(mWifiVendorHal.startVendorHal(false));
+        assertTrue(mWifiVendorHal.startVendorHalAp());
         assertTrue(mWifiVendorHal.isHalStarted());
 
         mWifiVendorHal.stopVendorHal();
@@ -583,7 +597,7 @@ public class WifiVendorHalTest {
      */
     @Test
     public void testGetSupportedFeatures() throws Exception {
-        assertTrue(mWifiVendorHal.startVendorHal(true));
+        assertTrue(mWifiVendorHal.startVendorHalSta());
 
         int staIfaceHidlCaps = (
                 IWifiStaIface.StaIfaceCapabilityMask.BACKGROUND_SCAN
@@ -1854,7 +1868,7 @@ public class WifiVendorHalTest {
      */
     @Test
     public void testSelectTxPowerScenario() throws RemoteException {
-        assertTrue(mWifiVendorHal.startVendorHal(true));
+        assertTrue(mWifiVendorHal.startVendorHalSta());
         // Should fail because we exposed the 1.0 IWifiChip.
         assertFalse(
                 mWifiVendorHal.selectTxPowerScenario(WifiNative.TX_POWER_SCENARIO_VOICE_CALL));
@@ -1865,7 +1879,7 @@ public class WifiVendorHalTest {
         mWifiVendorHal = new WifiVendorHalSpyV1_1(mHalDeviceManager, mLooper.getLooper());
         when(mIWifiChipV11.selectTxPowerScenario(anyInt())).thenReturn(mWifiStatusSuccess);
 
-        assertTrue(mWifiVendorHal.startVendorHal(true));
+        assertTrue(mWifiVendorHal.startVendorHalSta());
         assertTrue(
                 mWifiVendorHal.selectTxPowerScenario(WifiNative.TX_POWER_SCENARIO_VOICE_CALL));
         verify(mIWifiChipV11).selectTxPowerScenario(
@@ -1880,7 +1894,7 @@ public class WifiVendorHalTest {
      */
     @Test
     public void testResetTxPowerScenario() throws RemoteException {
-        assertTrue(mWifiVendorHal.startVendorHal(true));
+        assertTrue(mWifiVendorHal.startVendorHalSta());
         // Should fail because we exposed the 1.0 IWifiChip.
         assertFalse(mWifiVendorHal.selectTxPowerScenario(WifiNative.TX_POWER_SCENARIO_NORMAL));
         verify(mIWifiChipV11, never()).resetTxPowerScenario();
@@ -1890,7 +1904,7 @@ public class WifiVendorHalTest {
         mWifiVendorHal = new WifiVendorHalSpyV1_1(mHalDeviceManager, mLooper.getLooper());
         when(mIWifiChipV11.resetTxPowerScenario()).thenReturn(mWifiStatusSuccess);
 
-        assertTrue(mWifiVendorHal.startVendorHal(true));
+        assertTrue(mWifiVendorHal.startVendorHalSta());
         assertTrue(mWifiVendorHal.selectTxPowerScenario(WifiNative.TX_POWER_SCENARIO_NORMAL));
         verify(mIWifiChipV11).resetTxPowerScenario();
         verify(mIWifiChipV11, never()).selectTxPowerScenario(anyInt());
@@ -1906,11 +1920,71 @@ public class WifiVendorHalTest {
         mWifiVendorHal = new WifiVendorHalSpyV1_1(mHalDeviceManager, mLooper.getLooper());
         when(mIWifiChipV11.selectTxPowerScenario(anyInt())).thenReturn(mWifiStatusSuccess);
 
-        assertTrue(mWifiVendorHal.startVendorHal(true));
+        assertTrue(mWifiVendorHal.startVendorHalSta());
         assertFalse(mWifiVendorHal.selectTxPowerScenario(-6));
         verify(mIWifiChipV11, never()).selectTxPowerScenario(anyInt());
         verify(mIWifiChipV11, never()).resetTxPowerScenario();
         mWifiVendorHal.stopVendorHal();
+    }
+
+    /**
+     * Test the STA Iface creation failure due to iface name retrieval failure.
+     */
+    @Test
+    public void testCreateStaIfaceFailureInIfaceName() throws RemoteException {
+        doAnswer(new AnswerWithArguments() {
+            public void answer(IWifiIface.getNameCallback cb)
+                    throws RemoteException {
+                cb.onValues(mWifiStatusFailure, "wlan0");
+            }
+        }).when(mIWifiStaIface).getName(any(IWifiIface.getNameCallback.class));
+
+        assertTrue(mWifiVendorHal.startVendorHal());
+        assertNull(mWifiVendorHal.createStaIface(null));
+        verify(mHalDeviceManager).createStaIface(eq(null), eq(null));
+    }
+
+    /**
+     * Test the STA Iface creation failure due to iface name retrieval failure.
+     */
+    @Test
+    public void testCreateStaIfaceFailureInIfaceName() throws RemoteException {
+        doAnswer(new AnswerWithArguments() {
+            public void answer(IWifiIface.getNameCallback cb)
+                    throws RemoteException {
+                cb.onValues(mWifiStatusFailure, "wlan0");
+            }
+        }).when(mIWifiApIface).getName(any(IWifiIface.getNameCallback.class));
+
+        assertTrue(mWifiVendorHal.startVendorHal());
+        assertNull(mWifiVendorHal.createApIface(null));
+        verify(mHalDeviceManager).createApIface(eq(null), eq(null));
+    }
+
+    /**
+     * Test the creation and removal of STA Iface.
+     */
+    @Test
+    public void testCreateRemoveStaIface() throws RemoteException {
+        assertTrue(mWifiVendorHal.startVendorHal());
+        String ifaceName = mWifiVendorHal.createStaIface(null);
+        verify(mHalDeviceManager).createStaIface(eq(null), eq(null));
+        assertNotNull(ifaceName);
+        assertTrue(mWifiVendorHal.removeStaIface(ifaceName));
+        verify(mHalDeviceManager).removeIface(eq(mIWifiStaIface));
+    }
+
+    /**
+     * Test the creation and removal of Ap Iface.
+     */
+    @Test
+    public void testCreateRemoveApIface() throws RemoteException {
+        assertTrue(mWifiVendorHal.startVendorHal());
+        String ifaceName = mWifiVendorHal.createApIface(null);
+        verify(mHalDeviceManager).createApIface(eq(null), eq(null));
+        assertNotNull(ifaceName);
+        assertTrue(mWifiVendorHal.removeApIface(ifaceName));
+        verify(mHalDeviceManager).removeIface(eq(mIWifiApIface));
     }
 
     private void startBgScan(WifiNative.ScanEventHandler eventHandler) throws Exception {

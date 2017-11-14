@@ -67,6 +67,7 @@ import android.net.wifi.WifiWakeReasonAndCounts;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.RemoteException;
+import android.text.TextUtils;
 import android.util.Log;
 import android.util.MutableBoolean;
 import android.util.MutableInt;
@@ -74,8 +75,11 @@ import android.util.MutableInt;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.ArrayUtils;
 import com.android.server.connectivity.KeepalivePacketData;
+import com.android.server.wifi.HalDeviceManager.InterfaceDestroyedListener;
 import com.android.server.wifi.util.BitMask;
 import com.android.server.wifi.util.NativeUtil;
+
+import libcore.util.NonNull;
 
 import java.util.ArrayList;
 import java.util.Set;
@@ -139,11 +143,31 @@ public class WifiVendorHal {
     }
 
     /**
-     * Logs if the argument is false.
+     * Logs the argument along with the method name.
      *
      * Always returns its argument.
      */
     private boolean boolResult(boolean result) {
+        if (mVerboseLog == sNoLog) return result;
+        // Currently only seen if verbose logging is on
+
+        Thread cur = Thread.currentThread();
+        StackTraceElement[] trace = cur.getStackTrace();
+
+        mVerboseLog.err("% returns %")
+                .c(niceMethodName(trace, 3))
+                .c(result)
+                .flush();
+
+        return result;
+    }
+
+    /**
+     * Logs the argument along with the method name.
+     *
+     * Always returns its argument.
+     */
+    private String stringResult(String result) {
         if (mVerboseLog == sNoLog) return result;
         // Currently only seen if verbose logging is on
 
@@ -271,7 +295,16 @@ public class WifiVendorHal {
      * @return true for success
      */
     public boolean startVendorHalAp() {
-        return startVendorHal(AP_MODE);
+        synchronized (sLock) {
+            if (!startVendorHal()) {
+                return false;
+            }
+            if (TextUtils.isEmpty(createApIface(null))) {
+                stopVendorHal();
+                return false;
+            }
+            return true;
+        }
     }
 
     /**
@@ -280,55 +313,27 @@ public class WifiVendorHal {
      * @return true for success
      */
     public boolean startVendorHalSta() {
-        return startVendorHal(STA_MODE);
+        synchronized (sLock) {
+            if (!startVendorHal()) {
+                return false;
+            }
+            if (TextUtils.isEmpty(createStaIface(null))) {
+                stopVendorHal();
+                return false;
+            }
+            return true;
+        }
     }
 
-    public static final boolean STA_MODE = true;
-    public static final boolean AP_MODE = false;
-
     /**
-     * Bring up the HIDL Vendor HAL and configure for STA mode or AP mode.
-     *
-     * @param isStaMode true to start HAL in STA mode, false to start in AP mode.
+     * Bring up the HIDL Vendor HAL.
+     * @return true on success, false otherwise.
      */
-    public boolean startVendorHal(boolean isStaMode) {
+    public boolean startVendorHal() {
         synchronized (sLock) {
-            if (mIWifiStaIface != null) return boolResult(false);
-            if (mIWifiApIface != null) return boolResult(false);
             if (!mHalDeviceManager.start()) {
-                return startFailedTo("start the vendor HAL");
-            }
-            IWifiIface iface;
-            if (isStaMode) {
-                mIWifiStaIface = mHalDeviceManager.createStaIface(null, null);
-                if (mIWifiStaIface == null) {
-                    return startFailedTo("create STA Iface");
-                }
-                iface = (IWifiIface) mIWifiStaIface;
-                if (!registerStaIfaceCallback()) {
-                    return startFailedTo("register sta iface callback");
-                }
-                mIWifiRttController = mHalDeviceManager.createRttController();
-                if (mIWifiRttController == null) {
-                    return startFailedTo("create RTT controller");
-                }
-                if (!registerRttEventCallback()) {
-                    return startFailedTo("register RTT iface callback");
-                }
-                enableLinkLayerStats();
-            } else {
-                mIWifiApIface = mHalDeviceManager.createApIface(null, null);
-                if (mIWifiApIface == null) {
-                    return startFailedTo("create AP Iface");
-                }
-                iface = (IWifiIface) mIWifiApIface;
-            }
-            mIWifiChip = mHalDeviceManager.getChip(iface);
-            if (mIWifiChip == null) {
-                return startFailedTo("get the chip created for the Iface");
-            }
-            if (!registerChipCallback()) {
-                return startFailedTo("register chip callback");
+                mLog.err("Failed to start vendor HAL");
+                return false;
             }
             mLog.i("Vendor Hal started successfully");
             return true;
@@ -336,17 +341,129 @@ public class WifiVendorHal {
     }
 
     /**
-     * Logs a message and cleans up after a failing start attempt
+     * Create a STA iface using {@link HalDeviceManager}.
      *
-     * The lock should be held.
-     * @param message describes what was being attempted
-     * @return false
+     * @param destroyedListener Listener to be invoked when the interface is destroyed.
+     * @return iface name on success, null otherwise.
      */
-    private boolean startFailedTo(String message) {
-        mVerboseLog.err("Failed to %. Vendor Hal start failed").c(message).flush();
-        mHalDeviceManager.stop();
-        clearState();
-        return false;
+    public String createStaIface(InterfaceDestroyedListener destroyedListener) {
+        synchronized (sLock) {
+            if (mIWifiStaIface != null) return stringResult(null);
+
+            mIWifiStaIface = mHalDeviceManager.createStaIface(destroyedListener, null);
+            if (mIWifiStaIface == null) {
+                mLog.err("Failed to create STA iface");
+                return stringResult(null);
+            }
+            if (!registerStaIfaceCallback()) {
+                mLog.err("Failed to register STA iface callback");
+                return stringResult(null);
+            }
+            mIWifiRttController = mHalDeviceManager.createRttController();
+            if (mIWifiRttController == null) {
+                mLog.err("Failed to create RTT controller");
+                return stringResult(null);
+            }
+            if (!registerRttEventCallback()) {
+                mLog.err("Failed to register RTT controller callback");
+                return stringResult(null);
+            }
+            if (!retrieveWifiChip((IWifiIface) mIWifiStaIface)) {
+                mLog.err("Failed to get wifi chip");
+                return stringResult(null);
+            }
+            enableLinkLayerStats();
+            String ifaceName = mHalDeviceManager.getName((IWifiIface) mIWifiStaIface);
+            if (TextUtils.isEmpty(ifaceName)) {
+                mLog.err("Failed to get iface name");
+                return stringResult(ifaceName);
+            }
+            return ifaceName;
+        }
+    }
+
+    /**
+     * Remove a STA iface using {@link HalDeviceManager}.
+     *
+     * @param ifaceName Name of the interface being removed.
+     * @return true on success, false otherwise.
+     */
+    public boolean removeStaIface(@NonNull String ifaceName) {
+        synchronized (sLock) {
+            if (mIWifiStaIface == null) return boolResult(false);
+
+            if (!mHalDeviceManager.removeIface((IWifiIface) mIWifiStaIface)) {
+                mLog.err("Failed to remove STA iface");
+                return boolResult(false);
+            }
+            mIWifiStaIface = null;
+            mIWifiRttController = null;
+            mDriverDescription = null;
+            mFirmwareDescription = null;
+            return true;
+        }
+    }
+
+    /**
+     * Create a AP iface using {@link HalDeviceManager}.
+     *
+     * @param destroyedListener Listener to be invoked when the interface is destroyed.
+     * @return iface name on success, null otherwise.
+     */
+    public String createApIface(InterfaceDestroyedListener destroyedListener) {
+        synchronized (sLock) {
+            if (mIWifiApIface != null) return stringResult(null);
+
+            mIWifiApIface = mHalDeviceManager.createApIface(destroyedListener, null);
+            if (mIWifiApIface == null) {
+                mLog.err("Failed to create AP iface");
+                return stringResult(null);
+            }
+            if (!retrieveWifiChip((IWifiIface) mIWifiApIface)) {
+                mLog.err("Failed to get wifi chip");
+                return stringResult(null);
+            }
+            String ifaceName = mHalDeviceManager.getName((IWifiIface) mIWifiApIface);
+            if (TextUtils.isEmpty(ifaceName)) {
+                mLog.err("Failed to get iface name");
+                return stringResult(ifaceName);
+            }
+            return ifaceName;
+        }
+    }
+
+    /**
+     * Remove an AP iface using {@link HalDeviceManager}.
+     *
+     * @param ifaceName Name of the interface being removed.
+     * @return true on success, false otherwise.
+     */
+    public boolean removeApIface(@NonNull String ifaceName) {
+        synchronized (sLock) {
+            if (mIWifiApIface == null) return boolResult(false);
+
+            if (!mHalDeviceManager.removeIface((IWifiIface) mIWifiApIface)) {
+                mLog.err("Failed to remove AP iface");
+                return boolResult(false);
+            }
+            mIWifiApIface = null;
+            return true;
+        }
+    }
+
+    private boolean retrieveWifiChip(IWifiIface iface) {
+        synchronized (sLock) {
+            mIWifiChip = mHalDeviceManager.getChip(iface);
+            if (mIWifiChip == null) {
+                mLog.err("Failed to get the chip created for the Iface");
+                return false;
+            }
+            if (!registerChipCallback()) {
+                mLog.err("Failed to register chip callback");
+                return false;
+            }
+            return true;
+        }
     }
 
     /**

@@ -918,7 +918,11 @@ public class WifiNative {
             Log.i(mTAG, "Vendor HAL not supported, Ignore start...");
             return true;
         }
-        return mWifiVendorHal.startVendorHal(isStaMode);
+        if (isStaMode) {
+            return mWifiVendorHal.startVendorHalSta();
+        } else {
+            return mWifiVendorHal.startVendorHalAp();
+        }
     }
 
     /**

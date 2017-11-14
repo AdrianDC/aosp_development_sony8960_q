@@ -20,8 +20,6 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.anyBoolean;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -156,7 +154,8 @@ public class WifiNativeTest {
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
         when(mWifiVendorHal.isVendorHalSupported()).thenReturn(true);
-        when(mWifiVendorHal.startVendorHal(anyBoolean())).thenReturn(true);
+        when(mWifiVendorHal.startVendorHalSta()).thenReturn(true);
+        when(mWifiVendorHal.startVendorHalAp()).thenReturn(true);
         mWifiNative = new WifiNative("test0", mWifiVendorHal, mStaIfaceHal, mWificondControl);
     }
 
@@ -494,7 +493,7 @@ public class WifiNativeTest {
                 mWifiNative.setupForClientMode(WIFI_IFACE_NAME);
         assertTrue(WifiNative.SETUP_SUCCESS == statusAndClientInterface.first);
         assertEquals(clientInterface, statusAndClientInterface.second);
-        verify(mWifiVendorHal).startVendorHal(eq(true));
+        verify(mWifiVendorHal).startVendorHalSta();
         verify(mWificondControl).setupDriverForClientMode(WIFI_IFACE_NAME);
     }
 
@@ -513,7 +512,7 @@ public class WifiNativeTest {
                 mWifiNative.setupForClientMode(WIFI_IFACE_NAME);
         assertTrue(WifiNative.SETUP_SUCCESS == statusAndClientInterface.first);
         assertEquals(clientInterface, statusAndClientInterface.second);
-        verify(mWifiVendorHal, never()).startVendorHal(anyBoolean());
+        verify(mWifiVendorHal, never()).startVendorHalSta();
         verify(mWificondControl).setupDriverForClientMode(WIFI_IFACE_NAME);
     }
 
@@ -529,7 +528,7 @@ public class WifiNativeTest {
                 mWifiNative.setupForClientMode(WIFI_IFACE_NAME);
         assertTrue(WifiNative.SETUP_FAILURE_WIFICOND == statusAndClientInterface.first);
         assertEquals(null, statusAndClientInterface.second);
-        verify(mWifiVendorHal).startVendorHal(eq(true));
+        verify(mWifiVendorHal).startVendorHalSta();
         verify(mWificondControl).setupDriverForClientMode(WIFI_IFACE_NAME);
     }
 
@@ -539,13 +538,13 @@ public class WifiNativeTest {
      */
     @Test
     public void testSetupDriverForClientModeHalError() {
-        when(mWifiVendorHal.startVendorHal(anyBoolean())).thenReturn(false);
+        when(mWifiVendorHal.startVendorHalSta()).thenReturn(false);
 
         Pair<Integer, IClientInterface> statusAndClientInterface =
                 mWifiNative.setupForClientMode(WIFI_IFACE_NAME);
         assertTrue(WifiNative.SETUP_FAILURE_HAL == statusAndClientInterface.first);
         assertEquals(null, statusAndClientInterface.second);
-        verify(mWifiVendorHal).startVendorHal(eq(true));
+        verify(mWifiVendorHal).startVendorHalSta();
         verify(mWificondControl, never()).setupDriverForClientMode(WIFI_IFACE_NAME);
     }
 
@@ -561,7 +560,7 @@ public class WifiNativeTest {
                 mWifiNative.setupForSoftApMode(WIFI_IFACE_NAME);
         assertTrue(WifiNative.SETUP_SUCCESS == statusAndApInterface.first);
         assertEquals(apInterface, statusAndApInterface.second);
-        verify(mWifiVendorHal).startVendorHal(eq(false));
+        verify(mWifiVendorHal).startVendorHalAp();
         verify(mWificondControl).setupDriverForSoftApMode(WIFI_IFACE_NAME);
     }
 
@@ -579,7 +578,7 @@ public class WifiNativeTest {
                 mWifiNative.setupForSoftApMode(WIFI_IFACE_NAME);
         assertTrue(WifiNative.SETUP_SUCCESS == statusAndApInterface.first);
         assertEquals(apInterface, statusAndApInterface.second);
-        verify(mWifiVendorHal, never()).startVendorHal(anyBoolean());
+        verify(mWifiVendorHal, never()).startVendorHalAp();
         verify(mWificondControl).setupDriverForSoftApMode(WIFI_IFACE_NAME);
     }
 
@@ -596,7 +595,7 @@ public class WifiNativeTest {
         assertTrue(WifiNative.SETUP_FAILURE_WIFICOND == statusAndApInterface.first);
         assertEquals(null, statusAndApInterface.second);
 
-        verify(mWifiVendorHal).startVendorHal(eq(false));
+        verify(mWifiVendorHal).startVendorHalAp();
         verify(mWificondControl).setupDriverForSoftApMode(WIFI_IFACE_NAME);
     }
 
@@ -606,14 +605,14 @@ public class WifiNativeTest {
      */
     @Test
     public void testSetupDriverForSoftApModeHalError() {
-        when(mWifiVendorHal.startVendorHal(anyBoolean())).thenReturn(false);
+        when(mWifiVendorHal.startVendorHalAp()).thenReturn(false);
 
         Pair<Integer, IApInterface> statusAndApInterface =
                 mWifiNative.setupForSoftApMode(WIFI_IFACE_NAME);
         assertTrue(WifiNative.SETUP_FAILURE_HAL == statusAndApInterface.first);
         assertEquals(null, statusAndApInterface.second);
 
-        verify(mWifiVendorHal).startVendorHal(eq(false));
+        verify(mWifiVendorHal).startVendorHalAp();
         verify(mWificondControl, never()).setupDriverForSoftApMode(WIFI_IFACE_NAME);
     }
 
