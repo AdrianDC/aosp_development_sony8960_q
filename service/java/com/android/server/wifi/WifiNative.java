@@ -111,7 +111,7 @@ public class WifiNative {
             Log.e(mTAG, "Failed to start HAL for client mode");
             return Pair.create(SETUP_FAILURE_HAL, null);
         }
-        IClientInterface iClientInterface = mWificondControl.setupDriverForClientMode(ifaceName);
+        IClientInterface iClientInterface = mWificondControl.setupInterfaceForClientMode(ifaceName);
         if (iClientInterface == null) {
             return Pair.create(SETUP_FAILURE_WIFICOND, null);
         }
@@ -132,7 +132,7 @@ public class WifiNative {
             Log.e(mTAG, "Failed to start HAL for AP mode");
             return Pair.create(SETUP_FAILURE_HAL, null);
         }
-        IApInterface iApInterface = mWificondControl.setupDriverForSoftApMode(ifaceName);
+        IApInterface iApInterface = mWificondControl.setupInterfaceForSoftApMode(ifaceName);
         if (iApInterface == null) {
             return Pair.create(SETUP_FAILURE_WIFICOND, null);
         }

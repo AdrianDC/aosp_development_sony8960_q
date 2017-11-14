@@ -220,12 +220,12 @@ public class WificondControl implements IBinder.DeathRecipient {
     }
 
     /**
-    * Setup driver for client mode via wificond.
+    * Setup interface for client mode via wificond.
     * @return An IClientInterface as wificond client interface binder handler.
     * Returns null on failure.
     */
-    public IClientInterface setupDriverForClientMode(@NonNull String ifaceName) {
-        Log.d(TAG, "Setting up driver for client mode");
+    public IClientInterface setupInterfaceForClientMode(@NonNull String ifaceName) {
+        Log.d(TAG, "Setting up interface for client mode");
         if (!retrieveWificondAndRegisterForDeath()) {
             return null;
         }
@@ -266,12 +266,47 @@ public class WificondControl implements IBinder.DeathRecipient {
     }
 
     /**
-    * Setup driver for softAp mode via wificond.
+     * Teardown a specific STA interface configured in wificond.
+     *
+     * @return Returns true on success.
+     */
+    public boolean tearDownClientInterface(@NonNull String ifaceName) {
+        boolean success;
+        try {
+            if (mWificondScanner != null) {
+                mWificondScanner.unsubscribeScanEvents();
+                mWificondScanner.unsubscribePnoScanEvents();
+            }
+        } catch (RemoteException e) {
+            Log.e(TAG, "Failed to unsubscribe wificond scanner due to remote exception");
+            return false;
+        }
+
+        try {
+            success = mWificond.tearDownClientInterface(ifaceName);
+        } catch (RemoteException e1) {
+            Log.e(TAG, "Failed to teardown client interface due to remote exception");
+            return false;
+        }
+        if (!success) {
+            Log.e(TAG, "Failed to teardown client interface");
+            return false;
+        }
+
+        mClientInterface = null;
+        mWificondScanner = null;
+        mPnoScanEventHandler = null;
+        mScanEventHandler = null;
+        return true;
+    }
+
+    /**
+    * Setup interface for softAp mode via wificond.
     * @return An IApInterface as wificond Ap interface binder handler.
     * Returns null on failure.
     */
-    public IApInterface setupDriverForSoftApMode(@NonNull String ifaceName) {
-        Log.d(TAG, "Setting up driver for soft ap mode");
+    public IApInterface setupInterfaceForSoftApMode(@NonNull String ifaceName) {
+        Log.d(TAG, "Setting up interface for soft ap mode");
         if (!retrieveWificondAndRegisterForDeath()) {
             return null;
         }
@@ -294,6 +329,28 @@ public class WificondControl implements IBinder.DeathRecipient {
         mApInterface = apInterface;
 
         return apInterface;
+    }
+
+    /**
+     * Teardown a specific AP interface configured in wificond.
+     *
+     * @return Returns true on success.
+     */
+    public boolean tearDownSoftApInterface(@NonNull String ifaceName) {
+        boolean success;
+        try {
+            success = mWificond.tearDownApInterface(ifaceName);
+        } catch (RemoteException e1) {
+            Log.e(TAG, "Failed to teardown AP interface due to remote exception");
+            return false;
+        }
+        if (!success) {
+            Log.e(TAG, "Failed to teardown AP interface");
+            return false;
+        }
+        mApInterface = null;
+        mApInterfaceListener = null;
+        return true;
     }
 
     /**
@@ -730,5 +787,6 @@ public class WificondControl implements IBinder.DeathRecipient {
         mPnoScanEventHandler = null;
         mScanEventHandler = null;
         mApInterface = null;
+        mApInterfaceListener = null;
     }
 }
