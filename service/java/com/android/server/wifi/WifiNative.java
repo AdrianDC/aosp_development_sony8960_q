@@ -213,6 +213,22 @@ public class WifiNative {
     }
 
     /**
+     * Query the list of valid frequencies for the provided band.
+     * The result depends on the on the country code that has been set.
+     *
+     * @param band as specified by one of the WifiScanner.WIFI_BAND_* constants.
+     * The following bands are supported:
+     * WifiScanner.WIFI_BAND_24_GHZ
+     * WifiScanner.WIFI_BAND_5_GHZ
+     * WifiScanner.WIFI_BAND_5_GHZ_DFS_ONLY
+     * @return frequencies vector of valid frequencies (MHz), or null for error.
+     * @throws IllegalArgumentException if band is not recognized.
+     */
+    public int [] getChannelsForBand(int band) {
+        return mWificondControl.getChannelsForBand(band);
+    }
+
+    /**
      * Start a scan using wificond for the given parameters.
      * @param freqs list of frequencies to scan for, if null scan all supported channels.
      * @param hiddenNetworkSSIDs List of hidden networks to be scanned for.
@@ -1132,22 +1148,6 @@ public class WifiNative {
      */
     public boolean setScanningMacOui(byte[] oui) {
         return mWifiVendorHal.setScanningMacOui(oui);
-    }
-
-    /**
-     * Query the list of valid frequencies for the provided band.
-     * The result depends on the on the country code that has been set.
-     *
-     * @param band as specified by one of the WifiScanner.WIFI_BAND_* constants.
-     * The following bands are supported:
-     * WifiScanner.WIFI_BAND_24_GHZ
-     * WifiScanner.WIFI_BAND_5_GHZ
-     * WifiScanner.WIFI_BAND_5_GHZ_DFS_ONLY
-     * @return frequencies vector of valid frequencies (MHz), or null for error.
-     * @throws IllegalArgumentException if band is not recognized.
-     */
-    public int [] getChannelsForBand(int band) {
-        return mWificondControl.getChannelsForBand(band);
     }
 
     /**
