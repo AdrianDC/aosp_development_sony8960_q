@@ -959,7 +959,7 @@ public class WifiNative {
      * @return true for success. false for failure
      */
     public boolean getBgScanCapabilities(ScanCapabilities capabilities) {
-        return mWifiVendorHal.getBgScanCapabilities(capabilities);
+        return mWifiVendorHal.getBgScanCapabilities(mInterfaceName, capabilities);
     }
 
     public static class ChannelSettings {
@@ -1109,39 +1109,39 @@ public class WifiNative {
      * @return true for success
      */
     public boolean startBgScan(ScanSettings settings, ScanEventHandler eventHandler) {
-        return mWifiVendorHal.startBgScan(settings, eventHandler);
+        return mWifiVendorHal.startBgScan(mInterfaceName, settings, eventHandler);
     }
 
     /**
      * Stops any ongoing backgound scan
      */
     public void stopBgScan() {
-        mWifiVendorHal.stopBgScan();
+        mWifiVendorHal.stopBgScan(mInterfaceName);
     }
 
     /**
      * Pauses an ongoing backgound scan
      */
     public void pauseBgScan() {
-        mWifiVendorHal.pauseBgScan();
+        mWifiVendorHal.pauseBgScan(mInterfaceName);
     }
 
     /**
      * Restarts a paused scan
      */
     public void restartBgScan() {
-        mWifiVendorHal.restartBgScan();
+        mWifiVendorHal.restartBgScan(mInterfaceName);
     }
 
     /**
      * Gets the latest scan results received.
      */
     public WifiScanner.ScanData[] getBgScanResults() {
-        return mWifiVendorHal.getBgScanResults();
+        return mWifiVendorHal.getBgScanResults(mInterfaceName);
     }
 
-    public WifiLinkLayerStats getWifiLinkLayerStats(String iface) {
-        return mWifiVendorHal.getWifiLinkLayerStats();
+    public WifiLinkLayerStats getWifiLinkLayerStats() {
+        return mWifiVendorHal.getWifiLinkLayerStats(mInterfaceName);
     }
 
     /**
@@ -1150,7 +1150,7 @@ public class WifiNative {
      * @return bitmask defined by WifiManager.WIFI_FEATURE_*
      */
     public int getSupportedFeatureSet() {
-        return mWifiVendorHal.getSupportedFeatureSet();
+        return mWifiVendorHal.getSupportedFeatureSet(mInterfaceName);
     }
 
     public static interface RttEventHandler {
@@ -1207,7 +1207,7 @@ public class WifiNative {
      * @return true for success
      */
     public boolean setScanningMacOui(byte[] oui) {
-        return mWifiVendorHal.setScanningMacOui(oui);
+        return mWifiVendorHal.setScanningMacOui(mInterfaceName, oui);
     }
 
     /**
@@ -1221,7 +1221,7 @@ public class WifiNative {
      * Get the APF (Android Packet Filter) capabilities of the device
      */
     public ApfCapabilities getApfCapabilities() {
-        return mWifiVendorHal.getApfCapabilities();
+        return mWifiVendorHal.getApfCapabilities(mInterfaceName);
     }
 
     /**
@@ -1231,7 +1231,7 @@ public class WifiNative {
      * @return true for success
      */
     public boolean installPacketFilter(byte[] filter) {
-        return mWifiVendorHal.installPacketFilter(filter);
+        return mWifiVendorHal.installPacketFilter(mInterfaceName, filter);
     }
 
     /**
@@ -1241,7 +1241,7 @@ public class WifiNative {
      * @return true for success
      */
     public boolean setCountryCodeHal(String countryCode) {
-        return mWifiVendorHal.setCountryCodeHal(countryCode);
+        return mWifiVendorHal.setCountryCodeHal(mInterfaceName, countryCode);
     }
 
     //---------------------------------------------------------------------------------
@@ -1581,7 +1581,7 @@ public class WifiNative {
      * @return true for success, false otherwise.
      */
     public boolean startPktFateMonitoring() {
-        return mWifiVendorHal.startPktFateMonitoring();
+        return mWifiVendorHal.startPktFateMonitoring(mInterfaceName);
     }
 
     /**
@@ -1590,14 +1590,14 @@ public class WifiNative {
      * @return true for success, false otherwise.
      */
     public boolean getTxPktFates(TxFateReport[] reportBufs) {
-        return mWifiVendorHal.getTxPktFates(reportBufs);
+        return mWifiVendorHal.getTxPktFates(mInterfaceName, reportBufs);
     }
 
     /**
      * Fetch the most recent RX packet fates from the HAL. Fails unless HAL is started.
      */
     public boolean getRxPktFates(RxFateReport[] reportBufs) {
-        return mWifiVendorHal.getRxPktFates(reportBufs);
+        return mWifiVendorHal.getRxPktFates(mInterfaceName, reportBufs);
     }
 
     /**
@@ -1616,7 +1616,7 @@ public class WifiNative {
             Integer hexVal = Integer.parseInt(macAddrStr[i], 16);
             srcMac[i] = hexVal.byteValue();
         }
-        return mWifiVendorHal.startSendingOffloadedPacket(
+        return mWifiVendorHal.startSendingOffloadedPacket(mInterfaceName,
                 slot, srcMac, keepAlivePacket, period);
     }
 
@@ -1627,7 +1627,7 @@ public class WifiNative {
      * @return 0 for success, -1 for error
      */
     public int stopSendingOffloadedPacket(int slot) {
-        return mWifiVendorHal.stopSendingOffloadedPacket(slot);
+        return mWifiVendorHal.stopSendingOffloadedPacket(mInterfaceName, slot);
     }
 
     public static interface WifiRssiEventHandler {
@@ -1644,11 +1644,12 @@ public class WifiNative {
      */
     public int startRssiMonitoring(byte maxRssi, byte minRssi,
                                    WifiRssiEventHandler rssiEventHandler) {
-        return mWifiVendorHal.startRssiMonitoring(maxRssi, minRssi, rssiEventHandler);
+        return mWifiVendorHal.startRssiMonitoring(
+                mInterfaceName, maxRssi, minRssi, rssiEventHandler);
     }
 
     public int stopRssiMonitoring() {
-        return mWifiVendorHal.stopRssiMonitoring();
+        return mWifiVendorHal.stopRssiMonitoring(mInterfaceName);
     }
 
     /**
@@ -1667,7 +1668,7 @@ public class WifiNative {
      * @return true for success, false otherwise.
      */
     public boolean configureNeighborDiscoveryOffload(boolean enabled) {
-        return mWifiVendorHal.configureNeighborDiscoveryOffload(enabled);
+        return mWifiVendorHal.configureNeighborDiscoveryOffload(mInterfaceName, enabled);
     }
 
     // Firmware roaming control.
@@ -1685,7 +1686,7 @@ public class WifiNative {
      * @return true for success, false otherwise.
      */
     public boolean getRoamingCapabilities(RoamingCapabilities capabilities) {
-        return mWifiVendorHal.getRoamingCapabilities(capabilities);
+        return mWifiVendorHal.getRoamingCapabilities(mInterfaceName, capabilities);
     }
 
     /**
@@ -1700,7 +1701,7 @@ public class WifiNative {
      * @return error code returned from HAL.
      */
     public int enableFirmwareRoaming(int state) {
-        return mWifiVendorHal.enableFirmwareRoaming(state);
+        return mWifiVendorHal.enableFirmwareRoaming(mInterfaceName, state);
     }
 
     /**
@@ -1716,7 +1717,7 @@ public class WifiNative {
      */
     public boolean configureRoaming(RoamingConfig config) {
         Log.d(mTAG, "configureRoaming ");
-        return mWifiVendorHal.configureRoaming(config);
+        return mWifiVendorHal.configureRoaming(mInterfaceName, config);
     }
 
     /**
@@ -1725,7 +1726,7 @@ public class WifiNative {
     public boolean resetRoamingConfiguration() {
         // Pass in an empty RoamingConfig object which translates to zero size
         // blacklist and whitelist to reset the firmware roaming configuration.
-        return mWifiVendorHal.configureRoaming(new RoamingConfig());
+        return mWifiVendorHal.configureRoaming(mInterfaceName, new RoamingConfig());
     }
 
     /**

@@ -1473,9 +1473,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     WifiLinkLayerStats getWifiLinkLayerStats() {
         WifiLinkLayerStats stats = null;
         if (mWifiLinkLayerStatsSupported > 0) {
-            String name = "wlan0";
-            stats = mWifiNative.getWifiLinkLayerStats(name);
-            if (name != null && stats == null && mWifiLinkLayerStatsSupported > 0) {
+            stats = mWifiNative.getWifiLinkLayerStats();
+            if (stats == null && mWifiLinkLayerStatsSupported > 0) {
                 mWifiLinkLayerStatsSupported -= 1;
             } else if (stats != null) {
                 lastLinkLayerStatsUpdate = mClock.getWallClockMillis();
