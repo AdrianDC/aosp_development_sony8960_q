@@ -71,7 +71,6 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConnectionStatistics;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiInfo;
-import android.net.wifi.WifiLinkLayerStats;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
@@ -367,7 +366,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private DhcpResults mDhcpResults;
 
     // NOTE: Do not return to clients - see syncRequestConnectionInfo()
-    private final WifiInfo mWifiInfo;
+    private final ExtendedWifiInfo mWifiInfo;
     private NetworkInfo mNetworkInfo;
     private final NetworkCapabilities mDfltNetworkCapabilities;
     private SupplicantStateTracker mSupplicantStateTracker;
@@ -947,7 +946,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiMonitor = mWifiInjector.getWifiMonitor();
         mWifiDiagnostics = mWifiInjector.makeWifiDiagnostics(mWifiNative);
 
-        mWifiInfo = new WifiInfo();
+        mWifiInfo = new ExtendedWifiInfo();
         mSupplicantStateTracker =
                 mFacade.makeSupplicantStateTracker(context, mWifiConfigManager, getHandler());
 

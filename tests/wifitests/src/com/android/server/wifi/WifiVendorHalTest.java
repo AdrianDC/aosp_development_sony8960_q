@@ -77,7 +77,6 @@ import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.net.apf.ApfCapabilities;
 import android.net.wifi.RttManager;
 import android.net.wifi.ScanResult;
-import android.net.wifi.WifiLinkLayerStats;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
@@ -685,13 +684,13 @@ public class WifiVendorHalTest {
         randomizePacketStats(r, stats.iface.wmeVoPktStats);
         randomizeRadioStats(r, stats.radios);
 
-        stats.timeStampInMs = 42; // currently dropped in conversion
+        stats.timeStampInMs = r.nextLong() & 0xFFFFFFFFFFL;
 
-        String expected = numbersOnly(stats.toString());
+        String expected = numbersOnly(stats.toString() + " ");
 
         WifiLinkLayerStats converted = WifiVendorHal.frameworkFromHalLinkLayerStats(stats);
 
-        String actual = numbersOnly(converted.toString());
+        String actual = numbersOnly(converted.toString() + " ");
 
         // Do the required fixups to the both expected and actual
         expected = rmValue(expected, stats.radios.get(0).rxTimeInMs);
@@ -699,7 +698,6 @@ public class WifiVendorHalTest {
 
         actual = rmValue(actual, stats.radios.get(0).rxTimeInMs);
         actual = rmValue(actual, stats.radios.get(0).onTimeInMsForScan);
-        actual = actual + "42 ";
 
         // The remaining fields should agree
         assertEquals(expected, actual);

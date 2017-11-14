@@ -63,6 +63,10 @@ public class LegacyConnectedScore extends ConnectedScore {
     private boolean mMultiBandScanResults;
     private boolean mIsHomeNetwork;
     private int mScore = 0;
+    private int mBadRssiCount;
+    private int mLinkStuckCount;
+    private int mLowRssiCount;
+
 
     LegacyConnectedScore(Context context, WifiConfigManager wifiConfigManager, Clock clock) {
         super(clock);
@@ -109,32 +113,32 @@ public class LegacyConnectedScore extends ConnectedScore {
             rssi += WifiConfiguration.HOME_NETWORK_RSSI_BOOST;
         }
 
-        if ((wifiInfo.txBadRate >= 1)
-                && (wifiInfo.txSuccessRate < MAX_SUCCESS_RATE_OF_STUCK_LINK)
+        if ((wifiInfo.txBadRate * 5 >= 1)
+                && (wifiInfo.txSuccessRate * 5 < MAX_SUCCESS_RATE_OF_STUCK_LINK)
                 && rssi < rssiThreshLow) {
             // Link is stuck
-            if (wifiInfo.linkStuckCount < MAX_STUCK_LINK_COUNT) {
-                wifiInfo.linkStuckCount += 1;
+            if (mLinkStuckCount < MAX_STUCK_LINK_COUNT) {
+                mLinkStuckCount += 1;
             }
-        } else if (wifiInfo.txBadRate < MIN_TX_FAILURE_RATE_FOR_WORKING_LINK) {
-            if (wifiInfo.linkStuckCount > 0) {
-                wifiInfo.linkStuckCount -= 1;
+        } else if (wifiInfo.txBadRate * 5 < MIN_TX_FAILURE_RATE_FOR_WORKING_LINK) {
+            if (mLinkStuckCount > 0) {
+                mLinkStuckCount -= 1;
             }
         }
 
         if (rssi < rssiThreshBad) {
-            if (wifiInfo.badRssiCount < MAX_BAD_RSSI_COUNT) {
-                wifiInfo.badRssiCount += 1;
+            if (mBadRssiCount < MAX_BAD_RSSI_COUNT) {
+                mBadRssiCount += 1;
             }
         } else if (rssi < rssiThreshLow) {
-            wifiInfo.lowRssiCount = MAX_LOW_RSSI_COUNT; // Dont increment the lowRssi count above 1
-            if (wifiInfo.badRssiCount > 0) {
+            mLowRssiCount = MAX_LOW_RSSI_COUNT; // Dont increment the lowRssi count above 1
+            if (mBadRssiCount > 0) {
                 // Decrement bad Rssi count
-                wifiInfo.badRssiCount -= 1;
+                mBadRssiCount -= 1;
             }
         } else {
-            wifiInfo.badRssiCount = 0;
-            wifiInfo.lowRssiCount = 0;
+            mBadRssiCount = 0;
+            mLowRssiCount = 0;
         }
 
         // Ugh, we need to finish the score calculation while we have wifiInfo
@@ -155,6 +159,9 @@ public class LegacyConnectedScore extends ConnectedScore {
     @Override
     public void reset() {
         mScore = 0;
+        mBadRssiCount = 0;
+        mLinkStuckCount = 0;
+        mLowRssiCount = 0;
     }
 
     /**
@@ -182,18 +189,19 @@ public class LegacyConnectedScore extends ConnectedScore {
 
         int linkSpeed = wifiInfo.getLinkSpeed();
 
-        if (wifiInfo.linkStuckCount > MIN_SUSTAINED_LINK_STUCK_COUNT) {
+        if (mLinkStuckCount > MIN_SUSTAINED_LINK_STUCK_COUNT) {
             // Once link gets stuck for more than 3 seconds, start reducing the score
-            score = score - LINK_STUCK_PENALTY * (wifiInfo.linkStuckCount - 1);
+            score = score - LINK_STUCK_PENALTY * (mLinkStuckCount - 1);
         }
 
         if (linkSpeed < linkspeedThreshBad) {
             score -= BAD_LINKSPEED_PENALTY;
-        } else if ((linkSpeed >= linkspeedThreshGood) && (wifiInfo.txSuccessRate > 5)) {
+        } else if ((linkSpeed >= linkspeedThreshGood)
+                    && (wifiInfo.txSuccessRate > 1)) {
             score += GOOD_LINKSPEED_BONUS; // So as bad rssi alone doesn't kill us
         }
 
-        score -= wifiInfo.badRssiCount * BAD_RSSI_COUNT_PENALTY + wifiInfo.lowRssiCount;
+        score -= mBadRssiCount * BAD_RSSI_COUNT_PENALTY + mLowRssiCount;
 
         if (rssi >= rssiThreshSaturated) score += 5;
 

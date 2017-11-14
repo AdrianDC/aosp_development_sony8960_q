@@ -152,9 +152,8 @@ public class WifiNetworkSelector {
         boolean hasQualifiedRssi =
                 (wifiInfo.is24GHz() && (currentRssi > mThresholdQualifiedRssi24))
                         || (wifiInfo.is5GHz() && (currentRssi > mThresholdQualifiedRssi5));
-        // getTxSuccessRate() and getRxSuccessRate() returns the packet rate in per 5 seconds unit.
-        boolean hasActiveStream = (wifiInfo.getTxSuccessRatePps() > mStayOnNetworkMinimumTxRate)
-                || (wifiInfo.getRxSuccessRatePps() > mStayOnNetworkMinimumRxRate);
+        boolean hasActiveStream = (wifiInfo.txSuccessRate > mStayOnNetworkMinimumTxRate)
+                || (wifiInfo.rxSuccessRate > mStayOnNetworkMinimumRxRate);
         if (hasQualifiedRssi && hasActiveStream) {
             localLog("Stay on current network because of good RSSI and ongoing traffic");
             return true;
