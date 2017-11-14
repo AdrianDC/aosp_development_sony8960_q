@@ -122,6 +122,7 @@ public class WifiInjector {
     private final WifiStateTracker mWifiStateTracker;
     private final Runtime mJavaRuntime;
     private final SelfRecovery mSelfRecovery;
+    private final WakeupController mWakeupController;
 
     private final boolean mUseRealLogger;
 
@@ -230,6 +231,8 @@ public class WifiInjector {
                 mWifiConfigManager, mWifiConfigStore, mWifiStateMachine,
                 new OpenNetworkRecommender(),
                 new ConnectToNetworkNotificationBuilder(mContext, mFrameworkFacade));
+        mWakeupController = new WakeupController(mContext,
+                mWifiStateMachineHandlerThread.getLooper(), mFrameworkFacade);
         mLockManager = new WifiLockManager(mContext, BatteryStatsService.getService());
         mWifiController = new WifiController(mContext, mWifiStateMachine, mSettingsStore,
                 mLockManager, mWifiServiceHandlerThread.getLooper(), mFrameworkFacade);
@@ -347,6 +350,10 @@ public class WifiInjector {
 
     public PasspointManager getPasspointManager() {
         return mPasspointManager;
+    }
+
+    public WakeupController getWakeupController() {
+        return mWakeupController;
     }
 
     public TelephonyManager makeTelephonyManager() {
