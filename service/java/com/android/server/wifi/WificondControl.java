@@ -47,6 +47,8 @@ import com.android.server.wifi.wificond.SingleScanSettings;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -70,28 +72,31 @@ public class WificondControl implements IBinder.DeathRecipient {
 
     // Cached wificond binder handlers.
     private IWificond mWificond;
-    private IClientInterface mClientInterface;
-    private IApInterface mApInterface;
-    private IWifiScannerImpl mWificondScanner;
-    private IScanEvent mScanEventHandler;
-    private IPnoScanEvent mPnoScanEventHandler;
-    private IApInterfaceEventCallback mApInterfaceListener;
+    private HashMap<String, IClientInterface> mClientInterfaces = new HashMap<>();
+    private HashMap<String, IApInterface> mApInterfaces = new HashMap<>();
+    private HashMap<String, IWifiScannerImpl> mWificondScanners = new HashMap<>();
+    private HashMap<String, IScanEvent> mScanEventHandlers = new HashMap<>();
+    private HashMap<String, IPnoScanEvent> mPnoScanEventHandlers = new HashMap<>();
+    private HashMap<String, IApInterfaceEventCallback> mApInterfaceListeners = new HashMap<>();
     private WifiNative.WificondDeathEventHandler mDeathEventHandler;
 
-    private String mClientInterfaceName;
-
-
     private class ScanEventHandler extends IScanEvent.Stub {
+        private String mIfaceName;
+
+        ScanEventHandler(@NonNull String ifaceName) {
+            mIfaceName = ifaceName;
+        }
+
         @Override
         public void OnScanResultReady() {
             Log.d(TAG, "Scan result ready event");
-            mWifiMonitor.broadcastScanResultEvent(mClientInterfaceName);
+            mWifiMonitor.broadcastScanResultEvent(mIfaceName);
         }
 
         @Override
         public void OnScanFailed() {
             Log.d(TAG, "Scan failed event");
-            mWifiMonitor.broadcastScanFailedEvent(mClientInterfaceName);
+            mWifiMonitor.broadcastScanFailedEvent(mIfaceName);
         }
     }
 
@@ -103,10 +108,16 @@ public class WificondControl implements IBinder.DeathRecipient {
     }
 
     private class PnoScanEventHandler extends IPnoScanEvent.Stub {
+        private String mIfaceName;
+
+        PnoScanEventHandler(@NonNull String ifaceName) {
+            mIfaceName = ifaceName;
+        }
+
         @Override
         public void OnPnoNetworkFound() {
             Log.d(TAG, "Pno scan result event");
-            mWifiMonitor.broadcastPnoScanResultEvent(mClientInterfaceName);
+            mWifiMonitor.broadcastPnoScanResultEvent(mIfaceName);
             mWifiInjector.getWifiMetrics().incrementPnoFoundNetworkEventCount();
         }
 
@@ -245,19 +256,21 @@ public class WificondControl implements IBinder.DeathRecipient {
         Binder.allowBlocking(clientInterface.asBinder());
 
         // Refresh Handlers
-        mClientInterface = clientInterface;
+        mClientInterfaces.put(ifaceName, clientInterface);
         try {
-            mClientInterfaceName = clientInterface.getInterfaceName();
-            mWificondScanner = mClientInterface.getWifiScannerImpl();
-            if (mWificondScanner == null) {
+            IWifiScannerImpl wificondScanner = clientInterface.getWifiScannerImpl();
+            if (wificondScanner == null) {
                 Log.e(TAG, "Failed to get WificondScannerImpl");
                 return null;
             }
-            Binder.allowBlocking(mWificondScanner.asBinder());
-            mScanEventHandler = new ScanEventHandler();
-            mWificondScanner.subscribeScanEvents(mScanEventHandler);
-            mPnoScanEventHandler = new PnoScanEventHandler();
-            mWificondScanner.subscribePnoScanEvents(mPnoScanEventHandler);
+            mWificondScanners.put(ifaceName, wificondScanner);
+            Binder.allowBlocking(wificondScanner.asBinder());
+            ScanEventHandler scanEventHandler = new ScanEventHandler(ifaceName);
+            mScanEventHandlers.put(ifaceName,  scanEventHandler);
+            wificondScanner.subscribeScanEvents(scanEventHandler);
+            PnoScanEventHandler pnoScanEventHandler = new PnoScanEventHandler(ifaceName);
+            mPnoScanEventHandlers.put(ifaceName,  pnoScanEventHandler);
+            wificondScanner.subscribePnoScanEvents(pnoScanEventHandler);
         } catch (RemoteException e) {
             Log.e(TAG, "Failed to refresh wificond scanner due to remote exception");
         }
@@ -273,9 +286,10 @@ public class WificondControl implements IBinder.DeathRecipient {
     public boolean tearDownClientInterface(@NonNull String ifaceName) {
         boolean success;
         try {
-            if (mWificondScanner != null) {
-                mWificondScanner.unsubscribeScanEvents();
-                mWificondScanner.unsubscribePnoScanEvents();
+            IWifiScannerImpl scannerImpl = mWificondScanners.get(ifaceName);
+            if (scannerImpl != null) {
+                scannerImpl.unsubscribeScanEvents();
+                scannerImpl.unsubscribePnoScanEvents();
             }
         } catch (RemoteException e) {
             Log.e(TAG, "Failed to unsubscribe wificond scanner due to remote exception");
@@ -293,10 +307,10 @@ public class WificondControl implements IBinder.DeathRecipient {
             return false;
         }
 
-        mClientInterface = null;
-        mWificondScanner = null;
-        mPnoScanEventHandler = null;
-        mScanEventHandler = null;
+        mClientInterfaces.remove(ifaceName);
+        mWificondScanners.remove(ifaceName);
+        mScanEventHandlers.remove(ifaceName);
+        mPnoScanEventHandlers.remove(ifaceName);
         return true;
     }
 
@@ -326,8 +340,7 @@ public class WificondControl implements IBinder.DeathRecipient {
         Binder.allowBlocking(apInterface.asBinder());
 
         // Refresh Handlers
-        mApInterface = apInterface;
-
+        mApInterfaces.put(ifaceName, apInterface);
         return apInterface;
     }
 
@@ -348,8 +361,8 @@ public class WificondControl implements IBinder.DeathRecipient {
             Log.e(TAG, "Failed to teardown AP interface");
             return false;
         }
-        mApInterface = null;
-        mApInterfaceListener = null;
+        mApInterfaces.remove(ifaceName);
+        mApInterfaceListeners.remove(ifaceName);
         return true;
     }
 
@@ -366,9 +379,9 @@ public class WificondControl implements IBinder.DeathRecipient {
         }
 
         try {
-            if (mWificondScanner != null) {
-                mWificondScanner.unsubscribeScanEvents();
-                mWificondScanner.unsubscribePnoScanEvents();
+            for (Map.Entry<String, IWifiScannerImpl> entry : mWificondScanners.entrySet()) {
+                entry.getValue().unsubscribeScanEvents();
+                entry.getValue().unsubscribePnoScanEvents();
             }
             mWificond.tearDownInterfaces();
             clearState();
@@ -378,6 +391,11 @@ public class WificondControl implements IBinder.DeathRecipient {
         }
 
         return false;
+    }
+
+    /** Helper function to look up the interface handle using name */
+    private IClientInterface getClientInterface(@NonNull String ifaceName) {
+        return mClientInterfaces.get(ifaceName);
     }
 
     /**
@@ -413,19 +431,21 @@ public class WificondControl implements IBinder.DeathRecipient {
     }
 
     /**
-    * Request signal polling to wificond.
-    * Returns an SignalPollResult object.
-    * Returns null on failure.
-    */
-    public WifiNative.SignalPollResult signalPoll() {
-        if (mClientInterface == null) {
+     * Request signal polling to wificond.
+     * @param ifaceName Name of the interface.
+     * Returns an SignalPollResult object.
+     * Returns null on failure.
+     */
+    public WifiNative.SignalPollResult signalPoll(@NonNull String ifaceName) {
+        IClientInterface iface = getClientInterface(ifaceName);
+        if (iface == null) {
             Log.e(TAG, "No valid wificond client interface handler");
             return null;
         }
 
         int[] resultArray;
         try {
-            resultArray = mClientInterface.signalPoll();
+            resultArray = iface.signalPoll();
             if (resultArray == null || resultArray.length != 3) {
                 Log.e(TAG, "Invalid signal poll result from wificond");
                 return null;
@@ -442,19 +462,21 @@ public class WificondControl implements IBinder.DeathRecipient {
     }
 
     /**
-    * Fetch TX packet counters on current connection from wificond.
-    * Returns an TxPacketCounters object.
-    * Returns null on failure.
-    */
-    public WifiNative.TxPacketCounters getTxPacketCounters() {
-        if (mClientInterface == null) {
+     * Fetch TX packet counters on current connection from wificond.
+     * @param ifaceName Name of the interface.
+     * Returns an TxPacketCounters object.
+     * Returns null on failure.
+     */
+    public WifiNative.TxPacketCounters getTxPacketCounters(@NonNull String ifaceName) {
+        IClientInterface iface = getClientInterface(ifaceName);
+        if (iface == null) {
             Log.e(TAG, "No valid wificond client interface handler");
             return null;
         }
 
         int[] resultArray;
         try {
-            resultArray = mClientInterface.getPacketCounters();
+            resultArray = iface.getPacketCounters();
             if (resultArray == null || resultArray.length != 2) {
                 Log.e(TAG, "Invalid signal poll result from wificond");
                 return null;
@@ -469,23 +491,30 @@ public class WificondControl implements IBinder.DeathRecipient {
         return counters;
     }
 
+    /** Helper function to look up the scanner impl handle using name */
+    private IWifiScannerImpl getScannerImpl(@NonNull String ifaceName) {
+        return mWificondScanners.get(ifaceName);
+    }
+
     /**
     * Fetch the latest scan result from kernel via wificond.
+    * @param ifaceName Name of the interface.
     * @return Returns an ArrayList of ScanDetail.
     * Returns an empty ArrayList on failure.
     */
-    public ArrayList<ScanDetail> getScanResults(int scanType) {
+    public ArrayList<ScanDetail> getScanResults(@NonNull String ifaceName, int scanType) {
         ArrayList<ScanDetail> results = new ArrayList<>();
-        if (mWificondScanner == null) {
+        IWifiScannerImpl scannerImpl = getScannerImpl(ifaceName);
+        if (scannerImpl == null) {
             Log.e(TAG, "No valid wificond scanner interface handler");
             return results;
         }
         try {
             NativeScanResult[] nativeResults;
             if (scanType == SCAN_TYPE_SINGLE_SCAN) {
-                nativeResults = mWificondScanner.getScanResults();
+                nativeResults = scannerImpl.getScanResults();
             } else {
-                nativeResults = mWificondScanner.getPnoScanResults();
+                nativeResults = scannerImpl.getPnoScanResults();
             }
             for (NativeScanResult result : nativeResults) {
                 WifiSsid wifiSsid = WifiSsid.createFromByteArray(result.ssid);
@@ -540,12 +569,16 @@ public class WificondControl implements IBinder.DeathRecipient {
 
     /**
      * Start a scan using wificond for the given parameters.
+     * @param ifaceName Name of the interface.
      * @param freqs list of frequencies to scan for, if null scan all supported channels.
      * @param hiddenNetworkSSIDs List of hidden networks to be scanned for.
      * @return Returns true on success.
      */
-    public boolean scan(Set<Integer> freqs, Set<String> hiddenNetworkSSIDs) {
-        if (mWificondScanner == null) {
+    public boolean scan(@NonNull String ifaceName,
+                        Set<Integer> freqs,
+                        Set<String> hiddenNetworkSSIDs) {
+        IWifiScannerImpl scannerImpl = getScannerImpl(ifaceName);
+        if (scannerImpl == null) {
             Log.e(TAG, "No valid wificond scanner interface handler");
             return false;
         }
@@ -574,7 +607,7 @@ public class WificondControl implements IBinder.DeathRecipient {
         }
 
         try {
-            return mWificondScanner.scan(settings);
+            return scannerImpl.scan(settings);
         } catch (RemoteException e1) {
             Log.e(TAG, "Failed to request scan due to remote exception");
         }
@@ -583,11 +616,13 @@ public class WificondControl implements IBinder.DeathRecipient {
 
     /**
      * Start PNO scan.
+     * @param ifaceName Name of the interface.
      * @param pnoSettings Pno scan configuration.
      * @return true on success.
      */
-    public boolean startPnoScan(WifiNative.PnoSettings pnoSettings) {
-        if (mWificondScanner == null) {
+    public boolean startPnoScan(@NonNull String ifaceName, WifiNative.PnoSettings pnoSettings) {
+        IWifiScannerImpl scannerImpl = getScannerImpl(ifaceName);
+        if (scannerImpl == null) {
             Log.e(TAG, "No valid wificond scanner interface handler");
             return false;
         }
@@ -613,7 +648,7 @@ public class WificondControl implements IBinder.DeathRecipient {
         }
 
         try {
-            boolean success = mWificondScanner.startPnoScan(settings);
+            boolean success = scannerImpl.startPnoScan(settings);
             mWifiInjector.getWifiMetrics().incrementPnoScanStartAttempCount();
             if (!success) {
                 mWifiInjector.getWifiMetrics().incrementPnoScanFailedCount();
@@ -627,15 +662,17 @@ public class WificondControl implements IBinder.DeathRecipient {
 
     /**
      * Stop PNO scan.
+     * @param ifaceName Name of the interface.
      * @return true on success.
      */
-    public boolean stopPnoScan() {
-        if (mWificondScanner == null) {
+    public boolean stopPnoScan(@NonNull String ifaceName) {
+        IWifiScannerImpl scannerImpl = getScannerImpl(ifaceName);
+        if (scannerImpl == null) {
             Log.e(TAG, "No valid wificond scanner interface handler");
             return false;
         }
         try {
-            return mWificondScanner.stopPnoScan();
+            return scannerImpl.stopPnoScan();
         } catch (RemoteException e1) {
             Log.e(TAG, "Failed to stop pno scan due to remote exception");
         }
@@ -644,14 +681,16 @@ public class WificondControl implements IBinder.DeathRecipient {
 
     /**
      * Abort ongoing single scan.
+     * @param ifaceName Name of the interface.
      */
-    public void abortScan() {
-        if (mWificondScanner == null) {
+    public void abortScan(@NonNull String ifaceName) {
+        IWifiScannerImpl scannerImpl = getScannerImpl(ifaceName);
+        if (scannerImpl == null) {
             Log.e(TAG, "No valid wificond scanner interface handler");
             return;
         }
         try {
-            mWificondScanner.abortScan();
+            scannerImpl.abortScan();
         } catch (RemoteException e1) {
             Log.e(TAG, "Failed to request abortScan due to remote exception");
         }
@@ -691,15 +730,24 @@ public class WificondControl implements IBinder.DeathRecipient {
         return null;
     }
 
+    /** Helper function to look up the interface handle using name */
+    private IApInterface getApInterface(@NonNull String ifaceName) {
+        return mApInterfaces.get(ifaceName);
+    }
+
     /**
      * Start Soft AP operation using the provided configuration.
      *
+     * @param ifaceName Name of the interface.
      * @param config Configuration to use for the soft ap created.
      * @param listener Callback for AP events.
      * @return true on success, false otherwise.
      */
-    public boolean startSoftAp(WifiConfiguration config, SoftApListener listener) {
-        if (mApInterface == null) {
+    public boolean startSoftAp(@NonNull String ifaceName,
+                               WifiConfiguration config,
+                               SoftApListener listener) {
+        IApInterface iface = getApInterface(ifaceName);
+        if (iface == null) {
             Log.e(TAG, "No valid ap interface handler");
             return false;
         }
@@ -709,7 +757,7 @@ public class WificondControl implements IBinder.DeathRecipient {
             // hex string or "double quoted".
             // However, it seems that whatever is handing us these configurations does not obey
             // this convention.
-            boolean success = mApInterface.writeHostapdConfig(
+            boolean success = iface.writeHostapdConfig(
                     config.SSID.getBytes(StandardCharsets.UTF_8), config.hiddenSSID,
                     config.apChannel, encryptionType,
                     (config.preSharedKey != null)
@@ -719,8 +767,9 @@ public class WificondControl implements IBinder.DeathRecipient {
                 Log.e(TAG, "Failed to write hostapd configuration");
                 return false;
             }
-            mApInterfaceListener = new ApInterfaceEventCallback(listener);
-            success = mApInterface.startHostapd(mApInterfaceListener);
+            IApInterfaceEventCallback  callback = new ApInterfaceEventCallback(listener);
+            mApInterfaceListeners.put(ifaceName, callback);
+            success = iface.startHostapd(callback);
             if (!success) {
                 Log.e(TAG, "Failed to start hostapd.");
                 return false;
@@ -735,15 +784,17 @@ public class WificondControl implements IBinder.DeathRecipient {
     /**
      * Stop the ongoing Soft AP operation.
      *
+     * @param ifaceName Name of the interface.
      * @return true on success, false otherwise.
      */
-    public boolean stopSoftAp() {
-        if (mApInterface == null) {
+    public boolean stopSoftAp(@NonNull String ifaceName) {
+        IApInterface iface = getApInterface(ifaceName);
+        if (iface == null) {
             Log.e(TAG, "No valid ap interface handler");
             return false;
         }
         try {
-            boolean success = mApInterface.stopHostapd();
+            boolean success = iface.stopHostapd();
             if (!success) {
                 Log.e(TAG, "Failed to stop hostapd.");
                 return false;
@@ -752,7 +803,7 @@ public class WificondControl implements IBinder.DeathRecipient {
             Log.e(TAG, "Exception in stopping soft AP: " + e);
             return false;
         }
-        mApInterfaceListener = null;
+        mApInterfaceListeners.remove(ifaceName);
         return true;
     }
 
@@ -782,11 +833,11 @@ public class WificondControl implements IBinder.DeathRecipient {
      */
     private void clearState() {
         // Refresh handlers
-        mClientInterface = null;
-        mWificondScanner = null;
-        mPnoScanEventHandler = null;
-        mScanEventHandler = null;
-        mApInterface = null;
-        mApInterfaceListener = null;
+        mClientInterfaces.clear();
+        mWificondScanners.clear();
+        mPnoScanEventHandlers.clear();
+        mScanEventHandlers.clear();
+        mApInterfaces.clear();
+        mApInterfaceListeners.clear();
     }
 }

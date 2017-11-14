@@ -226,7 +226,7 @@ public class WifiNative {
     * Returns null on failure.
     */
     public SignalPollResult signalPoll() {
-        return mWificondControl.signalPoll();
+        return mWificondControl.signalPoll(mInterfaceName);
     }
 
     /**
@@ -235,7 +235,7 @@ public class WifiNative {
     * Returns null on failure.
     */
     public TxPacketCounters getTxPacketCounters() {
-        return mWificondControl.getTxPacketCounters();
+        return mWificondControl.getTxPacketCounters(mInterfaceName);
     }
 
     /**
@@ -261,7 +261,7 @@ public class WifiNative {
      * @return Returns true on success.
      */
     public boolean scan(Set<Integer> freqs, Set<String> hiddenNetworkSSIDs) {
-        return mWificondControl.scan(freqs, hiddenNetworkSSIDs);
+        return mWificondControl.scan(mInterfaceName, freqs, hiddenNetworkSSIDs);
     }
 
     /**
@@ -270,7 +270,8 @@ public class WifiNative {
      * Returns an empty ArrayList on failure.
      */
     public ArrayList<ScanDetail> getScanResults() {
-        return mWificondControl.getScanResults(WificondControl.SCAN_TYPE_SINGLE_SCAN);
+        return mWificondControl.getScanResults(
+                mInterfaceName, WificondControl.SCAN_TYPE_SINGLE_SCAN);
     }
 
     /**
@@ -279,7 +280,7 @@ public class WifiNative {
      * Returns an empty ArrayList on failure.
      */
     public ArrayList<ScanDetail> getPnoScanResults() {
-        return mWificondControl.getScanResults(WificondControl.SCAN_TYPE_PNO_SCAN);
+        return mWificondControl.getScanResults(mInterfaceName, WificondControl.SCAN_TYPE_PNO_SCAN);
     }
 
     /**
@@ -288,7 +289,7 @@ public class WifiNative {
      * @return true on success.
      */
     public boolean startPnoScan(PnoSettings pnoSettings) {
-        return mWificondControl.startPnoScan(pnoSettings);
+        return mWificondControl.startPnoScan(mInterfaceName, pnoSettings);
     }
 
     /**
@@ -296,7 +297,7 @@ public class WifiNative {
      * @return true on success.
      */
     public boolean stopPnoScan() {
-        return mWificondControl.stopPnoScan();
+        return mWificondControl.stopPnoScan(mInterfaceName);
     }
 
     /**
@@ -317,7 +318,7 @@ public class WifiNative {
      * @return true on success, false otherwise.
      */
     public boolean startSoftAp(WifiConfiguration config, SoftApListener listener) {
-        return mWificondControl.startSoftAp(config, listener);
+        return mWificondControl.startSoftAp(mInterfaceName, config, listener);
     }
 
     /**
@@ -326,7 +327,7 @@ public class WifiNative {
      * @return true on success, false otherwise.
      */
     public boolean stopSoftAp() {
-        return mWificondControl.stopSoftAp();
+        return mWificondControl.stopSoftAp(mInterfaceName);
     }
 
     /********************************************************
@@ -780,7 +781,7 @@ public class WifiNative {
      */
     public boolean connectToNetwork(WifiConfiguration configuration) {
         // Abort ongoing scan before connect() to unblock connection request.
-        mWificondControl.abortScan();
+        mWificondControl.abortScan(mInterfaceName);
         return mSupplicantStaIfaceHal.connectToNetwork(configuration);
     }
 
@@ -799,7 +800,7 @@ public class WifiNative {
      */
     public boolean roamToNetwork(WifiConfiguration configuration) {
         // Abort ongoing scan before connect() to unblock roaming request.
-        mWificondControl.abortScan();
+        mWificondControl.abortScan(mInterfaceName);
         return mSupplicantStaIfaceHal.roamToNetwork(configuration);
     }
 
