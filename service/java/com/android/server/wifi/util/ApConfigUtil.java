@@ -133,15 +133,9 @@ public class ApConfigUtil {
                     config.apBand, allowed2GChannels,
                     wifiNative.getChannelsForBand(WifiScanner.WIFI_BAND_5_GHZ));
             if (config.apChannel == -1) {
-                if (wifiNative.isGetChannelsForBandSupported()) {
-                    /* We're not able to get channel when it is supported by HAL. */
-                    Log.e(TAG, "Failed to get available channel.");
-                    return ERROR_NO_CHANNEL;
-                }
-
-                /* Use the default for HAL without get channel support. */
-                config.apBand = DEFAULT_AP_BAND;
-                config.apChannel = DEFAULT_AP_CHANNEL;
+                /* We're not able to get channel from wificond. */
+                Log.e(TAG, "Failed to get available channel.");
+                return ERROR_NO_CHANNEL;
             }
         }
 

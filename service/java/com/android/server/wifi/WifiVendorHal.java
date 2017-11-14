@@ -423,7 +423,6 @@ public class WifiVendorHal {
         mIWifiRttController = null;
         mDriverDescription = null;
         mFirmwareDescription = null;
-        mChannelsForBandSupport = null;
     }
 
     /**
@@ -1451,78 +1450,6 @@ public class WifiVendorHal {
                 return false;
             }
         }
-    }
-
-    /**
-     * Query the list of valid frequencies for the provided band.
-     * <p>
-     * The result depends on the on the country code that has been set.
-     *
-     * @param band as specified by one of the WifiScanner.WIFI_BAND_* constants.
-     * @return frequencies vector of valid frequencies (MHz), or null for error.
-     * @throws IllegalArgumentException if band is not recognized.
-     */
-    public int[] getChannelsForBand(int band) {
-        enter("%").c(band).flush();
-        class AnswerBox {
-            public int[] value = null;
-        }
-        synchronized (sLock) {
-            try {
-                AnswerBox box = new AnswerBox();
-                int hb = makeWifiBandFromFrameworkBand(band);
-                if (mIWifiStaIface != null) {
-                    mIWifiStaIface.getValidFrequenciesForBand(hb, (status, frequencies) -> {
-                        if (status.code == WifiStatusCode.ERROR_NOT_SUPPORTED) {
-                            mChannelsForBandSupport = false;
-                        }
-                        if (!ok(status)) return;
-                        mChannelsForBandSupport = true;
-                        box.value = intArrayFromArrayList(frequencies);
-                    });
-                } else if (mIWifiApIface != null) {
-                    mIWifiApIface.getValidFrequenciesForBand(hb, (status, frequencies) -> {
-                        if (status.code == WifiStatusCode.ERROR_NOT_SUPPORTED) {
-                            mChannelsForBandSupport = false;
-                        }
-                        if (!ok(status)) return;
-                        mChannelsForBandSupport = true;
-                        box.value = intArrayFromArrayList(frequencies);
-                    });
-                }
-                return box.value;
-            } catch (RemoteException e) {
-                handleRemoteException(e);
-                return null;
-            }
-        }
-    }
-
-    private int[] intArrayFromArrayList(ArrayList<Integer> in) {
-        int[] ans = new int[in.size()];
-        int i = 0;
-        for (Integer e : in) ans[i++] = e;
-        return ans;
-    }
-
-    /**
-     * This holder is null until we know whether or not there is frequency-for-band support.
-     * <p>
-     * Set as a side-effect of getChannelsForBand.
-     */
-    @VisibleForTesting
-    Boolean mChannelsForBandSupport = null;
-
-    /**
-     * Indicates whether getChannelsForBand is supported.
-     *
-     * @return true if it is.
-     */
-    public boolean isGetChannelsForBandSupported() {
-        if (mChannelsForBandSupport != null) return mChannelsForBandSupport;
-        getChannelsForBand(WifiBand.BAND_24GHZ);
-        if (mChannelsForBandSupport != null) return mChannelsForBandSupport;
-        return false;
     }
 
     /**

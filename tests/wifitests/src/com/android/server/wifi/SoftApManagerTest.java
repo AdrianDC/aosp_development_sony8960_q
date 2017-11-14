@@ -274,7 +274,6 @@ public class SoftApManagerTest {
         when(mApInterface.startHostapd(any())).thenReturn(true);
         when(mApInterface.stopHostapd()).thenReturn(true);
         when(mWifiNative.isHalStarted()).thenReturn(true);
-        when(mWifiNative.isGetChannelsForBandSupported()).thenReturn(true);
 
         SoftApManager newSoftApManager = new SoftApManager(mContext,
                                                            mLooper.getLooper(),
@@ -421,6 +420,8 @@ public class SoftApManagerTest {
                 TEST_NUM_CONNECTED_CLIENTS);
         mLooper.dispatchAll();
         assertEquals(TEST_NUM_CONNECTED_CLIENTS, mSoftApManager.getNumAssociatedStations());
+        verify(mWifiMetrics).addSoftApNumAssociatedStationsChangedEvent(TEST_NUM_CONNECTED_CLIENTS,
+                apConfig.getTargetMode());
     }
 
     @Test
@@ -436,6 +437,9 @@ public class SoftApManagerTest {
         mLooper.dispatchAll();
         /* Verify numAssociatedStations is not updated when soft AP is not started */
         assertEquals(0, mSoftApManager.getNumAssociatedStations());
+        verify(mWifiMetrics).addSoftApUpChangedEvent(false, apConfig.getTargetMode());
+        verify(mWifiMetrics, never()).addSoftApNumAssociatedStationsChangedEvent(
+                TEST_NUM_CONNECTED_CLIENTS, apConfig.getTargetMode());
     }
 
     @Test
@@ -450,6 +454,8 @@ public class SoftApManagerTest {
         mApInterfaceListenerCaptor.getValue().onNumAssociatedStationsChanged(-1);
         mLooper.dispatchAll();
         assertEquals(TEST_NUM_CONNECTED_CLIENTS, mSoftApManager.getNumAssociatedStations());
+        verify(mWifiMetrics, times(1)).addSoftApNumAssociatedStationsChangedEvent(
+                TEST_NUM_CONNECTED_CLIENTS, apConfig.getTargetMode());
     }
 
     @Test
@@ -463,6 +469,7 @@ public class SoftApManagerTest {
         mSoftApManager.stop();
         mLooper.dispatchAll();
         assertEquals(0, mSoftApManager.getNumAssociatedStations());
+        verify(mWifiMetrics).addSoftApUpChangedEvent(false, apConfig.getTargetMode());
     }
 
     @Test
@@ -480,6 +487,7 @@ public class SoftApManagerTest {
                 WifiManager.SAP_START_FAILURE_GENERAL);
 
         assertEquals(0, mSoftApManager.getNumAssociatedStations());
+        verify(mWifiMetrics).addSoftApUpChangedEvent(false, apConfig.getTargetMode());
     }
 
     /** Starts soft AP and verifies that it is enabled successfully. */
@@ -528,6 +536,7 @@ public class SoftApManagerTest {
                 WIFI_AP_STATE_ENABLING, HOTSPOT_NO_ERROR, TEST_INTERFACE_NAME,
                 softApConfig.getTargetMode());
         assertEquals(0, mSoftApManager.getNumAssociatedStations());
+        verify(mWifiMetrics).addSoftApUpChangedEvent(true, softApConfig.mTargetMode);
     }
 
     /** Verifies that soft AP was not disabled. */

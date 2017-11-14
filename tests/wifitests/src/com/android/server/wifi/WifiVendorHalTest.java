@@ -537,67 +537,6 @@ public class WifiVendorHalTest {
         assertEquals(78, result.max_scan_reporting_threshold);
     }
 
-    private void setupValidFrequenciesForBand(ArrayList<Integer> frequencies) throws Exception {
-
-        doAnswer(new AnswerWithArguments() {
-            public void answer(int band, IWifiStaIface.getValidFrequenciesForBandCallback cb)
-                    throws RemoteException {
-                cb.onValues(mWifiStatusSuccess, frequencies);
-            }
-        }).when(mIWifiStaIface).getValidFrequenciesForBand(anyInt(), any(
-                IWifiStaIface.getValidFrequenciesForBandCallback.class));
-
-        doAnswer(new AnswerWithArguments() {
-            public void answer(int band, IWifiApIface.getValidFrequenciesForBandCallback cb)
-                    throws RemoteException {
-                cb.onValues(mWifiStatusSuccess, frequencies);
-            }
-        }).when(mIWifiApIface).getValidFrequenciesForBand(anyInt(), any(
-                IWifiApIface.getValidFrequenciesForBandCallback.class));
-
-    }
-
-    private int[] intArrayFromArrayList(ArrayList<Integer> in) {
-        int[] ans = new int[in.size()];
-        int i = 0;
-        for (Integer e : in) ans[i++] = e;
-        return ans;
-    }
-
-    /**
-     * Test that isGetChannelsForBandSupported works in STA mode
-     */
-    @Test
-    public void testGetChannelsForBandSupportedSta() throws Exception {
-        ArrayList<Integer> freq = new ArrayList<>();
-        freq.add(2405);
-
-        setupValidFrequenciesForBand(freq);
-
-        assertFalse(mWifiVendorHal.isGetChannelsForBandSupported());
-
-        assertTrue(mWifiVendorHal.startVendorHalSta());
-
-        assertTrue(mWifiVendorHal.isGetChannelsForBandSupported());
-    }
-
-    /**
-     * Test that isGetChannelsForBandSupported works in AP mode
-     */
-    @Test
-    public void testGetChannelsForBandSupportedAp() throws Exception {
-        ArrayList<Integer> freq = new ArrayList<>();
-        freq.add(2405);
-
-        setupValidFrequenciesForBand(freq);
-
-        assertFalse(mWifiVendorHal.isGetChannelsForBandSupported());
-
-        assertTrue(mWifiVendorHal.startVendorHalAp());
-
-        assertTrue(mWifiVendorHal.isGetChannelsForBandSupported());
-    }
-
     /**
      * Test translation to WifiManager.WIFI_FEATURE_*
      *
