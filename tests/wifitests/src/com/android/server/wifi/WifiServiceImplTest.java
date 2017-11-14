@@ -277,16 +277,17 @@ public class WifiServiceImplTest {
         when(mWifiInjector.getWifiPermissionsUtil()).thenReturn(mWifiPermissionsUtil);
         when(mWifiInjector.getWifiSettingsStore()).thenReturn(mSettingsStore);
         when(mWifiInjector.getClock()).thenReturn(mClock);
+        when(mContext.getOpPackageName()).thenReturn(TEST_PACKAGE_NAME);
         mWifiServiceImpl = new WifiServiceImpl(mContext, mWifiInjector, mAsyncChannel);
         mWifiServiceImpl.setWifiHandlerLogForTest(mLog);
     }
 
-    private WifiAsyncChannelTester verifyAsyncChannelHalfConnected() {
+    private WifiAsyncChannelTester verifyAsyncChannelHalfConnected() throws RemoteException {
         WifiAsyncChannelTester channelTester = new WifiAsyncChannelTester(mWifiInjector);
         Handler handler = mock(Handler.class);
         TestLooper looper = new TestLooper();
-        channelTester.connect(looper.getLooper(), mWifiServiceImpl.getWifiServiceMessenger(),
-                handler);
+        channelTester.connect(looper.getLooper(),
+                mWifiServiceImpl.getWifiServiceMessenger(TEST_PACKAGE_NAME), handler);
         mLooper.dispatchAll();
         assertEquals("AsyncChannel must be half connected",
                 WifiAsyncChannelTester.CHANNEL_STATE_HALF_CONNECTED,
@@ -300,7 +301,7 @@ public class WifiServiceImplTest {
      */
     @Test
     public void testRemoveNetworkUnknown() {
-        assertFalse(mWifiServiceImpl.removeNetwork(-1));
+        assertFalse(mWifiServiceImpl.removeNetwork(-1, TEST_PACKAGE_NAME));
         verify(mWifiStateMachine, never()).syncRemoveNetwork(any(), anyInt());
     }
 
@@ -309,7 +310,7 @@ public class WifiServiceImplTest {
      * This is the path used by some WifiManager public API calls.
      */
     @Test
-    public void testAsyncChannelHalfConnected() {
+    public void testAsyncChannelHalfConnected() throws RemoteException {
         verifyAsyncChannelHalfConnected();
     }
 
@@ -498,7 +499,7 @@ public class WifiServiceImplTest {
     public void testSetWifiApConfigurationNotSavedWithoutPermission() {
         when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt())).thenReturn(false);
         WifiConfiguration apConfig = new WifiConfiguration();
-        mWifiServiceImpl.setWifiApConfiguration(apConfig);
+        mWifiServiceImpl.setWifiApConfiguration(apConfig, TEST_PACKAGE_NAME);
         verify(mWifiStateMachine, never()).setWifiApConfiguration(eq(apConfig));
     }
 
@@ -509,7 +510,7 @@ public class WifiServiceImplTest {
     public void testSetWifiApConfigurationSuccess() {
         when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt())).thenReturn(true);
         WifiConfiguration apConfig = new WifiConfiguration();
-        mWifiServiceImpl.setWifiApConfiguration(apConfig);
+        mWifiServiceImpl.setWifiApConfiguration(apConfig, TEST_PACKAGE_NAME);
         verify(mWifiStateMachine).setWifiApConfiguration(eq(apConfig));
     }
 
@@ -519,7 +520,7 @@ public class WifiServiceImplTest {
     @Test
     public void testSetWifiApConfigurationNullConfigNotSaved() {
         when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt())).thenReturn(true);
-        mWifiServiceImpl.setWifiApConfiguration(null);
+        mWifiServiceImpl.setWifiApConfiguration(null, TEST_PACKAGE_NAME);
         verify(mWifiStateMachine, never()).setWifiApConfiguration(isNull(WifiConfiguration.class));
     }
 
@@ -767,7 +768,6 @@ public class WifiServiceImplTest {
      */
     @Test(expected = SecurityException.class)
     public void testStartLocalOnlyHotspotThrowsSecurityExceptionWithoutLocationPermission() {
-        when(mContext.getOpPackageName()).thenReturn(TEST_PACKAGE_NAME);
         doThrow(new SecurityException())
                 .when(mWifiPermissionsUtil).enforceLocationPermission(eq(TEST_PACKAGE_NAME),
                                                                       anyInt());
@@ -862,7 +862,7 @@ public class WifiServiceImplTest {
     @Test
     public void testStopLocalOnlyHotspotDoesNothingWithoutRegisteredRequests() {
         // allow test to proceed without a permission check failure
-        mWifiServiceImpl.stopLocalOnlyHotspot();
+        mWifiServiceImpl.stopLocalOnlyHotspot(TEST_PACKAGE_NAME);
         // there is nothing registered, so this shouldn't do anything
         verify(mWifiController, never()).sendMessage(eq(CMD_SET_AP), anyInt(), anyInt());
     }
@@ -879,7 +879,7 @@ public class WifiServiceImplTest {
         registerLOHSRequestFull();
 
         // Since we are calling with the same pid, the second register call will be removed
-        mWifiServiceImpl.stopLocalOnlyHotspot();
+        mWifiServiceImpl.stopLocalOnlyHotspot(TEST_PACKAGE_NAME);
         // there is still a valid registered request - do not tear down LOHS
         verify(mWifiController, never()).sendMessage(eq(CMD_SET_AP), anyInt(), anyInt());
     }
@@ -894,7 +894,7 @@ public class WifiServiceImplTest {
         verify(mWifiController)
                 .sendMessage(eq(CMD_SET_AP), eq(1), eq(0), any(SoftApModeConfiguration.class));
 
-        mWifiServiceImpl.stopLocalOnlyHotspot();
+        mWifiServiceImpl.stopLocalOnlyHotspot(TEST_PACKAGE_NAME);
         // there is was only one request registered, we should tear down softap
         verify(mWifiController).sendMessage(eq(CMD_SET_AP), eq(0), eq(0));
     }
@@ -908,7 +908,7 @@ public class WifiServiceImplTest {
         doThrow(new SecurityException()).when(mContext)
                 .enforceCallingOrSelfPermission(eq(android.Manifest.permission.CHANGE_WIFI_STATE),
                                                 eq("WifiService"));
-        mWifiServiceImpl.stopLocalOnlyHotspot();
+        mWifiServiceImpl.stopLocalOnlyHotspot(TEST_PACKAGE_NAME);
     }
 
     /**
@@ -948,7 +948,7 @@ public class WifiServiceImplTest {
 
         // now stop as the second request and confirm CMD_SET_AP will be sent to make sure binder
         // death requestor was removed
-        mWifiServiceImpl.stopLocalOnlyHotspot();
+        mWifiServiceImpl.stopLocalOnlyHotspot(TEST_PACKAGE_NAME);
         verify(mWifiController).sendMessage(eq(CMD_SET_AP), eq(0), eq(0));
     }
 
@@ -1499,14 +1499,14 @@ public class WifiServiceImplTest {
 
         when(mWifiStateMachine.syncAddOrUpdatePasspointConfig(any(),
                 any(PasspointConfiguration.class), anyInt())).thenReturn(true);
-        assertEquals(0, mWifiServiceImpl.addOrUpdateNetwork(config));
+        assertEquals(0, mWifiServiceImpl.addOrUpdateNetwork(config, TEST_PACKAGE_NAME));
         verify(mWifiStateMachine).syncAddOrUpdatePasspointConfig(any(),
                 any(PasspointConfiguration.class), anyInt());
         reset(mWifiStateMachine);
 
         when(mWifiStateMachine.syncAddOrUpdatePasspointConfig(any(),
                 any(PasspointConfiguration.class), anyInt())).thenReturn(false);
-        assertEquals(-1, mWifiServiceImpl.addOrUpdateNetwork(config));
+        assertEquals(-1, mWifiServiceImpl.addOrUpdateNetwork(config, TEST_PACKAGE_NAME));
         verify(mWifiStateMachine).syncAddOrUpdatePasspointConfig(any(),
                 any(PasspointConfiguration.class), anyInt());
     }
@@ -1581,7 +1581,7 @@ public class WifiServiceImplTest {
      * app without {@link android.Manifest.permission#CHANGE_WIFI_STATE} permission.
      */
     private void verifyAsyncChannelMessageHandlingWithoutChangePermisson(
-            int requestMsgWhat, int expectedReplyMsgwhat) {
+            int requestMsgWhat, int expectedReplyMsgwhat) throws RemoteException {
         WifiAsyncChannelTester tester = verifyAsyncChannelHalfConnected();
 
         int uidWithoutPermission = 5;
@@ -1672,7 +1672,7 @@ public class WifiServiceImplTest {
      * app with {@link android.Manifest.permission#CHANGE_WIFI_STATE} permission.
      */
     private void verifyAsyncChannelMessageHandlingWithChangePermisson(
-            int requestMsgWhat, Object requestMsgObj) {
+            int requestMsgWhat, Object requestMsgObj) throws RemoteException {
         WifiAsyncChannelTester tester = verifyAsyncChannelHalfConnected();
 
         when(mWifiPermissionsUtil.checkChangePermission(anyInt())).thenReturn(true);
