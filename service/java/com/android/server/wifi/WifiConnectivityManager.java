@@ -814,24 +814,38 @@ public class WifiConnectivityManager {
             }
         }
 
+        boolean isScanNeeded = true;
         boolean isFullBandScan = true;
+        boolean isTrafficOverThreshold = mWifiInfo.txSuccessRate > mFullScanMaxTxRate
+                || mWifiInfo.rxSuccessRate > mFullScanMaxRxRate;
 
-        // If the WiFi traffic is heavy, only partial scan is initiated.
-        if (mWifiState == WIFI_STATE_CONNECTED
-                && (mWifiInfo.txSuccessRate > mFullScanMaxTxRate
-                    || mWifiInfo.rxSuccessRate > mFullScanMaxRxRate)) {
-            localLog("No full band scan due to ongoing traffic");
-            isFullBandScan = false;
+        // If the WiFi traffic is heavy, only partial scan is proposed.
+        if (mWifiState == WIFI_STATE_CONNECTED && isTrafficOverThreshold) {
+            // If only partial scan is proposed and firmware roaming control is supported,
+            // we will not issue any scan because firmware roaming will take care of
+            // intra-SSID roam.
+            if (mConnectivityHelper.isFirmwareRoamingSupported()) {
+                localLog("No partial scan because firmware roaming is supported.");
+                isScanNeeded = false;
+            } else {
+                localLog("No full band scan due to ongoing traffic");
+                isFullBandScan = false;
+            }
         }
 
-        mLastPeriodicSingleScanTimeStamp = currentTimeStamp;
-        startSingleScan(isFullBandScan, WIFI_WORK_SOURCE);
-        schedulePeriodicScanTimer(mPeriodicSingleScanInterval);
+        if (isScanNeeded) {
+            mLastPeriodicSingleScanTimeStamp = currentTimeStamp;
+            startSingleScan(isFullBandScan, WIFI_WORK_SOURCE);
+            schedulePeriodicScanTimer(mPeriodicSingleScanInterval);
 
-        // Set up the next scan interval in an exponential backoff fashion.
-        mPeriodicSingleScanInterval *= 2;
-        if (mPeriodicSingleScanInterval >  MAX_PERIODIC_SCAN_INTERVAL_MS) {
-            mPeriodicSingleScanInterval = MAX_PERIODIC_SCAN_INTERVAL_MS;
+            // Set up the next scan interval in an exponential backoff fashion.
+            mPeriodicSingleScanInterval *= 2;
+            if (mPeriodicSingleScanInterval >  MAX_PERIODIC_SCAN_INTERVAL_MS) {
+                mPeriodicSingleScanInterval = MAX_PERIODIC_SCAN_INTERVAL_MS;
+            }
+        } else {
+            // Since we already skipped this scan, keep the same scan interval for next scan.
+            schedulePeriodicScanTimer(mPeriodicSingleScanInterval);
         }
     }
 
