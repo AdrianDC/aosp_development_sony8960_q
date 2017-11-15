@@ -82,13 +82,14 @@ typedef struct phFriNfc_CplRt {
                                      * component would give its own processing
                                      * function address to the lower layer.
                                      */
-  void *Context;                    /* Instance address (context) parameter.
-                                     *   The stack initializer (or depending on the implementation:
-                                     * the calling component)                    needs to set this
-                                     * member to the                    address of the component
-                                     * context structure                    instance                    within
-                                     * the completion path: A                    calling component would give its
-                                     * own instance address                    to the lower layer.
+  void* Context;                    /* Instance address (context) parameter.
+                                     * The stack initializer (or depending on the
+                                     * implementation: the calling component)
+                                     * needs to set this member to the address of
+                                     * the component context structure instance
+                                     * within the completion path: A
+                                     * calling component would give its own
+                                     * instance address to the lower layer.
                                      */
 } phFriNfc_CplRt_t;
 
