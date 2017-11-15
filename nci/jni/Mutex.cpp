@@ -36,16 +36,13 @@
 ** Returns:         None.
 **
 *******************************************************************************/
-Mutex::Mutex ()
-{
-    memset (&mMutex, 0, sizeof(mMutex));
-    int res = pthread_mutex_init (&mMutex, NULL);
-    if (res != 0)
-    {
-        LOG(ERROR) << StringPrintf("Mutex::Mutex: fail init; error=0x%X", res);
-    }
+Mutex::Mutex() {
+  memset(&mMutex, 0, sizeof(mMutex));
+  int res = pthread_mutex_init(&mMutex, NULL);
+  if (res != 0) {
+    LOG(ERROR) << StringPrintf("Mutex::Mutex: fail init; error=0x%X", res);
+  }
 }
-
 
 /*******************************************************************************
 **
@@ -56,15 +53,12 @@ Mutex::Mutex ()
 ** Returns:         None.
 **
 *******************************************************************************/
-Mutex::~Mutex ()
-{
-    int res = pthread_mutex_destroy (&mMutex);
-    if (res != 0)
-    {
-        LOG(ERROR) << StringPrintf("Mutex::~Mutex: fail destroy; error=0x%X", res);
-    }
+Mutex::~Mutex() {
+  int res = pthread_mutex_destroy(&mMutex);
+  if (res != 0) {
+    LOG(ERROR) << StringPrintf("Mutex::~Mutex: fail destroy; error=0x%X", res);
+  }
 }
-
 
 /*******************************************************************************
 **
@@ -75,15 +69,12 @@ Mutex::~Mutex ()
 ** Returns:         None.
 **
 *******************************************************************************/
-void Mutex::lock ()
-{
-    int res = pthread_mutex_lock (&mMutex);
-    if (res != 0)
-    {
-        LOG(ERROR) << StringPrintf("Mutex::lock: fail lock; error=0x%X", res);
-    }
+void Mutex::lock() {
+  int res = pthread_mutex_lock(&mMutex);
+  if (res != 0) {
+    LOG(ERROR) << StringPrintf("Mutex::lock: fail lock; error=0x%X", res);
+  }
 }
-
 
 /*******************************************************************************
 **
@@ -94,15 +85,12 @@ void Mutex::lock ()
 ** Returns:         None.
 **
 *******************************************************************************/
-void Mutex::unlock ()
-{
-    int res = pthread_mutex_unlock (&mMutex);
-    if (res != 0)
-    {
-        LOG(ERROR) << StringPrintf("Mutex::unlock: fail unlock; error=0x%X", res);
-    }
+void Mutex::unlock() {
+  int res = pthread_mutex_unlock(&mMutex);
+  if (res != 0) {
+    LOG(ERROR) << StringPrintf("Mutex::unlock: fail unlock; error=0x%X", res);
+  }
 }
-
 
 /*******************************************************************************
 **
@@ -113,16 +101,13 @@ void Mutex::unlock ()
 ** Returns:         True if the mutex is locked.
 **
 *******************************************************************************/
-bool Mutex::tryLock ()
-{
-    int res = pthread_mutex_trylock (&mMutex);
-    if ((res != 0) && (res != EBUSY))
-    {
-        LOG(ERROR) << StringPrintf("Mutex::tryLock: error=0x%X", res);
-    }
-    return res == 0;
+bool Mutex::tryLock() {
+  int res = pthread_mutex_trylock(&mMutex);
+  if ((res != 0) && (res != EBUSY)) {
+    LOG(ERROR) << StringPrintf("Mutex::tryLock: error=0x%X", res);
+  }
+  return res == 0;
 }
-
 
 /*******************************************************************************
 **
@@ -133,9 +118,4 @@ bool Mutex::tryLock ()
 ** Returns:         Handle of the mutex.
 **
 *******************************************************************************/
-pthread_mutex_t* Mutex::nativeHandle ()
-{
-    return &mMutex;
-}
-
-
+pthread_mutex_t *Mutex::nativeHandle() { return &mMutex; }

@@ -18,75 +18,78 @@
  *  Manage the listen-mode routing table.
  */
 #pragma once
-#include "SyncEvent.h"
 #include "NfcJniUtil.h"
 #include "RouteDataSet.h"
+#include "SyncEvent.h"
 #include <vector>
 
 #include "nfa_api.h"
 #include "nfa_ee_api.h"
 
-class RoutingManager
-{
+class RoutingManager {
 public:
-    static RoutingManager& getInstance ();
-    bool initialize(nfc_jni_native_data* native);
-    void enableRoutingToHost();
-    void disableRoutingToHost();
-    bool addAidRouting(const uint8_t* aid, uint8_t aidLen, int route, int aidInfo);
-    bool removeAidRouting(const uint8_t* aid, uint8_t aidLen);
-    bool commitRouting();
-    int registerT3tIdentifier(uint8_t* t3tId, uint8_t t3tIdLen);
-    void deregisterT3tIdentifier(int handle);
-    void onNfccShutdown();
-    int registerJniFunctions (JNIEnv* e);
+  static RoutingManager &getInstance();
+  bool initialize(nfc_jni_native_data *native);
+  void enableRoutingToHost();
+  void disableRoutingToHost();
+  bool addAidRouting(const uint8_t *aid, uint8_t aidLen, int route,
+                     int aidInfo);
+  bool removeAidRouting(const uint8_t *aid, uint8_t aidLen);
+  bool commitRouting();
+  int registerT3tIdentifier(uint8_t *t3tId, uint8_t t3tIdLen);
+  void deregisterT3tIdentifier(int handle);
+  void onNfccShutdown();
+  int registerJniFunctions(JNIEnv *e);
+
 private:
-    RoutingManager();
-    ~RoutingManager();
-    RoutingManager(const RoutingManager&);
-    RoutingManager& operator=(const RoutingManager&);
+  RoutingManager();
+  ~RoutingManager();
+  RoutingManager(const RoutingManager &);
+  RoutingManager &operator=(const RoutingManager &);
 
-    void handleData (uint8_t technology, const uint8_t* data, uint32_t dataLen, tNFA_STATUS status);
-    void notifyActivated (uint8_t technology);
-    void notifyDeactivated (uint8_t technology);
+  void handleData(uint8_t technology, const uint8_t *data, uint32_t dataLen,
+                  tNFA_STATUS status);
+  void notifyActivated(uint8_t technology);
+  void notifyDeactivated(uint8_t technology);
 
-    // See AidRoutingManager.java for corresponding
-    // AID_MATCHING_ constants
+  // See AidRoutingManager.java for corresponding
+  // AID_MATCHING_ constants
 
-    // Every routing table entry is matched exact (BCM20793)
-    static const int AID_MATCHING_EXACT_ONLY = 0x00;
-    // Every routing table entry can be matched either exact or prefix
-    static const int AID_MATCHING_EXACT_OR_PREFIX = 0x01;
-    // Every routing table entry is matched as a prefix
-    static const int AID_MATCHING_PREFIX_ONLY = 0x02;
+  // Every routing table entry is matched exact (BCM20793)
+  static const int AID_MATCHING_EXACT_ONLY = 0x00;
+  // Every routing table entry can be matched either exact or prefix
+  static const int AID_MATCHING_EXACT_OR_PREFIX = 0x01;
+  // Every routing table entry is matched as a prefix
+  static const int AID_MATCHING_PREFIX_ONLY = 0x02;
 
-    static void nfaEeCallback (tNFA_EE_EVT event, tNFA_EE_CBACK_DATA* eventData);
-    static void stackCallback (uint8_t event, tNFA_CONN_EVT_DATA* eventData);
-    static void nfcFCeCallback (uint8_t event, tNFA_CONN_EVT_DATA* eventData);
+  static void nfaEeCallback(tNFA_EE_EVT event, tNFA_EE_CBACK_DATA *eventData);
+  static void stackCallback(uint8_t event, tNFA_CONN_EVT_DATA *eventData);
+  static void nfcFCeCallback(uint8_t event, tNFA_CONN_EVT_DATA *eventData);
 
-    static int com_android_nfc_cardemulation_doGetDefaultRouteDestination (JNIEnv* e);
-    static int com_android_nfc_cardemulation_doGetDefaultOffHostRouteDestination (JNIEnv* e);
-    static int com_android_nfc_cardemulation_doGetAidMatchingMode (JNIEnv* e);
+  static int
+  com_android_nfc_cardemulation_doGetDefaultRouteDestination(JNIEnv *e);
+  static int
+  com_android_nfc_cardemulation_doGetDefaultOffHostRouteDestination(JNIEnv *e);
+  static int com_android_nfc_cardemulation_doGetAidMatchingMode(JNIEnv *e);
 
-    std::vector<uint8_t> mRxDataBuffer;
+  std::vector<uint8_t> mRxDataBuffer;
 
-    // Fields below are final after initialize()
-    nfc_jni_native_data* mNativeData;
-    int mDefaultEe;
-    int mDefaultEeNfcF;
-    int mOffHostEe;
-    int mActiveSe;
-    int mActiveSeNfcF;
-    int mAidMatchingMode;
-    int mNfcFOnDhHandle;
-    bool mReceivedEeInfo;
-    tNFA_EE_DISCOVER_REQ mEeInfo;
-    tNFA_TECHNOLOGY_MASK mSeTechMask;
-    static const JNINativeMethod sMethods [];
-    SyncEvent mEeRegisterEvent;
-    SyncEvent mRoutingEvent;
-    SyncEvent mEeUpdateEvent;
-    SyncEvent mEeInfoEvent;
-    SyncEvent mEeSetModeEvent;
+  // Fields below are final after initialize()
+  nfc_jni_native_data *mNativeData;
+  int mDefaultEe;
+  int mDefaultEeNfcF;
+  int mOffHostEe;
+  int mActiveSe;
+  int mActiveSeNfcF;
+  int mAidMatchingMode;
+  int mNfcFOnDhHandle;
+  bool mReceivedEeInfo;
+  tNFA_EE_DISCOVER_REQ mEeInfo;
+  tNFA_TECHNOLOGY_MASK mSeTechMask;
+  static const JNINativeMethod sMethods[];
+  SyncEvent mEeRegisterEvent;
+  SyncEvent mRoutingEvent;
+  SyncEvent mEeUpdateEvent;
+  SyncEvent mEeInfoEvent;
+  SyncEvent mEeSetModeEvent;
 };
-
