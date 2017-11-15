@@ -44,6 +44,7 @@ import com.android.server.wifi.nano.WifiMetricsProto.ConnectToNetworkNotificatio
 import com.android.server.wifi.nano.WifiMetricsProto.PnoScanMetrics;
 import com.android.server.wifi.nano.WifiMetricsProto.SoftApConnectedClientsEvent;
 import com.android.server.wifi.nano.WifiMetricsProto.StaEvent;
+import com.android.server.wifi.nano.WifiMetricsProto.WpsMetrics;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -263,6 +264,15 @@ public class WifiMetricsTest {
     private static final int NUM_PNO_SCAN_STARTED_OVER_OFFLOAD = 17;
     private static final int NUM_PNO_SCAN_FAILED_OVER_OFFLOAD = 8;
     private static final int NUM_PNO_FOUND_NETWORK_EVENTS = 10;
+    private static final int NUM_WPS_ATTEMPTS = 17;
+    private static final int NUM_WPS_SUCCESS = 21;
+    private static final int NUM_WPS_START_FAILURE = 7;
+    private static final int NUM_WPS_OVERLAP_FAILURE = 3;
+    private static final int NUM_WPS_TIMEOUT_FAILURE = 8;
+    private static final int NUM_WPS_OTHER_CONNECTION_FAILURE = 16;
+    private static final int NUM_WPS_SUPPLICANT_FAILURE = 12;
+    private static final int NUM_WPS_CANCELLATION = 11;
+
     /** Number of notifications per "Connect to Network" notification type. */
     private static final int[] NUM_CONNECT_TO_NETWORK_NOTIFICATIONS = {0, 10, 20, 30, 40};
     /** Number of notifications per "Connect to Network notification type and action type. */
@@ -563,6 +573,32 @@ public class WifiMetricsTest {
         }
 
         addSoftApEventsToMetrics();
+
+        // increment wps metrics
+        for (int i = 0; i < NUM_WPS_ATTEMPTS; i++) {
+            mWifiMetrics.incrementWpsAttemptCount();
+        }
+        for (int i = 0; i < NUM_WPS_SUCCESS; i++) {
+            mWifiMetrics.incrementWpsSuccessCount();
+        }
+        for (int i = 0; i < NUM_WPS_START_FAILURE; i++) {
+            mWifiMetrics.incrementWpsStartFailureCount();
+        }
+        for (int i = 0; i < NUM_WPS_OVERLAP_FAILURE; i++) {
+            mWifiMetrics.incrementWpsOverlapFailureCount();
+        }
+        for (int i = 0; i < NUM_WPS_TIMEOUT_FAILURE; i++) {
+            mWifiMetrics.incrementWpsTimeoutFailureCount();
+        }
+        for (int i = 0; i < NUM_WPS_OTHER_CONNECTION_FAILURE; i++) {
+            mWifiMetrics.incrementWpsOtherConnectionFailureCount();
+        }
+        for (int i = 0; i < NUM_WPS_SUPPLICANT_FAILURE; i++) {
+            mWifiMetrics.incrementWpsSupplicantFailureCount();
+        }
+        for (int i = 0; i < NUM_WPS_CANCELLATION; i++) {
+            mWifiMetrics.incrementWpsCancellationCount();
+        }
     }
 
     private void addSoftApEventsToMetrics() {
@@ -787,6 +823,17 @@ public class WifiMetricsTest {
                 mDecodedProto.numOpenNetworkConnectMessageFailedToSend);
 
         verifySoftApEventsStoredInProto();
+
+        WpsMetrics wps_metrics = mDecodedProto.wpsMetrics;
+        assertNotNull(wps_metrics);
+        assertEquals(NUM_WPS_ATTEMPTS, wps_metrics.numWpsAttempts);
+        assertEquals(NUM_WPS_SUCCESS, wps_metrics.numWpsSuccess);
+        assertEquals(NUM_WPS_START_FAILURE, wps_metrics.numWpsStartFailure);
+        assertEquals(NUM_WPS_OVERLAP_FAILURE, wps_metrics.numWpsOverlapFailure);
+        assertEquals(NUM_WPS_TIMEOUT_FAILURE, wps_metrics.numWpsTimeoutFailure);
+        assertEquals(NUM_WPS_OTHER_CONNECTION_FAILURE, wps_metrics.numWpsOtherConnectionFailure);
+        assertEquals(NUM_WPS_SUPPLICANT_FAILURE, wps_metrics.numWpsSupplicantFailure);
+        assertEquals(NUM_WPS_CANCELLATION, wps_metrics.numWpsCancellation);
     }
 
     /**

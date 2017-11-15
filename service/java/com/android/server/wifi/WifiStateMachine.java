@@ -5326,8 +5326,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                     break;
                 case WifiManager.START_WPS:
+                    mWifiMetrics.incrementWpsAttemptCount();
                     WpsInfo wpsInfo = (WpsInfo) message.obj;
                     if (wpsInfo == null) {
+                        mWifiMetrics.incrementWpsStartFailureCount();
                         loge("Cannot start WPS with null WpsInfo object");
                         replyToMessage(message, WifiManager.WPS_FAILED, WifiManager.ERROR);
                         break;
@@ -5373,6 +5375,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         replyToMessage(message, WifiManager.START_WPS_SUCCEEDED, wpsResult);
                         transitionTo(mWpsRunningState);
                     } else {
+                        mWifiMetrics.incrementWpsStartFailureCount();
                         loge("Failed to start WPS with config " + wpsInfo.toString());
                         replyToMessage(message, WifiManager.WPS_FAILED, WifiManager.ERROR);
                     }
@@ -6798,8 +6801,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     int netId = loadResult.second;
                     if (success) {
                         message.arg1 = netId;
+                        mWifiMetrics.incrementWpsSuccessCount();
                         replyToMessage(mSourceMessage, WifiManager.WPS_COMPLETED);
                     } else {
+                        mWifiMetrics.incrementWpsSupplicantFailureCount();
                         replyToMessage(mSourceMessage, WifiManager.WPS_FAILED,
                                 WifiManager.ERROR);
                     }
@@ -6809,6 +6814,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     transitionTo(mDisconnectedState);
                     break;
                 case WifiMonitor.WPS_OVERLAP_EVENT:
+                    mWifiMetrics.incrementWpsOverlapFailureCount();
                     replyToMessage(mSourceMessage, WifiManager.WPS_FAILED,
                             WifiManager.WPS_OVERLAP_ERROR);
                     mSourceMessage.recycle();
@@ -6818,6 +6824,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case WifiMonitor.WPS_FAIL_EVENT:
                     // Arg1 has the reason for the failure
                     if ((message.arg1 != WifiManager.ERROR) || (message.arg2 != 0)) {
+                        mWifiMetrics.incrementWpsOtherConnectionFailureCount();
                         replyToMessage(mSourceMessage, WifiManager.WPS_FAILED, message.arg1);
                         mSourceMessage.recycle();
                         mSourceMessage = null;
@@ -6829,6 +6836,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                     break;
                 case WifiMonitor.WPS_TIMEOUT_EVENT:
+                    mWifiMetrics.incrementWpsTimeoutFailureCount();
                     replyToMessage(mSourceMessage, WifiManager.WPS_FAILED,
                             WifiManager.WPS_TIMED_OUT);
                     mSourceMessage.recycle();
@@ -6839,6 +6847,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     replyToMessage(message, WifiManager.WPS_FAILED, WifiManager.IN_PROGRESS);
                     break;
                 case WifiManager.CANCEL_WPS:
+                    mWifiMetrics.incrementWpsCancellationCount();
                     if (mWifiNative.cancelWps()) {
                         replyToMessage(message, WifiManager.CANCEL_WPS_SUCCEDED);
                     } else {
