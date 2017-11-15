@@ -602,6 +602,22 @@ public class WifiStateMachineTest {
         assertEquals(WIFI_AP_STATE_DISABLED, mWsm.syncGetWifiApState());
     }
 
+    private void setupMockWpsPbc() throws Exception {
+        loadComponentsInStaMode();
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        mLooper.dispatchAll();
+        assertEquals("DisconnectedState", getCurrentState().getName());
+
+        WpsInfo wpsInfo = new WpsInfo();
+        wpsInfo.setup = WpsInfo.PBC;
+        wpsInfo.BSSID = sBSSID;
+        when(mWifiNative.removeAllNetworks()).thenReturn(true);
+        when(mWifiNative.startWpsPbc(anyString())).thenReturn(true);
+        mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
+        mLooper.dispatchAll();
+        assertEquals("WpsRunningState", getCurrentState().getName());
+    }
+
     @Test
     public void loadComponentsInApModeForTethering() throws Exception {
         loadComponentsInApMode(WifiManager.IFACE_IP_MODE_TETHERED);
@@ -1829,25 +1845,14 @@ public class WifiStateMachineTest {
      */
     @Test
     public void wpsPbcConnectSuccess() throws Exception {
-        loadComponentsInStaMode();
-        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
-        mLooper.dispatchAll();
-        assertEquals("DisconnectedState", getCurrentState().getName());
-
-        WpsInfo wpsInfo = new WpsInfo();
-        wpsInfo.setup = WpsInfo.PBC;
-        wpsInfo.BSSID = sBSSID;
-        when(mWifiNative.removeAllNetworks()).thenReturn(true);
-        when(mWifiNative.startWpsPbc(anyString())).thenReturn(true);
-        mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
-        mLooper.dispatchAll();
-        assertEquals("WpsRunningState", getCurrentState().getName());
-
+        setupMockWpsPbc();
         setupMocksForWpsNetworkMigration();
         mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, null);
         mLooper.dispatchAll();
         assertEquals("ObtainingIpState", getCurrentState().getName());
         verifyMocksForWpsNetworkMigration();
+        verify(mWifiMetrics).incrementWpsAttemptCount();
+        verify(mWifiMetrics).incrementWpsSuccessCount();
     }
 
     /**
@@ -1867,7 +1872,9 @@ public class WifiStateMachineTest {
         mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
         mLooper.dispatchAll();
         verify(mWifiNative).startWpsPbc(eq(sBSSID));
-
+        verify(mWifiMetrics).incrementWpsAttemptCount();
+        verify(mWifiMetrics, never()).incrementWpsSuccessCount();
+        verify(mWifiMetrics).incrementWpsStartFailureCount();
         assertFalse("WpsRunningState".equals(getCurrentState().getName()));
     }
 
@@ -1877,20 +1884,7 @@ public class WifiStateMachineTest {
      */
     @Test
     public void wpsPbcConnectFailure_tooManyConfigs() throws Exception {
-        loadComponentsInStaMode();
-        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
-        mLooper.dispatchAll();
-        assertEquals("DisconnectedState", getCurrentState().getName());
-
-        WpsInfo wpsInfo = new WpsInfo();
-        wpsInfo.setup = WpsInfo.PBC;
-        wpsInfo.BSSID = sBSSID;
-        when(mWifiNative.removeAllNetworks()).thenReturn(true);
-        when(mWifiNative.startWpsPbc(anyString())).thenReturn(true);
-        mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
-        mLooper.dispatchAll();
-        assertEquals("WpsRunningState", getCurrentState().getName());
-
+        setupMockWpsPbc();
         setupMocksForWpsNetworkMigration();
         doAnswer(new AnswerWithArguments() {
             public boolean answer(Map<String, WifiConfiguration> configs,
@@ -1902,6 +1896,11 @@ public class WifiStateMachineTest {
         }).when(mWifiNative).migrateNetworksFromSupplicant(any(Map.class), any(SparseArray.class));
         mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, null);
         mLooper.dispatchAll();
+        verify(mWifiMetrics).incrementWpsAttemptCount();
+        // When there are multiple networks in supplicant, it returns load success
+        // with invalid network id. Wps framework thinks that network connection succeeded
+        // and messages WPS_COMPLETED.
+        verify(mWifiMetrics).incrementWpsSuccessCount();
         assertTrue("DisconnectedState".equals(getCurrentState().getName()));
     }
 
@@ -1911,25 +1910,70 @@ public class WifiStateMachineTest {
      */
     @Test
     public void wpsPbcConnectFailure_migrateNetworksFailure() throws Exception {
-        loadComponentsInStaMode();
-        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
-        mLooper.dispatchAll();
-        assertEquals("DisconnectedState", getCurrentState().getName());
-
-        WpsInfo wpsInfo = new WpsInfo();
-        wpsInfo.setup = WpsInfo.PBC;
-        wpsInfo.BSSID = sBSSID;
-        when(mWifiNative.removeAllNetworks()).thenReturn(true);
-        when(mWifiNative.startWpsPbc(anyString())).thenReturn(true);
-        mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
-        mLooper.dispatchAll();
-        assertEquals("WpsRunningState", getCurrentState().getName());
-
+        setupMockWpsPbc();
         setupMocksForWpsNetworkMigration();
         when(mWifiNative.migrateNetworksFromSupplicant(any(Map.class), any(SparseArray.class)))
                 .thenReturn(false);
         mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, null);
         mLooper.dispatchAll();
+        verify(mWifiMetrics, never()).incrementWpsSuccessCount();
+        verify(mWifiMetrics).incrementWpsSupplicantFailureCount();
+        assertEquals("DisconnectedState", getCurrentState().getName());
+    }
+
+    /**
+     * Verify failure in wps overlap event
+     */
+    @Test
+    public void wpsPbcConnectFailure_overlapFailure() throws Exception {
+        setupMockWpsPbc();
+        setupMocksForWpsNetworkMigration();
+        mWsm.sendMessage(WifiMonitor.WPS_OVERLAP_EVENT, 0, 0, null);
+        mLooper.dispatchAll();
+        verify(mWifiMetrics, never()).incrementWpsSuccessCount();
+        verify(mWifiMetrics).incrementWpsOverlapFailureCount();
+        assertEquals("DisconnectedState", getCurrentState().getName());
+    }
+
+    /**
+     * Verify failure in wps timeout event
+     */
+    @Test
+    public void wpsPbcConnectFailure_timeoutFailure() throws Exception {
+        setupMockWpsPbc();
+        setupMocksForWpsNetworkMigration();
+        mWsm.sendMessage(WifiMonitor.WPS_TIMEOUT_EVENT, 0, 0, null);
+        mLooper.dispatchAll();
+        verify(mWifiMetrics, never()).incrementWpsSuccessCount();
+        verify(mWifiMetrics).incrementWpsTimeoutFailureCount();
+        assertEquals("DisconnectedState", getCurrentState().getName());
+    }
+
+    /**
+     * Verify that wps metrics handles WPS_FAIL_EVENT
+     */
+    @Test
+    public void wpsPbcConnectFailure_otherFailure() throws Exception {
+        setupMockWpsPbc();
+        setupMocksForWpsNetworkMigration();
+        mWsm.sendMessage(WifiMonitor.WPS_FAIL_EVENT, 0, 1, null);
+        mLooper.dispatchAll();
+        verify(mWifiMetrics, never()).incrementWpsSuccessCount();
+        verify(mWifiMetrics).incrementWpsOtherConnectionFailureCount();
+        assertEquals("DisconnectedState", getCurrentState().getName());
+    }
+
+    /**
+     * Verify that wps metrics handles connection cancellation
+     */
+    @Test
+    public void wpsPbcConnectCancellation() throws Exception {
+        setupMockWpsPbc();
+        setupMocksForWpsNetworkMigration();
+        mWsm.sendMessage(WifiManager.CANCEL_WPS, 0, 0, null);
+        mLooper.dispatchAll();
+        verify(mWifiMetrics, never()).incrementWpsSuccessCount();
+        verify(mWifiMetrics).incrementWpsCancellationCount();
         assertEquals("DisconnectedState", getCurrentState().getName());
     }
 
@@ -1958,6 +2002,7 @@ public class WifiStateMachineTest {
         mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, null);
         mLooper.dispatchAll();
 
+        verify(mWifiMetrics).incrementWpsSuccessCount();
         assertEquals("ObtainingIpState", getCurrentState().getName());
         verifyMocksForWpsNetworkMigration();
     }
@@ -1979,6 +2024,8 @@ public class WifiStateMachineTest {
         mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
         mLooper.dispatchAll();
         verify(mWifiNative).startWpsPinDisplay(eq(sBSSID));
+        verify(mWifiMetrics).incrementWpsAttemptCount();
+        verify(mWifiMetrics).incrementWpsStartFailureCount();
 
         assertFalse("WpsRunningState".equals(getCurrentState().getName()));
     }
@@ -2353,6 +2400,8 @@ public class WifiStateMachineTest {
         Message reply = mWsmAsyncChannel.sendMessageSynchronously(WifiManager.START_WPS, 0, 0,
                 null);
         mLooper.stopAutoDispatch();
+        verify(mWifiMetrics).incrementWpsAttemptCount();
+        verify(mWifiMetrics).incrementWpsStartFailureCount();
         assertEquals(WifiManager.WPS_FAILED, reply.what);
     }
 
