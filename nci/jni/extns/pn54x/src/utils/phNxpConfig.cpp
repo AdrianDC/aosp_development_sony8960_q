@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <list>
 #include <phNxpConfig.h>
 #include <stdio.h>
-#include <string>
 #include <sys/stat.h>
+#include <list>
+#include <string>
 #include <vector>
 
 #include <android-base/stringprintf.h>
@@ -32,9 +32,9 @@ const char alternative_config_path[] = "";
 #endif
 
 #if 1
-const char *transport_config_paths[] = {"/odm/etc/", "/vendor/etc/", "/etc/"};
+const char* transport_config_paths[] = {"/odm/etc/", "/vendor/etc/", "/etc/"};
 #else
-const char *transport_config_paths[] = {"res/"};
+const char* transport_config_paths[] = {"res/"};
 #endif
 const int transport_config_path_size =
     (sizeof(transport_config_paths) / sizeof(transport_config_paths[0]));
@@ -49,41 +49,41 @@ const char config_timestamp_path[] = "/data/nfc/libnfc-nxpConfigState.bin";
 using namespace ::std;
 
 class CNxpNfcParam : public string {
-public:
+ public:
   CNxpNfcParam();
-  CNxpNfcParam(const char *name, const string &value);
-  CNxpNfcParam(const char *name, unsigned long value);
+  CNxpNfcParam(const char* name, const string& value);
+  CNxpNfcParam(const char* name, unsigned long value);
   virtual ~CNxpNfcParam();
   unsigned long numValue() const { return m_numValue; }
-  const char *str_value() const { return m_str_value.c_str(); }
+  const char* str_value() const { return m_str_value.c_str(); }
   size_t str_len() const { return m_str_value.length(); }
 
-private:
+ private:
   string m_str_value;
   unsigned long m_numValue;
 };
 
-class CNxpNfcConfig : public vector<const CNxpNfcParam *> {
-public:
+class CNxpNfcConfig : public vector<const CNxpNfcParam*> {
+ public:
   virtual ~CNxpNfcConfig();
-  static CNxpNfcConfig &GetInstance();
-  friend void readOptionalConfig(const char *optional);
+  static CNxpNfcConfig& GetInstance();
+  friend void readOptionalConfig(const char* optional);
   int checkTimestamp();
 
-  bool getValue(const char *name, char *pValue, size_t len) const;
-  bool getValue(const char *name, unsigned long &rValue) const;
-  bool getValue(const char *name, unsigned short &rValue) const;
-  bool getValue(const char *name, char *pValue, long len, long *readlen) const;
-  const CNxpNfcParam *find(const char *p_name) const;
+  bool getValue(const char* name, char* pValue, size_t len) const;
+  bool getValue(const char* name, unsigned long& rValue) const;
+  bool getValue(const char* name, unsigned short& rValue) const;
+  bool getValue(const char* name, char* pValue, long len, long* readlen) const;
+  const CNxpNfcParam* find(const char* p_name) const;
   void clean();
 
-private:
+ private:
   CNxpNfcConfig();
-  bool readConfig(const char *name, bool bResetContent);
+  bool readConfig(const char* name, bool bResetContent);
   void moveFromList();
   void moveToList();
-  void add(const CNxpNfcParam *pParam);
-  list<const CNxpNfcParam *> m_list;
+  void add(const CNxpNfcParam* pParam);
+  list<const CNxpNfcParam*> m_list;
   bool mValidFile;
   unsigned long m_timeStamp;
 
@@ -118,11 +118,9 @@ inline bool isPrintable(char c) {
 **
 *******************************************************************************/
 inline bool isDigit(char c, int base) {
-  if ('0' <= c && c <= '9')
-    return true;
+  if ('0' <= c && c <= '9') return true;
   if (base == 16) {
-    if (('A' <= c && c <= 'F') || ('a' <= c && c <= 'f'))
-      return true;
+    if (('A' <= c && c <= 'F') || ('a' <= c && c <= 'f')) return true;
   }
   return false;
 }
@@ -137,8 +135,7 @@ inline bool isDigit(char c, int base) {
 **
 *******************************************************************************/
 inline int getDigitValue(char c, int base) {
-  if ('0' <= c && c <= '9')
-    return c - '0';
+  if ('0' <= c && c <= '9') return c - '0';
   if (base == 16) {
     if ('A' <= c && c <= 'F')
       return c - 'A' + 10;
@@ -158,8 +155,8 @@ inline int getDigitValue(char c, int base) {
 ** Returns:     none
 **
 *******************************************************************************/
-void findConfigFilePathFromTransportConfigPaths(const string &configName,
-                                                string &filePath) {
+void findConfigFilePathFromTransportConfigPaths(const string& configName,
+                                                string& filePath) {
   for (int i = 0; i < transport_config_path_size - 1; i++) {
     filePath.assign(transport_config_paths[i]);
     filePath += configName;
@@ -182,7 +179,7 @@ void findConfigFilePathFromTransportConfigPaths(const string &configName,
 ** Returns:     1, if there are any config data, 0 otherwise
 **
 *******************************************************************************/
-bool CNxpNfcConfig::readConfig(const char *name, bool bResetContent) {
+bool CNxpNfcConfig::readConfig(const char* name, bool bResetContent) {
   enum {
     BEGIN_LINE = 1,
     TOKEN,
@@ -193,12 +190,12 @@ bool CNxpNfcConfig::readConfig(const char *name, bool bResetContent) {
     END_LINE
   };
 
-  FILE *fd;
+  FILE* fd;
   struct stat buf;
   string token;
   string strValue;
   unsigned long numValue = 0;
-  CNxpNfcParam *pParam = NULL;
+  CNxpNfcParam* pParam = NULL;
   int i = 0;
   int base = 0;
   char c;
@@ -227,134 +224,132 @@ bool CNxpNfcConfig::readConfig(const char *name, bool bResetContent) {
 
   while (!feof(fd) && fread(&c, 1, 1, fd) == 1) {
     switch (state & 0xff) {
-    case BEGIN_LINE:
-      if (c == '#') {
-        state = END_LINE;
-      } else if (isPrintable(c)) {
-        i = 0;
-        token.erase();
-        strValue.erase();
-        state = TOKEN;
-        token.push_back(c);
-      }
-      break;
-    case TOKEN:
-      if (c == '=') {
-        token.push_back('\0');
-        state = BEGIN_QUOTE;
-      } else if (isPrintable(c)) {
-        token.push_back(c);
-      } else {
-        state = END_LINE;
-      }
-      break;
-    case BEGIN_QUOTE:
-      if (c == '"') {
-        state = STR_VALUE;
-        base = 0;
-      } else if (c == '0') {
-        state = BEGIN_HEX;
-      } else if (isDigit(c, 10)) {
-        state = NUM_VALUE;
-        base = 10;
-        numValue = getDigitValue(c, base);
-        i = 0;
-      } else if (c == '{') {
-        state = NUM_VALUE;
-        bflag = 1;
-        base = 16;
-        i = 0;
-        Set(IsStringValue);
-      } else
-        state = END_LINE;
-
-      break;
-    case BEGIN_HEX:
-      if (c == 'x' || c == 'X') {
-        state = NUM_VALUE;
-        base = 16;
-        numValue = 0;
-        i = 0;
-        break;
-      } else if (isDigit(c, 10)) {
-        state = NUM_VALUE;
-        base = 10;
-        numValue = getDigitValue(c, base);
-        break;
-      } else if (c != '\n' && c != '\r') {
-        state = END_LINE;
-        break;
-      }
-    // fall through to numValue to handle numValue
-
-    case NUM_VALUE:
-      if (isDigit(c, base)) {
-        numValue *= base;
-        numValue += getDigitValue(c, base);
-        ++i;
-      } else if (bflag == 1 &&
-                 (c == ' ' || c == '\r' || c == '\n' || c == '\t')) {
-        break;
-      } else if (base == 16 &&
-                 (c == ',' || c == ':' || c == '-' || c == ' ' || c == '}')) {
-
-        if (c == '}') {
-          bflag = 0;
+      case BEGIN_LINE:
+        if (c == '#') {
+          state = END_LINE;
+        } else if (isPrintable(c)) {
+          i = 0;
+          token.erase();
+          strValue.erase();
+          state = TOKEN;
+          token.push_back(c);
         }
-        if (i > 0) {
-          int n = (i + 1) / 2;
-          while (n-- > 0) {
-            numValue = numValue >> (n * 8);
-            unsigned char c = (numValue)&0xFF;
-            strValue.push_back(c);
-          }
-        }
-
-        Set(IsStringValue);
-        numValue = 0;
-        i = 0;
-      } else {
-        if (c == '\n' || c == '\r') {
-          if (bflag == 0) {
-            state = BEGIN_LINE;
-          }
+        break;
+      case TOKEN:
+        if (c == '=') {
+          token.push_back('\0');
+          state = BEGIN_QUOTE;
+        } else if (isPrintable(c)) {
+          token.push_back(c);
         } else {
-          if (bflag == 0) {
-            state = END_LINE;
-          }
+          state = END_LINE;
         }
-        if (Is(IsStringValue) && base == 16 && i > 0) {
-          int n = (i + 1) / 2;
-          while (n-- > 0)
-            strValue.push_back(((numValue >> (n * 8)) & 0xFF));
-        }
-        if (strValue.length() > 0)
-          pParam = new CNxpNfcParam(token.c_str(), strValue);
-        else
-          pParam = new CNxpNfcParam(token.c_str(), numValue);
+        break;
+      case BEGIN_QUOTE:
+        if (c == '"') {
+          state = STR_VALUE;
+          base = 0;
+        } else if (c == '0') {
+          state = BEGIN_HEX;
+        } else if (isDigit(c, 10)) {
+          state = NUM_VALUE;
+          base = 10;
+          numValue = getDigitValue(c, base);
+          i = 0;
+        } else if (c == '{') {
+          state = NUM_VALUE;
+          bflag = 1;
+          base = 16;
+          i = 0;
+          Set(IsStringValue);
+        } else
+          state = END_LINE;
 
-        add(pParam);
-        strValue.erase();
-        numValue = 0;
-      }
-      break;
-    case STR_VALUE:
-      if (c == '"') {
-        strValue.push_back('\0');
-        state = END_LINE;
-        pParam = new CNxpNfcParam(token.c_str(), strValue);
-        add(pParam);
-      } else if (isPrintable(c)) {
-        strValue.push_back(c);
-      }
-      break;
-    case END_LINE:
-      if (c == '\n' || c == '\r') {
-        state = BEGIN_LINE;
-      }
-      break;
-    default:
-      break;
+        break;
+      case BEGIN_HEX:
+        if (c == 'x' || c == 'X') {
+          state = NUM_VALUE;
+          base = 16;
+          numValue = 0;
+          i = 0;
+          break;
+        } else if (isDigit(c, 10)) {
+          state = NUM_VALUE;
+          base = 10;
+          numValue = getDigitValue(c, base);
+          break;
+        } else if (c != '\n' && c != '\r') {
+          state = END_LINE;
+          break;
+        }
+      // fall through to numValue to handle numValue
+
+      case NUM_VALUE:
+        if (isDigit(c, base)) {
+          numValue *= base;
+          numValue += getDigitValue(c, base);
+          ++i;
+        } else if (bflag == 1 &&
+                   (c == ' ' || c == '\r' || c == '\n' || c == '\t')) {
+          break;
+        } else if (base == 16 &&
+                   (c == ',' || c == ':' || c == '-' || c == ' ' || c == '}')) {
+          if (c == '}') {
+            bflag = 0;
+          }
+          if (i > 0) {
+            int n = (i + 1) / 2;
+            while (n-- > 0) {
+              numValue = numValue >> (n * 8);
+              unsigned char c = (numValue)&0xFF;
+              strValue.push_back(c);
+            }
+          }
+
+          Set(IsStringValue);
+          numValue = 0;
+          i = 0;
+        } else {
+          if (c == '\n' || c == '\r') {
+            if (bflag == 0) {
+              state = BEGIN_LINE;
+            }
+          } else {
+            if (bflag == 0) {
+              state = END_LINE;
+            }
+          }
+          if (Is(IsStringValue) && base == 16 && i > 0) {
+            int n = (i + 1) / 2;
+            while (n-- > 0) strValue.push_back(((numValue >> (n * 8)) & 0xFF));
+          }
+          if (strValue.length() > 0)
+            pParam = new CNxpNfcParam(token.c_str(), strValue);
+          else
+            pParam = new CNxpNfcParam(token.c_str(), numValue);
+
+          add(pParam);
+          strValue.erase();
+          numValue = 0;
+        }
+        break;
+      case STR_VALUE:
+        if (c == '"') {
+          strValue.push_back('\0');
+          state = END_LINE;
+          pParam = new CNxpNfcParam(token.c_str(), strValue);
+          add(pParam);
+        } else if (isPrintable(c)) {
+          strValue.push_back(c);
+        }
+        break;
+      case END_LINE:
+        if (c == '\n' || c == '\r') {
+          state = BEGIN_LINE;
+        }
+        break;
+      default:
+        break;
     }
   }
 
@@ -395,7 +390,7 @@ CNxpNfcConfig::~CNxpNfcConfig() {}
 ** Returns:     none
 **
 *******************************************************************************/
-CNxpNfcConfig &CNxpNfcConfig::GetInstance() {
+CNxpNfcConfig& CNxpNfcConfig::GetInstance() {
   static CNxpNfcConfig theInstance;
 
   if (theInstance.size() == 0 && theInstance.mValidFile) {
@@ -425,10 +420,9 @@ CNxpNfcConfig &CNxpNfcConfig::GetInstance() {
 **              false if setting does not exist
 **
 *******************************************************************************/
-bool CNxpNfcConfig::getValue(const char *name, char *pValue, size_t len) const {
-  const CNxpNfcParam *pParam = find(name);
-  if (pParam == NULL)
-    return false;
+bool CNxpNfcConfig::getValue(const char* name, char* pValue, size_t len) const {
+  const CNxpNfcParam* pParam = find(name);
+  if (pParam == NULL) return false;
 
   if (pParam->str_len() > 0) {
     memset(pValue, 0, len);
@@ -438,11 +432,10 @@ bool CNxpNfcConfig::getValue(const char *name, char *pValue, size_t len) const {
   return false;
 }
 
-bool CNxpNfcConfig::getValue(const char *name, char *pValue, long len,
-                             long *readlen) const {
-  const CNxpNfcParam *pParam = find(name);
-  if (pParam == NULL)
-    return false;
+bool CNxpNfcConfig::getValue(const char* name, char* pValue, long len,
+                             long* readlen) const {
+  const CNxpNfcParam* pParam = find(name);
+  if (pParam == NULL) return false;
 
   if (pParam->str_len() > 0) {
     if (pParam->str_len() <= (unsigned long)len) {
@@ -468,10 +461,9 @@ bool CNxpNfcConfig::getValue(const char *name, char *pValue, long len,
 **              false if setting does not exist
 **
 *******************************************************************************/
-bool CNxpNfcConfig::getValue(const char *name, unsigned long &rValue) const {
-  const CNxpNfcParam *pParam = find(name);
-  if (pParam == NULL)
-    return false;
+bool CNxpNfcConfig::getValue(const char* name, unsigned long& rValue) const {
+  const CNxpNfcParam* pParam = find(name);
+  if (pParam == NULL) return false;
 
   if (pParam->str_len() == 0) {
     rValue = static_cast<unsigned long>(pParam->numValue());
@@ -490,10 +482,9 @@ bool CNxpNfcConfig::getValue(const char *name, unsigned long &rValue) const {
 **              false if setting does not exist
 **
 *******************************************************************************/
-bool CNxpNfcConfig::getValue(const char *name, unsigned short &rValue) const {
-  const CNxpNfcParam *pParam = find(name);
-  if (pParam == NULL)
-    return false;
+bool CNxpNfcConfig::getValue(const char* name, unsigned short& rValue) const {
+  const CNxpNfcParam* pParam = find(name);
+  if (pParam == NULL) return false;
 
   if (pParam->str_len() == 0) {
     rValue = static_cast<unsigned short>(pParam->numValue());
@@ -511,9 +502,8 @@ bool CNxpNfcConfig::getValue(const char *name, unsigned short &rValue) const {
 ** Returns:     pointer to the setting object
 **
 *******************************************************************************/
-const CNxpNfcParam *CNxpNfcConfig::find(const char *p_name) const {
-  if (size() == 0)
-    return NULL;
+const CNxpNfcParam* CNxpNfcConfig::find(const char* p_name) const {
+  if (size() == 0) return NULL;
 
   for (const_iterator it = begin(), itEnd = end(); it != itEnd; ++it) {
     if (**it < p_name) {
@@ -545,11 +535,9 @@ const CNxpNfcParam *CNxpNfcConfig::find(const char *p_name) const {
 **
 *******************************************************************************/
 void CNxpNfcConfig::clean() {
-  if (size() == 0)
-    return;
+  if (size() == 0) return;
 
-  for (iterator it = begin(), itEnd = end(); it != itEnd; ++it)
-    delete *it;
+  for (iterator it = begin(), itEnd = end(); it != itEnd; ++it) delete *it;
 
   clear();
 }
@@ -563,16 +551,15 @@ void CNxpNfcConfig::clean() {
 ** Returns:     none
 **
 *******************************************************************************/
-void CNxpNfcConfig::add(const CNxpNfcParam *pParam) {
+void CNxpNfcConfig::add(const CNxpNfcParam* pParam) {
   if (m_list.size() == 0) {
     m_list.push_back(pParam);
     return;
   }
-  for (list<const CNxpNfcParam *>::iterator it = m_list.begin(),
-                                            itEnd = m_list.end();
+  for (list<const CNxpNfcParam*>::iterator it = m_list.begin(),
+                                           itEnd = m_list.end();
        it != itEnd; ++it) {
-    if (**it < pParam->c_str())
-      continue;
+    if (**it < pParam->c_str()) continue;
 
     m_list.insert(it, pParam);
     return;
@@ -590,11 +577,10 @@ void CNxpNfcConfig::add(const CNxpNfcParam *pParam) {
 **
 *******************************************************************************/
 void CNxpNfcConfig::moveFromList() {
-  if (m_list.size() == 0)
-    return;
+  if (m_list.size() == 0) return;
 
-  for (list<const CNxpNfcParam *>::iterator it = m_list.begin(),
-                                            itEnd = m_list.end();
+  for (list<const CNxpNfcParam*>::iterator it = m_list.begin(),
+                                           itEnd = m_list.end();
        it != itEnd; ++it)
     push_back(*it);
 
@@ -611,8 +597,7 @@ void CNxpNfcConfig::moveFromList() {
 **
 *******************************************************************************/
 void CNxpNfcConfig::moveToList() {
-  if (m_list.size() != 0)
-    m_list.clear();
+  if (m_list.size() != 0) m_list.clear();
 
   for (iterator it = begin(), itEnd = end(); it != itEnd; ++it)
     m_list.push_back(*it);
@@ -630,7 +615,7 @@ void CNxpNfcConfig::moveToList() {
 **
 *******************************************************************************/
 int CNxpNfcConfig::checkTimestamp() {
-  FILE *fd;
+  FILE* fd;
   struct stat st;
   unsigned long value = 0;
   int ret = 0;
@@ -693,7 +678,7 @@ CNxpNfcParam::~CNxpNfcParam() {}
 ** Returns:     none
 **
 *******************************************************************************/
-CNxpNfcParam::CNxpNfcParam(const char *name, const string &value)
+CNxpNfcParam::CNxpNfcParam(const char* name, const string& value)
     : string(name), m_str_value(value), m_numValue(0) {}
 
 /*******************************************************************************
@@ -705,7 +690,7 @@ CNxpNfcParam::CNxpNfcParam(const char *name, const string &value)
 ** Returns:     none
 **
 *******************************************************************************/
-CNxpNfcParam::CNxpNfcParam(const char *name, unsigned long value)
+CNxpNfcParam::CNxpNfcParam(const char* name, unsigned long value)
     : string(name), m_numValue(value) {}
 
 /*******************************************************************************
@@ -717,8 +702,8 @@ CNxpNfcParam::CNxpNfcParam(const char *name, unsigned long value)
 ** Returns:     True if found, otherwise False.
 **
 *******************************************************************************/
-extern int GetNxpStrValue(const char *name, char *pValue, unsigned long len) {
-  CNxpNfcConfig &rConfig = CNxpNfcConfig::GetInstance();
+extern int GetNxpStrValue(const char* name, char* pValue, unsigned long len) {
+  CNxpNfcConfig& rConfig = CNxpNfcConfig::GetInstance();
 
   return rConfig.getValue(name, pValue, len);
 }
@@ -741,9 +726,9 @@ extern int GetNxpStrValue(const char *name, char *pValue, unsigned long len) {
 *FALSE[0]
 **
 *******************************************************************************/
-extern int GetNxpByteArrayValue(const char *name, char *pValue, long bufflen,
-                                long *len) {
-  CNxpNfcConfig &rConfig = CNxpNfcConfig::GetInstance();
+extern int GetNxpByteArrayValue(const char* name, char* pValue, long bufflen,
+                                long* len) {
+  CNxpNfcConfig& rConfig = CNxpNfcConfig::GetInstance();
 
   return rConfig.getValue(name, pValue, bufflen, len);
 }
@@ -757,36 +742,34 @@ extern int GetNxpByteArrayValue(const char *name, char *pValue, long bufflen,
 ** Returns:     true, if successful
 **
 *******************************************************************************/
-extern int GetNxpNumValue(const char *name, void *pValue, unsigned long len) {
-  if (!pValue)
-    return false;
+extern int GetNxpNumValue(const char* name, void* pValue, unsigned long len) {
+  if (!pValue) return false;
 
-  CNxpNfcConfig &rConfig = CNxpNfcConfig::GetInstance();
-  const CNxpNfcParam *pParam = rConfig.find(name);
+  CNxpNfcConfig& rConfig = CNxpNfcConfig::GetInstance();
+  const CNxpNfcParam* pParam = rConfig.find(name);
 
-  if (pParam == NULL)
-    return false;
+  if (pParam == NULL) return false;
 
   unsigned long v = pParam->numValue();
   if (v == 0 && pParam->str_len() > 0 && pParam->str_len() < 4) {
-    const unsigned char *p = (const unsigned char *)pParam->str_value();
+    const unsigned char* p = (const unsigned char*)pParam->str_value();
     for (unsigned int i = 0; i < pParam->str_len(); ++i) {
       v *= 256;
       v += *p++;
     }
   }
   switch (len) {
-  case sizeof(unsigned long):
-    *(static_cast<unsigned long *>(pValue)) = (unsigned long)v;
-    break;
-  case sizeof(unsigned short):
-    *(static_cast<unsigned short *>(pValue)) = (unsigned short)v;
-    break;
-  case sizeof(unsigned char):
-    *(static_cast<unsigned char *>(pValue)) = (unsigned char)v;
-    break;
-  default:
-    return false;
+    case sizeof(unsigned long):
+      *(static_cast<unsigned long*>(pValue)) = (unsigned long)v;
+      break;
+    case sizeof(unsigned short):
+      *(static_cast<unsigned short*>(pValue)) = (unsigned short)v;
+      break;
+    case sizeof(unsigned char):
+      *(static_cast<unsigned char*>(pValue)) = (unsigned char)v;
+      break;
+    default:
+      return false;
   }
   return true;
 }
@@ -801,7 +784,7 @@ extern int GetNxpNumValue(const char *name, void *pValue, unsigned long len) {
 **
 *******************************************************************************/
 extern void resetNxpConfig() {
-  CNxpNfcConfig &rConfig = CNxpNfcConfig::GetInstance();
+  CNxpNfcConfig& rConfig = CNxpNfcConfig::GetInstance();
 
   rConfig.clean();
 }
@@ -815,7 +798,7 @@ extern void resetNxpConfig() {
 ** Returns:     none
 **
 *******************************************************************************/
-void readOptionalConfig(const char *extra) {
+void readOptionalConfig(const char* extra) {
   string strPath;
   string configName(extra_config_base);
   configName += extra;
@@ -841,6 +824,6 @@ void readOptionalConfig(const char *extra) {
 **
 *******************************************************************************/
 extern int isNxpConfigModified() {
-  CNxpNfcConfig &rConfig = CNxpNfcConfig::GetInstance();
+  CNxpNfcConfig& rConfig = CNxpNfcConfig::GetInstance();
   return rConfig.checkTimestamp();
 }

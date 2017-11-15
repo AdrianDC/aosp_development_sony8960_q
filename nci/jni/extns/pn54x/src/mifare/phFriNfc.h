@@ -59,7 +59,7 @@
  * asynchronous processing the definition of the Process(ing) function can
  * be arbitrary, if present at all.
  */
-typedef void (*pphFriNfc_Cr_t)(void *, NFCSTATUS);
+typedef void (*pphFriNfc_Cr_t)(void*, NFCSTATUS);
 
 /*
  * Completion Routine structure

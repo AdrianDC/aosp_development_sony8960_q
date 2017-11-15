@@ -29,11 +29,11 @@
 using android::base::StringPrintf;
 
 static phNxpExtns_Context_t gphNxpExtns_Context;
-extern phFriNfc_NdefMap_t *NdefMap;
+extern phFriNfc_NdefMap_t* NdefMap;
 extern phNci_mfc_auth_cmd_t gAuthCmdBuf;
 
-static NFCSTATUS phNxpExtns_ProcessSysMessage(phLibNfc_Message_t *msg);
-static NFCSTATUS phNxpExtns_SendMsg(phLibNfc_Message_t *sysmsg);
+static NFCSTATUS phNxpExtns_ProcessSysMessage(phLibNfc_Message_t* msg);
+static NFCSTATUS phNxpExtns_SendMsg(phLibNfc_Message_t* sysmsg);
 
 #ifdef ESE_NFC_SYNCHRONIZATION
 /* timing calculation structure*/
@@ -55,8 +55,8 @@ static int fd_ese_nfc_sync; /*file descriptor to hold sync driver handle*/
 **                  NFCSTATUS_FAILED otherwise
 **
 *******************************************************************************/
-NFCSTATUS EXTNS_Init(tNFA_DM_CBACK *p_nfa_dm_cback,
-                     tNFA_CONN_CBACK *p_nfa_conn_cback) {
+NFCSTATUS EXTNS_Init(tNFA_DM_CBACK* p_nfa_dm_cback,
+                     tNFA_CONN_CBACK* p_nfa_conn_cback) {
   NFCSTATUS status = NFCSTATUS_FAILED;
 
   /* reset config cache */
@@ -116,7 +116,7 @@ void EXTNS_Close(void) {
 **                  NFCSTATUS_FAILED otherwise
 **
 *******************************************************************************/
-NFCSTATUS EXTNS_MfcCallBack(uint8_t *buf, uint32_t buflen) {
+NFCSTATUS EXTNS_MfcCallBack(uint8_t* buf, uint32_t buflen) {
   NFCSTATUS status = NFCSTATUS_SUCCESS;
 
   phLibNfc_Message_t msg;
@@ -248,7 +248,7 @@ NFCSTATUS EXTNS_MfcPresenceCheck(void) {
 **                  NFCSTATUS_FAILED otherwise
 **
 *******************************************************************************/
-NFCSTATUS EXTNS_MfcSetReadOnly(uint8_t *key, uint8_t len) {
+NFCSTATUS EXTNS_MfcSetReadOnly(uint8_t* key, uint8_t len) {
   NFCSTATUS status = NFCSTATUS_SUCCESS;
 
   phLibNfc_Message_t msg;
@@ -281,7 +281,7 @@ NFCSTATUS EXTNS_MfcSetReadOnly(uint8_t *key, uint8_t len) {
 **                  NFCSTATUS_FAILED otherwise
 **
 *******************************************************************************/
-NFCSTATUS EXTNS_MfcWriteNDef(uint8_t *p_data, uint32_t len) {
+NFCSTATUS EXTNS_MfcWriteNDef(uint8_t* p_data, uint32_t len) {
   NFCSTATUS status = NFCSTATUS_SUCCESS;
 
   phLibNfc_Message_t msg;
@@ -312,7 +312,7 @@ NFCSTATUS EXTNS_MfcWriteNDef(uint8_t *p_data, uint32_t len) {
 **                  NFCSTATUS_FAILED otherwise
 **
 *****************************************************************************/
-NFCSTATUS EXTNS_MfcFormatTag(uint8_t *key, uint8_t len) {
+NFCSTATUS EXTNS_MfcFormatTag(uint8_t* key, uint8_t len) {
   NFCSTATUS status = NFCSTATUS_SUCCESS;
 
   phLibNfc_Message_t msg;
@@ -394,7 +394,7 @@ NFCSTATUS EXTNS_MfcActivated(void) {
 **                  NFCSTATUS_FAILED otherwise
 **
 *******************************************************************************/
-NFCSTATUS EXTNS_MfcTransceive(uint8_t *p_data, uint32_t len) {
+NFCSTATUS EXTNS_MfcTransceive(uint8_t* p_data, uint32_t len) {
   NFCSTATUS status = NFCSTATUS_SUCCESS;
 
   phLibNfc_Message_t msg;
@@ -446,7 +446,7 @@ NFCSTATUS EXTNS_MfcInit(tNFA_ACTIVATED activationData) {
 **                  NFCSTATUS_FAILED otherwise
 **
 *******************************************************************************/
-static NFCSTATUS phNxpExtns_ProcessSysMessage(phLibNfc_Message_t *msg) {
+static NFCSTATUS phNxpExtns_ProcessSysMessage(phLibNfc_Message_t* msg) {
   NFCSTATUS status = NFCSTATUS_SUCCESS;
 
   if (gphNxpExtns_Context.Extns_status == EXTNS_STATUS_CLOSE) {
@@ -454,56 +454,56 @@ static NFCSTATUS phNxpExtns_ProcessSysMessage(phLibNfc_Message_t *msg) {
   }
 
   switch (msg->eMsgType) {
-  case PH_NXPEXTNS_RX_DATA:
-    status = Mfc_RecvPacket((uint8_t *)msg->pMsgData, msg->Size);
-    break;
+    case PH_NXPEXTNS_RX_DATA:
+      status = Mfc_RecvPacket((uint8_t*)msg->pMsgData, msg->Size);
+      break;
 
-  case PH_NXPEXTNS_MIFARE_CHECK_NDEF:
-    pthread_mutex_init(&gAuthCmdBuf.syncmutex, NULL);
-    pthread_mutex_lock(&gAuthCmdBuf.syncmutex);
-    status = Mfc_CheckNdef();
-    pthread_mutex_unlock(&gAuthCmdBuf.syncmutex);
-    pthread_mutex_destroy(&gAuthCmdBuf.syncmutex);
-    break;
+    case PH_NXPEXTNS_MIFARE_CHECK_NDEF:
+      pthread_mutex_init(&gAuthCmdBuf.syncmutex, NULL);
+      pthread_mutex_lock(&gAuthCmdBuf.syncmutex);
+      status = Mfc_CheckNdef();
+      pthread_mutex_unlock(&gAuthCmdBuf.syncmutex);
+      pthread_mutex_destroy(&gAuthCmdBuf.syncmutex);
+      break;
 
-  case PH_NXPEXTNS_MIFARE_READ_NDEF:
-    status = Mfc_ReadNdef();
-    break;
+    case PH_NXPEXTNS_MIFARE_READ_NDEF:
+      status = Mfc_ReadNdef();
+      break;
 
-  case PH_NXPEXTNS_MIFARE_WRITE_NDEF:
-    status = Mfc_WriteNdef((uint8_t *)msg->pMsgData, msg->Size);
-    break;
+    case PH_NXPEXTNS_MIFARE_WRITE_NDEF:
+      status = Mfc_WriteNdef((uint8_t*)msg->pMsgData, msg->Size);
+      break;
 
-  case PH_NXPEXTNS_MIFARE_FORMAT_NDEF:
-    status = Mfc_FormatNdef((uint8_t *)msg->pMsgData, msg->Size);
-    break;
+    case PH_NXPEXTNS_MIFARE_FORMAT_NDEF:
+      status = Mfc_FormatNdef((uint8_t*)msg->pMsgData, msg->Size);
+      break;
 
-  case PH_NXPEXTNS_DISCONNECT:
-    Mfc_DeactivateCbackSelect();
-    break;
+    case PH_NXPEXTNS_DISCONNECT:
+      Mfc_DeactivateCbackSelect();
+      break;
 
-  case PH_NXPEXTNS_ACTIVATED:
-    Mfc_ActivateCback();
-    break;
+    case PH_NXPEXTNS_ACTIVATED:
+      Mfc_ActivateCback();
+      break;
 
-  case PH_NXPEXTNS_MIFARE_TRANSCEIVE:
-    status = Mfc_Transceive((uint8_t *)msg->pMsgData, msg->Size);
-    break;
+    case PH_NXPEXTNS_MIFARE_TRANSCEIVE:
+      status = Mfc_Transceive((uint8_t*)msg->pMsgData, msg->Size);
+      break;
 
-  case PH_NXPEXTNS_MIFARE_READ_ONLY:
-    status = Mfc_SetReadOnly((uint8_t *)msg->pMsgData, msg->Size);
-    break;
-  case PH_NXPEXTNS_MIFARE_PRESENCE_CHECK:
-    pthread_mutex_init(&gAuthCmdBuf.syncmutex, NULL);
-    pthread_mutex_lock(&gAuthCmdBuf.syncmutex);
-    status = Mfc_PresenceCheck();
-    pthread_mutex_unlock(&gAuthCmdBuf.syncmutex);
-    pthread_mutex_destroy(&gAuthCmdBuf.syncmutex);
-    break;
-  default:
-    status = NFCSTATUS_FAILED;
-    LOG(ERROR) << StringPrintf("Illegal Command for Extension");
-    break;
+    case PH_NXPEXTNS_MIFARE_READ_ONLY:
+      status = Mfc_SetReadOnly((uint8_t*)msg->pMsgData, msg->Size);
+      break;
+    case PH_NXPEXTNS_MIFARE_PRESENCE_CHECK:
+      pthread_mutex_init(&gAuthCmdBuf.syncmutex, NULL);
+      pthread_mutex_lock(&gAuthCmdBuf.syncmutex);
+      status = Mfc_PresenceCheck();
+      pthread_mutex_unlock(&gAuthCmdBuf.syncmutex);
+      pthread_mutex_destroy(&gAuthCmdBuf.syncmutex);
+      break;
+    default:
+      status = NFCSTATUS_FAILED;
+      LOG(ERROR) << StringPrintf("Illegal Command for Extension");
+      break;
   }
 
   return status;
@@ -519,7 +519,7 @@ static NFCSTATUS phNxpExtns_ProcessSysMessage(phLibNfc_Message_t *msg) {
 **                  NFCSTATUS_FAILED otherwise
 **
 *******************************************************************************/
-static NFCSTATUS phNxpExtns_SendMsg(phLibNfc_Message_t *sysmsg) {
+static NFCSTATUS phNxpExtns_SendMsg(phLibNfc_Message_t* sysmsg) {
   NFCSTATUS status = NFCSTATUS_SUCCESS;
 
   status = phNxpExtns_ProcessSysMessage(sysmsg);
@@ -541,8 +541,7 @@ static NFCSTATUS phNxpExtns_SendMsg(phLibNfc_Message_t *sysmsg) {
 **
 *******************************************************************************/
 NFCSTATUS
-EXTNS_MfcRegisterNDefTypeHandler(tNFA_NDEF_CBACK *ndefHandlerCallback) {
-
+EXTNS_MfcRegisterNDefTypeHandler(tNFA_NDEF_CBACK* ndefHandlerCallback) {
   NFCSTATUS status = NFCSTATUS_FAILED;
   if (NULL != ndefHandlerCallback) {
     gphNxpExtns_Context.p_ndef_cback = ndefHandlerCallback;
@@ -583,7 +582,7 @@ NFCSTATUS EXTNS_GetPresenceCheckStatus(void) {
 
   clock_gettime(CLOCK_REALTIME, &ts);
   ts.tv_sec += 0;
-  ts.tv_nsec += 100 * 1000 * 1000; // 100 milisec
+  ts.tv_nsec += 100 * 1000 * 1000;  // 100 milisec
   if (ts.tv_nsec >= 1000 * 1000 * 1000) {
     ts.tv_sec += 1;
     ts.tv_nsec = ts.tv_nsec - (1000 * 1000 * 1000);
@@ -622,8 +621,8 @@ void MfcResetPresenceCheckStatus(void) { gAuthCmdBuf.auth_sent = false; }
 **                  NFCSTATUS_FAILED
 **
 *******************************************************************************/
-NFCSTATUS EXTNS_CheckMfcResponse(uint8_t **sTransceiveData,
-                                 uint32_t *sTransceiveDataLen) {
+NFCSTATUS EXTNS_CheckMfcResponse(uint8_t** sTransceiveData,
+                                 uint32_t* sTransceiveDataLen) {
   NFCSTATUS status = NFCSTATUS_SUCCESS;
 
   if (*sTransceiveDataLen == 3) {

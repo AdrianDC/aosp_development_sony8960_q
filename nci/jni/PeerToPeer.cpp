@@ -18,12 +18,12 @@
  *  Communicate with a peer using NFC-DEP, LLCP, SNEP.
  */
 #include "PeerToPeer.h"
+#include <nativehelper/ScopedLocalRef.h>
 #include "JavaClassConstants.h"
 #include "NfcJniUtil.h"
 #include "_OverrideLog.h"
 #include "config.h"
 #include "llcp_defs.h"
-#include <nativehelper/ScopedLocalRef.h>
 
 /* Some older PN544-based solutions would only send the first SYMM back
  * (as an initiator) after the full LTO (750ms). But our connect timer
@@ -41,7 +41,7 @@ extern void nativeNfcTag_registerNdefTypeHandler();
 extern void nativeNfcTag_deregisterNdefTypeHandler();
 extern void startRfDiscovery(bool isStart);
 extern bool isDiscoveryStarted();
-} // namespace android
+}  // namespace android
 
 PeerToPeer PeerToPeer::sP2p;
 const std::string P2pServer::sSnepServiceName("urn:nfc:sn:snep");
@@ -56,7 +56,8 @@ const std::string P2pServer::sSnepServiceName("urn:nfc:sn:snep");
 **
 *******************************************************************************/
 PeerToPeer::PeerToPeer()
-    : mRemoteWKS(0), mIsP2pListening(false),
+    : mRemoteWKS(0),
+      mIsP2pListening(false),
       mP2pListenTechMask(NFA_TECHNOLOGY_MASK_A | NFA_TECHNOLOGY_MASK_F |
                          NFA_TECHNOLOGY_MASK_A_ACTIVE |
                          NFA_TECHNOLOGY_MASK_F_ACTIVE),
@@ -85,7 +86,7 @@ PeerToPeer::~PeerToPeer() {}
 ** Returns:         Singleton PeerToPeer object.
 **
 *******************************************************************************/
-PeerToPeer &PeerToPeer::getInstance() { return sP2p; }
+PeerToPeer& PeerToPeer::getInstance() { return sP2p; }
 
 /*******************************************************************************
 **
@@ -160,7 +161,7 @@ sp<P2pServer> PeerToPeer::findServerLocked(tJNI_HANDLE jniHandle) {
 ** Returns:         PeerToPeer object.
 **
 *******************************************************************************/
-sp<P2pServer> PeerToPeer::findServerLocked(const char *serviceName) {
+sp<P2pServer> PeerToPeer::findServerLocked(const char* serviceName) {
   for (int i = 0; i < sMax; i++) {
     if ((mServers[i] != NULL) &&
         (mServers[i]->mServiceName.compare(serviceName) == 0))
@@ -183,7 +184,7 @@ sp<P2pServer> PeerToPeer::findServerLocked(const char *serviceName) {
 **
 *******************************************************************************/
 bool PeerToPeer::registerServer(tJNI_HANDLE jniHandle,
-                                const char *serviceName) {
+                                const char* serviceName) {
   static const char fn[] = "PeerToPeer::registerServer";
   DLOG_IF(INFO, nfc_debug_enabled)
       << StringPrintf("%s: enter; service name: %s  JNI handle: %u", fn,
@@ -273,8 +274,8 @@ void PeerToPeer::removeServer(tJNI_HANDLE jniHandle) {
 ** Returns:         None
 **
 *******************************************************************************/
-void PeerToPeer::llcpActivatedHandler(nfc_jni_native_data *nat,
-                                      tNFA_LLCP_ACTIVATED &activated) {
+void PeerToPeer::llcpActivatedHandler(nfc_jni_native_data* nat,
+                                      tNFA_LLCP_ACTIVATED& activated) {
   static const char fn[] = "PeerToPeer::llcpActivatedHandler";
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter", fn);
 
@@ -283,7 +284,7 @@ void PeerToPeer::llcpActivatedHandler(nfc_jni_native_data *nat,
 
   mRemoteWKS = activated.remote_wks;
 
-  JNIEnv *e = NULL;
+  JNIEnv* e = NULL;
   ScopedAttach attach(nat->vm, &e);
   if (e == NULL) {
     LOG(ERROR) << StringPrintf("%s: jni env is null", fn);
@@ -320,7 +321,7 @@ void PeerToPeer::llcpActivatedHandler(nfc_jni_native_data *nat,
   /* Set tag handle */
   f = e->GetFieldID(tag_cls.get(), "mHandle", "I");
   e->SetIntField(tag.get(), f,
-                 (jint)0x1234); // ?? This handle is not used for anything
+                 (jint)0x1234);  // ?? This handle is not used for anything
 
   if (nat->tag != NULL) {
     e->DeleteGlobalRef(nat->tag);
@@ -354,11 +355,11 @@ void PeerToPeer::llcpActivatedHandler(nfc_jni_native_data *nat,
 **
 *******************************************************************************/
 void PeerToPeer::llcpDeactivatedHandler(
-    nfc_jni_native_data *nat, tNFA_LLCP_DEACTIVATED & /*deactivated*/) {
+    nfc_jni_native_data* nat, tNFA_LLCP_DEACTIVATED& /*deactivated*/) {
   static const char fn[] = "PeerToPeer::llcpDeactivatedHandler";
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter", fn);
 
-  JNIEnv *e = NULL;
+  JNIEnv* e = NULL;
   ScopedAttach attach(nat->vm, &e);
   if (e == NULL) {
     LOG(ERROR) << StringPrintf("%s: jni env is null", fn);
@@ -381,11 +382,11 @@ void PeerToPeer::llcpDeactivatedHandler(
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: exit", fn);
 }
 
-void PeerToPeer::llcpFirstPacketHandler(nfc_jni_native_data *nat) {
+void PeerToPeer::llcpFirstPacketHandler(nfc_jni_native_data* nat) {
   static const char fn[] = "PeerToPeer::llcpFirstPacketHandler";
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter", fn);
 
-  JNIEnv *e = NULL;
+  JNIEnv* e = NULL;
   ScopedAttach attach(nat->vm, &e);
   if (e == NULL) {
     LOG(ERROR) << StringPrintf("%s: jni env is null", fn);
@@ -534,7 +535,7 @@ bool PeerToPeer::createClient(tJNI_HANDLE jniHandle, uint16_t miu, uint8_t rw) {
   {
     SyncEventGuard guard(mClients[i]->mRegisteringEvent);
     NFA_P2pRegisterClient(NFA_P2P_DLINK_TYPE, nfaClientCallback);
-    mClients[i]->mRegisteringEvent.wait(); // wait for NFA_P2P_REG_CLIENT_EVT
+    mClients[i]->mRegisteringEvent.wait();  // wait for NFA_P2P_REG_CLIENT_EVT
   }
 
   if (mClients[i]->mNfaP2pClientHandle != NFA_HANDLE_INVALID) {
@@ -603,7 +604,7 @@ void PeerToPeer::removeConn(tJNI_HANDLE jniHandle) {
 **
 *******************************************************************************/
 bool PeerToPeer::connectConnOriented(tJNI_HANDLE jniHandle,
-                                     const char *serviceName) {
+                                     const char* serviceName) {
   static const char fn[] = "PeerToPeer::connectConnOriented";
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
       "%s: enter; h: %u  service name=%s", fn, jniHandle, serviceName);
@@ -648,7 +649,7 @@ bool PeerToPeer::connectConnOriented(tJNI_HANDLE jniHandle,
 **
 *******************************************************************************/
 bool PeerToPeer::createDataLinkConn(tJNI_HANDLE jniHandle,
-                                    const char *serviceName,
+                                    const char* serviceName,
                                     uint8_t destinationSap) {
   static const char fn[] = "PeerToPeer::createDataLinkConn";
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter", fn);
@@ -667,7 +668,7 @@ bool PeerToPeer::createDataLinkConn(tJNI_HANDLE jniHandle,
 
     if (serviceName)
       nfaStat = NFA_P2pConnectByName(pClient->mNfaP2pClientHandle,
-                                     const_cast<char *>(serviceName),
+                                     const_cast<char*>(serviceName),
                                      pClient->mClientConn->mMaxInfoUnit,
                                      pClient->mClientConn->mRecvWindow);
     else if (destinationSap)
@@ -838,7 +839,7 @@ sp<NfaConn> PeerToPeer::findConnection(tJNI_HANDLE jniHandle) {
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-bool PeerToPeer::send(tJNI_HANDLE jniHandle, uint8_t *buffer,
+bool PeerToPeer::send(tJNI_HANDLE jniHandle, uint8_t* buffer,
                       uint16_t bufferLen) {
   static const char fn[] = "PeerToPeer::send";
   tNFA_STATUS nfaStat = NFA_STATUS_FAILED;
@@ -858,12 +859,12 @@ bool PeerToPeer::send(tJNI_HANDLE jniHandle, uint8_t *buffer,
     SyncEventGuard guard(pConn->mCongEvent);
     nfaStat = NFA_P2pSendData(pConn->mNfaConnHandle, bufferLen, buffer);
     if (nfaStat == NFA_STATUS_CONGESTED)
-      pConn->mCongEvent.wait(); // wait for NFA_P2P_CONGEST_EVT
+      pConn->mCongEvent.wait();  // wait for NFA_P2P_CONGEST_EVT
     else
       break;
 
     if (pConn->mNfaConnHandle ==
-        NFA_HANDLE_INVALID) // peer already disconnected
+        NFA_HANDLE_INVALID)  // peer already disconnected
     {
       DLOG_IF(INFO, nfc_debug_enabled)
           << StringPrintf("%s: peer disconnected", fn);
@@ -896,8 +897,8 @@ bool PeerToPeer::send(tJNI_HANDLE jniHandle, uint8_t *buffer,
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-bool PeerToPeer::receive(tJNI_HANDLE jniHandle, uint8_t *buffer,
-                         uint16_t bufferLen, uint16_t &actualLen) {
+bool PeerToPeer::receive(tJNI_HANDLE jniHandle, uint8_t* buffer,
+                         uint16_t bufferLen, uint16_t& actualLen) {
   static const char fn[] = "PeerToPeer::receive";
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
       "%s: enter; jniHandle: %u  bufferLen: %u", fn, jniHandle, bufferLen);
@@ -921,7 +922,7 @@ bool PeerToPeer::receive(tJNI_HANDLE jniHandle, uint8_t *buffer,
     // NFA_P2pReadData() is synchronous
     stat = NFA_P2pReadData(pConn->mNfaConnHandle, bufferLen, &actualDataLen2,
                            buffer, &isMoreData);
-    if ((stat == NFA_STATUS_OK) && (actualDataLen2 > 0)) // received some data
+    if ((stat == NFA_STATUS_OK) && (actualDataLen2 > 0))  // received some data
     {
       actualLen = (uint16_t)actualDataLen2;
       retVal = true;
@@ -933,7 +934,7 @@ bool PeerToPeer::receive(tJNI_HANDLE jniHandle, uint8_t *buffer,
       SyncEventGuard guard(pConn->mReadEvent);
       pConn->mReadEvent.wait();
     }
-  } // while
+  }  // while
 
   DLOG_IF(INFO, nfc_debug_enabled)
       << StringPrintf("%s: exit; nfa h: 0x%X  ok: %u  actual len: %u", fn,
@@ -976,11 +977,11 @@ bool PeerToPeer::disconnectConnOriented(tJNI_HANDLE jniHandle) {
 
   {
     SyncEventGuard guard1(pConn->mCongEvent);
-    pConn->mCongEvent.notifyOne(); // unblock send() if congested
+    pConn->mCongEvent.notifyOne();  // unblock send() if congested
   }
   {
     SyncEventGuard guard2(pConn->mReadEvent);
-    pConn->mReadEvent.notifyOne(); // unblock receive()
+    pConn->mReadEvent.notifyOne();  // unblock receive()
   }
 
   if (pConn->mNfaConnHandle != NFA_HANDLE_INVALID) {
@@ -1153,7 +1154,7 @@ void PeerToPeer::handleNfcOnOff(bool isOn) {
   DLOG_IF(INFO, nfc_debug_enabled)
       << StringPrintf("%s: enter; is on=%u", fn, isOn);
 
-  mIsP2pListening = false; // In both cases, P2P will not be listening
+  mIsP2pListening = false;  // In both cases, P2P will not be listening
 
   AutoMutex mutex(mMutex);
   if (isOn) {
@@ -1171,23 +1172,24 @@ void PeerToPeer::handleNfcOnOff(bool isOn) {
           mClients[ii]->mClientConn->mNfaConnHandle = NFA_HANDLE_INVALID;
           {
             SyncEventGuard guard1(mClients[ii]->mClientConn->mCongEvent);
-            mClients[ii]->mClientConn->mCongEvent.notifyOne(); // unblock send()
+            mClients[ii]
+                ->mClientConn->mCongEvent.notifyOne();  // unblock send()
           }
           {
             SyncEventGuard guard2(mClients[ii]->mClientConn->mReadEvent);
             mClients[ii]
-                ->mClientConn->mReadEvent.notifyOne(); // unblock receive()
+                ->mClientConn->mReadEvent.notifyOne();  // unblock receive()
           }
         }
       }
-    } // loop
+    }  // loop
 
     // Now look through all the server control blocks
     for (int ii = 0; ii < sMax; ii++) {
       if (mServers[ii] != NULL) {
         mServers[ii]->unblockAll();
       }
-    } // loop
+    }  // loop
   }
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: exit", fn);
 }
@@ -1204,7 +1206,7 @@ void PeerToPeer::handleNfcOnOff(bool isOn) {
 **
 *******************************************************************************/
 void PeerToPeer::nfaServerCallback(tNFA_P2P_EVT p2pEvent,
-                                   tNFA_P2P_EVT_DATA *eventData) {
+                                   tNFA_P2P_EVT_DATA* eventData) {
   static const char fn[] = "PeerToPeer::nfaServerCallback";
   sp<P2pServer> pSrv = NULL;
   sp<NfaConn> pConn = NULL;
@@ -1213,157 +1215,159 @@ void PeerToPeer::nfaServerCallback(tNFA_P2P_EVT p2pEvent,
       << StringPrintf("%s: enter; event=0x%X", fn, p2pEvent);
 
   switch (p2pEvent) {
-  case NFA_P2P_REG_SERVER_EVT: // NFA_P2pRegisterServer() has started to listen
-    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-        "%s: NFA_P2P_REG_SERVER_EVT; handle: 0x%04x; service sap=0x%02x  name: "
-        "%s",
-        fn, eventData->reg_server.server_handle,
-        eventData->reg_server.server_sap, eventData->reg_server.service_name);
-
-    sP2p.mMutex.lock();
-    pSrv = sP2p.findServerLocked(eventData->reg_server.service_name);
-    sP2p.mMutex.unlock();
-    if (pSrv == NULL) {
-      LOG(ERROR) << StringPrintf(
-          "%s: NFA_P2P_REG_SERVER_EVT for unknown service: %s", fn,
-          eventData->reg_server.service_name);
-    } else {
-      SyncEventGuard guard(pSrv->mRegServerEvent);
-      pSrv->mNfaP2pServerHandle = eventData->reg_server.server_handle;
-      pSrv->mRegServerEvent.notifyOne(); // unblock registerServer()
-    }
-    break;
-
-  case NFA_P2P_ACTIVATED_EVT: // remote device has activated
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: NFA_P2P_ACTIVATED_EVT; handle: 0x%04x", fn,
-                        eventData->activated.handle);
-    break;
-
-  case NFA_P2P_DEACTIVATED_EVT:
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: NFA_P2P_DEACTIVATED_EVT; handle: 0x%04x", fn,
-                        eventData->activated.handle);
-    break;
-
-  case NFA_P2P_CONN_REQ_EVT:
-    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-        "%s: NFA_P2P_CONN_REQ_EVT; nfa server h=0x%04x; nfa conn h=0x%04x; "
-        "remote sap=0x%02x",
-        fn, eventData->conn_req.server_handle, eventData->conn_req.conn_handle,
-        eventData->conn_req.remote_sap);
-
-    sP2p.mMutex.lock();
-    pSrv = sP2p.findServerLocked(eventData->conn_req.server_handle);
-    sP2p.mMutex.unlock();
-    if (pSrv == NULL) {
-      LOG(ERROR) << StringPrintf("%s: NFA_P2P_CONN_REQ_EVT; unknown server h",
-                                 fn);
-      return;
-    }
-    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-        "%s: NFA_P2P_CONN_REQ_EVT; server jni h=%u", fn, pSrv->mJniHandle);
-
-    // Look for a connection block that is waiting (handle invalid)
-    if ((pConn = pSrv->findServerConnection((tNFA_HANDLE)NFA_HANDLE_INVALID)) ==
-        NULL) {
-      LOG(ERROR) << StringPrintf(
-          "%s: NFA_P2P_CONN_REQ_EVT; server not listening", fn);
-    } else {
-      SyncEventGuard guard(pSrv->mConnRequestEvent);
-      pConn->mNfaConnHandle = eventData->conn_req.conn_handle;
-      pConn->mRemoteMaxInfoUnit = eventData->conn_req.remote_miu;
-      pConn->mRemoteRecvWindow = eventData->conn_req.remote_rw;
-      DLOG_IF(INFO, nfc_debug_enabled)
-          << StringPrintf("%s: NFA_P2P_CONN_REQ_EVT; server jni h=%u; conn jni "
-                          "h=%u; notify conn req",
-                          fn, pSrv->mJniHandle, pConn->mJniHandle);
-      pSrv->mConnRequestEvent.notifyOne(); // unblock accept()
-    }
-    break;
-
-  case NFA_P2P_CONNECTED_EVT:
-    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-        "%s: NFA_P2P_CONNECTED_EVT; h=0x%x  remote sap=0x%X", fn,
-        eventData->connected.client_handle, eventData->connected.remote_sap);
-    break;
-
-  case NFA_P2P_DISC_EVT:
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: NFA_P2P_DISC_EVT; h=0x%04x; reason=0x%X", fn,
-                        eventData->disc.handle, eventData->disc.reason);
-    // Look for the connection block
-    if ((pConn = sP2p.findConnection(eventData->disc.handle)) == NULL) {
-      LOG(ERROR) << StringPrintf(
-          "%s: NFA_P2P_DISC_EVT: can't find conn for NFA handle: 0x%04x", fn,
-          eventData->disc.handle);
-    } else {
-      sP2p.mDisconnectMutex.lock();
-      pConn->mNfaConnHandle = NFA_HANDLE_INVALID;
-      {
-        DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-            "%s: NFA_P2P_DISC_EVT; try guard disconn event", fn);
-        SyncEventGuard guard3(pConn->mDisconnectingEvent);
-        pConn->mDisconnectingEvent.notifyOne();
-        DLOG_IF(INFO, nfc_debug_enabled)
-            << StringPrintf("%s: NFA_P2P_DISC_EVT; notified disconn event", fn);
-      }
-      {
-        DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-            "%s: NFA_P2P_DISC_EVT; try guard congest event", fn);
-        SyncEventGuard guard1(pConn->mCongEvent);
-        pConn->mCongEvent.notifyOne(); // unblock write (if congested)
-        DLOG_IF(INFO, nfc_debug_enabled)
-            << StringPrintf("%s: NFA_P2P_DISC_EVT; notified congest event", fn);
-      }
-      {
-        DLOG_IF(INFO, nfc_debug_enabled)
-            << StringPrintf("%s: NFA_P2P_DISC_EVT; try guard read event", fn);
-        SyncEventGuard guard2(pConn->mReadEvent);
-        pConn->mReadEvent.notifyOne(); // unblock receive()
-        DLOG_IF(INFO, nfc_debug_enabled)
-            << StringPrintf("%s: NFA_P2P_DISC_EVT; notified read event", fn);
-      }
-      sP2p.mDisconnectMutex.unlock();
-    }
-    break;
-
-  case NFA_P2P_DATA_EVT:
-    // Look for the connection block
-    if ((pConn = sP2p.findConnection(eventData->data.handle)) == NULL) {
-      LOG(ERROR) << StringPrintf(
-          "%s: NFA_P2P_DATA_EVT: can't find conn for NFA handle: 0x%04x", fn,
-          eventData->data.handle);
-    } else {
-      DLOG_IF(INFO, nfc_debug_enabled)
-          << StringPrintf("%s: NFA_P2P_DATA_EVT; h=0x%X; remote sap=0x%X", fn,
-                          eventData->data.handle, eventData->data.remote_sap);
-      SyncEventGuard guard(pConn->mReadEvent);
-      pConn->mReadEvent.notifyOne();
-    }
-    break;
-
-  case NFA_P2P_CONGEST_EVT:
-    // Look for the connection block
-    if ((pConn = sP2p.findConnection(eventData->congest.handle)) == NULL) {
-      LOG(ERROR) << StringPrintf(
-          "%s: NFA_P2P_CONGEST_EVT: can't find conn for NFA handle: 0x%04x", fn,
-          eventData->congest.handle);
-    } else {
+    case NFA_P2P_REG_SERVER_EVT:  // NFA_P2pRegisterServer() has started to
+                                  // listen
       DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-          "%s: NFA_P2P_CONGEST_EVT; nfa handle: 0x%04x  congested: %u", fn,
-          eventData->congest.handle, eventData->congest.is_congested);
-      if (eventData->congest.is_congested == FALSE) {
-        SyncEventGuard guard(pConn->mCongEvent);
-        pConn->mCongEvent.notifyOne();
-      }
-    }
-    break;
+          "%s: NFA_P2P_REG_SERVER_EVT; handle: 0x%04x; service sap=0x%02x  "
+          "name: "
+          "%s",
+          fn, eventData->reg_server.server_handle,
+          eventData->reg_server.server_sap, eventData->reg_server.service_name);
 
-  default:
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: unknown event 0x%X ????", fn, p2pEvent);
-    break;
+      sP2p.mMutex.lock();
+      pSrv = sP2p.findServerLocked(eventData->reg_server.service_name);
+      sP2p.mMutex.unlock();
+      if (pSrv == NULL) {
+        LOG(ERROR) << StringPrintf(
+            "%s: NFA_P2P_REG_SERVER_EVT for unknown service: %s", fn,
+            eventData->reg_server.service_name);
+      } else {
+        SyncEventGuard guard(pSrv->mRegServerEvent);
+        pSrv->mNfaP2pServerHandle = eventData->reg_server.server_handle;
+        pSrv->mRegServerEvent.notifyOne();  // unblock registerServer()
+      }
+      break;
+
+    case NFA_P2P_ACTIVATED_EVT:  // remote device has activated
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: NFA_P2P_ACTIVATED_EVT; handle: 0x%04x", fn,
+                          eventData->activated.handle);
+      break;
+
+    case NFA_P2P_DEACTIVATED_EVT:
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: NFA_P2P_DEACTIVATED_EVT; handle: 0x%04x", fn,
+                          eventData->activated.handle);
+      break;
+
+    case NFA_P2P_CONN_REQ_EVT:
+      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+          "%s: NFA_P2P_CONN_REQ_EVT; nfa server h=0x%04x; nfa conn h=0x%04x; "
+          "remote sap=0x%02x",
+          fn, eventData->conn_req.server_handle,
+          eventData->conn_req.conn_handle, eventData->conn_req.remote_sap);
+
+      sP2p.mMutex.lock();
+      pSrv = sP2p.findServerLocked(eventData->conn_req.server_handle);
+      sP2p.mMutex.unlock();
+      if (pSrv == NULL) {
+        LOG(ERROR) << StringPrintf("%s: NFA_P2P_CONN_REQ_EVT; unknown server h",
+                                   fn);
+        return;
+      }
+      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+          "%s: NFA_P2P_CONN_REQ_EVT; server jni h=%u", fn, pSrv->mJniHandle);
+
+      // Look for a connection block that is waiting (handle invalid)
+      if ((pConn = pSrv->findServerConnection(
+               (tNFA_HANDLE)NFA_HANDLE_INVALID)) == NULL) {
+        LOG(ERROR) << StringPrintf(
+            "%s: NFA_P2P_CONN_REQ_EVT; server not listening", fn);
+      } else {
+        SyncEventGuard guard(pSrv->mConnRequestEvent);
+        pConn->mNfaConnHandle = eventData->conn_req.conn_handle;
+        pConn->mRemoteMaxInfoUnit = eventData->conn_req.remote_miu;
+        pConn->mRemoteRecvWindow = eventData->conn_req.remote_rw;
+        DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+            "%s: NFA_P2P_CONN_REQ_EVT; server jni h=%u; conn jni "
+            "h=%u; notify conn req",
+            fn, pSrv->mJniHandle, pConn->mJniHandle);
+        pSrv->mConnRequestEvent.notifyOne();  // unblock accept()
+      }
+      break;
+
+    case NFA_P2P_CONNECTED_EVT:
+      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+          "%s: NFA_P2P_CONNECTED_EVT; h=0x%x  remote sap=0x%X", fn,
+          eventData->connected.client_handle, eventData->connected.remote_sap);
+      break;
+
+    case NFA_P2P_DISC_EVT:
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: NFA_P2P_DISC_EVT; h=0x%04x; reason=0x%X", fn,
+                          eventData->disc.handle, eventData->disc.reason);
+      // Look for the connection block
+      if ((pConn = sP2p.findConnection(eventData->disc.handle)) == NULL) {
+        LOG(ERROR) << StringPrintf(
+            "%s: NFA_P2P_DISC_EVT: can't find conn for NFA handle: 0x%04x", fn,
+            eventData->disc.handle);
+      } else {
+        sP2p.mDisconnectMutex.lock();
+        pConn->mNfaConnHandle = NFA_HANDLE_INVALID;
+        {
+          DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+              "%s: NFA_P2P_DISC_EVT; try guard disconn event", fn);
+          SyncEventGuard guard3(pConn->mDisconnectingEvent);
+          pConn->mDisconnectingEvent.notifyOne();
+          DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+              "%s: NFA_P2P_DISC_EVT; notified disconn event", fn);
+        }
+        {
+          DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+              "%s: NFA_P2P_DISC_EVT; try guard congest event", fn);
+          SyncEventGuard guard1(pConn->mCongEvent);
+          pConn->mCongEvent.notifyOne();  // unblock write (if congested)
+          DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+              "%s: NFA_P2P_DISC_EVT; notified congest event", fn);
+        }
+        {
+          DLOG_IF(INFO, nfc_debug_enabled)
+              << StringPrintf("%s: NFA_P2P_DISC_EVT; try guard read event", fn);
+          SyncEventGuard guard2(pConn->mReadEvent);
+          pConn->mReadEvent.notifyOne();  // unblock receive()
+          DLOG_IF(INFO, nfc_debug_enabled)
+              << StringPrintf("%s: NFA_P2P_DISC_EVT; notified read event", fn);
+        }
+        sP2p.mDisconnectMutex.unlock();
+      }
+      break;
+
+    case NFA_P2P_DATA_EVT:
+      // Look for the connection block
+      if ((pConn = sP2p.findConnection(eventData->data.handle)) == NULL) {
+        LOG(ERROR) << StringPrintf(
+            "%s: NFA_P2P_DATA_EVT: can't find conn for NFA handle: 0x%04x", fn,
+            eventData->data.handle);
+      } else {
+        DLOG_IF(INFO, nfc_debug_enabled)
+            << StringPrintf("%s: NFA_P2P_DATA_EVT; h=0x%X; remote sap=0x%X", fn,
+                            eventData->data.handle, eventData->data.remote_sap);
+        SyncEventGuard guard(pConn->mReadEvent);
+        pConn->mReadEvent.notifyOne();
+      }
+      break;
+
+    case NFA_P2P_CONGEST_EVT:
+      // Look for the connection block
+      if ((pConn = sP2p.findConnection(eventData->congest.handle)) == NULL) {
+        LOG(ERROR) << StringPrintf(
+            "%s: NFA_P2P_CONGEST_EVT: can't find conn for NFA handle: 0x%04x",
+            fn, eventData->congest.handle);
+      } else {
+        DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+            "%s: NFA_P2P_CONGEST_EVT; nfa handle: 0x%04x  congested: %u", fn,
+            eventData->congest.handle, eventData->congest.is_congested);
+        if (eventData->congest.is_congested == FALSE) {
+          SyncEventGuard guard(pConn->mCongEvent);
+          pConn->mCongEvent.notifyOne();
+        }
+      }
+      break;
+
+    default:
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: unknown event 0x%X ????", fn, p2pEvent);
+      break;
   }
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: exit", fn);
 }
@@ -1380,7 +1384,7 @@ void PeerToPeer::nfaServerCallback(tNFA_P2P_EVT p2pEvent,
 **
 *******************************************************************************/
 void PeerToPeer::nfaClientCallback(tNFA_P2P_EVT p2pEvent,
-                                   tNFA_P2P_EVT_DATA *eventData) {
+                                   tNFA_P2P_EVT_DATA* eventData) {
   static const char fn[] = "PeerToPeer::nfaClientCallback";
   sp<NfaConn> pConn = NULL;
   sp<P2pClient> pClient = NULL;
@@ -1389,145 +1393,147 @@ void PeerToPeer::nfaClientCallback(tNFA_P2P_EVT p2pEvent,
       << StringPrintf("%s: enter; event=%u", fn, p2pEvent);
 
   switch (p2pEvent) {
-  case NFA_P2P_REG_CLIENT_EVT:
-    // Look for a client that is trying to register
-    if ((pClient = sP2p.findClient((tNFA_HANDLE)NFA_HANDLE_INVALID)) == NULL) {
-      LOG(ERROR) << StringPrintf(
-          "%s: NFA_P2P_REG_CLIENT_EVT: can't find waiting client", fn);
-    } else {
-      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-          "%s: NFA_P2P_REG_CLIENT_EVT; Conn Handle: 0x%04x, pClient: 0x%p", fn,
-          eventData->reg_client.client_handle, pClient.get());
-
-      SyncEventGuard guard(pClient->mRegisteringEvent);
-      pClient->mNfaP2pClientHandle = eventData->reg_client.client_handle;
-      pClient->mRegisteringEvent.notifyOne();
-    }
-    break;
-
-  case NFA_P2P_ACTIVATED_EVT:
-    // Look for a client that is trying to register
-    if ((pClient = sP2p.findClient(eventData->activated.handle)) == NULL) {
-      LOG(ERROR) << StringPrintf("%s: NFA_P2P_ACTIVATED_EVT: can't find client",
-                                 fn);
-    } else {
-      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-          "%s: NFA_P2P_ACTIVATED_EVT; Conn Handle: 0x%04x, pClient: 0x%p", fn,
-          eventData->activated.handle, pClient.get());
-    }
-    break;
-
-  case NFA_P2P_DEACTIVATED_EVT:
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: NFA_P2P_DEACTIVATED_EVT: conn handle: 0x%X", fn,
-                        eventData->deactivated.handle);
-    break;
-
-  case NFA_P2P_CONNECTED_EVT:
-    // Look for the client that is trying to connect
-    if ((pClient = sP2p.findClient(eventData->connected.client_handle)) ==
-        NULL) {
-      LOG(ERROR) << StringPrintf(
-          "%s: NFA_P2P_CONNECTED_EVT: can't find client: 0x%04x", fn,
-          eventData->connected.client_handle);
-    } else {
-      DLOG_IF(INFO, nfc_debug_enabled)
-          << StringPrintf("%s: NFA_P2P_CONNECTED_EVT; client_handle=0x%04x  "
-                          "conn_handle: 0x%04x  remote sap=0x%X  pClient: 0x%p",
-                          fn, eventData->connected.client_handle,
-                          eventData->connected.conn_handle,
-                          eventData->connected.remote_sap, pClient.get());
-
-      SyncEventGuard guard(pClient->mConnectingEvent);
-      pClient->mClientConn->mNfaConnHandle = eventData->connected.conn_handle;
-      pClient->mClientConn->mRemoteMaxInfoUnit =
-          eventData->connected.remote_miu;
-      pClient->mClientConn->mRemoteRecvWindow = eventData->connected.remote_rw;
-      pClient->mConnectingEvent.notifyOne(); // unblock createDataLinkConn()
-    }
-    break;
-
-  case NFA_P2P_DISC_EVT:
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: NFA_P2P_DISC_EVT; h=0x%04x; reason=0x%X", fn,
-                        eventData->disc.handle, eventData->disc.reason);
-    // Look for the connection block
-    if ((pConn = sP2p.findConnection(eventData->disc.handle)) == NULL) {
-      // If no connection, may be a client that is trying to connect
-      if ((pClient = sP2p.findClient(eventData->disc.handle)) == NULL) {
+    case NFA_P2P_REG_CLIENT_EVT:
+      // Look for a client that is trying to register
+      if ((pClient = sP2p.findClient((tNFA_HANDLE)NFA_HANDLE_INVALID)) ==
+          NULL) {
         LOG(ERROR) << StringPrintf(
-            "%s: NFA_P2P_DISC_EVT: can't find client for NFA handle: 0x%04x",
-            fn, eventData->disc.handle);
-        return;
-      }
-      // Unblock createDataLinkConn()
-      SyncEventGuard guard(pClient->mConnectingEvent);
-      pClient->mConnectingEvent.notifyOne();
-    } else {
-      sP2p.mDisconnectMutex.lock();
-      pConn->mNfaConnHandle = NFA_HANDLE_INVALID;
-      {
+            "%s: NFA_P2P_REG_CLIENT_EVT: can't find waiting client", fn);
+      } else {
         DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-            "%s: NFA_P2P_DISC_EVT; try guard disconn event", fn);
-        SyncEventGuard guard3(pConn->mDisconnectingEvent);
-        pConn->mDisconnectingEvent.notifyOne();
-        DLOG_IF(INFO, nfc_debug_enabled)
-            << StringPrintf("%s: NFA_P2P_DISC_EVT; notified disconn event", fn);
-      }
-      {
-        DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-            "%s: NFA_P2P_DISC_EVT; try guard congest event", fn);
-        SyncEventGuard guard1(pConn->mCongEvent);
-        pConn->mCongEvent.notifyOne(); // unblock write (if congested)
-        DLOG_IF(INFO, nfc_debug_enabled)
-            << StringPrintf("%s: NFA_P2P_DISC_EVT; notified congest event", fn);
-      }
-      {
-        DLOG_IF(INFO, nfc_debug_enabled)
-            << StringPrintf("%s: NFA_P2P_DISC_EVT; try guard read event", fn);
-        SyncEventGuard guard2(pConn->mReadEvent);
-        pConn->mReadEvent.notifyOne(); // unblock receive()
-        DLOG_IF(INFO, nfc_debug_enabled)
-            << StringPrintf("%s: NFA_P2P_DISC_EVT; notified read event", fn);
-      }
-      sP2p.mDisconnectMutex.unlock();
-    }
-    break;
+            "%s: NFA_P2P_REG_CLIENT_EVT; Conn Handle: 0x%04x, pClient: 0x%p",
+            fn, eventData->reg_client.client_handle, pClient.get());
 
-  case NFA_P2P_DATA_EVT:
-    // Look for the connection block
-    if ((pConn = sP2p.findConnection(eventData->data.handle)) == NULL) {
-      LOG(ERROR) << StringPrintf(
-          "%s: NFA_P2P_DATA_EVT: can't find conn for NFA handle: 0x%04x", fn,
-          eventData->data.handle);
-    } else {
+        SyncEventGuard guard(pClient->mRegisteringEvent);
+        pClient->mNfaP2pClientHandle = eventData->reg_client.client_handle;
+        pClient->mRegisteringEvent.notifyOne();
+      }
+      break;
+
+    case NFA_P2P_ACTIVATED_EVT:
+      // Look for a client that is trying to register
+      if ((pClient = sP2p.findClient(eventData->activated.handle)) == NULL) {
+        LOG(ERROR) << StringPrintf(
+            "%s: NFA_P2P_ACTIVATED_EVT: can't find client", fn);
+      } else {
+        DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+            "%s: NFA_P2P_ACTIVATED_EVT; Conn Handle: 0x%04x, pClient: 0x%p", fn,
+            eventData->activated.handle, pClient.get());
+      }
+      break;
+
+    case NFA_P2P_DEACTIVATED_EVT:
       DLOG_IF(INFO, nfc_debug_enabled)
-          << StringPrintf("%s: NFA_P2P_DATA_EVT; h=0x%X; remote sap=0x%X", fn,
-                          eventData->data.handle, eventData->data.remote_sap);
-      SyncEventGuard guard(pConn->mReadEvent);
-      pConn->mReadEvent.notifyOne();
-    }
-    break;
+          << StringPrintf("%s: NFA_P2P_DEACTIVATED_EVT: conn handle: 0x%X", fn,
+                          eventData->deactivated.handle);
+      break;
 
-  case NFA_P2P_CONGEST_EVT:
-    // Look for the connection block
-    if ((pConn = sP2p.findConnection(eventData->congest.handle)) == NULL) {
-      LOG(ERROR) << StringPrintf(
-          "%s: NFA_P2P_CONGEST_EVT: can't find conn for NFA handle: 0x%04x", fn,
-          eventData->congest.handle);
-    } else {
-      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-          "%s: NFA_P2P_CONGEST_EVT; nfa handle: 0x%04x  congested: %u", fn,
-          eventData->congest.handle, eventData->congest.is_congested);
+    case NFA_P2P_CONNECTED_EVT:
+      // Look for the client that is trying to connect
+      if ((pClient = sP2p.findClient(eventData->connected.client_handle)) ==
+          NULL) {
+        LOG(ERROR) << StringPrintf(
+            "%s: NFA_P2P_CONNECTED_EVT: can't find client: 0x%04x", fn,
+            eventData->connected.client_handle);
+      } else {
+        DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+            "%s: NFA_P2P_CONNECTED_EVT; client_handle=0x%04x  "
+            "conn_handle: 0x%04x  remote sap=0x%X  pClient: 0x%p",
+            fn, eventData->connected.client_handle,
+            eventData->connected.conn_handle, eventData->connected.remote_sap,
+            pClient.get());
 
-      SyncEventGuard guard(pConn->mCongEvent);
-      pConn->mCongEvent.notifyOne();
-    }
-    break;
+        SyncEventGuard guard(pClient->mConnectingEvent);
+        pClient->mClientConn->mNfaConnHandle = eventData->connected.conn_handle;
+        pClient->mClientConn->mRemoteMaxInfoUnit =
+            eventData->connected.remote_miu;
+        pClient->mClientConn->mRemoteRecvWindow =
+            eventData->connected.remote_rw;
+        pClient->mConnectingEvent.notifyOne();  // unblock createDataLinkConn()
+      }
+      break;
 
-  default:
-    LOG(ERROR) << StringPrintf("%s: unknown event 0x%X ????", fn, p2pEvent);
-    break;
+    case NFA_P2P_DISC_EVT:
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: NFA_P2P_DISC_EVT; h=0x%04x; reason=0x%X", fn,
+                          eventData->disc.handle, eventData->disc.reason);
+      // Look for the connection block
+      if ((pConn = sP2p.findConnection(eventData->disc.handle)) == NULL) {
+        // If no connection, may be a client that is trying to connect
+        if ((pClient = sP2p.findClient(eventData->disc.handle)) == NULL) {
+          LOG(ERROR) << StringPrintf(
+              "%s: NFA_P2P_DISC_EVT: can't find client for NFA handle: 0x%04x",
+              fn, eventData->disc.handle);
+          return;
+        }
+        // Unblock createDataLinkConn()
+        SyncEventGuard guard(pClient->mConnectingEvent);
+        pClient->mConnectingEvent.notifyOne();
+      } else {
+        sP2p.mDisconnectMutex.lock();
+        pConn->mNfaConnHandle = NFA_HANDLE_INVALID;
+        {
+          DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+              "%s: NFA_P2P_DISC_EVT; try guard disconn event", fn);
+          SyncEventGuard guard3(pConn->mDisconnectingEvent);
+          pConn->mDisconnectingEvent.notifyOne();
+          DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+              "%s: NFA_P2P_DISC_EVT; notified disconn event", fn);
+        }
+        {
+          DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+              "%s: NFA_P2P_DISC_EVT; try guard congest event", fn);
+          SyncEventGuard guard1(pConn->mCongEvent);
+          pConn->mCongEvent.notifyOne();  // unblock write (if congested)
+          DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+              "%s: NFA_P2P_DISC_EVT; notified congest event", fn);
+        }
+        {
+          DLOG_IF(INFO, nfc_debug_enabled)
+              << StringPrintf("%s: NFA_P2P_DISC_EVT; try guard read event", fn);
+          SyncEventGuard guard2(pConn->mReadEvent);
+          pConn->mReadEvent.notifyOne();  // unblock receive()
+          DLOG_IF(INFO, nfc_debug_enabled)
+              << StringPrintf("%s: NFA_P2P_DISC_EVT; notified read event", fn);
+        }
+        sP2p.mDisconnectMutex.unlock();
+      }
+      break;
+
+    case NFA_P2P_DATA_EVT:
+      // Look for the connection block
+      if ((pConn = sP2p.findConnection(eventData->data.handle)) == NULL) {
+        LOG(ERROR) << StringPrintf(
+            "%s: NFA_P2P_DATA_EVT: can't find conn for NFA handle: 0x%04x", fn,
+            eventData->data.handle);
+      } else {
+        DLOG_IF(INFO, nfc_debug_enabled)
+            << StringPrintf("%s: NFA_P2P_DATA_EVT; h=0x%X; remote sap=0x%X", fn,
+                            eventData->data.handle, eventData->data.remote_sap);
+        SyncEventGuard guard(pConn->mReadEvent);
+        pConn->mReadEvent.notifyOne();
+      }
+      break;
+
+    case NFA_P2P_CONGEST_EVT:
+      // Look for the connection block
+      if ((pConn = sP2p.findConnection(eventData->congest.handle)) == NULL) {
+        LOG(ERROR) << StringPrintf(
+            "%s: NFA_P2P_CONGEST_EVT: can't find conn for NFA handle: 0x%04x",
+            fn, eventData->congest.handle);
+      } else {
+        DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+            "%s: NFA_P2P_CONGEST_EVT; nfa handle: 0x%04x  congested: %u", fn,
+            eventData->congest.handle, eventData->congest.is_congested);
+
+        SyncEventGuard guard(pConn->mCongEvent);
+        pConn->mCongEvent.notifyOne();
+      }
+      break;
+
+    default:
+      LOG(ERROR) << StringPrintf("%s: unknown event 0x%X ????", fn, p2pEvent);
+      break;
   }
 }
 
@@ -1543,13 +1549,13 @@ void PeerToPeer::nfaClientCallback(tNFA_P2P_EVT p2pEvent,
 **
 *******************************************************************************/
 void PeerToPeer::connectionEventHandler(uint8_t event,
-                                        tNFA_CONN_EVT_DATA * /*eventData*/) {
+                                        tNFA_CONN_EVT_DATA* /*eventData*/) {
   switch (event) {
-  case NFA_SET_P2P_LISTEN_TECH_EVT: {
-    SyncEventGuard guard(mSetTechEvent);
-    mSetTechEvent.notifyOne(); // unblock NFA_SetP2pListenTech()
-    break;
-  }
+    case NFA_SET_P2P_LISTEN_TECH_EVT: {
+      SyncEventGuard guard(mSetTechEvent);
+      mSetTechEvent.notifyOne();  // unblock NFA_SetP2pListenTech()
+      break;
+    }
   }
 }
 
@@ -1583,7 +1589,7 @@ PeerToPeer::tJNI_HANDLE PeerToPeer::getNewJniHandle() {
 ** Returns:         None
 **
 *******************************************************************************/
-P2pServer::P2pServer(PeerToPeer::tJNI_HANDLE jniHandle, const char *serviceName)
+P2pServer::P2pServer(PeerToPeer::tJNI_HANDLE jniHandle, const char* serviceName)
     : mNfaP2pServerHandle(NFA_HANDLE_INVALID), mJniHandle(jniHandle) {
   mServiceName.assign(serviceName);
 
@@ -1613,10 +1619,10 @@ bool P2pServer::registerWithStack() {
  ************************/
   stat = NFA_P2pSetLLCPConfig(LLCP_MAX_MIU, LLCP_OPT_VALUE, LLCP_WAITING_TIME,
                               LLCP_LTO_VALUE,
-                              0, // use 0 for infinite timeout for symmetry
-                                 // procedure when acting as initiator
-                              0, // use 0 for infinite timeout for symmetry
-                                 // procedure when acting as target
+                              0,  // use 0 for infinite timeout for symmetry
+                                  // procedure when acting as initiator
+                              0,  // use 0 for infinite timeout for symmetry
+                                  // procedure when acting as target
                               LLCP_DELAY_RESP_TIME, LLCP_DATA_LINK_TIMEOUT,
                               LLCP_DELAY_TIME_TO_SEND_FIRST_PDU);
   if (stat != NFA_STATUS_OK)
@@ -1624,12 +1630,12 @@ bool P2pServer::registerWithStack() {
                                stat);
 
   if (sSnepServiceName.compare(mServiceName) == 0)
-    serverSap = 4; // LLCP_SAP_SNEP == 4
+    serverSap = 4;  // LLCP_SAP_SNEP == 4
 
   {
     SyncEventGuard guard(mRegServerEvent);
     stat = NFA_P2pRegisterServer(serverSap, NFA_P2P_DLINK_TYPE,
-                                 const_cast<char *>(mServiceName.c_str()),
+                                 const_cast<char*>(mServiceName.c_str()),
                                  PeerToPeer::nfaServerCallback);
     if (stat != NFA_STATUS_OK) {
       LOG(ERROR) << StringPrintf("%s: fail register p2p server; error=0x%X", fn,
@@ -1662,10 +1668,10 @@ bool P2pServer::accept(PeerToPeer::tJNI_HANDLE serverJniHandle,
     // Wait for NFA_P2P_CONN_REQ_EVT or NFA_NDEF_DATA_EVT when remote device
     // requests connection
     SyncEventGuard guard(mConnRequestEvent);
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: serverJniHandle: %u; connJniHandle: %u; wait for "
-                        "incoming connection",
-                        fn, serverJniHandle, connJniHandle);
+    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+        "%s: serverJniHandle: %u; connJniHandle: %u; wait for "
+        "incoming connection",
+        fn, serverJniHandle, connJniHandle);
     mConnRequestEvent.wait();
     DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
         "%s: serverJniHandle: %u; connJniHandle: %u; nfa conn h: 0x%X; got "
@@ -1713,11 +1719,12 @@ void P2pServer::unblockAll() {
       mServerConn[jj]->mNfaConnHandle = NFA_HANDLE_INVALID;
       {
         SyncEventGuard guard1(mServerConn[jj]->mCongEvent);
-        mServerConn[jj]->mCongEvent.notifyOne(); // unblock write (if congested)
+        mServerConn[jj]
+            ->mCongEvent.notifyOne();  // unblock write (if congested)
       }
       {
         SyncEventGuard guard2(mServerConn[jj]->mReadEvent);
-        mServerConn[jj]->mReadEvent.notifyOne(); // unblock receive()
+        mServerConn[jj]->mReadEvent.notifyOne();  // unblock receive()
       }
     }
   }
@@ -1850,5 +1857,9 @@ P2pClient::~P2pClient() {}
 **
 *******************************************************************************/
 NfaConn::NfaConn()
-    : mNfaConnHandle(NFA_HANDLE_INVALID), mJniHandle(0), mMaxInfoUnit(0),
-      mRecvWindow(0), mRemoteMaxInfoUnit(0), mRemoteRecvWindow(0) {}
+    : mNfaConnHandle(NFA_HANDLE_INVALID),
+      mJniHandle(0),
+      mMaxInfoUnit(0),
+      mRecvWindow(0),
+      mRemoteMaxInfoUnit(0),
+      mRemoteRecvWindow(0) {}

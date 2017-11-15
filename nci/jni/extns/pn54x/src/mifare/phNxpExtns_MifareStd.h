@@ -33,37 +33,37 @@ extern uint8_t current_key[];
 
 #define PHLIBNFC_MIFARESTD4K_BLK128 128   /*Block number 128 for Mifare 4k */
 #define PHLIBNFC_MIFARESTD_SECTOR_NO32 32 /* Sector 32 for Mifare 4K*/
-#define PHLIBNFC_MIFARESTD_BLOCK_BYTES                                         \
+#define PHLIBNFC_MIFARESTD_BLOCK_BYTES \
   16 /* Bytes per block after block 32 for Mifare 4K*/
 
-#define PHLIBNFC_NO_OF_BLKPERSECTOR                                            \
-  (0x04) /* Number of blocks per sector for                                    \
+#define PHLIBNFC_NO_OF_BLKPERSECTOR         \
+  (0x04) /* Number of blocks per sector for \
           * Mifare Clsssic Tag*/
 
-#define PHLIBNFC_MFCUIDLEN_INAUTHCMD                                           \
+#define PHLIBNFC_MFCUIDLEN_INAUTHCMD \
   0x04                               /* UID length in Authentication command */
 #define PHLIBNFC_MFC_AUTHKEYLEN 0x06 /* Authentication key length */
 
-#define PHNCINFC_AUTHENTICATION_KEY                                            \
-  (0x00U) /* Authentication key passed in extension                            \
+#define PHNCINFC_AUTHENTICATION_KEY                 \
+  (0x00U) /* Authentication key passed in extension \
              command header of authentication command */
 #define PHNCINFC_AUTHENTICATION_KEYB (0x61U) /* Authentication Key B */
 #define PHNCINFC_ENABLE_KEY_B (0x80U)        /* Enable Key B */
-#define PH_NCINFC_MIFARECLASSIC_EMBEDDED_KEY                                   \
+#define PH_NCINFC_MIFARECLASSIC_EMBEDDED_KEY \
   (0x10) /* MIFARE Classic use Embedded Key*/
 
 #define PH_NCINFC_STATUS_OK (0x0000) /* Status OK */
 #define PHNCINFC_EXTNID_SIZE (0x01U) /* Size of Mifare Extension Req/Rsp Id */
-#define PHNCINFC_EXTNSTATUS_SIZE                                               \
+#define PHNCINFC_EXTNSTATUS_SIZE \
   (0x01U) /* Size of Mifare Extension Resp Status Byte */
 
-#define PH_NCINFC_EXTN_INVALID_PARAM_VAL                                       \
+#define PH_NCINFC_EXTN_INVALID_PARAM_VAL \
   (0xFFU) /* Initial value of Req/Resp Param/Status */
 
 #define PH_FRINFC_NDEF_READ_REQ (0x00U)  /* NDEF Read Request */
 #define PH_FRINFC_NDEF_WRITE_REQ (0x01U) /* NDEF Write Request */
 
-#define PH_LIBNFC_INTERNAL_CHK_NDEF_NOT_DONE                                   \
+#define PH_LIBNFC_INTERNAL_CHK_NDEF_NOT_DONE \
   (0x02U) /* Status for check NDEF not done */
 
 #define NDEF_SENDRCV_BUF_LEN 252U /* Send receive buffer length */
@@ -71,13 +71,13 @@ extern uint8_t current_key[];
 #define NXP_NUMBER_OF_MFC_KEYS (0x04U)
 #define NXP_MFC_KEY_SIZE (0x06U)
 
-#define NXP_MFC_KEYS                                                           \
-  {                                                                            \
-    {0xA0, 0XA1, 0xA2, 0XA3, 0xA4, 0XA5},                                      \
-        {0xD3, 0XF7, 0xD3, 0XF7, 0xD3, 0XF7},                                  \
-        {0xFF, 0XFF, 0xFF, 0XFF, 0xFF, 0XFF}, {                                \
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00                                       \
-    }                                                                          \
+#define NXP_MFC_KEYS                            \
+  {                                             \
+    {0xA0, 0XA1, 0xA2, 0XA3, 0xA4, 0XA5},       \
+        {0xD3, 0XF7, 0xD3, 0XF7, 0xD3, 0XF7},   \
+        {0xFF, 0XFF, 0xFF, 0XFF, 0xFF, 0XFF}, { \
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00        \
+    }                                           \
   } /* Key used during NDEF format */
 
 #ifndef NCI_MAX_DATA_LEN
@@ -122,8 +122,8 @@ typedef enum phNciNfc_ExtnRespId {
 
 /* Data buffer */
 typedef struct phNciNfc_Buff {
-  uint8_t
-      *pBuff; /* pointer to the buffer where received payload shall be stored*/
+  uint8_t*
+      pBuff; /* pointer to the buffer where received payload shall be stored*/
   uint16_t wLen; /* Buffer length*/
 } phNciNfc_Buff_t, *pphNciNfc_Buff_t;
 
@@ -144,17 +144,16 @@ typedef struct phNciNfc_ExtnInfo {
  * NDEF related data structures
  */
 typedef struct phLibNfc_NdefInfo {
-
   uint8_t NdefContinueRead;
   uint32_t NdefActualSize;
   uint32_t AppWrLength;
-  phFriNfc_NdefMap_t *psNdefMap;
+  phFriNfc_NdefMap_t* psNdefMap;
   uint16_t NdefSendRecvLen;
-  phNfc_sData_t *psUpperNdefMsg;
+  phNfc_sData_t* psUpperNdefMsg;
   uint32_t dwWrLength;
   uint32_t NdefLength;
   uint8_t is_ndef;
-  phFriNfc_sNdefSmtCrdFmt_t *ndef_fmt;
+  phFriNfc_sNdefSmtCrdFmt_t* ndef_fmt;
 } phLibNfc_NdefInfo_t;
 
 /*
@@ -181,7 +180,7 @@ typedef struct nci_data_package {
 /*
  * Mifare Callback function definition
  */
-typedef void (*CallBackMifare_t)(void *, uint16_t);
+typedef void (*CallBackMifare_t)(void*, uint16_t);
 
 /*
  * Auth Cmd Data
@@ -192,7 +191,7 @@ typedef struct nci_mfc_package {
   sem_t semPresenceCheck;
   pthread_mutex_t syncmutex;
   NFCSTATUS status;
-  phNfc_sData_t *pauth_cmd;
+  phNfc_sData_t* pauth_cmd;
 } phNci_mfc_auth_cmd_t;
 /*
  * Structure of callback functions from different module.
@@ -200,12 +199,12 @@ typedef struct nci_mfc_package {
  */
 typedef struct phNxpExtns_Context {
   phNxpExtns_Status Extns_status;
-  tNFA_DM_CBACK *p_dm_cback;
-  tNFA_CONN_CBACK *p_conn_cback;
-  tNFA_NDEF_CBACK *p_ndef_cback;
+  tNFA_DM_CBACK* p_dm_cback;
+  tNFA_CONN_CBACK* p_conn_cback;
+  tNFA_NDEF_CBACK* p_ndef_cback;
   uint8_t writecmdFlag;
   uint8_t RawWriteCallBack;
-  void *CallBackCtxt;
+  void* CallBackCtxt;
   CallBackMifare_t CallBackMifare;
   bool_t ExtnsConnect;
   bool_t ExtnsDeactivate;
@@ -214,21 +213,21 @@ typedef struct phNxpExtns_Context {
   uint8_t incrdecstatusflag;
 } phNxpExtns_Context_t;
 
-NFCSTATUS phFriNfc_ExtnsTransceive(phNfc_sTransceiveInfo_t *pTransceiveInfo,
-                                   phNfc_uCmdList_t Cmd, uint8_t *SendRecvBuf,
+NFCSTATUS phFriNfc_ExtnsTransceive(phNfc_sTransceiveInfo_t* pTransceiveInfo,
+                                   phNfc_uCmdList_t Cmd, uint8_t* SendRecvBuf,
                                    uint16_t SendLength,
-                                   uint16_t *SendRecvLength);
+                                   uint16_t* SendRecvLength);
 NFCSTATUS phNxpExtns_MfcModuleInit(void);
 NFCSTATUS phNxpExtns_MfcModuleDeInit(void);
-NFCSTATUS Mfc_WriteNdef(uint8_t *p_data, uint32_t len);
+NFCSTATUS Mfc_WriteNdef(uint8_t* p_data, uint32_t len);
 NFCSTATUS Mfc_CheckNdef(void);
 NFCSTATUS Mfc_ReadNdef(void);
-NFCSTATUS Mfc_FormatNdef(uint8_t *secretkey, uint8_t len);
-NFCSTATUS Mfc_Transceive(uint8_t *p_data, uint32_t len);
-NFCSTATUS Mfc_SetReadOnly(uint8_t *secrtkey, uint8_t len);
+NFCSTATUS Mfc_FormatNdef(uint8_t* secretkey, uint8_t len);
+NFCSTATUS Mfc_Transceive(uint8_t* p_data, uint32_t len);
+NFCSTATUS Mfc_SetReadOnly(uint8_t* secrtkey, uint8_t len);
 void Mfc_DeactivateCbackSelect(void);
 void Mfc_ActivateCback(void);
-NFCSTATUS Mfc_RecvPacket(uint8_t *buff, uint8_t buffSz);
+NFCSTATUS Mfc_RecvPacket(uint8_t* buff, uint8_t buffSz);
 NFCSTATUS phNxNciExtns_MifareStd_Reconnect(void);
 NFCSTATUS Mfc_PresenceCheck(void);
 

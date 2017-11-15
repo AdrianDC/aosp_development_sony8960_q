@@ -34,7 +34,7 @@
 ** Returns          none.
 **
 *******************************************************************************/
-void phFriNfc_SmtCrdFmt_HCrHandler(phFriNfc_sNdefSmtCrdFmt_t *NdefSmtCrdFmt,
+void phFriNfc_SmtCrdFmt_HCrHandler(phFriNfc_sNdefSmtCrdFmt_t* NdefSmtCrdFmt,
                                    NFCSTATUS Status) {
   /* set the state back to the Reset_Init state*/
   NdefSmtCrdFmt->State = PH_FRINFC_SMTCRDFMT_STATE_RESET_INIT;
@@ -65,10 +65,10 @@ void phFriNfc_SmtCrdFmt_HCrHandler(phFriNfc_sNdefSmtCrdFmt_t *NdefSmtCrdFmt,
 **
 *******************************************************************************/
 NFCSTATUS
-phFriNfc_NdefSmtCrd_Reset(phFriNfc_sNdefSmtCrdFmt_t *NdefSmtCrdFmt,
-                          void *LowerDevice,
-                          phHal_sRemoteDevInformation_t *psRemoteDevInfo,
-                          uint8_t *SendRecvBuffer, uint16_t *SendRecvBuffLen) {
+phFriNfc_NdefSmtCrd_Reset(phFriNfc_sNdefSmtCrdFmt_t* NdefSmtCrdFmt,
+                          void* LowerDevice,
+                          phHal_sRemoteDevInformation_t* psRemoteDevInfo,
+                          uint8_t* SendRecvBuffer, uint16_t* SendRecvBuffLen) {
   NFCSTATUS result = NFCSTATUS_SUCCESS;
   uint8_t index;
   if ((SendRecvBuffLen == NULL) || (NdefSmtCrdFmt == NULL) ||
@@ -91,7 +91,7 @@ phFriNfc_NdefSmtCrd_Reset(phFriNfc_sNdefSmtCrdFmt_t *NdefSmtCrdFmt,
     /* Lower Device(Always Overlapped HAL Struct initialized in application
      * is registered in NdefMap Lower Device)
      */
-    NdefSmtCrdFmt->pTransceiveInfo = (phNfc_sTransceiveInfo *)LowerDevice;
+    NdefSmtCrdFmt->pTransceiveInfo = (phNfc_sTransceiveInfo*)LowerDevice;
 
     /* Remote Device info received from Manual Device Discovery is registered
      * here */
@@ -135,10 +135,10 @@ phFriNfc_NdefSmtCrd_Reset(phFriNfc_sNdefSmtCrdFmt_t *NdefSmtCrdFmt,
 *function is invalid.
 **
 *******************************************************************************/
-NFCSTATUS phFriNfc_NdefSmtCrd_SetCR(phFriNfc_sNdefSmtCrdFmt_t *NdefSmtCrdFmt,
+NFCSTATUS phFriNfc_NdefSmtCrd_SetCR(phFriNfc_sNdefSmtCrdFmt_t* NdefSmtCrdFmt,
                                     uint8_t FunctionID,
                                     pphFriNfc_Cr_t CompletionRoutine,
-                                    void *CompletionRoutineContext) {
+                                    void* CompletionRoutineContext) {
   NFCSTATUS status = NFCSTATUS_SUCCESS;
   if ((NdefSmtCrdFmt == NULL) || (FunctionID >= PH_FRINFC_SMTCRDFMT_CR) ||
       (CompletionRoutine == NULL) || (CompletionRoutineContext == NULL)) {
@@ -173,38 +173,39 @@ NFCSTATUS phFriNfc_NdefSmtCrd_SetCR(phFriNfc_sNdefSmtCrdFmt_t *NdefSmtCrdFmt,
 ** Returns          none.
 **
 *******************************************************************************/
-void phFriNfc_NdefSmtCrd_Process(void *Context, NFCSTATUS Status) {
+void phFriNfc_NdefSmtCrd_Process(void* Context, NFCSTATUS Status) {
   if (Context != NULL) {
-    phFriNfc_sNdefSmtCrdFmt_t *NdefSmtCrdFmt =
-        (phFriNfc_sNdefSmtCrdFmt_t *)Context;
+    phFriNfc_sNdefSmtCrdFmt_t* NdefSmtCrdFmt =
+        (phFriNfc_sNdefSmtCrdFmt_t*)Context;
 
     switch (NdefSmtCrdFmt->psRemoteDevInfo->RemDevType) {
-    case phNfc_eMifare_PICC:
-    case phNfc_eISO14443_3A_PICC:
-      if ((NdefSmtCrdFmt->CardType == PH_FRINFC_SMTCRDFMT_MFSTD_1K_CRD) ||
-          (NdefSmtCrdFmt->CardType == PH_FRINFC_SMTCRDFMT_MFSTD_4K_CRD) ||
-          (NdefSmtCrdFmt->CardType == PH_FRINFC_SMTCRDFMT_MFSTD_2K_CRD)) {
-        /* Remote device is Mifare Standard card */
-        phFriNfc_MfStd_Process(NdefSmtCrdFmt, Status);
+      case phNfc_eMifare_PICC:
+      case phNfc_eISO14443_3A_PICC:
+        if ((NdefSmtCrdFmt->CardType == PH_FRINFC_SMTCRDFMT_MFSTD_1K_CRD) ||
+            (NdefSmtCrdFmt->CardType == PH_FRINFC_SMTCRDFMT_MFSTD_4K_CRD) ||
+            (NdefSmtCrdFmt->CardType == PH_FRINFC_SMTCRDFMT_MFSTD_2K_CRD)) {
+          /* Remote device is Mifare Standard card */
+          phFriNfc_MfStd_Process(NdefSmtCrdFmt, Status);
 
-      } else {
+        } else {
+          Status = PHNFCSTVAL(CID_FRI_NFC_NDEF_SMTCRDFMT,
+                              NFCSTATUS_INVALID_REMOTE_DEVICE);
+        }
+        break;
+      default:
+        /* Remote device opmode not recognized.
+         * Probably not NDEF compliant
+         */
         Status = PHNFCSTVAL(CID_FRI_NFC_NDEF_SMTCRDFMT,
                             NFCSTATUS_INVALID_REMOTE_DEVICE);
-      }
-      break;
-    default:
-      /* Remote device opmode not recognized.
-       * Probably not NDEF compliant
-       */
-      Status = PHNFCSTVAL(CID_FRI_NFC_NDEF_SMTCRDFMT,
-                          NFCSTATUS_INVALID_REMOTE_DEVICE);
-      /* set the state back to the Reset_Init state*/
-      NdefSmtCrdFmt->State = PH_FRINFC_SMTCRDFMT_STATE_RESET_INIT;
+        /* set the state back to the Reset_Init state*/
+        NdefSmtCrdFmt->State = PH_FRINFC_SMTCRDFMT_STATE_RESET_INIT;
 
-      /* set the completion routine*/
-      NdefSmtCrdFmt->CompletionRoutine[PH_FRINFC_SMTCRDFMT_CR_INVALID_OPE]
-          .CompletionRoutine(NdefSmtCrdFmt->CompletionRoutine->Context, Status);
-      break;
+        /* set the completion routine*/
+        NdefSmtCrdFmt->CompletionRoutine[PH_FRINFC_SMTCRDFMT_CR_INVALID_OPE]
+            .CompletionRoutine(NdefSmtCrdFmt->CompletionRoutine->Context,
+                               Status);
+        break;
     }
   } else {
     Status =
