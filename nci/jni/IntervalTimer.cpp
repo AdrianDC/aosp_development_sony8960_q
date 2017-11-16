@@ -28,16 +28,13 @@ IntervalTimer::IntervalTimer() {
 
 bool IntervalTimer::set(int ms, TIMER_FUNC cb) {
   if (mTimerId == 0) {
-    if (cb == NULL)
-      return false;
+    if (cb == NULL) return false;
 
-    if (!create(cb))
-      return false;
+    if (!create(cb)) return false;
   }
   if (cb != mCb) {
     kill();
-    if (!create(cb))
-      return false;
+    if (!create(cb)) return false;
   }
 
   int stat = 0;
@@ -49,16 +46,14 @@ bool IntervalTimer::set(int ms, TIMER_FUNC cb) {
   ts.it_interval.tv_nsec = 0;
 
   stat = timer_settime(mTimerId, 0, &ts, 0);
-  if (stat == -1)
-    LOG(ERROR) << StringPrintf("fail set timer");
+  if (stat == -1) LOG(ERROR) << StringPrintf("fail set timer");
   return stat == 0;
 }
 
 IntervalTimer::~IntervalTimer() { kill(); }
 
 void IntervalTimer::kill() {
-  if (mTimerId == 0)
-    return;
+  if (mTimerId == 0) return;
 
   timer_delete(mTimerId);
   mTimerId = 0;
@@ -79,7 +74,6 @@ bool IntervalTimer::create(TIMER_FUNC cb) {
   se.sigev_notify_attributes = NULL;
   mCb = cb;
   stat = timer_create(CLOCK_MONOTONIC, &se, &mTimerId);
-  if (stat == -1)
-    LOG(ERROR) << StringPrintf("fail create timer");
+  if (stat == -1) LOG(ERROR) << StringPrintf("fail create timer");
   return stat == 0;
 }

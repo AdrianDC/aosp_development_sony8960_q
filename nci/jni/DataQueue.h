@@ -19,13 +19,13 @@
  */
 
 #pragma once
+#include <list>
 #include "Mutex.h"
 #include "NfcJniUtil.h"
 #include "gki.h"
-#include <list>
 
 class DataQueue {
-public:
+ public:
   /*******************************************************************************
   **
   ** Function:        DataQueue
@@ -59,7 +59,7 @@ public:
   ** Returns:         True if ok.
   **
   *******************************************************************************/
-  bool enqueue(uint8_t *data, uint16_t dataLen);
+  bool enqueue(uint8_t* data, uint16_t dataLen);
 
   /*******************************************************************************
   **
@@ -73,7 +73,7 @@ public:
   ** Returns:         True if ok.
   **
   *******************************************************************************/
-  bool dequeue(uint8_t *buffer, uint16_t bufferMaxLen, uint16_t &actualLen);
+  bool dequeue(uint8_t* buffer, uint16_t bufferMaxLen, uint16_t& actualLen);
 
   /*******************************************************************************
   **
@@ -86,12 +86,12 @@ public:
   *******************************************************************************/
   bool isEmpty();
 
-private:
+ private:
   struct tHeader {
-    uint16_t mDataLen; // number of octets of data
-    uint16_t mOffset;  // offset of the first octet of data
+    uint16_t mDataLen;  // number of octets of data
+    uint16_t mOffset;   // offset of the first octet of data
   };
-  typedef std::list<tHeader *> Queue;
+  typedef std::list<tHeader*> Queue;
 
   Queue mQueue;
   Mutex mMutex;

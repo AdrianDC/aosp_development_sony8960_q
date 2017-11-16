@@ -17,10 +17,10 @@
 #ifndef _NXP_CONFIG_H
 #define _NXP_CONFIG_H
 
-int GetNxpStrValue(const char *name, char *p_value, unsigned long len);
-int GetNxpNumValue(const char *name, void *p_value, unsigned long len);
-int GetNxpByteArrayValue(const char *name, char *pValue, long bufflen,
-                         long *len);
+int GetNxpStrValue(const char* name, char* p_value, unsigned long len);
+int GetNxpNumValue(const char* name, void* p_value, unsigned long len);
+int GetNxpByteArrayValue(const char* name, char* pValue, long bufflen,
+                         long* len);
 void resetNxpConfig(void);
 int isNxpConfigModified();
 
@@ -57,4 +57,4 @@ int isNxpConfigModified();
 /* default configuration */
 #define default_storage_location "/data/nfc"
 
-#endif // _NXP_CONFIG_H
+#endif  // _NXP_CONFIG_H

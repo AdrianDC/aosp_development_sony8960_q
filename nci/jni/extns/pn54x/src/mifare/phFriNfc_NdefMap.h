@@ -47,7 +47,7 @@
 #define PH_FRINFC_NDEFMAP_MIFARE_STD_1K_CARD 7  /* Mifare Standard */
 #define PH_FRINFC_NDEFMAP_MIFARE_STD_4K_CARD 8  /* Mifare Standard */
 #define PH_FRINFC_NDEFMAP_MIFARE_STD_2K_CARD 11 /*internal Mifare Standard */
-#define PH_FRINFC_NDEFMAP_EMPTY_NDEF_MSG                                       \
+#define PH_FRINFC_NDEFMAP_EMPTY_NDEF_MSG \
   { 0xD0, 0x00, 0x00 }                      /* Empty ndef message */
 #define PH_FRINFC_NDEFMAP_MFUL_4BYTES_BUF 4 /* To store 4 bytes after write */
 
@@ -64,17 +64,17 @@ typedef enum {
  * types
  *
  */
-#define PH_FRINFC_NDEFMAP_MIFARESTD_1KNDEF_COMPBLOCK                           \
+#define PH_FRINFC_NDEFMAP_MIFARESTD_1KNDEF_COMPBLOCK \
   45 /* Total Ndef Compliant blocks Mifare 1k */
-#define PH_FRINFC_NDEFMAP_MIFARESTD_2KNDEF_COMPBLOCK                           \
+#define PH_FRINFC_NDEFMAP_MIFARESTD_2KNDEF_COMPBLOCK \
   90 /* Total Ndef Compliant blocks Mifare 2k */
-#define PH_FRINFC_NDEFMAP_MIFARESTD_4KNDEF_COMPBLOCK                           \
+#define PH_FRINFC_NDEFMAP_MIFARESTD_4KNDEF_COMPBLOCK \
   210 /* Total Ndef Compliant blocks Mifare 4k */
-#define PH_FRINFC_NDEFMAP_MIFARESTD_RDWR_SIZE                                  \
+#define PH_FRINFC_NDEFMAP_MIFARESTD_RDWR_SIZE \
   16 /* Bytes read/write for one read/write operation*/
-#define PH_FRINFC_NDEFMAP_MIFARESTD_TOTALNO_BLK                                \
+#define PH_FRINFC_NDEFMAP_MIFARESTD_TOTALNO_BLK \
   40 /* Total number of sectors in Mifare 4k */
-#define PH_FRINFC_NDEFMAP_MIFARESTD_ST15_BYTES                                 \
+#define PH_FRINFC_NDEFMAP_MIFARESTD_ST15_BYTES \
   15 /* To store 15 bytes after reading a block */
 
 /*
@@ -336,20 +336,20 @@ typedef struct phFriNfc_NdefMap {
   /* Completion Routine Context. */
   phFriNfc_CplRt_t CompletionRoutine[PH_FRINFC_NDEFMAP_CR];
 
-  phNfc_sTransceiveInfo_t *pTransceiveInfo;
+  phNfc_sTransceiveInfo_t* pTransceiveInfo;
 
   /*Holds the completion routine informations of the Map Layer*/
   phFriNfc_CplRt_t MapCompletionInfo;
 
   /* Pointer to the Remote Device Information */
-  phLibNfc_sRemoteDevInformation_t *psRemoteDevInfo;
+  phLibNfc_sRemoteDevInformation_t* psRemoteDevInfo;
 
   /*Holds the Command Type(read/write)*/
   phNfc_uCmdList_t Cmd;
 
   /* Pointer to a temporary buffer. Could be
         used for read/write purposes */
-  uint8_t *ApduBuffer;
+  uint8_t* ApduBuffer;
 
   /* Size allocated to the ApduBuffer. */
   uint32_t ApduBufferSize;
@@ -359,19 +359,19 @@ typedef struct phFriNfc_NdefMap {
 
   /* Pointer to the user-provided Data Size to be written trough WrNdef
    * function. */
-  uint32_t *WrNdefPacketLength;
+  uint32_t* WrNdefPacketLength;
 
   /* Holds the length of the received data. */
-  uint16_t *SendRecvLength;
+  uint16_t* SendRecvLength;
 
   /*Holds the ack of some initial commands*/
-  uint8_t *SendRecvBuf;
+  uint8_t* SendRecvBuf;
 
   /* Holds the length of the data to be sent. */
   uint16_t SendLength;
 
   /* Data Byte Count, which gives the offset to the integration.*/
-  uint16_t *DataCount;
+  uint16_t* DataCount;
 
   /* Holds the previous operation on the card*/
   uint8_t PrevOperation;
@@ -411,7 +411,7 @@ typedef struct phFriNfc_NdefMap {
                  to update the PacketDataLength in case of Read operation */
   /*  Fix for 0000238: [gk] MAP: Number of bytes actually read out is
       not returned. */
-  uint32_t *NumOfBytesRead;
+  uint32_t* NumOfBytesRead;
 
   /*  Flag used to tell the process function that WRITE has
                  requested for an internal READ.*/

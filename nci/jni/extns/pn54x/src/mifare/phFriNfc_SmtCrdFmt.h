@@ -28,15 +28,15 @@
 #define DESFIRE_FMT_EV1
 
 #define PH_FRI_NFC_SMTCRDFMT_NFCSTATUS_FORMAT_ERROR 9 /* Format error */
-#define PH_FRINFC_SMTCRDFMT_MSTD_DEFAULT_KEYA_OR_KEYB                          \
+#define PH_FRINFC_SMTCRDFMT_MSTD_DEFAULT_KEYA_OR_KEYB \
   { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF } /* Default Key */
-#define PH_FRINFC_SMTCRDFMT_MSTD_MADSECT_KEYA                                  \
+#define PH_FRINFC_SMTCRDFMT_MSTD_MADSECT_KEYA \
   { 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5 } /* Key A */
-#define PH_FRINFC_SMTCRDFMT_NFCFORUMSECT_KEYA                                  \
+#define PH_FRINFC_SMTCRDFMT_NFCFORUMSECT_KEYA \
   { 0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7 } /* NFC Forum Key */
-#define PH_FRINFC_SMTCRDFMT_MSTD_MADSECT_ACCESSBITS                            \
+#define PH_FRINFC_SMTCRDFMT_MSTD_MADSECT_ACCESSBITS \
   { 0x78, 0x77, 0x88 } /* Access bits */
-#define PH_FRINFC_SMTCRDFMT_MSTD_NFCFORUM_ACCESSBITS                           \
+#define PH_FRINFC_SMTCRDFMT_MSTD_NFCFORUM_ACCESSBITS \
   { 0x7F, 0x07, 0x88 }                               /* NFC Forum access bits */
 #define PH_FRINFC_SMTCRDFMT_MAX_TLV_TYPE_SUPPORTED 1 /* TLV support */
 #define PH_FRINFC_SMTCRDFMT_MAX_SEND_RECV_BUF_SIZE 252 /* Buffer size */
@@ -55,7 +55,7 @@ enum {
 };
 
 #define PH_FRINFC_SMTCRDFMT_CR_FORMAT 0 /* Index for phFriNfc_SmtCrd_Format */
-#define PH_FRINFC_SMTCRDFMT_CR_INVALID_OPE                                     \
+#define PH_FRINFC_SMTCRDFMT_CR_INVALID_OPE \
   1                              /* Index for Unknown States/Operations */
 #define PH_FRINFC_SMTCRDFMT_CR 2 /* Number of completion routines */
 
@@ -91,21 +91,21 @@ typedef struct phFriNfc_sNdefSmtCrdFmt_AddInfo {
  *  Context information Structure
  */
 typedef struct phFriNfc_sNdefSmtCrdFmt {
-  phNfc_sTransceiveInfo_t
-      *pTransceiveInfo; /* Pointer to the Transceive information */
-  phHal_sRemoteDevInformation_t
-      *psRemoteDevInfo; /* Pointer to the Remote Device Information */
-  uint8_t CardType;     /* Stores the type of the smart card */
-  uint8_t State;        /* The state of the operation */
-  uint8_t CardState;    /* Stores the card state */
+  phNfc_sTransceiveInfo_t*
+      pTransceiveInfo; /* Pointer to the Transceive information */
+  phHal_sRemoteDevInformation_t*
+      psRemoteDevInfo; /* Pointer to the Remote Device Information */
+  uint8_t CardType;    /* Stores the type of the smart card */
+  uint8_t State;       /* The state of the operation */
+  uint8_t CardState;   /* Stores the card state */
   phFriNfc_CplRt_t CompletionRoutine
       [PH_FRINFC_SMTCRDFMT_CR];             /* Completion Routine Context */
   phFriNfc_CplRt_t SmtCrdFmtCompletionInfo; /* Holds the completion routine
                                                informations of the Smart Card
                                                Formatting Layer */
   phHal_uCmdList_t Cmd;     /* Holds the Command Type(read/write) */
-  uint16_t *SendRecvLength; /* Holds the length of the received data */
-  uint8_t *SendRecvBuf;     /* Holds the ack of some intial commands */
+  uint16_t* SendRecvLength; /* Holds the length of the received data */
+  uint8_t* SendRecvBuf;     /* Holds the ack of some intial commands */
   uint16_t SendLength;      /* Holds the length of the data to be sent */
   NFCSTATUS
   FmtProcStatus; /* Stores the output/result of the format procedure */
@@ -117,19 +117,19 @@ typedef struct phFriNfc_sNdefSmtCrdFmt {
 } phFriNfc_sNdefSmtCrdFmt_t;
 
 NFCSTATUS
-phFriNfc_NdefSmtCrd_Reset(phFriNfc_sNdefSmtCrdFmt_t *NdefSmtCrdFmt,
-                          void *LowerDevice,
-                          phHal_sRemoteDevInformation_t *psRemoteDevInfo,
-                          uint8_t *SendRecvBuffer, uint16_t *SendRecvBuffLen);
+phFriNfc_NdefSmtCrd_Reset(phFriNfc_sNdefSmtCrdFmt_t* NdefSmtCrdFmt,
+                          void* LowerDevice,
+                          phHal_sRemoteDevInformation_t* psRemoteDevInfo,
+                          uint8_t* SendRecvBuffer, uint16_t* SendRecvBuffLen);
 
-NFCSTATUS phFriNfc_NdefSmtCrd_SetCR(phFriNfc_sNdefSmtCrdFmt_t *NdefSmtCrdFmt,
+NFCSTATUS phFriNfc_NdefSmtCrd_SetCR(phFriNfc_sNdefSmtCrdFmt_t* NdefSmtCrdFmt,
                                     uint8_t FunctionID,
                                     pphFriNfc_Cr_t CompletionRoutine,
-                                    void *CompletionRoutineContext);
+                                    void* CompletionRoutineContext);
 
-void phFriNfc_NdefSmtCrd_Process(void *Context, NFCSTATUS Status);
+void phFriNfc_NdefSmtCrd_Process(void* Context, NFCSTATUS Status);
 
-void phFriNfc_SmtCrdFmt_HCrHandler(phFriNfc_sNdefSmtCrdFmt_t *NdefSmtCrdFmt,
+void phFriNfc_SmtCrdFmt_HCrHandler(phFriNfc_sNdefSmtCrdFmt_t* NdefSmtCrdFmt,
                                    NFCSTATUS Status);
 
 #endif /* PHFRINFC_SMTCRDFMT_H */

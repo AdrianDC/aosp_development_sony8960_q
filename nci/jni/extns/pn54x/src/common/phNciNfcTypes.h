@@ -39,7 +39,7 @@
 /* Maximum length of ATR_RES (General Bytes) length expected */
 #define PH_NCINFCTYPES_MAX_ATR_LENGTH (0x30U)
 #define PH_NCINFCTYPES_ATQA_LENGTH (0x02U) /* ATQA length */
-#define PH_NCINFCTYPES_MAX_HIST_BYTES                                          \
+#define PH_NCINFCTYPES_MAX_HIST_BYTES \
   (0x0FU) /* Max Historical bytes returned by Type A tag */
 
 /*
@@ -236,7 +236,7 @@ typedef struct phNciNfc_RemoteDevInformation {
  * shall be stored and length of the payload stored in the buffer.
  */
 typedef struct phNciNfc_Data {
-  uint8_t *pBuff; /* Buffer to store received data packet's payload */
+  uint8_t* pBuff; /* Buffer to store received data packet's payload */
   uint16_t wLen;  /* Length of the payload */
 } phNciNfc_Data_t, *pphNciNfc_Data_t;
 
