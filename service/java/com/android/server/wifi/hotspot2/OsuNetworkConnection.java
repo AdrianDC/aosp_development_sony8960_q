@@ -20,10 +20,12 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.net.ConnectivityManager;
+import android.net.LinkProperties;
 import android.net.Network;
-import android.net.NetworkInfo;
+import android.net.NetworkCapabilities;
+import android.net.NetworkRequest;
 import android.net.wifi.WifiConfiguration;
-import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiSsid;
 import android.os.Handler;
@@ -35,12 +37,17 @@ import android.util.Log;
  */
 public class OsuNetworkConnection {
     private static final String TAG = "OsuNetworkConnection";
+    private static final int TIMEOUT_MS = 10000;
 
     private final Context mContext;
 
     private boolean mVerboseLoggingEnabled = false;
     private WifiManager mWifiManager;
+    private ConnectivityManager mConnectivityManager;
+    private ConnectivityCallbacks mConnectivityCallbacks;
     private Callbacks mCallbacks;
+    private Handler mHandler;
+    private Network mNetwork = null;
     private boolean mConnected = false;
     private int mNetworkId = -1;
     private boolean mWifiEnabled = false;
@@ -91,26 +98,32 @@ public class OsuNetworkConnection {
      */
     public void init(Handler handler) {
         IntentFilter filter = new IntentFilter();
-        filter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
         filter.addAction(WifiManager.WIFI_STATE_CHANGED_ACTION);
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 String action = intent.getAction();
-                if (action.equals(WifiManager.NETWORK_STATE_CHANGED_ACTION)) {
-                    handleNetworkStateChanged(
-                            intent.getParcelableExtra(WifiManager.EXTRA_NETWORK_INFO),
-                            intent.getParcelableExtra(WifiManager.EXTRA_WIFI_INFO));
-                } else if (action.equals(WifiManager.WIFI_STATE_CHANGED_ACTION)) {
+                if (action.equals(WifiManager.WIFI_STATE_CHANGED_ACTION)) {
                     int state = intent.getIntExtra(WifiManager.EXTRA_WIFI_STATE,
                             WifiManager.WIFI_STATE_UNKNOWN);
-                    handleWifiStateChanged(state);
+                    if (state == WifiManager.WIFI_STATE_DISABLED && mWifiEnabled) {
+                        mWifiEnabled = false;
+                        if (mCallbacks != null) mCallbacks.onWifiDisabled();
+                    }
+                    if (state == WifiManager.WIFI_STATE_ENABLED && !mWifiEnabled) {
+                        mWifiEnabled = true;
+                        if (mCallbacks != null) mCallbacks.onWifiEnabled();
+                    }
                 }
             }
         };
         mWifiManager = (WifiManager) mContext.getSystemService(Context.WIFI_SERVICE);
         mContext.registerReceiver(receiver, filter, null, handler);
         mWifiEnabled = mWifiManager.isWifiEnabled();
+        mConnectivityManager =
+                (ConnectivityManager) mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+        mConnectivityCallbacks = new ConnectivityCallbacks();
+        mHandler = handler;
     }
 
     /**
@@ -127,10 +140,8 @@ public class OsuNetworkConnection {
         }
         mWifiManager.removeNetwork(mNetworkId);
         mNetworkId = -1;
+        mNetwork = null;
         mConnected = false;
-        if (mCallbacks != null) {
-            mCallbacks.onDisconnected();
-        }
     }
 
     /**
@@ -159,7 +170,7 @@ public class OsuNetworkConnection {
             }
             return true;
         }
-        if (!mWifiManager.isWifiEnabled()) {
+        if (!mWifiEnabled) {
             Log.w(TAG, "Wifi is not enabled");
             return false;
         }
@@ -177,6 +188,11 @@ public class OsuNetworkConnection {
             Log.e(TAG, "Unable to add network");
             return false;
         }
+        NetworkRequest networkRequest = null;
+        networkRequest = new NetworkRequest.Builder()
+                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI).build();
+        mConnectivityManager.requestNetwork(networkRequest, mConnectivityCallbacks, mHandler,
+                TIMEOUT_MS);
         if (!mWifiManager.enableNetwork(mNetworkId, true)) {
             Log.e(TAG, "Unable to enable network " + mNetworkId);
             disconnectIfNeeded();
@@ -185,7 +201,6 @@ public class OsuNetworkConnection {
         if (mVerboseLoggingEnabled) {
             Log.v(TAG, "Current network ID " + mNetworkId);
         }
-        // TODO(sohanirao): setup alarm to time out the connection attempt.
         return true;
     }
 
@@ -197,74 +212,45 @@ public class OsuNetworkConnection {
         mVerboseLoggingEnabled = verbose > 0 ? true : false;
     }
 
-    /**
-     * Handle network state changed events.
-     *
-     * @param networkInfo {@link NetworkInfo} indicating the current network state
-     * @param wifiInfo {@link WifiInfo} associated with the current network when connected
-     */
-    private void handleNetworkStateChanged(NetworkInfo networkInfo, WifiInfo wifiInfo) {
-        if (networkInfo == null) {
-            Log.w(TAG, "NetworkInfo not provided for network state changed event");
-            return;
+    private class ConnectivityCallbacks extends ConnectivityManager.NetworkCallback {
+        @Override
+        public void onLinkPropertiesChanged(Network network, LinkProperties linkProperties) {
+            if (mVerboseLoggingEnabled) {
+                Log.v(TAG, "onLinkPropertiesChanged for network=" + network
+                        + " isProvisioned?" + linkProperties.isProvisioned());
+            }
+            if (linkProperties.isProvisioned() && mNetwork == null) {
+                mNetwork = network;
+                mConnected = true;
+                if (mCallbacks != null) {
+                    mCallbacks.onConnected(network);
+                }
+            }
         }
-        switch (networkInfo.getDetailedState()) {
-            case CONNECTED:
-                if (mVerboseLoggingEnabled) {
-                    Log.v(TAG, "Connected event received");
-                }
-                if (wifiInfo == null) {
-                    Log.w(TAG, "WifiInfo not provided for network state changed event");
-                    return;
-                }
-                handleConnectedEvent(wifiInfo);
-                break;
-            case DISCONNECTED:
-                if (mVerboseLoggingEnabled) {
-                    Log.v(TAG, "Disconnected event received");
-                }
-                disconnectIfNeeded();
-                break;
-            default:
-                if (mVerboseLoggingEnabled) {
-                    Log.v(TAG, "Ignore uninterested state: " + networkInfo.getDetailedState());
-                }
-                break;
-        }
-    }
 
-    /**
-     * Handle network connected event.
-     *
-     * @param wifiInfo {@link WifiInfo} associated with the current connection
-     */
-    private void handleConnectedEvent(WifiInfo wifiInfo) {
-        if (mVerboseLoggingEnabled) {
-            Log.v(TAG, "handleConnectedEvent " + wifiInfo.getNetworkId());
-        }
-        if (wifiInfo.getNetworkId() != mNetworkId) {
-            disconnectIfNeeded();
-            return;
-        }
-        if (!mConnected) {
-            mConnected = true;
+        @Override
+        public void onUnavailable() {
+            if (mVerboseLoggingEnabled) {
+                Log.v(TAG, "onUnvailable ");
+            }
             if (mCallbacks != null) {
-                mCallbacks.onConnected(mWifiManager.getCurrentNetwork());
+                mCallbacks.onTimeOut();
+            }
+        }
+
+        @Override
+        public void onLost(Network network) {
+            if (mVerboseLoggingEnabled) {
+                Log.v(TAG, "onLost " + network);
+            }
+            if (network != mNetwork) {
+                Log.w(TAG, "Irrelevant network lost notification");
+                return;
+            }
+            if (mCallbacks != null) {
+                mCallbacks.onDisconnected();
             }
         }
     }
-
-    /**
-     * Handle Wifi state change event
-     */
-    private void handleWifiStateChanged(int state) {
-        if (state == WifiManager.WIFI_STATE_DISABLED && mWifiEnabled) {
-            mWifiEnabled = false;
-            if (mCallbacks != null) mCallbacks.onWifiDisabled();
-        }
-        if (state == WifiManager.WIFI_STATE_ENABLED && !mWifiEnabled) {
-            mWifiEnabled = true;
-            if (mCallbacks != null) mCallbacks.onWifiEnabled();
-        }
-    }
 }
+

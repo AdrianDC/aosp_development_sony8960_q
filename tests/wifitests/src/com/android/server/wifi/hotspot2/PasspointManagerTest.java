@@ -137,6 +137,7 @@ public class PasspointManagerTest {
     @Mock PasspointConfigStoreData.DataSource mDataSource;
     @Mock WifiMetrics mWifiMetrics;
     @Mock OsuNetworkConnection mOsuNetworkConnection;
+    @Mock OsuServerConnection mOsuServerConnection;
     @Mock PasspointProvisioner mPasspointProvisioner;
     @Mock IProvisioningCallback mCallback;
 
@@ -153,8 +154,11 @@ public class PasspointManagerTest {
         when(mObjectFactory.makeCertificateVerifier()).thenReturn(mCertVerifier);
         when(mObjectFactory.makeOsuNetworkConnection(any(Context.class)))
                 .thenReturn(mOsuNetworkConnection);
+        when(mObjectFactory.makeOsuServerConnection())
+                .thenReturn(mOsuServerConnection);
         when(mObjectFactory.makePasspointProvisioner(any(Context.class),
-                any(OsuNetworkConnection.class))).thenReturn(mPasspointProvisioner);
+                any(OsuNetworkConnection.class), any(OsuServerConnection.class)))
+                .thenReturn(mPasspointProvisioner);
         mManager = new PasspointManager(mContext, mWifiNative, mWifiKeyStore, mClock,
                 mSimAccessor, mObjectFactory, mWifiConfigManager, mWifiConfigStore, mWifiMetrics);
         ArgumentCaptor<PasspointEventHandler.Callbacks> callbacks =
