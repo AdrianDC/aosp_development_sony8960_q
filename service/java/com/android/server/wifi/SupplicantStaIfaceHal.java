@@ -97,8 +97,14 @@ public class SupplicantStaIfaceHal {
     // Supplicant HAL interface objects
     private IServiceManager mIServiceManager = null;
     private ISupplicant mISupplicant;
-    private ISupplicantStaIface mISupplicantStaIface;
-    private ISupplicantStaIfaceCallback mISupplicantStaIfaceCallback;
+    private HashMap<String, ISupplicantStaIface> mISupplicantStaIfaces = new HashMap<>();
+    private HashMap<String, ISupplicantStaIfaceCallback> mISupplicantStaIfaceCallbacks =
+            new HashMap<>();
+    private HashMap<String, SupplicantStaNetworkHal> mCurrentNetworkRemoteHandles = new HashMap<>();
+    private HashMap<String, WifiConfiguration> mCurrentNetworkLocalConfigs = new HashMap<>();
+    private final Context mContext;
+    private final WifiMonitor mWifiMonitor;
+
     private final IServiceNotification mServiceNotificationCallback =
             new IServiceNotification.Stub() {
         public void onRegistration(String fqName, String name, boolean preexisting) {
@@ -107,11 +113,11 @@ public class SupplicantStaIfaceHal {
                     Log.i(TAG, "IServiceNotification.onRegistration for: " + fqName
                             + ", " + name + " preexisting=" + preexisting);
                 }
-                if (!initSupplicantService() || !initSupplicantStaIface()) {
-                    Log.e(TAG, "initalizing ISupplicantIfaces failed.");
+                if (!initSupplicantService()) {
+                    Log.e(TAG, "initalizing ISupplicant failed.");
                     supplicantServiceDiedHandler();
                 } else {
-                    Log.i(TAG, "Completed initialization of ISupplicant interfaces.");
+                    Log.i(TAG, "Completed initialization of ISupplicant.");
                 }
             }
         }
@@ -132,16 +138,10 @@ public class SupplicantStaIfaceHal {
                 }
             };
 
-    private String mIfaceName;
-    private SupplicantStaNetworkHal mCurrentNetworkRemoteHandle;
-    private WifiConfiguration mCurrentNetworkLocalConfig;
-    private final Context mContext;
-    private final WifiMonitor mWifiMonitor;
 
     public SupplicantStaIfaceHal(Context context, WifiMonitor monitor) {
         mContext = context;
         mWifiMonitor = monitor;
-        mISupplicantStaIfaceCallback = new SupplicantStaIfaceHalCallback();
     }
 
     /**
@@ -184,7 +184,7 @@ public class SupplicantStaIfaceHal {
                 Log.i(TAG, "Registering ISupplicant service ready callback.");
             }
             mISupplicant = null;
-            mISupplicantStaIface = null;
+            mISupplicantStaIfaces.clear();
             if (mIServiceManager != null) {
                 // Already have an IServiceManager and serviceNotification registered, don't
                 // don't register another.
@@ -253,11 +253,11 @@ public class SupplicantStaIfaceHal {
         return true;
     }
 
-    private boolean linkToSupplicantStaIfaceDeath() {
+    private boolean linkToSupplicantStaIfaceDeath(ISupplicantStaIface iface) {
         synchronized (mLock) {
-            if (mISupplicantStaIface == null) return false;
+            if (iface == null) return false;
             try {
-                if (!mISupplicantStaIface.linkToDeath(mSupplicantDeathRecipient, 0)) {
+                if (!iface.linkToDeath(mSupplicantDeathRecipient, 0)) {
                     Log.wtf(TAG, "Error on linkToDeath on ISupplicantStaIface");
                     supplicantServiceDiedHandler();
                     return false;
@@ -270,16 +270,23 @@ public class SupplicantStaIfaceHal {
         }
     }
 
-    private int getCurrentNetworkId() {
+    private int getCurrentNetworkId(@NonNull String ifaceName) {
         synchronized (mLock) {
-            if (mCurrentNetworkLocalConfig == null) {
+            WifiConfiguration currentConfig = getCurrentNetworkLocalConfig(ifaceName);
+            if (currentConfig == null) {
                 return WifiConfiguration.INVALID_NETWORK_ID;
             }
-            return mCurrentNetworkLocalConfig.networkId;
+            return currentConfig.networkId;
         }
     }
 
-    private boolean initSupplicantStaIface() {
+    /**
+     * Setup a STA interface for the specified iface name.
+     *
+     * @param ifaceName Name of the interface.
+     * @return true on success, false otherwise.
+     */
+    public boolean setupIface(@NonNull String ifaceName) {
         synchronized (mLock) {
             /** List all supplicant Ifaces */
             final ArrayList<ISupplicant.IfaceInfo> supplicantIfaces = new ArrayList<>();
@@ -294,6 +301,7 @@ public class SupplicantStaIfaceHal {
                 });
             } catch (RemoteException e) {
                 Log.e(TAG, "ISupplicant.listInterfaces exception: " + e);
+                supplicantServiceDiedHandler(ifaceName);
                 return false;
             }
             if (supplicantIfaces.size() == 0) {
@@ -301,9 +309,8 @@ public class SupplicantStaIfaceHal {
                 return false;
             }
             Mutable<ISupplicantIface> supplicantIface = new Mutable<>();
-            Mutable<String> ifaceName = new Mutable<>();
             for (ISupplicant.IfaceInfo ifaceInfo : supplicantIfaces) {
-                if (ifaceInfo.type == IfaceType.STA) {
+                if (ifaceInfo.type == IfaceType.STA && ifaceName.equals(ifaceInfo.name)) {
                     try {
                         mISupplicant.getInterface(ifaceInfo,
                                 (SupplicantStatus status, ISupplicantIface iface) -> {
@@ -315,33 +322,70 @@ public class SupplicantStaIfaceHal {
                             });
                     } catch (RemoteException e) {
                         Log.e(TAG, "ISupplicant.getInterface exception: " + e);
+                        supplicantServiceDiedHandler(ifaceName);
                         return false;
                     }
-                    ifaceName.value = ifaceInfo.name;
                     break;
                 }
             }
             if (supplicantIface.value == null) {
-                Log.e(TAG, "initSupplicantStaIface got null iface");
+                Log.e(TAG, "setupSupplicantStaIface got null iface");
                 return false;
             }
-            mISupplicantStaIface = getStaIfaceMockable(supplicantIface.value);
-            mIfaceName = ifaceName.value;
-            if (!linkToSupplicantStaIfaceDeath()) {
+            ISupplicantStaIface iface = getStaIfaceMockable(supplicantIface.value);
+            if (!linkToSupplicantStaIfaceDeath(iface)) {
                 return false;
             }
-            if (!registerCallback(mISupplicantStaIfaceCallback)) {
+            ISupplicantStaIfaceCallback callback = new SupplicantStaIfaceHalCallback(ifaceName);
+            if (!registerCallback(iface, callback)) {
                 return false;
             }
+            mISupplicantStaIfaces.put(ifaceName, iface);
+            mISupplicantStaIfaceCallbacks.put(ifaceName, callback);
             return true;
+        }
+    }
+
+    /**
+     * Teardown a STA interface for the specified iface name.
+     *
+     * @param ifaceName Name of the interface.
+     * @return true on success, false otherwise.
+     */
+    public boolean teardownIface(@NonNull String ifaceName) {
+        synchronized (mLock) {
+            if (mISupplicantStaIfaces.remove(ifaceName) == null) {
+                return false;
+            }
+            mISupplicantStaIfaceCallbacks.remove(ifaceName);
+            // TODO(b/69162019): There are no HIDL calls to bring down interfaces
+            // from wpa_supplicant yet!
+            return true;
+        }
+    }
+
+    private void clearState() {
+        synchronized (mLock) {
+            mISupplicant = null;
+            mISupplicantStaIfaces.clear();
+            mCurrentNetworkLocalConfigs.clear();
+            mCurrentNetworkRemoteHandles.clear();
+        }
+    }
+
+    private void supplicantServiceDiedHandler(@NonNull String ifaceName) {
+        synchronized (mLock) {
+            mWifiMonitor.broadcastSupplicantDisconnectionEvent(ifaceName);
+            clearState();
         }
     }
 
     private void supplicantServiceDiedHandler() {
         synchronized (mLock) {
-            mISupplicant = null;
-            mISupplicantStaIface = null;
-            mWifiMonitor.broadcastSupplicantDisconnectionEvent(mIfaceName);
+            for (String ifaceName : mISupplicantStaIfaces.keySet()) {
+                mWifiMonitor.broadcastSupplicantDisconnectionEvent(ifaceName);
+            }
+            clearState();
         }
     }
 
@@ -359,7 +403,7 @@ public class SupplicantStaIfaceHal {
      */
     public boolean isInitializationComplete() {
         synchronized (mLock) {
-            return mISupplicantStaIface != null;
+            return mISupplicant != null;
         }
     }
 
@@ -385,6 +429,27 @@ public class SupplicantStaIfaceHal {
     }
 
     /**
+     * Helper method to look up the network object for the specified iface.
+     */
+    private ISupplicantStaIface getStaIface(@NonNull String ifaceName) {
+        return mISupplicantStaIfaces.get(ifaceName);
+    }
+
+    /**
+     * Helper method to look up the network object for the specified iface.
+     */
+    private SupplicantStaNetworkHal getCurrentNetworkRemoteHandle(@NonNull String ifaceName) {
+        return mCurrentNetworkRemoteHandles.get(ifaceName);
+    }
+
+    /**
+     * Helper method to look up the network config or the specified iface.
+     */
+    private WifiConfiguration getCurrentNetworkLocalConfig(@NonNull String ifaceName) {
+        return mCurrentNetworkLocalConfigs.get(ifaceName);
+    }
+
+    /**
      * Add a network configuration to wpa_supplicant.
      *
      * @param config Config corresponding to the network.
@@ -392,14 +457,14 @@ public class SupplicantStaIfaceHal {
      * for the current network.
      */
     private Pair<SupplicantStaNetworkHal, WifiConfiguration>
-            addNetworkAndSaveConfig(WifiConfiguration config) {
+            addNetworkAndSaveConfig(@NonNull String ifaceName, WifiConfiguration config) {
         synchronized (mLock) {
             logi("addSupplicantStaNetwork via HIDL");
             if (config == null) {
                 loge("Cannot add NULL network!");
                 return null;
             }
-            SupplicantStaNetworkHal network = addNetwork();
+            SupplicantStaNetworkHal network = addNetwork(ifaceName);
             if (network == null) {
                 loge("Failed to add a network!");
                 return null;
@@ -412,7 +477,7 @@ public class SupplicantStaIfaceHal {
             }
             if (!saveSuccess) {
                 loge("Failed to save variables for: " + config.configKey());
-                if (!removeAllNetworks()) {
+                if (!removeAllNetworks(ifaceName)) {
                     loge("Failed to remove all networks on failure.");
                 }
                 return null;
@@ -428,47 +493,50 @@ public class SupplicantStaIfaceHal {
      * networks and saves |config|.
      * 2. Select the new network in wpa_supplicant.
      *
+     * @param ifaceName Name of the interface.
      * @param config WifiConfiguration parameters for the provided network.
      * @return {@code true} if it succeeds, {@code false} otherwise
      */
-    public boolean connectToNetwork(@NonNull WifiConfiguration config) {
+    public boolean connectToNetwork(@NonNull String ifaceName, @NonNull WifiConfiguration config) {
         synchronized (mLock) {
             logd("connectToNetwork " + config.configKey());
-            if (WifiConfigurationUtil.isSameNetwork(config, mCurrentNetworkLocalConfig)) {
+            WifiConfiguration currentConfig = getCurrentNetworkLocalConfig(ifaceName);
+            if (WifiConfigurationUtil.isSameNetwork(config, currentConfig)) {
                 String networkSelectionBSSID = config.getNetworkSelectionStatus()
                         .getNetworkSelectionBSSID();
                 String networkSelectionBSSIDCurrent =
-                        mCurrentNetworkLocalConfig.getNetworkSelectionStatus()
-                                .getNetworkSelectionBSSID();
+                        currentConfig.getNetworkSelectionStatus().getNetworkSelectionBSSID();
                 if (Objects.equals(networkSelectionBSSID, networkSelectionBSSIDCurrent)) {
                     logd("Network is already saved, will not trigger remove and add operation.");
                 } else {
                     logd("Network is already saved, but need to update BSSID.");
                     if (!setCurrentNetworkBssid(
+                            ifaceName,
                             config.getNetworkSelectionStatus().getNetworkSelectionBSSID())) {
                         loge("Failed to set current network BSSID.");
                         return false;
                     }
-                    mCurrentNetworkLocalConfig = new WifiConfiguration(config);
+                    mCurrentNetworkLocalConfigs.put(ifaceName, new WifiConfiguration(config));
                 }
             } else {
-                mCurrentNetworkRemoteHandle = null;
-                mCurrentNetworkLocalConfig = null;
-                if (!removeAllNetworks()) {
+                mCurrentNetworkRemoteHandles.remove(ifaceName);
+                mCurrentNetworkLocalConfigs.remove(ifaceName);
+                if (!removeAllNetworks(ifaceName)) {
                     loge("Failed to remove existing networks");
                     return false;
                 }
                 Pair<SupplicantStaNetworkHal, WifiConfiguration> pair =
-                        addNetworkAndSaveConfig(config);
+                        addNetworkAndSaveConfig(ifaceName, config);
                 if (pair == null) {
                     loge("Failed to add/save network configuration: " + config.configKey());
                     return false;
                 }
-                mCurrentNetworkRemoteHandle = pair.first;
-                mCurrentNetworkLocalConfig = pair.second;
+                mCurrentNetworkRemoteHandles.put(ifaceName, pair.first);
+                mCurrentNetworkLocalConfigs.put(ifaceName, pair.second);
             }
-
-            if (!mCurrentNetworkRemoteHandle.select()) {
+            SupplicantStaNetworkHal networkHandle =
+                    checkSupplicantStaNetworkAndLogFailure(ifaceName, "connectToNetwork");
+            if (networkHandle == null || !networkHandle.select()) {
                 loge("Failed to select network configuration: " + config.configKey());
                 return false;
             }
@@ -485,23 +553,27 @@ public class SupplicantStaIfaceHal {
      * 2. Set the new bssid for the network in wpa_supplicant.
      * 3. Trigger reassociate command to wpa_supplicant.
      *
+     * @param ifaceName Name of the interface.
      * @param config WifiConfiguration parameters for the provided network.
      * @return {@code true} if it succeeds, {@code false} otherwise
      */
-    public boolean roamToNetwork(WifiConfiguration config) {
+    public boolean roamToNetwork(@NonNull String ifaceName, WifiConfiguration config) {
         synchronized (mLock) {
-            if (getCurrentNetworkId() != config.networkId) {
+            if (getCurrentNetworkId(ifaceName) != config.networkId) {
                 Log.w(TAG, "Cannot roam to a different network, initiate new connection. "
-                        + "Current network ID: " + getCurrentNetworkId());
-                return connectToNetwork(config);
+                        + "Current network ID: " + getCurrentNetworkId(ifaceName));
+                return connectToNetwork(ifaceName, config);
             }
             String bssid = config.getNetworkSelectionStatus().getNetworkSelectionBSSID();
             logd("roamToNetwork" + config.configKey() + " (bssid " + bssid + ")");
-            if (!mCurrentNetworkRemoteHandle.setBssid(bssid)) {
+
+            SupplicantStaNetworkHal networkHandle =
+                    checkSupplicantStaNetworkAndLogFailure(ifaceName, "roamToNetwork");
+            if (networkHandle == null || !networkHandle.setBssid(bssid)) {
                 loge("Failed to set new bssid on network: " + config.configKey());
                 return false;
             }
-            if (!reassociate()) {
+            if (!reassociate(ifaceName)) {
                 loge("Failed to trigger reassociate");
                 return false;
             }
@@ -512,21 +584,22 @@ public class SupplicantStaIfaceHal {
     /**
      * Load all the configured networks from wpa_supplicant.
      *
+     * @param ifaceName     Name of the interface.
      * @param configs       Map of configuration key to configuration objects corresponding to all
      *                      the networks.
      * @param networkExtras Map of extra configuration parameters stored in wpa_supplicant.conf
      * @return true if succeeds, false otherwise.
      */
-    public boolean loadNetworks(Map<String, WifiConfiguration> configs,
+    public boolean loadNetworks(@NonNull String ifaceName, Map<String, WifiConfiguration> configs,
                                 SparseArray<Map<String, String>> networkExtras) {
         synchronized (mLock) {
-            List<Integer> networkIds = listNetworks();
+            List<Integer> networkIds = listNetworks(ifaceName);
             if (networkIds == null) {
                 Log.e(TAG, "Failed to list networks");
                 return false;
             }
             for (Integer networkId : networkIds) {
-                SupplicantStaNetworkHal network = getNetwork(networkId);
+                SupplicantStaNetworkHal network = getNetwork(ifaceName, networkId);
                 if (network == null) {
                     Log.e(TAG, "Failed to get network with ID: " + networkId);
                     return false;
@@ -555,7 +628,7 @@ public class SupplicantStaIfaceHal {
                 if (duplicateConfig != null) {
                     // The network is already known. Overwrite the duplicate entry.
                     Log.i(TAG, "Replacing duplicate network: " + duplicateConfig.networkId);
-                    removeNetwork(duplicateConfig.networkId);
+                    removeNetwork(ifaceName, duplicateConfig.networkId);
                     networkExtras.remove(duplicateConfig.networkId);
                 }
             }
@@ -567,37 +640,40 @@ public class SupplicantStaIfaceHal {
      * Remove the request |networkId| from supplicant if it's the current network,
      * if the current configured network matches |networkId|.
      *
+     * @param ifaceName Name of the interface.
      * @param networkId network id of the network to be removed from supplicant.
      */
-    public void removeNetworkIfCurrent(int networkId) {
+    public void removeNetworkIfCurrent(@NonNull String ifaceName, int networkId) {
         synchronized (mLock) {
-            if (getCurrentNetworkId() == networkId) {
+            if (getCurrentNetworkId(ifaceName) == networkId) {
                 // Currently we only save 1 network in supplicant.
-                removeAllNetworks();
+                removeAllNetworks(ifaceName);
             }
         }
     }
 
     /**
      * Remove all networks from supplicant
+     *
+     * @param ifaceName Name of the interface.
      */
-    public boolean removeAllNetworks() {
+    public boolean removeAllNetworks(@NonNull String ifaceName) {
         synchronized (mLock) {
-            ArrayList<Integer> networks = listNetworks();
+            ArrayList<Integer> networks = listNetworks(ifaceName);
             if (networks == null) {
                 Log.e(TAG, "removeAllNetworks failed, got null networks");
                 return false;
             }
             for (int id : networks) {
-                if (!removeNetwork(id)) {
+                if (!removeNetwork(ifaceName, id)) {
                     Log.e(TAG, "removeAllNetworks failed to remove network: " + id);
                     return false;
                 }
             }
             // Reset current network info.  Probably not needed once we add support to remove/reset
             // current network on receiving disconnection event from supplicant (b/32898136).
-            mCurrentNetworkLocalConfig = null;
-            mCurrentNetworkRemoteHandle = null;
+            mCurrentNetworkRemoteHandles.remove(ifaceName);
+            mCurrentNetworkLocalConfigs.remove(ifaceName);
             return true;
         }
     }
@@ -605,113 +681,152 @@ public class SupplicantStaIfaceHal {
     /**
      * Set the currently configured network's bssid.
      *
+     * @param ifaceName Name of the interface.
      * @param bssidStr Bssid to set in the form of "XX:XX:XX:XX:XX:XX"
      * @return true if succeeds, false otherwise.
      */
-    public boolean setCurrentNetworkBssid(String bssidStr) {
+    public boolean setCurrentNetworkBssid(@NonNull String ifaceName, String bssidStr) {
         synchronized (mLock) {
-            if (mCurrentNetworkRemoteHandle == null) return false;
-            return mCurrentNetworkRemoteHandle.setBssid(bssidStr);
+            SupplicantStaNetworkHal networkHandle =
+                    checkSupplicantStaNetworkAndLogFailure(ifaceName, "setCurrentNetworkBssid");
+            if (networkHandle == null) return false;
+            return networkHandle.setBssid(bssidStr);
         }
     }
 
     /**
      * Get the currently configured network's WPS NFC token.
      *
+     * @param ifaceName Name of the interface.
      * @return Hex string corresponding to the WPS NFC token.
      */
-    public String getCurrentNetworkWpsNfcConfigurationToken() {
+    public String getCurrentNetworkWpsNfcConfigurationToken(@NonNull String ifaceName) {
         synchronized (mLock) {
-            if (mCurrentNetworkRemoteHandle == null) return null;
-            return mCurrentNetworkRemoteHandle.getWpsNfcConfigurationToken();
+            SupplicantStaNetworkHal networkHandle =
+                    checkSupplicantStaNetworkAndLogFailure(
+                            ifaceName, "getCurrentNetworkWpsNfcConfigurationToken");
+            if (networkHandle == null) return null;
+            return networkHandle.getWpsNfcConfigurationToken();
         }
     }
 
     /**
      * Get the eap anonymous identity for the currently configured network.
      *
+     * @param ifaceName Name of the interface.
      * @return anonymous identity string if succeeds, null otherwise.
      */
-    public String getCurrentNetworkEapAnonymousIdentity() {
+    public String getCurrentNetworkEapAnonymousIdentity(@NonNull String ifaceName) {
         synchronized (mLock) {
-            if (mCurrentNetworkRemoteHandle == null) return null;
-            return mCurrentNetworkRemoteHandle.fetchEapAnonymousIdentity();
+            SupplicantStaNetworkHal networkHandle =
+                    checkSupplicantStaNetworkAndLogFailure(
+                            ifaceName, "getCurrentNetworkEapAnonymousIdentity");
+            if (networkHandle == null) return null;
+            return networkHandle.fetchEapAnonymousIdentity();
         }
     }
 
     /**
      * Send the eap identity response for the currently configured network.
      *
+     * @param ifaceName Name of the interface.
      * @param identityStr String to send.
      * @return true if succeeds, false otherwise.
      */
-    public boolean sendCurrentNetworkEapIdentityResponse(String identityStr) {
+    public boolean sendCurrentNetworkEapIdentityResponse(
+            @NonNull String ifaceName, String identityStr) {
         synchronized (mLock) {
-            if (mCurrentNetworkRemoteHandle == null) return false;
-            return mCurrentNetworkRemoteHandle.sendNetworkEapIdentityResponse(identityStr);
+            SupplicantStaNetworkHal networkHandle =
+                    checkSupplicantStaNetworkAndLogFailure(
+                            ifaceName, "sendCurrentNetworkEapIdentityResponse");
+            if (networkHandle == null) return false;
+            return networkHandle.sendNetworkEapIdentityResponse(identityStr);
         }
     }
 
     /**
      * Send the eap sim gsm auth response for the currently configured network.
      *
+     * @param ifaceName Name of the interface.
      * @param paramsStr String to send.
      * @return true if succeeds, false otherwise.
      */
-    public boolean sendCurrentNetworkEapSimGsmAuthResponse(String paramsStr) {
+    public boolean sendCurrentNetworkEapSimGsmAuthResponse(
+            @NonNull String ifaceName, String paramsStr) {
         synchronized (mLock) {
-            if (mCurrentNetworkRemoteHandle == null) return false;
-            return mCurrentNetworkRemoteHandle.sendNetworkEapSimGsmAuthResponse(paramsStr);
+            SupplicantStaNetworkHal networkHandle =
+                    checkSupplicantStaNetworkAndLogFailure(
+                            ifaceName, "sendCurrentNetworkEapSimGsmAuthResponse");
+            if (networkHandle == null) return false;
+            return networkHandle.sendNetworkEapSimGsmAuthResponse(paramsStr);
         }
     }
 
     /**
      * Send the eap sim gsm auth failure for the currently configured network.
      *
+     * @param ifaceName Name of the interface.
      * @return true if succeeds, false otherwise.
      */
-    public boolean sendCurrentNetworkEapSimGsmAuthFailure() {
+    public boolean sendCurrentNetworkEapSimGsmAuthFailure(@NonNull String ifaceName) {
         synchronized (mLock) {
-            if (mCurrentNetworkRemoteHandle == null) return false;
-            return mCurrentNetworkRemoteHandle.sendNetworkEapSimGsmAuthFailure();
+            SupplicantStaNetworkHal networkHandle =
+                    checkSupplicantStaNetworkAndLogFailure(
+                            ifaceName, "sendCurrentNetworkEapSimGsmAuthFailure");
+            if (networkHandle == null) return false;
+            return networkHandle.sendNetworkEapSimGsmAuthFailure();
         }
     }
 
     /**
      * Send the eap sim umts auth response for the currently configured network.
      *
+     * @param ifaceName Name of the interface.
      * @param paramsStr String to send.
      * @return true if succeeds, false otherwise.
      */
-    public boolean sendCurrentNetworkEapSimUmtsAuthResponse(String paramsStr) {
+    public boolean sendCurrentNetworkEapSimUmtsAuthResponse(
+            @NonNull String ifaceName, String paramsStr) {
         synchronized (mLock) {
-            if (mCurrentNetworkRemoteHandle == null) return false;
-            return mCurrentNetworkRemoteHandle.sendNetworkEapSimUmtsAuthResponse(paramsStr);
+            SupplicantStaNetworkHal networkHandle =
+                    checkSupplicantStaNetworkAndLogFailure(
+                            ifaceName, "sendCurrentNetworkEapSimUmtsAuthResponse");
+            if (networkHandle == null) return false;
+            return networkHandle.sendNetworkEapSimUmtsAuthResponse(paramsStr);
         }
     }
 
     /**
      * Send the eap sim umts auts response for the currently configured network.
      *
+     * @param ifaceName Name of the interface.
      * @param paramsStr String to send.
      * @return true if succeeds, false otherwise.
      */
-    public boolean sendCurrentNetworkEapSimUmtsAutsResponse(String paramsStr) {
+    public boolean sendCurrentNetworkEapSimUmtsAutsResponse(
+            @NonNull String ifaceName, String paramsStr) {
         synchronized (mLock) {
-            if (mCurrentNetworkRemoteHandle == null) return false;
-            return mCurrentNetworkRemoteHandle.sendNetworkEapSimUmtsAutsResponse(paramsStr);
+            SupplicantStaNetworkHal networkHandle =
+                    checkSupplicantStaNetworkAndLogFailure(
+                            ifaceName, "sendCurrentNetworkEapSimUmtsAutsResponse");
+            if (networkHandle == null) return false;
+            return networkHandle.sendNetworkEapSimUmtsAutsResponse(paramsStr);
         }
     }
 
     /**
      * Send the eap sim umts auth failure for the currently configured network.
      *
+     * @param ifaceName Name of the interface.
      * @return true if succeeds, false otherwise.
      */
-    public boolean sendCurrentNetworkEapSimUmtsAuthFailure() {
+    public boolean sendCurrentNetworkEapSimUmtsAuthFailure(@NonNull String ifaceName) {
         synchronized (mLock) {
-            if (mCurrentNetworkRemoteHandle == null) return false;
-            return mCurrentNetworkRemoteHandle.sendNetworkEapSimUmtsAuthFailure();
+            SupplicantStaNetworkHal networkHandle =
+                    checkSupplicantStaNetworkAndLogFailure(
+                            ifaceName, "sendCurrentNetworkEapSimUmtsAuthFailure");
+            if (networkHandle == null) return false;
+            return networkHandle.sendNetworkEapSimUmtsAuthFailure();
         }
     }
 
@@ -720,13 +835,14 @@ public class SupplicantStaIfaceHal {
      *
      * @return The ISupplicantNetwork object for the new network, or null if the call fails
      */
-    private SupplicantStaNetworkHal addNetwork() {
+    private SupplicantStaNetworkHal addNetwork(@NonNull String ifaceName) {
         synchronized (mLock) {
             final String methodStr = "addNetwork";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return null;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return null;
             Mutable<ISupplicantNetwork> newNetwork = new Mutable<>();
             try {
-                mISupplicantStaIface.addNetwork((SupplicantStatus status,
+                iface.addNetwork((SupplicantStatus status,
                         ISupplicantNetwork network) -> {
                     if (checkStatusAndLogFailure(status, methodStr)) {
                         newNetwork.value = network;
@@ -737,6 +853,7 @@ public class SupplicantStaIfaceHal {
             }
             if (newNetwork.value != null) {
                 return getStaNetworkMockable(
+                        ifaceName,
                         ISupplicantStaNetwork.asInterface(newNetwork.value.asBinder()));
             } else {
                 return null;
@@ -749,12 +866,13 @@ public class SupplicantStaIfaceHal {
      *
      * @return true if request is sent successfully, false otherwise.
      */
-    private boolean removeNetwork(int id) {
+    private boolean removeNetwork(@NonNull String ifaceName, int id) {
         synchronized (mLock) {
             final String methodStr = "removeNetwork";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.removeNetwork(id);
+                SupplicantStatus status = iface.removeNetwork(id);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -766,15 +884,16 @@ public class SupplicantStaIfaceHal {
     /**
      * Use this to mock the creation of SupplicantStaNetworkHal instance.
      *
+     * @param ifaceName Name of the interface.
      * @param iSupplicantStaNetwork ISupplicantStaNetwork instance retrieved from HIDL.
      * @return The ISupplicantNetwork object for the given SupplicantNetworkId int, returns null if
      * the call fails
      */
     protected SupplicantStaNetworkHal getStaNetworkMockable(
-            ISupplicantStaNetwork iSupplicantStaNetwork) {
+            @NonNull String ifaceName, ISupplicantStaNetwork iSupplicantStaNetwork) {
         synchronized (mLock) {
             SupplicantStaNetworkHal network =
-                    new SupplicantStaNetworkHal(iSupplicantStaNetwork, mIfaceName, mContext,
+                    new SupplicantStaNetworkHal(iSupplicantStaNetwork, ifaceName, mContext,
                             mWifiMonitor);
             if (network != null) {
                 network.enableVerboseLogging(mVerboseLoggingEnabled);
@@ -787,14 +906,14 @@ public class SupplicantStaIfaceHal {
      * @return The ISupplicantNetwork object for the given SupplicantNetworkId int, returns null if
      * the call fails
      */
-    private SupplicantStaNetworkHal getNetwork(int id) {
+    private SupplicantStaNetworkHal getNetwork(@NonNull String ifaceName, int id) {
         synchronized (mLock) {
             final String methodStr = "getNetwork";
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return null;
             Mutable<ISupplicantNetwork> gotNetwork = new Mutable<>();
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return null;
             try {
-                mISupplicantStaIface.getNetwork(id, (SupplicantStatus status,
-                        ISupplicantNetwork network) -> {
+                iface.getNetwork(id, (SupplicantStatus status, ISupplicantNetwork network) -> {
                     if (checkStatusAndLogFailure(status, methodStr)) {
                         gotNetwork.value = network;
                     }
@@ -804,6 +923,7 @@ public class SupplicantStaIfaceHal {
             }
             if (gotNetwork.value != null) {
                 return getStaNetworkMockable(
+                        ifaceName,
                         ISupplicantStaNetwork.asInterface(gotNetwork.value.asBinder()));
             } else {
                 return null;
@@ -812,12 +932,13 @@ public class SupplicantStaIfaceHal {
     }
 
     /** See ISupplicantStaNetwork.hal for documentation */
-    private boolean registerCallback(ISupplicantStaIfaceCallback callback) {
+    private boolean registerCallback(
+            ISupplicantStaIface iface, ISupplicantStaIfaceCallback callback) {
         synchronized (mLock) {
             final String methodStr = "registerCallback";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            if (iface == null) return false;
             try {
-                SupplicantStatus status =  mISupplicantStaIface.registerCallback(callback);
+                SupplicantStatus status =  iface.registerCallback(callback);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -830,14 +951,14 @@ public class SupplicantStaIfaceHal {
      * @return a list of SupplicantNetworkID ints for all networks controlled by supplicant, returns
      * null if the call fails
      */
-    private java.util.ArrayList<Integer> listNetworks() {
+    private java.util.ArrayList<Integer> listNetworks(@NonNull String ifaceName) {
         synchronized (mLock) {
             final String methodStr = "listNetworks";
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return null;
             Mutable<ArrayList<Integer>> networkIdList = new Mutable<>();
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return null;
             try {
-                mISupplicantStaIface.listNetworks((SupplicantStatus status,
-                        java.util.ArrayList<Integer> networkIds) -> {
+                iface.listNetworks((SupplicantStatus status, ArrayList<Integer> networkIds) -> {
                     if (checkStatusAndLogFailure(status, methodStr)) {
                         networkIdList.value = networkIds;
                     }
@@ -852,15 +973,17 @@ public class SupplicantStaIfaceHal {
     /**
      * Set WPS device name.
      *
+     * @param ifaceName Name of the interface.
      * @param name String to be set.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean setWpsDeviceName(String name) {
+    public boolean setWpsDeviceName(@NonNull String ifaceName, String name) {
         synchronized (mLock) {
             final String methodStr = "setWpsDeviceName";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.setWpsDeviceName(name);
+                SupplicantStatus status = iface.setWpsDeviceName(name);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -872,10 +995,11 @@ public class SupplicantStaIfaceHal {
     /**
      * Set WPS device type.
      *
+     * @param ifaceName Name of the interface.
      * @param typeStr Type specified as a string. Used format: <categ>-<OUI>-<subcateg>
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean setWpsDeviceType(String typeStr) {
+    public boolean setWpsDeviceType(@NonNull String ifaceName, String typeStr) {
         synchronized (mLock) {
             try {
                 Matcher match = WPS_DEVICE_TYPE_PATTERN.matcher(typeStr);
@@ -892,7 +1016,7 @@ public class SupplicantStaIfaceHal {
                 byteBuffer.putShort(categ);
                 byteBuffer.put(oui);
                 byteBuffer.putShort(subCateg);
-                return setWpsDeviceType(bytes);
+                return setWpsDeviceType(ifaceName, bytes);
             } catch (IllegalArgumentException e) {
                 Log.e(TAG, "Illegal argument " + typeStr, e);
                 return false;
@@ -900,12 +1024,13 @@ public class SupplicantStaIfaceHal {
         }
     }
 
-    private boolean setWpsDeviceType(byte[/* 8 */] type) {
+    private boolean setWpsDeviceType(@NonNull String ifaceName, byte[/* 8 */] type) {
         synchronized (mLock) {
             final String methodStr = "setWpsDeviceType";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.setWpsDeviceType(type);
+                SupplicantStatus status = iface.setWpsDeviceType(type);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -917,15 +1042,17 @@ public class SupplicantStaIfaceHal {
     /**
      * Set WPS manufacturer.
      *
+     * @param ifaceName Name of the interface.
      * @param manufacturer String to be set.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean setWpsManufacturer(String manufacturer) {
+    public boolean setWpsManufacturer(@NonNull String ifaceName, String manufacturer) {
         synchronized (mLock) {
             final String methodStr = "setWpsManufacturer";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.setWpsManufacturer(manufacturer);
+                SupplicantStatus status = iface.setWpsManufacturer(manufacturer);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -937,15 +1064,17 @@ public class SupplicantStaIfaceHal {
     /**
      * Set WPS model name.
      *
+     * @param ifaceName Name of the interface.
      * @param modelName String to be set.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean setWpsModelName(String modelName) {
+    public boolean setWpsModelName(@NonNull String ifaceName, String modelName) {
         synchronized (mLock) {
             final String methodStr = "setWpsModelName";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.setWpsModelName(modelName);
+                SupplicantStatus status = iface.setWpsModelName(modelName);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -957,15 +1086,17 @@ public class SupplicantStaIfaceHal {
     /**
      * Set WPS model number.
      *
+     * @param ifaceName Name of the interface.
      * @param modelNumber String to be set.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean setWpsModelNumber(String modelNumber) {
+    public boolean setWpsModelNumber(@NonNull String ifaceName, String modelNumber) {
         synchronized (mLock) {
             final String methodStr = "setWpsModelNumber";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.setWpsModelNumber(modelNumber);
+                SupplicantStatus status = iface.setWpsModelNumber(modelNumber);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -977,15 +1108,17 @@ public class SupplicantStaIfaceHal {
     /**
      * Set WPS serial number.
      *
+     * @param ifaceName Name of the interface.
      * @param serialNumber String to be set.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean setWpsSerialNumber(String serialNumber) {
+    public boolean setWpsSerialNumber(@NonNull String ifaceName, String serialNumber) {
         synchronized (mLock) {
             final String methodStr = "setWpsSerialNumber";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.setWpsSerialNumber(serialNumber);
+                SupplicantStatus status = iface.setWpsSerialNumber(serialNumber);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -997,26 +1130,28 @@ public class SupplicantStaIfaceHal {
     /**
      * Set WPS config methods
      *
+     * @param ifaceName Name of the interface.
      * @param configMethodsStr List of config methods.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean setWpsConfigMethods(String configMethodsStr) {
+    public boolean setWpsConfigMethods(@NonNull String ifaceName, String configMethodsStr) {
         synchronized (mLock) {
             short configMethodsMask = 0;
             String[] configMethodsStrArr = configMethodsStr.split("\\s+");
             for (int i = 0; i < configMethodsStrArr.length; i++) {
                 configMethodsMask |= stringToWpsConfigMethod(configMethodsStrArr[i]);
             }
-            return setWpsConfigMethods(configMethodsMask);
+            return setWpsConfigMethods(ifaceName, configMethodsMask);
         }
     }
 
-    private boolean setWpsConfigMethods(short configMethods) {
+    private boolean setWpsConfigMethods(@NonNull String ifaceName, short configMethods) {
         synchronized (mLock) {
             final String methodStr = "setWpsConfigMethods";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.setWpsConfigMethods(configMethods);
+                SupplicantStatus status = iface.setWpsConfigMethods(configMethods);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1028,14 +1163,16 @@ public class SupplicantStaIfaceHal {
     /**
      * Trigger a reassociation even if the iface is currently connected.
      *
+     * @param ifaceName Name of the interface.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean reassociate() {
+    public boolean reassociate(@NonNull String ifaceName) {
         synchronized (mLock) {
             final String methodStr = "reassociate";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.reassociate();
+                SupplicantStatus status = iface.reassociate();
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1047,14 +1184,16 @@ public class SupplicantStaIfaceHal {
     /**
      * Trigger a reconnection if the iface is disconnected.
      *
+     * @param ifaceName Name of the interface.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean reconnect() {
+    public boolean reconnect(@NonNull String ifaceName) {
         synchronized (mLock) {
             final String methodStr = "reconnect";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.reconnect();
+                SupplicantStatus status = iface.reconnect();
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1066,14 +1205,16 @@ public class SupplicantStaIfaceHal {
     /**
      * Trigger a disconnection from the currently connected network.
      *
+     * @param ifaceName Name of the interface.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean disconnect() {
+    public boolean disconnect(@NonNull String ifaceName) {
         synchronized (mLock) {
             final String methodStr = "disconnect";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.disconnect();
+                SupplicantStatus status = iface.disconnect();
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1085,15 +1226,17 @@ public class SupplicantStaIfaceHal {
     /**
      * Enable or disable power save mode.
      *
+     * @param ifaceName Name of the interface.
      * @param enable true to enable, false to disable.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean setPowerSave(boolean enable) {
+    public boolean setPowerSave(@NonNull String ifaceName, boolean enable) {
         synchronized (mLock) {
             final String methodStr = "setPowerSave";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.setPowerSave(enable);
+                SupplicantStatus status = iface.setPowerSave(enable);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1105,13 +1248,15 @@ public class SupplicantStaIfaceHal {
     /**
      * Initiate TDLS discover with the specified AP.
      *
+     * @param ifaceName Name of the interface.
      * @param macAddress MAC Address of the AP.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean initiateTdlsDiscover(String macAddress) {
+    public boolean initiateTdlsDiscover(@NonNull String ifaceName, String macAddress) {
         synchronized (mLock) {
             try {
-                return initiateTdlsDiscover(NativeUtil.macAddressToByteArray(macAddress));
+                return initiateTdlsDiscover(
+                        ifaceName, NativeUtil.macAddressToByteArray(macAddress));
             } catch (IllegalArgumentException e) {
                 Log.e(TAG, "Illegal argument " + macAddress, e);
                 return false;
@@ -1119,12 +1264,13 @@ public class SupplicantStaIfaceHal {
         }
     }
     /** See ISupplicantStaIface.hal for documentation */
-    private boolean initiateTdlsDiscover(byte[/* 6 */] macAddress) {
+    private boolean initiateTdlsDiscover(@NonNull String ifaceName, byte[/* 6 */] macAddress) {
         synchronized (mLock) {
             final String methodStr = "initiateTdlsDiscover";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.initiateTdlsDiscover(macAddress);
+                SupplicantStatus status = iface.initiateTdlsDiscover(macAddress);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1136,13 +1282,14 @@ public class SupplicantStaIfaceHal {
     /**
      * Initiate TDLS setup with the specified AP.
      *
+     * @param ifaceName Name of the interface.
      * @param macAddress MAC Address of the AP.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean initiateTdlsSetup(String macAddress) {
+    public boolean initiateTdlsSetup(@NonNull String ifaceName, String macAddress) {
         synchronized (mLock) {
             try {
-                return initiateTdlsSetup(NativeUtil.macAddressToByteArray(macAddress));
+                return initiateTdlsSetup(ifaceName, NativeUtil.macAddressToByteArray(macAddress));
             } catch (IllegalArgumentException e) {
                 Log.e(TAG, "Illegal argument " + macAddress, e);
                 return false;
@@ -1150,12 +1297,13 @@ public class SupplicantStaIfaceHal {
         }
     }
     /** See ISupplicantStaIface.hal for documentation */
-    private boolean initiateTdlsSetup(byte[/* 6 */] macAddress) {
+    private boolean initiateTdlsSetup(@NonNull String ifaceName, byte[/* 6 */] macAddress) {
         synchronized (mLock) {
             final String methodStr = "initiateTdlsSetup";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.initiateTdlsSetup(macAddress);
+                SupplicantStatus status = iface.initiateTdlsSetup(macAddress);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1166,13 +1314,15 @@ public class SupplicantStaIfaceHal {
 
     /**
      * Initiate TDLS teardown with the specified AP.
+     * @param ifaceName Name of the interface.
      * @param macAddress MAC Address of the AP.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean initiateTdlsTeardown(String macAddress) {
+    public boolean initiateTdlsTeardown(@NonNull String ifaceName, String macAddress) {
         synchronized (mLock) {
             try {
-                return initiateTdlsTeardown(NativeUtil.macAddressToByteArray(macAddress));
+                return initiateTdlsTeardown(
+                        ifaceName, NativeUtil.macAddressToByteArray(macAddress));
             } catch (IllegalArgumentException e) {
                 Log.e(TAG, "Illegal argument " + macAddress, e);
                 return false;
@@ -1181,12 +1331,13 @@ public class SupplicantStaIfaceHal {
     }
 
     /** See ISupplicantStaIface.hal for documentation */
-    private boolean initiateTdlsTeardown(byte[/* 6 */] macAddress) {
+    private boolean initiateTdlsTeardown(@NonNull String ifaceName, byte[/* 6 */] macAddress) {
         synchronized (mLock) {
             final String methodStr = "initiateTdlsTeardown";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.initiateTdlsTeardown(macAddress);
+                SupplicantStatus status = iface.initiateTdlsTeardown(macAddress);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1198,16 +1349,19 @@ public class SupplicantStaIfaceHal {
     /**
      * Request the specified ANQP elements |elements| from the specified AP |bssid|.
      *
+     * @param ifaceName Name of the interface.
      * @param bssid BSSID of the AP
      * @param infoElements ANQP elements to be queried. Refer to ISupplicantStaIface.AnqpInfoId.
      * @param hs20SubTypes HS subtypes to be queried. Refer to ISupplicantStaIface.Hs20AnqpSubTypes.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean initiateAnqpQuery(String bssid, ArrayList<Short> infoElements,
+    public boolean initiateAnqpQuery(@NonNull String ifaceName, String bssid,
+                                     ArrayList<Short> infoElements,
                                      ArrayList<Integer> hs20SubTypes) {
         synchronized (mLock) {
             try {
                 return initiateAnqpQuery(
+                        ifaceName,
                         NativeUtil.macAddressToByteArray(bssid), infoElements, hs20SubTypes);
             } catch (IllegalArgumentException e) {
                 Log.e(TAG, "Illegal argument " + bssid, e);
@@ -1217,14 +1371,15 @@ public class SupplicantStaIfaceHal {
     }
 
     /** See ISupplicantStaIface.hal for documentation */
-    private boolean initiateAnqpQuery(byte[/* 6 */] macAddress,
+    private boolean initiateAnqpQuery(@NonNull String ifaceName, byte[/* 6 */] macAddress,
             java.util.ArrayList<Short> infoElements, java.util.ArrayList<Integer> subTypes) {
         synchronized (mLock) {
             final String methodStr = "initiateAnqpQuery";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.initiateAnqpQuery(macAddress,
-                        infoElements, subTypes);
+                SupplicantStatus status = iface.initiateAnqpQuery(
+                        macAddress, infoElements, subTypes);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1236,14 +1391,16 @@ public class SupplicantStaIfaceHal {
     /**
      * Request the specified ANQP ICON from the specified AP |bssid|.
      *
+     * @param ifaceName Name of the interface.
      * @param bssid BSSID of the AP
      * @param fileName Name of the file to request.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean initiateHs20IconQuery(String bssid, String fileName) {
+    public boolean initiateHs20IconQuery(@NonNull String ifaceName, String bssid, String fileName) {
         synchronized (mLock) {
             try {
-                return initiateHs20IconQuery(NativeUtil.macAddressToByteArray(bssid), fileName);
+                return initiateHs20IconQuery(
+                        ifaceName, NativeUtil.macAddressToByteArray(bssid), fileName);
             } catch (IllegalArgumentException e) {
                 Log.e(TAG, "Illegal argument " + bssid, e);
                 return false;
@@ -1252,13 +1409,14 @@ public class SupplicantStaIfaceHal {
     }
 
     /** See ISupplicantStaIface.hal for documentation */
-    private boolean initiateHs20IconQuery(byte[/* 6 */] macAddress, String fileName) {
+    private boolean initiateHs20IconQuery(@NonNull String ifaceName,
+                                          byte[/* 6 */] macAddress, String fileName) {
         synchronized (mLock) {
             final String methodStr = "initiateHs20IconQuery";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.initiateHs20IconQuery(macAddress,
-                        fileName);
+                SupplicantStatus status = iface.initiateHs20IconQuery(macAddress, fileName);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1270,15 +1428,17 @@ public class SupplicantStaIfaceHal {
     /**
      * Makes a callback to HIDL to getMacAddress from supplicant
      *
+     * @param ifaceName Name of the interface.
      * @return string containing the MAC address, or null on a failed call
      */
-    public String getMacAddress() {
+    public String getMacAddress(@NonNull String ifaceName) {
         synchronized (mLock) {
             final String methodStr = "getMacAddress";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return null;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return null;
             Mutable<String> gotMac = new Mutable<>();
             try {
-                mISupplicantStaIface.getMacAddress((SupplicantStatus status,
+                iface.getMacAddress((SupplicantStatus status,
                         byte[/* 6 */] macAddr) -> {
                     if (checkStatusAndLogFailure(status, methodStr)) {
                         gotMac.value = NativeUtil.macAddressFromByteArray(macAddr);
@@ -1294,14 +1454,16 @@ public class SupplicantStaIfaceHal {
     /**
      * Start using the added RX filters.
      *
+     * @param ifaceName Name of the interface.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean startRxFilter() {
+    public boolean startRxFilter(@NonNull String ifaceName) {
         synchronized (mLock) {
             final String methodStr = "startRxFilter";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.startRxFilter();
+                SupplicantStatus status = iface.startRxFilter();
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1313,14 +1475,16 @@ public class SupplicantStaIfaceHal {
     /**
      * Stop using the added RX filters.
      *
+     * @param ifaceName Name of the interface.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean stopRxFilter() {
+    public boolean stopRxFilter(@NonNull String ifaceName) {
         synchronized (mLock) {
             final String methodStr = "stopRxFilter";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.stopRxFilter();
+                SupplicantStatus status = iface.stopRxFilter();
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1332,11 +1496,12 @@ public class SupplicantStaIfaceHal {
     /**
      * Add an RX filter.
      *
+     * @param ifaceName Name of the interface.
      * @param type one of {@link WifiNative#RX_FILTER_TYPE_V4_MULTICAST}
      *        {@link WifiNative#RX_FILTER_TYPE_V6_MULTICAST} values.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean addRxFilter(int type) {
+    public boolean addRxFilter(@NonNull String ifaceName, int type) {
         synchronized (mLock) {
             byte halType;
             switch (type) {
@@ -1350,16 +1515,17 @@ public class SupplicantStaIfaceHal {
                     Log.e(TAG, "Invalid Rx Filter type: " + type);
                     return false;
             }
-            return addRxFilter(halType);
+            return addRxFilter(ifaceName, halType);
         }
     }
 
-    public boolean addRxFilter(byte type) {
+    private boolean addRxFilter(@NonNull String ifaceName, byte type) {
         synchronized (mLock) {
             final String methodStr = "addRxFilter";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.addRxFilter(type);
+                SupplicantStatus status = iface.addRxFilter(type);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1371,11 +1537,12 @@ public class SupplicantStaIfaceHal {
     /**
      * Remove an RX filter.
      *
+     * @param ifaceName Name of the interface.
      * @param type one of {@link WifiNative#RX_FILTER_TYPE_V4_MULTICAST}
      *        {@link WifiNative#RX_FILTER_TYPE_V6_MULTICAST} values.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean removeRxFilter(int type) {
+    public boolean removeRxFilter(@NonNull String ifaceName, int type) {
         synchronized (mLock) {
             byte halType;
             switch (type) {
@@ -1389,16 +1556,17 @@ public class SupplicantStaIfaceHal {
                     Log.e(TAG, "Invalid Rx Filter type: " + type);
                     return false;
             }
-            return removeRxFilter(halType);
+            return removeRxFilter(ifaceName, halType);
         }
     }
 
-    public boolean removeRxFilter(byte type) {
+    private boolean removeRxFilter(@NonNull String ifaceName, byte type) {
         synchronized (mLock) {
             final String methodStr = "removeRxFilter";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.removeRxFilter(type);
+                SupplicantStatus status = iface.removeRxFilter(type);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1410,12 +1578,13 @@ public class SupplicantStaIfaceHal {
     /**
      * Set Bt co existense mode.
      *
+     * @param ifaceName Name of the interface.
      * @param mode one of the above {@link WifiNative#BLUETOOTH_COEXISTENCE_MODE_DISABLED},
      *             {@link WifiNative#BLUETOOTH_COEXISTENCE_MODE_ENABLED} or
      *             {@link WifiNative#BLUETOOTH_COEXISTENCE_MODE_SENSE}.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean setBtCoexistenceMode(int mode) {
+    public boolean setBtCoexistenceMode(@NonNull String ifaceName, int mode) {
         synchronized (mLock) {
             byte halMode;
             switch (mode) {
@@ -1432,16 +1601,17 @@ public class SupplicantStaIfaceHal {
                     Log.e(TAG, "Invalid Bt Coex mode: " + mode);
                     return false;
             }
-            return setBtCoexistenceMode(halMode);
+            return setBtCoexistenceMode(ifaceName, halMode);
         }
     }
 
-    private boolean setBtCoexistenceMode(byte mode) {
+    private boolean setBtCoexistenceMode(@NonNull String ifaceName, byte mode) {
         synchronized (mLock) {
             final String methodStr = "setBtCoexistenceMode";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.setBtCoexistenceMode(mode);
+                SupplicantStatus status = iface.setBtCoexistenceMode(mode);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1452,16 +1622,18 @@ public class SupplicantStaIfaceHal {
 
     /** Enable or disable BT coexistence mode.
      *
+     * @param ifaceName Name of the interface.
      * @param enable true to enable, false to disable.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean setBtCoexistenceScanModeEnabled(boolean enable) {
+    public boolean setBtCoexistenceScanModeEnabled(@NonNull String ifaceName, boolean enable) {
         synchronized (mLock) {
             final String methodStr = "setBtCoexistenceScanModeEnabled";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
                 SupplicantStatus status =
-                        mISupplicantStaIface.setBtCoexistenceScanModeEnabled(enable);
+                        iface.setBtCoexistenceScanModeEnabled(enable);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1473,15 +1645,17 @@ public class SupplicantStaIfaceHal {
     /**
      * Enable or disable suspend mode optimizations.
      *
+     * @param ifaceName Name of the interface.
      * @param enable true to enable, false otherwise.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean setSuspendModeEnabled(boolean enable) {
+    public boolean setSuspendModeEnabled(@NonNull String ifaceName, boolean enable) {
         synchronized (mLock) {
             final String methodStr = "setSuspendModeEnabled";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.setSuspendModeEnabled(enable);
+                SupplicantStatus status = iface.setSuspendModeEnabled(enable);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1493,23 +1667,25 @@ public class SupplicantStaIfaceHal {
     /**
      * Set country code.
      *
+     * @param ifaceName Name of the interface.
      * @param codeStr 2 byte ASCII string. For ex: US, CA.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean setCountryCode(String codeStr) {
+    public boolean setCountryCode(@NonNull String ifaceName, String codeStr) {
         synchronized (mLock) {
             if (TextUtils.isEmpty(codeStr)) return false;
-            return setCountryCode(NativeUtil.stringToByteArray(codeStr));
+            return setCountryCode(ifaceName, NativeUtil.stringToByteArray(codeStr));
         }
     }
 
     /** See ISupplicantStaIface.hal for documentation */
-    private boolean setCountryCode(byte[/* 2 */] code) {
+    private boolean setCountryCode(@NonNull String ifaceName, byte[/* 2 */] code) {
         synchronized (mLock) {
             final String methodStr = "setCountryCode";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.setCountryCode(code);
+                SupplicantStatus status = iface.setCountryCode(code);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1521,15 +1697,17 @@ public class SupplicantStaIfaceHal {
     /**
      * Start WPS pin registrar operation with the specified peer and pin.
      *
+     * @param ifaceName Name of the interface.
      * @param bssidStr BSSID of the peer.
      * @param pin Pin to be used.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean startWpsRegistrar(String bssidStr, String pin) {
+    public boolean startWpsRegistrar(@NonNull String ifaceName, String bssidStr, String pin) {
         synchronized (mLock) {
             if (TextUtils.isEmpty(bssidStr) || TextUtils.isEmpty(pin)) return false;
             try {
-                return startWpsRegistrar(NativeUtil.macAddressToByteArray(bssidStr), pin);
+                return startWpsRegistrar(
+                        ifaceName, NativeUtil.macAddressToByteArray(bssidStr), pin);
             } catch (IllegalArgumentException e) {
                 Log.e(TAG, "Illegal argument " + bssidStr, e);
                 return false;
@@ -1538,12 +1716,13 @@ public class SupplicantStaIfaceHal {
     }
 
     /** See ISupplicantStaIface.hal for documentation */
-    private boolean startWpsRegistrar(byte[/* 6 */] bssid, String pin) {
+    private boolean startWpsRegistrar(@NonNull String ifaceName, byte[/* 6 */] bssid, String pin) {
         synchronized (mLock) {
             final String methodStr = "startWpsRegistrar";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.startWpsRegistrar(bssid, pin);
+                SupplicantStatus status = iface.startWpsRegistrar(bssid, pin);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1555,13 +1734,14 @@ public class SupplicantStaIfaceHal {
     /**
      * Start WPS pin display operation with the specified peer.
      *
+     * @param ifaceName Name of the interface.
      * @param bssidStr BSSID of the peer. Use empty bssid to indicate wildcard.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean startWpsPbc(String bssidStr) {
+    public boolean startWpsPbc(@NonNull String ifaceName, String bssidStr) {
         synchronized (mLock) {
             try {
-                return startWpsPbc(NativeUtil.macAddressToByteArray(bssidStr));
+                return startWpsPbc(ifaceName, NativeUtil.macAddressToByteArray(bssidStr));
             } catch (IllegalArgumentException e) {
                 Log.e(TAG, "Illegal argument " + bssidStr, e);
                 return false;
@@ -1570,12 +1750,13 @@ public class SupplicantStaIfaceHal {
     }
 
     /** See ISupplicantStaIface.hal for documentation */
-    private boolean startWpsPbc(byte[/* 6 */] bssid) {
+    private boolean startWpsPbc(@NonNull String ifaceName, byte[/* 6 */] bssid) {
         synchronized (mLock) {
             final String methodStr = "startWpsPbc";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.startWpsPbc(bssid);
+                SupplicantStatus status = iface.startWpsPbc(bssid);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1587,16 +1768,18 @@ public class SupplicantStaIfaceHal {
     /**
      * Start WPS pin keypad operation with the specified pin.
      *
+     * @param ifaceName Name of the interface.
      * @param pin Pin to be used.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean startWpsPinKeypad(String pin) {
+    public boolean startWpsPinKeypad(@NonNull String ifaceName, String pin) {
         if (TextUtils.isEmpty(pin)) return false;
         synchronized (mLock) {
             final String methodStr = "startWpsPinKeypad";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.startWpsPinKeypad(pin);
+                SupplicantStatus status = iface.startWpsPinKeypad(pin);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1608,13 +1791,14 @@ public class SupplicantStaIfaceHal {
     /**
      * Start WPS pin display operation with the specified peer.
      *
+     * @param ifaceName Name of the interface.
      * @param bssidStr BSSID of the peer. Use empty bssid to indicate wildcard.
      * @return new pin generated on success, null otherwise.
      */
-    public String startWpsPinDisplay(String bssidStr) {
+    public String startWpsPinDisplay(@NonNull String ifaceName, String bssidStr) {
         synchronized (mLock) {
             try {
-                return startWpsPinDisplay(NativeUtil.macAddressToByteArray(bssidStr));
+                return startWpsPinDisplay(ifaceName, NativeUtil.macAddressToByteArray(bssidStr));
             } catch (IllegalArgumentException e) {
                 Log.e(TAG, "Illegal argument " + bssidStr, e);
                 return null;
@@ -1623,13 +1807,14 @@ public class SupplicantStaIfaceHal {
     }
 
     /** See ISupplicantStaIface.hal for documentation */
-    private String startWpsPinDisplay(byte[/* 6 */] bssid) {
+    private String startWpsPinDisplay(@NonNull String ifaceName, byte[/* 6 */] bssid) {
         synchronized (mLock) {
             final String methodStr = "startWpsPinDisplay";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return null;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return null;
             final Mutable<String> gotPin = new Mutable<>();
             try {
-                mISupplicantStaIface.startWpsPinDisplay(bssid,
+                iface.startWpsPinDisplay(bssid,
                         (SupplicantStatus status, String pin) -> {
                             if (checkStatusAndLogFailure(status, methodStr)) {
                                 gotPin.value = pin;
@@ -1645,14 +1830,16 @@ public class SupplicantStaIfaceHal {
     /**
      * Cancels any ongoing WPS requests.
      *
+     * @param ifaceName Name of the interface.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean cancelWps() {
+    public boolean cancelWps(@NonNull String ifaceName) {
         synchronized (mLock) {
             final String methodStr = "cancelWps";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.cancelWps();
+                SupplicantStatus status = iface.cancelWps();
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1664,15 +1851,17 @@ public class SupplicantStaIfaceHal {
     /**
      * Sets whether to use external sim for SIM/USIM processing.
      *
+     * @param ifaceName Name of the interface.
      * @param useExternalSim true to enable, false otherwise.
      * @return true if request is sent successfully, false otherwise.
      */
-    public boolean setExternalSim(boolean useExternalSim) {
+    public boolean setExternalSim(@NonNull String ifaceName, boolean useExternalSim) {
         synchronized (mLock) {
             final String methodStr = "setExternalSim";
-            if (!checkSupplicantStaIfaceAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.setExternalSim(useExternalSim);
+                SupplicantStatus status = iface.setExternalSim(useExternalSim);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1682,12 +1871,13 @@ public class SupplicantStaIfaceHal {
     }
 
     /** See ISupplicant.hal for documentation */
-    public boolean enableAutoReconnect(boolean enable) {
+    public boolean enableAutoReconnect(@NonNull String ifaceName, boolean enable) {
         synchronized (mLock) {
             final String methodStr = "enableAutoReconnect";
-            if (!checkSupplicantAndLogFailure(methodStr)) return false;
+            ISupplicantStaIface iface = checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr);
+            if (iface == null) return false;
             try {
-                SupplicantStatus status = mISupplicantStaIface.enableAutoReconnect(enable);
+                SupplicantStatus status = iface.enableAutoReconnect(enable);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -1775,13 +1965,30 @@ public class SupplicantStaIfaceHal {
     /**
      * Returns false if SupplicantStaIface is null, and logs failure to call methodStr
      */
-    private boolean checkSupplicantStaIfaceAndLogFailure(final String methodStr) {
+    private ISupplicantStaIface checkSupplicantStaIfaceAndLogFailure(
+            @NonNull String ifaceName, final String methodStr) {
         synchronized (mLock) {
-            if (mISupplicantStaIface == null) {
+            ISupplicantStaIface iface = getStaIface(ifaceName);
+            if (iface == null) {
                 Log.e(TAG, "Can't call " + methodStr + ", ISupplicantStaIface is null");
-                return false;
+                return null;
             }
-            return true;
+            return iface;
+        }
+    }
+
+    /**
+     * Returns false if SupplicantStaNetwork is null, and logs failure to call methodStr
+     */
+    private SupplicantStaNetworkHal checkSupplicantStaNetworkAndLogFailure(
+            @NonNull String ifaceName, final String methodStr) {
+        synchronized (mLock) {
+            SupplicantStaNetworkHal networkHal = getCurrentNetworkRemoteHandle(ifaceName);
+            if (networkHal == null) {
+                Log.e(TAG, "Can't call " + methodStr + ", SupplicantStaNetwork is null");
+                return null;
+            }
+            return networkHal;
         }
     }
 
@@ -1938,7 +2145,12 @@ public class SupplicantStaIfaceHal {
     }
 
     private class SupplicantStaIfaceHalCallback extends ISupplicantStaIfaceCallback.Stub {
+        private String mIfaceName;
         private boolean mStateIsFourway = false; // Used to help check for PSK password mismatch
+
+        SupplicantStaIfaceHalCallback(@NonNull String ifaceName) {
+            mIfaceName = ifaceName;
+        }
 
         /**
          * Parses the provided payload into an ANQP element.
@@ -2008,10 +2220,11 @@ public class SupplicantStaIfaceHal {
                 mStateIsFourway = (newState == ISupplicantStaIfaceCallback.State.FOURWAY_HANDSHAKE);
                 if (newSupplicantState == SupplicantState.COMPLETED) {
                     mWifiMonitor.broadcastNetworkConnectionEvent(
-                            mIfaceName, getCurrentNetworkId(), bssidStr);
+                            mIfaceName, getCurrentNetworkId(mIfaceName), bssidStr);
                 }
                 mWifiMonitor.broadcastSupplicantStateChangeEvent(
-                        mIfaceName, getCurrentNetworkId(), wifiSsid, bssidStr, newSupplicantState);
+                        mIfaceName, getCurrentNetworkId(mIfaceName), wifiSsid,
+                        bssidStr, newSupplicantState);
             }
         }
 

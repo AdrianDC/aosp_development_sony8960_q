@@ -727,7 +727,7 @@ public class WifiNativeTest {
         mWifiNative.connectToNetwork(config);
         // connectToNetwork() should abort ongoing scan before connection.
         verify(mWificondControl).abortScan(WIFI_IFACE_NAME);
-        verify(mStaIfaceHal).connectToNetwork(config);
+        verify(mStaIfaceHal).connectToNetwork(WIFI_IFACE_NAME, config);
     }
 
     /**
@@ -739,6 +739,6 @@ public class WifiNativeTest {
         mWifiNative.roamToNetwork(config);
         // roamToNetwork() should abort ongoing scan before connection.
         verify(mWificondControl).abortScan(WIFI_IFACE_NAME);
-        verify(mStaIfaceHal).roamToNetwork(config);
+        verify(mStaIfaceHal).roamToNetwork(WIFI_IFACE_NAME, config);
     }
 }

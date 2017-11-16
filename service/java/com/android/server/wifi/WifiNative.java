@@ -335,7 +335,8 @@ public class WifiNative {
      ********************************************************/
 
     /**
-     * This method is called repeatedly until the connection to wpa_supplicant is established.
+     * This method is called repeatedly until the connection to wpa_supplicant is
+     * established and a STA iface is setup.
      *
      * @return true if connection is established, false otherwise.
      * TODO: Add unit tests for these once we remove the legacy code.
@@ -347,14 +348,19 @@ public class WifiNative {
             return false;
         }
         // Check if the initialization is complete.
-        return mSupplicantStaIfaceHal.isInitializationComplete();
+        if (!mSupplicantStaIfaceHal.isInitializationComplete()) {
+            return false;
+        }
+        // Setup the STA iface once connection is established.
+        return mSupplicantStaIfaceHal.setupIface(mInterfaceName);
     }
 
     /**
      * Close supplicant connection.
      */
     public void closeSupplicantConnection() {
-        // Nothing to do for HIDL.
+        // Setup the STA iface once connection is established.
+        mSupplicantStaIfaceHal.teardownIface(mInterfaceName);
     }
 
     /**
@@ -372,7 +378,7 @@ public class WifiNative {
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean reconnect() {
-        return mSupplicantStaIfaceHal.reconnect();
+        return mSupplicantStaIfaceHal.reconnect(mInterfaceName);
     }
 
     /**
@@ -381,7 +387,7 @@ public class WifiNative {
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean reassociate() {
-        return mSupplicantStaIfaceHal.reassociate();
+        return mSupplicantStaIfaceHal.reassociate(mInterfaceName);
     }
 
     /**
@@ -390,7 +396,7 @@ public class WifiNative {
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean disconnect() {
-        return mSupplicantStaIfaceHal.disconnect();
+        return mSupplicantStaIfaceHal.disconnect(mInterfaceName);
     }
 
     /**
@@ -399,7 +405,7 @@ public class WifiNative {
      * @return string containing the MAC address, or null on a failed call
      */
     public String getMacAddress() {
-        return mSupplicantStaIfaceHal.getMacAddress();
+        return mSupplicantStaIfaceHal.getMacAddress(mInterfaceName);
     }
 
     public static final int RX_FILTER_TYPE_V4_MULTICAST = 0;
@@ -429,10 +435,10 @@ public class WifiNative {
      * The  SETSUSPENDOPT driver command overrides the filtering rules
      */
     public boolean startFilteringMulticastV4Packets() {
-        return mSupplicantStaIfaceHal.stopRxFilter()
+        return mSupplicantStaIfaceHal.stopRxFilter(mInterfaceName)
                 && mSupplicantStaIfaceHal.removeRxFilter(
-                RX_FILTER_TYPE_V4_MULTICAST)
-                && mSupplicantStaIfaceHal.startRxFilter();
+                        mInterfaceName, RX_FILTER_TYPE_V4_MULTICAST)
+                && mSupplicantStaIfaceHal.startRxFilter(mInterfaceName);
     }
 
     /**
@@ -440,10 +446,10 @@ public class WifiNative {
      * @return {@code true} if the operation succeeded, {@code false} otherwise
      */
     public boolean stopFilteringMulticastV4Packets() {
-        return mSupplicantStaIfaceHal.stopRxFilter()
+        return mSupplicantStaIfaceHal.stopRxFilter(mInterfaceName)
                 && mSupplicantStaIfaceHal.addRxFilter(
-                RX_FILTER_TYPE_V4_MULTICAST)
-                && mSupplicantStaIfaceHal.startRxFilter();
+                        mInterfaceName, RX_FILTER_TYPE_V4_MULTICAST)
+                && mSupplicantStaIfaceHal.startRxFilter(mInterfaceName);
     }
 
     /**
@@ -451,10 +457,10 @@ public class WifiNative {
      * @return {@code true} if the operation succeeded, {@code false} otherwise
      */
     public boolean startFilteringMulticastV6Packets() {
-        return mSupplicantStaIfaceHal.stopRxFilter()
+        return mSupplicantStaIfaceHal.stopRxFilter(mInterfaceName)
                 && mSupplicantStaIfaceHal.removeRxFilter(
-                RX_FILTER_TYPE_V6_MULTICAST)
-                && mSupplicantStaIfaceHal.startRxFilter();
+                        mInterfaceName, RX_FILTER_TYPE_V6_MULTICAST)
+                && mSupplicantStaIfaceHal.startRxFilter(mInterfaceName);
     }
 
     /**
@@ -462,10 +468,10 @@ public class WifiNative {
      * @return {@code true} if the operation succeeded, {@code false} otherwise
      */
     public boolean stopFilteringMulticastV6Packets() {
-        return mSupplicantStaIfaceHal.stopRxFilter()
+        return mSupplicantStaIfaceHal.stopRxFilter(mInterfaceName)
                 && mSupplicantStaIfaceHal.addRxFilter(
-                RX_FILTER_TYPE_V6_MULTICAST)
-                && mSupplicantStaIfaceHal.startRxFilter();
+                        mInterfaceName, RX_FILTER_TYPE_V6_MULTICAST)
+                && mSupplicantStaIfaceHal.startRxFilter(mInterfaceName);
     }
 
     public static final int BLUETOOTH_COEXISTENCE_MODE_ENABLED  = 0;
@@ -480,7 +486,7 @@ public class WifiNative {
       * @return Whether the mode was successfully set.
       */
     public boolean setBluetoothCoexistenceMode(int mode) {
-        return mSupplicantStaIfaceHal.setBtCoexistenceMode(mode);
+        return mSupplicantStaIfaceHal.setBtCoexistenceMode(mInterfaceName, mode);
     }
 
     /**
@@ -492,7 +498,8 @@ public class WifiNative {
      * @return {@code true} if the command succeeded, {@code false} otherwise.
      */
     public boolean setBluetoothCoexistenceScanMode(boolean setCoexScanMode) {
-        return mSupplicantStaIfaceHal.setBtCoexistenceScanModeEnabled(setCoexScanMode);
+        return mSupplicantStaIfaceHal.setBtCoexistenceScanModeEnabled(
+                mInterfaceName, setCoexScanMode);
     }
 
     /**
@@ -502,7 +509,7 @@ public class WifiNative {
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean setSuspendOptimizations(boolean enabled) {
-        return mSupplicantStaIfaceHal.setSuspendModeEnabled(enabled);
+        return mSupplicantStaIfaceHal.setSuspendModeEnabled(mInterfaceName, enabled);
     }
 
     /**
@@ -512,7 +519,7 @@ public class WifiNative {
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean setCountryCode(String countryCode) {
-        return mSupplicantStaIfaceHal.setCountryCode(countryCode);
+        return mSupplicantStaIfaceHal.setCountryCode(mInterfaceName, countryCode);
     }
 
     /**
@@ -523,10 +530,10 @@ public class WifiNative {
      */
     public void startTdls(String macAddr, boolean enable) {
         if (enable) {
-            mSupplicantStaIfaceHal.initiateTdlsDiscover(macAddr);
-            mSupplicantStaIfaceHal.initiateTdlsSetup(macAddr);
+            mSupplicantStaIfaceHal.initiateTdlsDiscover(mInterfaceName, macAddr);
+            mSupplicantStaIfaceHal.initiateTdlsSetup(mInterfaceName, macAddr);
         } else {
-            mSupplicantStaIfaceHal.initiateTdlsTeardown(macAddr);
+            mSupplicantStaIfaceHal.initiateTdlsTeardown(mInterfaceName, macAddr);
         }
     }
 
@@ -537,7 +544,7 @@ public class WifiNative {
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean startWpsPbc(String bssid) {
-        return mSupplicantStaIfaceHal.startWpsPbc(bssid);
+        return mSupplicantStaIfaceHal.startWpsPbc(mInterfaceName, bssid);
     }
 
     /**
@@ -547,7 +554,7 @@ public class WifiNative {
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean startWpsPinKeypad(String pin) {
-        return mSupplicantStaIfaceHal.startWpsPinKeypad(pin);
+        return mSupplicantStaIfaceHal.startWpsPinKeypad(mInterfaceName, pin);
     }
 
     /**
@@ -557,7 +564,7 @@ public class WifiNative {
      * @return new pin generated on success, null otherwise.
      */
     public String startWpsPinDisplay(String bssid) {
-        return mSupplicantStaIfaceHal.startWpsPinDisplay(bssid);
+        return mSupplicantStaIfaceHal.startWpsPinDisplay(mInterfaceName, bssid);
     }
 
     /**
@@ -567,7 +574,7 @@ public class WifiNative {
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean setExternalSim(boolean external) {
-        return mSupplicantStaIfaceHal.setExternalSim(external);
+        return mSupplicantStaIfaceHal.setExternalSim(mInterfaceName, external);
     }
 
     /**
@@ -586,11 +593,14 @@ public class WifiNative {
      */
     public boolean simAuthResponse(int id, String type, String response) {
         if (SIM_AUTH_RESP_TYPE_GSM_AUTH.equals(type)) {
-            return mSupplicantStaIfaceHal.sendCurrentNetworkEapSimGsmAuthResponse(response);
+            return mSupplicantStaIfaceHal.sendCurrentNetworkEapSimGsmAuthResponse(
+                    mInterfaceName, response);
         } else if (SIM_AUTH_RESP_TYPE_UMTS_AUTH.equals(type)) {
-            return mSupplicantStaIfaceHal.sendCurrentNetworkEapSimUmtsAuthResponse(response);
+            return mSupplicantStaIfaceHal.sendCurrentNetworkEapSimUmtsAuthResponse(
+                    mInterfaceName, response);
         } else if (SIM_AUTH_RESP_TYPE_UMTS_AUTS.equals(type)) {
-            return mSupplicantStaIfaceHal.sendCurrentNetworkEapSimUmtsAutsResponse(response);
+            return mSupplicantStaIfaceHal.sendCurrentNetworkEapSimUmtsAutsResponse(
+                    mInterfaceName, response);
         } else {
             return false;
         }
@@ -602,7 +612,7 @@ public class WifiNative {
      * @return true if succeeds, false otherwise.
      */
     public boolean simAuthFailedResponse(int id) {
-        return mSupplicantStaIfaceHal.sendCurrentNetworkEapSimGsmAuthFailure();
+        return mSupplicantStaIfaceHal.sendCurrentNetworkEapSimGsmAuthFailure(mInterfaceName);
     }
 
     /**
@@ -611,7 +621,7 @@ public class WifiNative {
      * @return true if succeeds, false otherwise.
      */
     public boolean umtsAuthFailedResponse(int id) {
-        return mSupplicantStaIfaceHal.sendCurrentNetworkEapSimUmtsAuthFailure();
+        return mSupplicantStaIfaceHal.sendCurrentNetworkEapSimUmtsAuthFailure(mInterfaceName);
     }
 
     /**
@@ -621,7 +631,8 @@ public class WifiNative {
      * @return true if succeeds, false otherwise.
      */
     public boolean simIdentityResponse(int id, String response) {
-        return mSupplicantStaIfaceHal.sendCurrentNetworkEapIdentityResponse(response);
+        return mSupplicantStaIfaceHal.sendCurrentNetworkEapIdentityResponse(
+                mInterfaceName, response);
     }
 
     /**
@@ -630,7 +641,7 @@ public class WifiNative {
      * @return anonymous identity string if succeeds, null otherwise.
      */
     public String getEapAnonymousIdentity() {
-        return mSupplicantStaIfaceHal.getCurrentNetworkEapAnonymousIdentity();
+        return mSupplicantStaIfaceHal.getCurrentNetworkEapAnonymousIdentity(mInterfaceName);
     }
 
     /**
@@ -641,7 +652,7 @@ public class WifiNative {
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean startWpsRegistrar(String bssid, String pin) {
-        return mSupplicantStaIfaceHal.startWpsRegistrar(bssid, pin);
+        return mSupplicantStaIfaceHal.startWpsRegistrar(mInterfaceName, bssid, pin);
     }
 
     /**
@@ -650,7 +661,7 @@ public class WifiNative {
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean cancelWps() {
-        return mSupplicantStaIfaceHal.cancelWps();
+        return mSupplicantStaIfaceHal.cancelWps(mInterfaceName);
     }
 
     /**
@@ -660,7 +671,7 @@ public class WifiNative {
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean setDeviceName(String name) {
-        return mSupplicantStaIfaceHal.setWpsDeviceName(name);
+        return mSupplicantStaIfaceHal.setWpsDeviceName(mInterfaceName, name);
     }
 
     /**
@@ -670,7 +681,7 @@ public class WifiNative {
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean setDeviceType(String type) {
-        return mSupplicantStaIfaceHal.setWpsDeviceType(type);
+        return mSupplicantStaIfaceHal.setWpsDeviceType(mInterfaceName, type);
     }
 
     /**
@@ -680,7 +691,7 @@ public class WifiNative {
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean setConfigMethods(String cfg) {
-        return mSupplicantStaIfaceHal.setWpsConfigMethods(cfg);
+        return mSupplicantStaIfaceHal.setWpsConfigMethods(mInterfaceName, cfg);
     }
 
     /**
@@ -690,7 +701,7 @@ public class WifiNative {
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean setManufacturer(String value) {
-        return mSupplicantStaIfaceHal.setWpsManufacturer(value);
+        return mSupplicantStaIfaceHal.setWpsManufacturer(mInterfaceName, value);
     }
 
     /**
@@ -700,7 +711,7 @@ public class WifiNative {
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean setModelName(String value) {
-        return mSupplicantStaIfaceHal.setWpsModelName(value);
+        return mSupplicantStaIfaceHal.setWpsModelName(mInterfaceName, value);
     }
 
     /**
@@ -710,7 +721,7 @@ public class WifiNative {
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean setModelNumber(String value) {
-        return mSupplicantStaIfaceHal.setWpsModelNumber(value);
+        return mSupplicantStaIfaceHal.setWpsModelNumber(mInterfaceName, value);
     }
 
     /**
@@ -720,7 +731,7 @@ public class WifiNative {
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean setSerialNumber(String value) {
-        return mSupplicantStaIfaceHal.setWpsSerialNumber(value);
+        return mSupplicantStaIfaceHal.setWpsSerialNumber(mInterfaceName, value);
     }
 
     /**
@@ -729,7 +740,7 @@ public class WifiNative {
      * @param enabled true to enable, false to disable.
      */
     public void setPowerSave(boolean enabled) {
-        mSupplicantStaIfaceHal.setPowerSave(enabled);
+        mSupplicantStaIfaceHal.setPowerSave(mInterfaceName, enabled);
     }
 
     /**
@@ -750,7 +761,7 @@ public class WifiNative {
      * @return true if request is sent successfully, false otherwise.
      */
     public boolean enableStaAutoReconnect(boolean enable) {
-        return mSupplicantStaIfaceHal.enableAutoReconnect(enable);
+        return mSupplicantStaIfaceHal.enableAutoReconnect(mInterfaceName, enable);
     }
 
     /**
@@ -763,7 +774,7 @@ public class WifiNative {
      */
     public boolean migrateNetworksFromSupplicant(Map<String, WifiConfiguration> configs,
                                                  SparseArray<Map<String, String>> networkExtras) {
-        return mSupplicantStaIfaceHal.loadNetworks(configs, networkExtras);
+        return mSupplicantStaIfaceHal.loadNetworks(mInterfaceName, configs, networkExtras);
     }
 
     /**
@@ -782,7 +793,7 @@ public class WifiNative {
     public boolean connectToNetwork(WifiConfiguration configuration) {
         // Abort ongoing scan before connect() to unblock connection request.
         mWificondControl.abortScan(mInterfaceName);
-        return mSupplicantStaIfaceHal.connectToNetwork(configuration);
+        return mSupplicantStaIfaceHal.connectToNetwork(mInterfaceName, configuration);
     }
 
     /**
@@ -801,7 +812,7 @@ public class WifiNative {
     public boolean roamToNetwork(WifiConfiguration configuration) {
         // Abort ongoing scan before connect() to unblock roaming request.
         mWificondControl.abortScan(mInterfaceName);
-        return mSupplicantStaIfaceHal.roamToNetwork(configuration);
+        return mSupplicantStaIfaceHal.roamToNetwork(mInterfaceName, configuration);
     }
 
     /**
@@ -821,7 +832,7 @@ public class WifiNative {
      * @return {@code true} if it succeeds, {@code false} otherwise
      */
     public boolean removeAllNetworks() {
-        return mSupplicantStaIfaceHal.removeAllNetworks();
+        return mSupplicantStaIfaceHal.removeAllNetworks(mInterfaceName);
     }
 
     /**
@@ -830,7 +841,7 @@ public class WifiNative {
      * @return true if successful, false otherwise.
      */
     public boolean setConfiguredNetworkBSSID(String bssid) {
-        return mSupplicantStaIfaceHal.setCurrentNetworkBssid(bssid);
+        return mSupplicantStaIfaceHal.setCurrentNetworkBssid(mInterfaceName, bssid);
     }
 
     /**
@@ -853,7 +864,8 @@ public class WifiNative {
         }
         ArrayList<Integer> hs20SubtypeList = new ArrayList<>();
         hs20SubtypeList.addAll(hs20Subtypes);
-        return mSupplicantStaIfaceHal.initiateAnqpQuery(bssid, anqpIdList, hs20SubtypeList);
+        return mSupplicantStaIfaceHal.initiateAnqpQuery(
+                mInterfaceName, bssid, anqpIdList, hs20SubtypeList);
     }
 
     /**
@@ -867,7 +879,7 @@ public class WifiNative {
             Log.e(mTAG, "Invalid arguments for Icon request.");
             return false;
         }
-        return mSupplicantStaIfaceHal.initiateHs20IconQuery(bssid, fileName);
+        return mSupplicantStaIfaceHal.initiateHs20IconQuery(mInterfaceName, bssid, fileName);
     }
 
     /**
@@ -876,7 +888,7 @@ public class WifiNative {
      * @return Hex string corresponding to the WPS NFC token.
      */
     public String getCurrentNetworkWpsNfcConfigurationToken() {
-        return mSupplicantStaIfaceHal.getCurrentNetworkWpsNfcConfigurationToken();
+        return mSupplicantStaIfaceHal.getCurrentNetworkWpsNfcConfigurationToken(mInterfaceName);
     }
 
     /** Remove the request |networkId| from supplicant if it's the current network,
@@ -885,7 +897,7 @@ public class WifiNative {
      * @param networkId network id of the network to be removed from supplicant.
      */
     public void removeNetworkIfCurrent(int networkId) {
-        mSupplicantStaIfaceHal.removeNetworkIfCurrent(networkId);
+        mSupplicantStaIfaceHal.removeNetworkIfCurrent(mInterfaceName, networkId);
     }
 
     /********************************************************
