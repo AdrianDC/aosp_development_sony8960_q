@@ -22,7 +22,7 @@
 #include "Mutex.h"
 
 class SyncEvent {
-public:
+ public:
   /*******************************************************************************
   **
   ** Function:        ~SyncEvent
@@ -94,7 +94,7 @@ public:
   *******************************************************************************/
   void end() { mMutex.unlock(); }
 
-private:
+ private:
   CondVar mCondVar;
   Mutex mMutex;
 };
@@ -110,7 +110,7 @@ private:
 **
 *****************************************************************************/
 class SyncEventGuard {
-public:
+ public:
   /*******************************************************************************
   **
   ** Function:        SyncEventGuard
@@ -120,8 +120,8 @@ public:
   ** Returns:         None.
   **
   *******************************************************************************/
-  SyncEventGuard(SyncEvent &event) : mEvent(event) {
-    event.start(); // automatically start operation
+  SyncEventGuard(SyncEvent& event) : mEvent(event) {
+    event.start();  // automatically start operation
   };
 
   /*******************************************************************************
@@ -134,9 +134,9 @@ public:
   **
   *******************************************************************************/
   ~SyncEventGuard() {
-    mEvent.end(); // automatically end operation
+    mEvent.end();  // automatically end operation
   };
 
-private:
-  SyncEvent &mEvent;
+ private:
+  SyncEvent& mEvent;
 };

@@ -22,29 +22,29 @@
 #include <phNfcStatus.h>
 #include <sys/types.h>
 
-NFCSTATUS EXTNS_Init(tNFA_DM_CBACK *p_dm_cback, tNFA_CONN_CBACK *p_conn_cback);
+NFCSTATUS EXTNS_Init(tNFA_DM_CBACK* p_dm_cback, tNFA_CONN_CBACK* p_conn_cback);
 void EXTNS_Close(void);
 NFCSTATUS EXTNS_MfcInit(tNFA_ACTIVATED activationData);
 NFCSTATUS EXTNS_MfcCheckNDef(void);
 NFCSTATUS EXTNS_MfcReadNDef(void);
 NFCSTATUS EXTNS_MfcPresenceCheck(void);
-NFCSTATUS EXTNS_MfcWriteNDef(uint8_t *pBuf, uint32_t len);
-NFCSTATUS EXTNS_MfcFormatTag(uint8_t *key, uint8_t len);
+NFCSTATUS EXTNS_MfcWriteNDef(uint8_t* pBuf, uint32_t len);
+NFCSTATUS EXTNS_MfcFormatTag(uint8_t* key, uint8_t len);
 NFCSTATUS EXTNS_MfcDisconnect(void);
 NFCSTATUS EXTNS_MfcActivated(void);
-NFCSTATUS EXTNS_MfcTransceive(uint8_t *p_data, uint32_t len);
+NFCSTATUS EXTNS_MfcTransceive(uint8_t* p_data, uint32_t len);
 NFCSTATUS
-EXTNS_MfcRegisterNDefTypeHandler(tNFA_NDEF_CBACK *ndefHandlerCallback);
-NFCSTATUS EXTNS_MfcCallBack(uint8_t *buf, uint32_t buflen);
-NFCSTATUS EXTNS_MfcSetReadOnly(uint8_t *key, uint8_t len);
+EXTNS_MfcRegisterNDefTypeHandler(tNFA_NDEF_CBACK* ndefHandlerCallback);
+NFCSTATUS EXTNS_MfcCallBack(uint8_t* buf, uint32_t buflen);
+NFCSTATUS EXTNS_MfcSetReadOnly(uint8_t* key, uint8_t len);
 void EXTNS_SetConnectFlag(bool_t flagval);
 bool_t EXTNS_GetConnectFlag(void);
 void EXTNS_SetDeactivateFlag(bool_t flagval);
 bool_t EXTNS_GetDeactivateFlag(void);
 void EXTNS_SetCallBackFlag(bool_t flagval);
 bool_t EXTNS_GetCallBackFlag(void);
-NFCSTATUS EXTNS_CheckMfcResponse(uint8_t **sTransceiveData,
-                                 uint32_t *sTransceiveDataLen);
+NFCSTATUS EXTNS_CheckMfcResponse(uint8_t** sTransceiveData,
+                                 uint32_t* sTransceiveDataLen);
 void MfcPresenceCheckResult(NFCSTATUS status);
 void MfcResetPresenceCheckStatus(void);
 NFCSTATUS EXTNS_GetPresenceCheckStatus(void);

@@ -22,7 +22,7 @@
 #include <pthread.h>
 
 class Mutex {
-public:
+ public:
   /*******************************************************************************
   **
   ** Function:        Mutex
@@ -87,19 +87,19 @@ public:
   ** Returns:         Handle of the mutex.
   **
   *******************************************************************************/
-  pthread_mutex_t *nativeHandle();
+  pthread_mutex_t* nativeHandle();
 
   class Autolock {
-  public:
-    inline Autolock(Mutex &mutex) : mLock(mutex) { mLock.lock(); }
-    inline Autolock(Mutex *mutex) : mLock(*mutex) { mLock.lock(); }
+   public:
+    inline Autolock(Mutex& mutex) : mLock(mutex) { mLock.lock(); }
+    inline Autolock(Mutex* mutex) : mLock(*mutex) { mLock.lock(); }
     inline ~Autolock() { mLock.unlock(); }
 
-  private:
-    Mutex &mLock;
+   private:
+    Mutex& mLock;
   };
 
-private:
+ private:
   pthread_mutex_t mMutex;
 };
 

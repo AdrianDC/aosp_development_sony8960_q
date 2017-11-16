@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-#include "JavaClassConstants.h"
-#include "NfcJniUtil.h"
-#include "_OverrideLog.h"
-#include "nfa_api.h"
-#include "nfa_p2p_api.h"
 #include <errno.h>
 #include <malloc.h>
 #include <nativehelper/ScopedLocalRef.h>
 #include <nativehelper/ScopedPrimitiveArray.h>
 #include <semaphore.h>
 #include <string.h>
+#include "JavaClassConstants.h"
+#include "NfcJniUtil.h"
+#include "_OverrideLog.h"
+#include "nfa_api.h"
+#include "nfa_p2p_api.h"
 
 namespace android {
 
@@ -35,7 +35,7 @@ namespace android {
 *****************************************************************************/
 static sem_t sConnlessRecvSem;
 static jboolean sConnlessRecvWaitingForData = JNI_FALSE;
-static uint8_t *sConnlessRecvBuf = NULL;
+static uint8_t* sConnlessRecvBuf = NULL;
 static uint32_t sConnlessRecvLen = 0;
 static uint32_t sConnlessRecvRemoteSap = 0;
 
@@ -52,7 +52,7 @@ static uint32_t sConnlessRecvRemoteSap = 0;
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-static jboolean nativeLlcpConnectionlessSocket_doSendTo(JNIEnv *e, jobject o,
+static jboolean nativeLlcpConnectionlessSocket_doSendTo(JNIEnv* e, jobject o,
                                                         jint nsap,
                                                         jbyteArray data) {
   DLOG_IF(INFO, nfc_debug_enabled)
@@ -70,8 +70,8 @@ static jboolean nativeLlcpConnectionlessSocket_doSendTo(JNIEnv *e, jobject o,
 
   DLOG_IF(INFO, nfc_debug_enabled)
       << StringPrintf("NFA_P2pSendUI: len = %zu", byte_count);
-  uint8_t *raw_ptr = const_cast<uint8_t *>(reinterpret_cast<const uint8_t *>(
-      &bytes[0])); // TODO: API bug; NFA_P2pSendUI should take const*!
+  uint8_t* raw_ptr = const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(
+      &bytes[0]));  // TODO: API bug; NFA_P2pSendUI should take const*!
   tNFA_STATUS status =
       NFA_P2pSendUI((tNFA_HANDLE)handle, nsap, byte_count, raw_ptr);
 
@@ -97,7 +97,7 @@ static jboolean nativeLlcpConnectionlessSocket_doSendTo(JNIEnv *e, jobject o,
 ** Returns:         None
 **
 *******************************************************************************/
-void nativeLlcpConnectionlessSocket_receiveData(uint8_t *data, uint32_t len,
+void nativeLlcpConnectionlessSocket_receiveData(uint8_t* data, uint32_t len,
                                                 uint32_t remoteSap) {
   DLOG_IF(INFO, nfc_debug_enabled)
       << StringPrintf("%s: waiting for data = %d, len = %d", __func__,
@@ -160,7 +160,7 @@ void nativeLlcpConnectionlessSocket_abortWait() { sem_post(&sConnlessRecvSem); }
 ** Returns:         LlcpPacket Java object.
 **
 *******************************************************************************/
-static jobject nativeLlcpConnectionlessSocket_doReceiveFrom(JNIEnv *e, jobject,
+static jobject nativeLlcpConnectionlessSocket_doReceiveFrom(JNIEnv* e, jobject,
                                                             jint linkMiu) {
   DLOG_IF(INFO, nfc_debug_enabled)
       << StringPrintf("%s: linkMiu = %d", __func__, linkMiu);
@@ -173,7 +173,7 @@ static jobject nativeLlcpConnectionlessSocket_doReceiveFrom(JNIEnv *e, jobject,
     return NULL;
   }
 
-  sConnlessRecvBuf = (uint8_t *)malloc(linkMiu);
+  sConnlessRecvBuf = (uint8_t*)malloc(linkMiu);
   if (sConnlessRecvBuf == NULL) {
     DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
         "%s: Failed to allocate %d bytes memory buffer", __func__, linkMiu);
@@ -228,12 +228,12 @@ static jobject nativeLlcpConnectionlessSocket_doReceiveFrom(JNIEnv *e, jobject,
     ScopedLocalRef<jbyteArray> receivedData(e,
                                             e->NewByteArray(sConnlessRecvLen));
     e->SetByteArrayRegion(receivedData.get(), 0, sConnlessRecvLen,
-                          (jbyte *)sConnlessRecvBuf);
+                          (jbyte*)sConnlessRecvBuf);
     e->SetObjectField(llcpPacket, f, receivedData.get());
   }
 
-TheEnd: // TODO: should all the "return connectionlessCleanup()"s in this
-        // function jump here instead?
+TheEnd:  // TODO: should all the "return connectionlessCleanup()"s in this
+         // function jump here instead?
   connectionlessCleanup();
   if (sem_destroy(&sConnlessRecvSem)) {
     LOG(ERROR) << StringPrintf(
@@ -254,7 +254,7 @@ TheEnd: // TODO: should all the "return connectionlessCleanup()"s in this
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-static jboolean nativeLlcpConnectionlessSocket_doClose(JNIEnv *e, jobject o) {
+static jboolean nativeLlcpConnectionlessSocket_doClose(JNIEnv* e, jobject o) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s", __func__);
 
   ScopedLocalRef<jclass> c(e, e->GetObjectClass(o));
@@ -276,10 +276,10 @@ static jboolean nativeLlcpConnectionlessSocket_doClose(JNIEnv *e, jobject o) {
 **
 *****************************************************************************/
 static JNINativeMethod gMethods[] = {
-    {"doSendTo", "(I[B)Z", (void *)nativeLlcpConnectionlessSocket_doSendTo},
+    {"doSendTo", "(I[B)Z", (void*)nativeLlcpConnectionlessSocket_doSendTo},
     {"doReceiveFrom", "(I)Lcom/android/nfc/LlcpPacket;",
-     (void *)nativeLlcpConnectionlessSocket_doReceiveFrom},
-    {"doClose", "()Z", (void *)nativeLlcpConnectionlessSocket_doClose},
+     (void*)nativeLlcpConnectionlessSocket_doReceiveFrom},
+    {"doClose", "()Z", (void*)nativeLlcpConnectionlessSocket_doClose},
 };
 
 /*******************************************************************************
@@ -292,9 +292,9 @@ static JNINativeMethod gMethods[] = {
 ** Returns:         Status of registration.
 **
 *******************************************************************************/
-int register_com_android_nfc_NativeLlcpConnectionlessSocket(JNIEnv *e) {
+int register_com_android_nfc_NativeLlcpConnectionlessSocket(JNIEnv* e) {
   return jniRegisterNativeMethods(e, gNativeLlcpConnectionlessSocketClassName,
                                   gMethods, NELEM(gMethods));
 }
 
-} // namespace android
+}  // namespace android

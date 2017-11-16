@@ -34,7 +34,7 @@ typedef uint8_t bool_t;     /* boolean data type */
 typedef uint16_t NFCSTATUS; /* Return values */
 
 #define PHNFC_MAX_UID_LENGTH 0x0AU /* Maximum UID length expected */
-#define PHNFC_MAX_ATR_LENGTH                                                   \
+#define PHNFC_MAX_ATR_LENGTH \
   0x30U /* Maximum ATR_RES (General Bytes) length expected */
 #define PHNFC_NFCID_LENGTH 0x0AU /* Maximum length of NFCID 1.3*/
 #define PHNFC_ATQA_LENGTH 0x02U  /* ATQA length */
@@ -43,7 +43,7 @@ typedef uint16_t NFCSTATUS; /* Return values */
  * NFC Data structure
  */
 typedef struct phNfc_sData {
-  uint8_t *buffer; /* Buffer to store data */
+  uint8_t* buffer; /* Buffer to store data */
   uint32_t length; /* Buffer length */
 } phNfc_sData_t;
 
@@ -79,14 +79,14 @@ typedef enum {
  * This type of API is called from ClientApplication ( main thread) to notify
  * specific callback.
  */
-typedef void (*pphLibNfc_DeferredCallback_t)(void *);
+typedef void (*pphLibNfc_DeferredCallback_t)(void*);
 
 /*
  * Deferred parameter declaration.
  * This type of data is passed as parameter from ClientApplication (main thread)
  * to the callback.
  */
-typedef void *pphLibNfc_DeferredParameter_t;
+typedef void* pphLibNfc_DeferredParameter_t;
 
 /*
  * Possible Hardware Configuration exposed to upper layer.
@@ -94,7 +94,7 @@ typedef void *pphLibNfc_DeferredParameter_t;
  * the controller is connected to.
  */
 typedef struct phLibNfc_sConfig {
-  uint8_t *pLogFile; /* Log File Name*/
+  uint8_t* pLogFile; /* Log File Name*/
   /* Hardware communication link to the controller */
   phLibNfc_eConfigLinkType nLinkType;
   /* The client ID (thread ID or message queue ID) */
@@ -107,7 +107,7 @@ typedef struct phLibNfc_sConfig {
  */
 typedef struct phLibNfc_Message {
   uint32_t eMsgType; /* Type of the message to be posted*/
-  void *pMsgData;    /* Pointer to message specific data block in case any*/
+  void* pMsgData;    /* Pointer to message specific data block in case any*/
   uint32_t Size;     /* Size of the datablock*/
 } phLibNfc_Message_t, *pphLibNfc_Message_t;
 
@@ -272,8 +272,8 @@ typedef struct phNfc_sTransceiveInfo {
   uint8_t addr;         /* Start Block Number */
   uint8_t NumBlock;     /* Number of Blocks to perform operation */
   /* For Felica only*/
-  uint16_t *ServiceCodeList; /* 2 Byte service Code List */
-  uint16_t *Blocklist;       /* 2 Byte Block list */
+  uint16_t* ServiceCodeList; /* 2 Byte service Code List */
+  uint16_t* Blocklist;       /* 2 Byte Block list */
   phNfc_sData_t sSendData;   /* Send data */
   phNfc_sData_t sRecvData;   /* Recv data */
   /* For EPC-GEN */

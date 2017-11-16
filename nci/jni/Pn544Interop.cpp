@@ -37,13 +37,13 @@ extern void startStopPolling(bool isStartPolling);
 *****************************************************************************/
 
 static const int gIntervalTime =
-    1000; // millisecond between the check to restore polling
+    1000;  // millisecond between the check to restore polling
 static IntervalTimer gTimer;
 static Mutex gMutex;
 static void pn544InteropStartPolling(
-    union sigval);             // callback function for interval timer
-static bool gIsBusy = false;   // is timer busy?
-static bool gAbortNow = false; // stop timer during next callback
+    union sigval);              // callback function for interval timer
+static bool gIsBusy = false;    // is timer busy?
+static bool gAbortNow = false;  // stop timer during next callback
 
 /*******************************************************************************
 **
@@ -63,7 +63,7 @@ void pn544InteropStopPolling() {
   gIsBusy = true;
   gAbortNow = false;
   gTimer.set(gIntervalTime,
-             pn544InteropStartPolling); // after some time, start polling again
+             pn544InteropStartPolling);  // after some time, start polling again
   gMutex.unlock();
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: exit", __func__);
 }
@@ -99,7 +99,7 @@ void pn544InteropStartPolling(union sigval) {
         << StringPrintf("%s: try again later", __func__);
     gTimer.set(
         gIntervalTime,
-        pn544InteropStartPolling); // after some time, start polling again
+        pn544InteropStartPolling);  // after some time, start polling again
   }
 
 TheEnd:

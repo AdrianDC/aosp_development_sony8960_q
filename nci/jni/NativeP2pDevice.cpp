@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include "_OverrideLog.h"
 #include <log/log.h>
+#include "_OverrideLog.h"
 
 #include "JavaClassConstants.h"
 #include "NfcJniUtil.h"
@@ -24,27 +24,27 @@
 
 namespace android {
 
-static jboolean nativeP2pDeviceDoConnect(JNIEnv *, jobject) {
+static jboolean nativeP2pDeviceDoConnect(JNIEnv*, jobject) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s", __func__);
   return JNI_TRUE;
 }
 
-static jboolean nativeP2pDeviceDoDisconnect(JNIEnv *, jobject) {
+static jboolean nativeP2pDeviceDoDisconnect(JNIEnv*, jobject) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s", __func__);
   return JNI_TRUE;
 }
 
-static jbyteArray nativeP2pDeviceDoTransceive(JNIEnv *, jobject, jbyteArray) {
+static jbyteArray nativeP2pDeviceDoTransceive(JNIEnv*, jobject, jbyteArray) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s", __func__);
   return NULL;
 }
 
-static jbyteArray nativeP2pDeviceDoReceive(JNIEnv *, jobject) {
+static jbyteArray nativeP2pDeviceDoReceive(JNIEnv*, jobject) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s", __func__);
   return NULL;
 }
 
-static jboolean nativeP2pDeviceDoSend(JNIEnv *, jobject, jbyteArray) {
+static jboolean nativeP2pDeviceDoSend(JNIEnv*, jobject, jbyteArray) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s", __func__);
   return JNI_TRUE;
 }
@@ -55,11 +55,11 @@ static jboolean nativeP2pDeviceDoSend(JNIEnv *, jobject, jbyteArray) {
 **
 *****************************************************************************/
 static JNINativeMethod gMethods[] = {
-    {"doConnect", "()Z", (void *)nativeP2pDeviceDoConnect},
-    {"doDisconnect", "()Z", (void *)nativeP2pDeviceDoDisconnect},
-    {"doTransceive", "([B)[B", (void *)nativeP2pDeviceDoTransceive},
-    {"doReceive", "()[B", (void *)nativeP2pDeviceDoReceive},
-    {"doSend", "([B)Z", (void *)nativeP2pDeviceDoSend},
+    {"doConnect", "()Z", (void*)nativeP2pDeviceDoConnect},
+    {"doDisconnect", "()Z", (void*)nativeP2pDeviceDoDisconnect},
+    {"doTransceive", "([B)[B", (void*)nativeP2pDeviceDoTransceive},
+    {"doReceive", "()[B", (void*)nativeP2pDeviceDoReceive},
+    {"doSend", "([B)Z", (void*)nativeP2pDeviceDoSend},
 };
 
 /*******************************************************************************
@@ -72,9 +72,9 @@ static JNINativeMethod gMethods[] = {
 ** Returns:         Status of registration.
 **
 *******************************************************************************/
-int register_com_android_nfc_NativeP2pDevice(JNIEnv *e) {
+int register_com_android_nfc_NativeP2pDevice(JNIEnv* e) {
   return jniRegisterNativeMethods(e, gNativeP2pDeviceClassName, gMethods,
                                   NELEM(gMethods));
 }
 
-} // namespace android
+}  // namespace android

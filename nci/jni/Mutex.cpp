@@ -24,8 +24,8 @@
 #include <errno.h>
 #include <string.h>
 
-#include "_OverrideLog.h"
 #include <base/logging.h>
+#include "_OverrideLog.h"
 
 /*******************************************************************************
 **
@@ -118,4 +118,4 @@ bool Mutex::tryLock() {
 ** Returns:         Handle of the mutex.
 **
 *******************************************************************************/
-pthread_mutex_t *Mutex::nativeHandle() { return &mMutex; }
+pthread_mutex_t* Mutex::nativeHandle() { return &mMutex; }

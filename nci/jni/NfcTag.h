@@ -19,24 +19,24 @@
  */
 
 #pragma once
+#include <vector>
 #include "NfcJniUtil.h"
 #include "SyncEvent.h"
-#include <vector>
 
 #include "nfa_rw_api.h"
 
 class NfcTag {
-public:
+ public:
   enum ActivationState { Idle, Sleep, Active };
   static const int MAX_NUM_TECHNOLOGY =
-      11; // max number of technologies supported by one or more tags
-  int mTechList[MAX_NUM_TECHNOLOGY]; // array of NFC technologies according to
-                                     // NFC service
-  int mTechHandles[MAX_NUM_TECHNOLOGY]; // array of tag handles according to NFC
-                                        // service
-  int mTechLibNfcTypes[MAX_NUM_TECHNOLOGY]; // array of detailed tag types
-                                            // according to NFC service
-  int mNumTechList; // current number of NFC technologies in the list
+      11;  // max number of technologies supported by one or more tags
+  int mTechList[MAX_NUM_TECHNOLOGY];  // array of NFC technologies according to
+                                      // NFC service
+  int mTechHandles[MAX_NUM_TECHNOLOGY];  // array of tag handles according to
+                                         // NFC service
+  int mTechLibNfcTypes[MAX_NUM_TECHNOLOGY];  // array of detailed tag types
+                                             // according to NFC service
+  int mNumTechList;  // current number of NFC technologies in the list
 
   /*******************************************************************************
   **
@@ -58,7 +58,7 @@ public:
   ** Returns:         Reference to NfcTag object.
   **
   *******************************************************************************/
-  static NfcTag &getInstance();
+  static NfcTag& getInstance();
 
   /*******************************************************************************
   **
@@ -69,7 +69,7 @@ public:
   ** Returns:         None
   **
   *******************************************************************************/
-  void initialize(nfc_jni_native_data *native);
+  void initialize(nfc_jni_native_data* native);
 
   /*******************************************************************************
   **
@@ -93,7 +93,7 @@ public:
   ** Returns:         None
   **
   *******************************************************************************/
-  void connectionEventHandler(uint8_t event, tNFA_CONN_EVT_DATA *data);
+  void connectionEventHandler(uint8_t event, tNFA_CONN_EVT_DATA* data);
 
   /*******************************************************************************
   **
@@ -127,7 +127,7 @@ public:
   ** Returns:         None.
   **
   *******************************************************************************/
-  void setDeactivationState(tNFA_DEACTIVATED &deactivated);
+  void setDeactivationState(tNFA_DEACTIVATED& deactivated);
 
   /*******************************************************************************
   **
@@ -243,7 +243,7 @@ public:
   ** Returns:         True if the response is NACK
   **
   *******************************************************************************/
-  bool isT2tNackResponse(const uint8_t *response, uint32_t responseLen);
+  bool isT2tNackResponse(const uint8_t* response, uint32_t responseLen);
 
   /*******************************************************************************
   **
@@ -364,23 +364,23 @@ public:
   *******************************************************************************/
   bool isKovioType2Tag();
 
-private:
+ private:
   std::vector<int> mTechnologyTimeoutsTable;
   std::vector<int> mTechnologyDefaultTimeoutsTable;
-  nfc_jni_native_data *mNativeData;
+  nfc_jni_native_data* mNativeData;
   bool mIsActivated;
   ActivationState mActivationState;
   tNFC_PROTOCOL mProtocol;
-  int mtT1tMaxMessageSize; // T1T max NDEF message size
+  int mtT1tMaxMessageSize;  // T1T max NDEF message size
   tNFA_STATUS mReadCompletedStatus;
-  int mLastKovioUidLen;        // len of uid of last Kovio tag activated
-  bool mNdefDetectionTimedOut; // whether NDEF detection algorithm timed out
+  int mLastKovioUidLen;         // len of uid of last Kovio tag activated
+  bool mNdefDetectionTimedOut;  // whether NDEF detection algorithm timed out
   tNFC_RF_TECH_PARAMS
-      mTechParams[MAX_NUM_TECHNOLOGY]; // array of technology parameters
+      mTechParams[MAX_NUM_TECHNOLOGY];  // array of technology parameters
   SyncEvent mReadCompleteEvent;
-  struct timespec mLastKovioTime;           // time of last Kovio tag activation
-  uint8_t mLastKovioUid[NFC_KOVIO_MAX_LEN]; // uid of last Kovio tag activated
-  bool mIsDynamicTagId; // whether the tag has dynamic tag ID
+  struct timespec mLastKovioTime;  // time of last Kovio tag activation
+  uint8_t mLastKovioUid[NFC_KOVIO_MAX_LEN];  // uid of last Kovio tag activated
+  bool mIsDynamicTagId;  // whether the tag has dynamic tag ID
   tNFA_RW_PRES_CHK_OPTION mPresenceCheckAlgorithm;
   bool mIsFelicaLite;
 
@@ -399,7 +399,7 @@ private:
   **                  activated, false otherwise
   **
   *******************************************************************************/
-  bool IsSameKovio(tNFA_ACTIVATED &activationData);
+  bool IsSameKovio(tNFA_ACTIVATED& activationData);
 
   /*******************************************************************************
   **
@@ -413,7 +413,7 @@ private:
   ** Returns:         None
   **
   *******************************************************************************/
-  void discoverTechnologies(tNFA_ACTIVATED &activationData);
+  void discoverTechnologies(tNFA_ACTIVATED& activationData);
 
   /*******************************************************************************
   **
@@ -427,7 +427,7 @@ private:
   ** Returns:         None
   **
   *******************************************************************************/
-  void discoverTechnologies(tNFA_DISC_RESULT &discoveryData);
+  void discoverTechnologies(tNFA_DISC_RESULT& discoveryData);
 
   /*******************************************************************************
   **
@@ -441,7 +441,7 @@ private:
   ** Returns:         None
   **
   *******************************************************************************/
-  void createNativeNfcTag(tNFA_ACTIVATED &activationData);
+  void createNativeNfcTag(tNFA_ACTIVATED& activationData);
 
   /*******************************************************************************
   **
@@ -456,7 +456,7 @@ private:
   ** Returns:         None
   **
   *******************************************************************************/
-  void fillNativeNfcTagMembers1(JNIEnv *e, jclass tag_cls, jobject tag);
+  void fillNativeNfcTagMembers1(JNIEnv* e, jclass tag_cls, jobject tag);
 
   /*******************************************************************************
   **
@@ -475,8 +475,8 @@ private:
   ** Returns:         None
   **
   *******************************************************************************/
-  void fillNativeNfcTagMembers2(JNIEnv *e, jclass tag_cls, jobject tag,
-                                tNFA_ACTIVATED &activationData);
+  void fillNativeNfcTagMembers2(JNIEnv* e, jclass tag_cls, jobject tag,
+                                tNFA_ACTIVATED& activationData);
 
   /*******************************************************************************
   **
@@ -494,8 +494,8 @@ private:
   ** Returns:         None
   **
   *******************************************************************************/
-  void fillNativeNfcTagMembers3(JNIEnv *e, jclass tag_cls, jobject tag,
-                                tNFA_ACTIVATED &activationData);
+  void fillNativeNfcTagMembers3(JNIEnv* e, jclass tag_cls, jobject tag,
+                                tNFA_ACTIVATED& activationData);
 
   /*******************************************************************************
   **
@@ -513,8 +513,8 @@ private:
   ** Returns:         None
   **
   *******************************************************************************/
-  void fillNativeNfcTagMembers4(JNIEnv *e, jclass tag_cls, jobject tag,
-                                tNFA_ACTIVATED &activationData);
+  void fillNativeNfcTagMembers4(JNIEnv* e, jclass tag_cls, jobject tag,
+                                tNFA_ACTIVATED& activationData);
 
   /*******************************************************************************
   **
@@ -532,8 +532,8 @@ private:
   ** Returns:         None
   **
   *******************************************************************************/
-  void fillNativeNfcTagMembers5(JNIEnv *e, jclass tag_cls, jobject tag,
-                                tNFA_ACTIVATED &activationData);
+  void fillNativeNfcTagMembers5(JNIEnv* e, jclass tag_cls, jobject tag,
+                                tNFA_ACTIVATED& activationData);
 
   /*******************************************************************************
   **
@@ -558,5 +558,5 @@ private:
   ** Returns:         None
   **
   *******************************************************************************/
-  void calculateT1tMaxMessageSize(tNFA_ACTIVATED &activate);
+  void calculateT1tMaxMessageSize(tNFA_ACTIVATED& activate);
 };
