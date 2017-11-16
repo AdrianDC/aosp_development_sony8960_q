@@ -19,11 +19,11 @@
  */
 
 #pragma once
-#include "Mutex.h"
 #include <pthread.h>
+#include "Mutex.h"
 
 class CondVar {
-public:
+ public:
   /*******************************************************************************
   **
   ** Function:        CondVar
@@ -55,7 +55,7 @@ public:
   ** Returns:         None.
   **
   *******************************************************************************/
-  void wait(Mutex &mutex);
+  void wait(Mutex& mutex);
 
   /*******************************************************************************
   **
@@ -67,7 +67,7 @@ public:
   ** Returns:         True if wait is successful; false if timeout occurs.
   **
   *******************************************************************************/
-  bool wait(Mutex &mutex, long millisec);
+  bool wait(Mutex& mutex, long millisec);
 
   /*******************************************************************************
   **
@@ -80,6 +80,6 @@ public:
   *******************************************************************************/
   void notifyOne();
 
-private:
+ private:
   pthread_cond_t mCondition;
 };

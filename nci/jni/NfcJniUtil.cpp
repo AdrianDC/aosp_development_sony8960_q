@@ -18,11 +18,11 @@
 
 #include <errno.h>
 
-#include "RoutingManager.h"
-#include "_OverrideLog.h"
 #include <log/log.h>
 #include <nativehelper/JNIHelp.h>
 #include <nativehelper/ScopedLocalRef.h>
+#include "RoutingManager.h"
+#include "_OverrideLog.h"
 
 /*******************************************************************************
 **
@@ -35,15 +35,14 @@
 ** Returns:         JNI version.
 **
 *******************************************************************************/
-jint JNI_OnLoad(JavaVM *jvm, void *) {
+jint JNI_OnLoad(JavaVM* jvm, void*) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter", __func__);
-  JNIEnv *e = NULL;
+  JNIEnv* e = NULL;
 
   LOG(INFO) << StringPrintf("NFC Service: loading nci JNI");
 
   // Check JNI version
-  if (jvm->GetEnv((void **)&e, JNI_VERSION_1_6))
-    return JNI_ERR;
+  if (jvm->GetEnv((void**)&e, JNI_VERSION_1_6)) return JNI_ERR;
 
   if (android::register_com_android_nfc_NativeNfcManager(e) == -1)
     return JNI_ERR;
@@ -51,8 +50,7 @@ jint JNI_OnLoad(JavaVM *jvm, void *) {
     return JNI_ERR;
   if (android::register_com_android_nfc_NativeLlcpSocket(e) == -1)
     return JNI_ERR;
-  if (android::register_com_android_nfc_NativeNfcTag(e) == -1)
-    return JNI_ERR;
+  if (android::register_com_android_nfc_NativeNfcTag(e) == -1) return JNI_ERR;
   if (android::register_com_android_nfc_NativeLlcpConnectionlessSocket(e) == -1)
     return JNI_ERR;
   if (android::register_com_android_nfc_NativeP2pDevice(e) == -1)
@@ -74,7 +72,7 @@ namespace android {
 ** Returns:         Status code.
 **
 *******************************************************************************/
-int nfc_jni_cache_object(JNIEnv *e, const char *className, jobject *cachedObj) {
+int nfc_jni_cache_object(JNIEnv* e, const char* className, jobject* cachedObj) {
   ScopedLocalRef<jclass> cls(e, e->FindClass(className));
   if (cls.get() == NULL) {
     LOG(ERROR) << StringPrintf("%s: find class error", __func__);
@@ -107,7 +105,7 @@ int nfc_jni_cache_object(JNIEnv *e, const char *className, jobject *cachedObj) {
 ** Returns:         Value of mHandle.
 **
 *******************************************************************************/
-int nfc_jni_get_nfc_socket_handle(JNIEnv *e, jobject o) {
+int nfc_jni_get_nfc_socket_handle(JNIEnv* e, jobject o) {
   ScopedLocalRef<jclass> c(e, e->GetObjectClass(o));
   jfieldID f = e->GetFieldID(c.get(), "mHandle", "I");
   return e->GetIntField(o, f);
@@ -124,11 +122,11 @@ int nfc_jni_get_nfc_socket_handle(JNIEnv *e, jobject o) {
 ** Returns:         Pointer to the value of mNative.
 **
 *******************************************************************************/
-struct nfc_jni_native_data *nfc_jni_get_nat(JNIEnv *e, jobject o) {
+struct nfc_jni_native_data* nfc_jni_get_nat(JNIEnv* e, jobject o) {
   ScopedLocalRef<jclass> c(e, e->GetObjectClass(o));
   jfieldID f = e->GetFieldID(c.get(), "mNative", "J");
   /* Retrieve native structure address */
-  return (struct nfc_jni_native_data *)e->GetLongField(o, f);
+  return (struct nfc_jni_native_data*)e->GetLongField(o, f);
 }
 
 /*******************************************************************************
@@ -140,8 +138,8 @@ struct nfc_jni_native_data *nfc_jni_get_nat(JNIEnv *e, jobject o) {
 ** Returns          -1 on failure, 0 on success
 **
 *******************************************************************************/
-int nfc_jni_cache_object_local(JNIEnv *e, const char *className,
-                               jobject *cachedObj) {
+int nfc_jni_cache_object_local(JNIEnv* e, const char* className,
+                               jobject* cachedObj) {
   ScopedLocalRef<jclass> cls(e, e->FindClass(className));
   if (cls.get() == NULL) {
     LOG(ERROR) << StringPrintf("%s: find class error", __func__);
@@ -163,4 +161,4 @@ int nfc_jni_cache_object_local(JNIEnv *e, const char *className,
   return 0;
 }
 
-} // namespace android
+}  // namespace android

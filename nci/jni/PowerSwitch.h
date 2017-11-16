@@ -29,7 +29,7 @@
 **
 *****************************************************************************/
 class PowerSwitch {
-public:
+ public:
   /*******************************************************************************
   **
   ** Description:     UNKNOWN_LEVEL: power level is unknown because the stack is
@@ -124,7 +124,7 @@ public:
   ** Returns:         Reference to this object.
   **
   *******************************************************************************/
-  static PowerSwitch &getInstance();
+  static PowerSwitch& getInstance();
 
   /*******************************************************************************
   **
@@ -217,7 +217,7 @@ public:
   **
   *******************************************************************************/
   static void deviceManagementCallback(uint8_t event,
-                                       tNFA_DM_CBACK_DATA *eventData);
+                                       tNFA_DM_CBACK_DATA* eventData);
 
   /*******************************************************************************
   **
@@ -230,17 +230,17 @@ public:
   *******************************************************************************/
   bool isPowerOffSleepFeatureEnabled();
 
-private:
+ private:
   PowerLevel mCurrLevel;
-  uint8_t mCurrDeviceMgtPowerState; // device management power state; such as
-                                    // NFA_BRCM_PWR_MODE_???
-  uint8_t mExpectedDeviceMgtPowerState; // device management power state; such
-                                        // as NFA_BRCM_PWR_MODE_???
-  int mDesiredScreenOffPowerState; // read from .conf file; 0=power-off-sleep;
-                                   // 1=full power; 2=CE4 power
-  static PowerSwitch sPowerSwitch; // singleton object
+  uint8_t mCurrDeviceMgtPowerState;  // device management power state; such as
+                                     // NFA_BRCM_PWR_MODE_???
+  uint8_t mExpectedDeviceMgtPowerState;  // device management power state; such
+                                         // as NFA_BRCM_PWR_MODE_???
+  int mDesiredScreenOffPowerState;  // read from .conf file; 0=power-off-sleep;
+                                    // 1=full power; 2=CE4 power
+  static PowerSwitch sPowerSwitch;  // singleton object
   static const uint8_t NFA_DM_PWR_STATE_UNKNOWN =
-      -1; // device management power state power state is unknown
+      -1;  // device management power state power state is unknown
   SyncEvent mPowerStateEvent;
   PowerActivity mCurrActivity;
   Mutex mMutex;
@@ -267,7 +267,7 @@ private:
   ** Returns:         Text representation of power level.
   **
   *******************************************************************************/
-  const char *deviceMgtPowerStateToString(uint8_t deviceMgtPowerState);
+  const char* deviceMgtPowerStateToString(uint8_t deviceMgtPowerState);
 
   /*******************************************************************************
   **
@@ -279,7 +279,7 @@ private:
   ** Returns:         Text representation of power level.
   **
   *******************************************************************************/
-  const char *powerLevelToString(PowerLevel level);
+  const char* powerLevelToString(PowerLevel level);
 
   /*******************************************************************************
   **
@@ -291,5 +291,5 @@ private:
   ** Returns:         Text representation of screen-off power state.
   **
   *******************************************************************************/
-  const char *screenOffPowerStateToString(ScreenOffPowerState state);
+  const char* screenOffPowerStateToString(ScreenOffPowerState state);
 };

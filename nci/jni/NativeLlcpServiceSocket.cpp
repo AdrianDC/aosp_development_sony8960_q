@@ -42,13 +42,13 @@ namespace android {
 ** Returns:         LlcpSocket Java object.
 **
 *******************************************************************************/
-static jobject nativeLlcpServiceSocket_doAccept(JNIEnv *e, jobject o, jint miu,
+static jobject nativeLlcpServiceSocket_doAccept(JNIEnv* e, jobject o, jint miu,
                                                 jint rw,
                                                 jint /*linearBufferLength*/) {
   jobject clientSocket = NULL;
   jclass clsNativeLlcpSocket = NULL;
   jfieldID f = 0;
-  PeerToPeer::tJNI_HANDLE serverHandle; // handle of the local server
+  PeerToPeer::tJNI_HANDLE serverHandle;  // handle of the local server
   bool stat = false;
   PeerToPeer::tJNI_HANDLE connHandle =
       PeerToPeer::getInstance().getNewJniHandle();
@@ -107,7 +107,7 @@ TheEnd:
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-static jboolean nativeLlcpServiceSocket_doClose(JNIEnv *e, jobject o) {
+static jboolean nativeLlcpServiceSocket_doClose(JNIEnv* e, jobject o) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter", __func__);
   PeerToPeer::tJNI_HANDLE jniServerHandle = 0;
   bool stat = false;
@@ -127,8 +127,8 @@ static jboolean nativeLlcpServiceSocket_doClose(JNIEnv *e, jobject o) {
 *****************************************************************************/
 static JNINativeMethod gMethods[] = {
     {"doAccept", "(III)Lcom/android/nfc/dhimpl/NativeLlcpSocket;",
-     (void *)nativeLlcpServiceSocket_doAccept},
-    {"doClose", "()Z", (void *)nativeLlcpServiceSocket_doClose},
+     (void*)nativeLlcpServiceSocket_doAccept},
+    {"doClose", "()Z", (void*)nativeLlcpServiceSocket_doClose},
 };
 
 /*******************************************************************************
@@ -141,9 +141,9 @@ static JNINativeMethod gMethods[] = {
 ** Returns:         Status of registration.
 **
 *******************************************************************************/
-int register_com_android_nfc_NativeLlcpServiceSocket(JNIEnv *e) {
+int register_com_android_nfc_NativeLlcpServiceSocket(JNIEnv* e) {
   return jniRegisterNativeMethods(e, gNativeLlcpServiceSocketClassName,
                                   gMethods, NELEM(gMethods));
 }
 
-} // namespace android
+}  // namespace android

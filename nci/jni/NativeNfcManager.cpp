@@ -14,6 +14,13 @@
  * limitations under the License.
  */
 
+#include <android-base/stringprintf.h>
+#include <base/logging.h>
+#include <errno.h>
+#include <nativehelper/ScopedLocalRef.h>
+#include <nativehelper/ScopedPrimitiveArray.h>
+#include <nativehelper/ScopedUtfChars.h>
+#include <semaphore.h>
 #include "JavaClassConstants.h"
 #include "NfcAdaptation.h"
 #include "NfcJniUtil.h"
@@ -25,13 +32,6 @@
 #include "SyncEvent.h"
 #include "_OverrideLog.h"
 #include "config.h"
-#include <android-base/stringprintf.h>
-#include <base/logging.h>
-#include <errno.h>
-#include <nativehelper/ScopedLocalRef.h>
-#include <nativehelper/ScopedPrimitiveArray.h>
-#include <nativehelper/ScopedUtfChars.h>
-#include <semaphore.h>
 
 #include "ce_api.h"
 #include "nfa_api.h"
@@ -43,11 +43,11 @@
 
 extern const uint8_t nfca_version_string[];
 extern const uint8_t nfa_version_string[];
-extern tNFA_DM_DISC_FREQ_CFG *p_nfa_dm_rf_disc_freq_cfg; // defined in stack
+extern tNFA_DM_DISC_FREQ_CFG* p_nfa_dm_rf_disc_freq_cfg;  // defined in stack
 namespace android {
 extern bool gIsTagDeactivating;
 extern bool gIsSelectingRfInterface;
-extern void nativeNfcTag_doTransceiveStatus(tNFA_STATUS status, uint8_t *buf,
+extern void nativeNfcTag_doTransceiveStatus(tNFA_STATUS status, uint8_t* buf,
                                             uint32_t buflen);
 extern void nativeNfcTag_notifyRfTimeout();
 extern void nativeNfcTag_doConnectStatus(jboolean is_connect_ok);
@@ -68,10 +68,10 @@ extern void nativeLlcpConnectionlessSocket_abortWait();
 extern void nativeNfcTag_registerNdefTypeHandler();
 extern void nativeNfcTag_acquireRfInterfaceMutexLock();
 extern void nativeNfcTag_releaseRfInterfaceMutexLock();
-extern void nativeLlcpConnectionlessSocket_receiveData(uint8_t *data,
+extern void nativeLlcpConnectionlessSocket_receiveData(uint8_t* data,
                                                        uint32_t len,
                                                        uint32_t remote_sap);
-} // namespace android
+}  // namespace android
 
 /*****************************************************************************
 **
@@ -93,22 +93,22 @@ jmethodID gCachedNfcManagerNotifyHostEmuData;
 jmethodID gCachedNfcManagerNotifyHostEmuDeactivated;
 jmethodID gCachedNfcManagerNotifyRfFieldActivated;
 jmethodID gCachedNfcManagerNotifyRfFieldDeactivated;
-const char *gNativeP2pDeviceClassName =
+const char* gNativeP2pDeviceClassName =
     "com/android/nfc/dhimpl/NativeP2pDevice";
-const char *gNativeLlcpServiceSocketClassName =
+const char* gNativeLlcpServiceSocketClassName =
     "com/android/nfc/dhimpl/NativeLlcpServiceSocket";
-const char *gNativeLlcpConnectionlessSocketClassName =
+const char* gNativeLlcpConnectionlessSocketClassName =
     "com/android/nfc/dhimpl/NativeLlcpConnectionlessSocket";
-const char *gNativeLlcpSocketClassName =
+const char* gNativeLlcpSocketClassName =
     "com/android/nfc/dhimpl/NativeLlcpSocket";
-const char *gNativeNfcTagClassName = "com/android/nfc/dhimpl/NativeNfcTag";
-const char *gNativeNfcManagerClassName =
+const char* gNativeNfcTagClassName = "com/android/nfc/dhimpl/NativeNfcTag";
+const char* gNativeNfcManagerClassName =
     "com/android/nfc/dhimpl/NativeNfcManager";
 void doStartupConfig();
 void startStopPolling(bool isStartPolling);
 void startRfDiscovery(bool isStart);
 bool isDiscoveryStarted();
-} // namespace android
+}  // namespace android
 
 /*****************************************************************************
 **
@@ -117,45 +117,45 @@ bool isDiscoveryStarted();
 *****************************************************************************/
 namespace android {
 static jint sLastError = ERROR_BUFFER_TOO_SMALL;
-static SyncEvent sNfaEnableEvent;               // event for NFA_Enable()
-static SyncEvent sNfaDisableEvent;              // event for NFA_Disable()
-static SyncEvent sNfaEnableDisablePollingEvent; // event for
-                                                // NFA_EnablePolling(),
-                                                // NFA_DisablePolling()
-static SyncEvent sNfaSetConfigEvent;            // event for Set_Config....
-static SyncEvent sNfaGetConfigEvent;            // event for Get_Config....
+static SyncEvent sNfaEnableEvent;                // event for NFA_Enable()
+static SyncEvent sNfaDisableEvent;               // event for NFA_Disable()
+static SyncEvent sNfaEnableDisablePollingEvent;  // event for
+                                                 // NFA_EnablePolling(),
+                                                 // NFA_DisablePolling()
+static SyncEvent sNfaSetConfigEvent;             // event for Set_Config....
+static SyncEvent sNfaGetConfigEvent;             // event for Get_Config....
 static bool sIsNfaEnabled = false;
-static bool sDiscoveryEnabled = false; // is polling or listening
-static bool sPollingEnabled = false;   // is polling for tag?
+static bool sDiscoveryEnabled = false;  // is polling or listening
+static bool sPollingEnabled = false;    // is polling for tag?
 static bool sIsDisabling = false;
-static bool sRfEnabled = false;  // whether RF discovery is enabled
-static bool sSeRfActive = false; // whether RF with SE is likely active
+static bool sRfEnabled = false;   // whether RF discovery is enabled
+static bool sSeRfActive = false;  // whether RF with SE is likely active
 static bool sReaderModeEnabled =
-    false; // whether we're only reading tags, not allowing P2p/card emu
+    false;  // whether we're only reading tags, not allowing P2p/card emu
 static bool sP2pEnabled = false;
-static bool sP2pActive = false; // whether p2p was last active
+static bool sP2pActive = false;  // whether p2p was last active
 static bool sAbortConnlessWait = false;
 static jint sLfT3tMax = 0;
 
 #define CONFIG_UPDATE_TECH_MASK (1 << 1)
-#define DEFAULT_TECH_MASK                                                      \
-  (NFA_TECHNOLOGY_MASK_A | NFA_TECHNOLOGY_MASK_B | NFA_TECHNOLOGY_MASK_F |     \
-   NFA_TECHNOLOGY_MASK_V | NFA_TECHNOLOGY_MASK_B_PRIME |                       \
-   NFA_TECHNOLOGY_MASK_A_ACTIVE | NFA_TECHNOLOGY_MASK_F_ACTIVE |               \
+#define DEFAULT_TECH_MASK                                                  \
+  (NFA_TECHNOLOGY_MASK_A | NFA_TECHNOLOGY_MASK_B | NFA_TECHNOLOGY_MASK_F | \
+   NFA_TECHNOLOGY_MASK_V | NFA_TECHNOLOGY_MASK_B_PRIME |                   \
+   NFA_TECHNOLOGY_MASK_A_ACTIVE | NFA_TECHNOLOGY_MASK_F_ACTIVE |           \
    NFA_TECHNOLOGY_MASK_KOVIO)
 #define DEFAULT_DISCOVERY_DURATION 500
 #define READER_MODE_DISCOVERY_DURATION 200
 
-static void nfaConnectionCallback(uint8_t event, tNFA_CONN_EVT_DATA *eventData);
+static void nfaConnectionCallback(uint8_t event, tNFA_CONN_EVT_DATA* eventData);
 static void nfaDeviceManagementCallback(uint8_t event,
-                                        tNFA_DM_CBACK_DATA *eventData);
-static bool isPeerToPeer(tNFA_ACTIVATED &activated);
-static bool isListenMode(tNFA_ACTIVATED &activated);
+                                        tNFA_DM_CBACK_DATA* eventData);
+static bool isPeerToPeer(tNFA_ACTIVATED& activated);
+static bool isListenMode(tNFA_ACTIVATED& activated);
 static void enableDisableLptd(bool enable);
 static tNFA_STATUS stopPolling_rfDiscoveryDisabled();
-static tNFA_STATUS
-startPolling_rfDiscoveryDisabled(tNFA_TECHNOLOGY_MASK tech_mask);
-static void nfcManager_doSetScreenState(JNIEnv *e, jobject o,
+static tNFA_STATUS startPolling_rfDiscoveryDisabled(
+    tNFA_TECHNOLOGY_MASK tech_mask);
+static void nfcManager_doSetScreenState(JNIEnv* e, jobject o,
                                         jint screen_state_mask);
 
 static uint16_t sCurrentConfigLen;
@@ -175,8 +175,8 @@ static bool gIsDtaEnabled = false;
 ** Returns:         Native data structure.
 **
 *******************************************************************************/
-nfc_jni_native_data *getNative(JNIEnv *e, jobject o) {
-  static struct nfc_jni_native_data *sCachedNat = NULL;
+nfc_jni_native_data* getNative(JNIEnv* e, jobject o) {
+  static struct nfc_jni_native_data* sCachedNat = NULL;
   if (e) {
     sCachedNat = nfc_jni_get_nat(e, o);
   }
@@ -193,7 +193,7 @@ nfc_jni_native_data *getNative(JNIEnv *e, jobject o) {
 ** Returns:         None
 **
 *******************************************************************************/
-static void handleRfDiscoveryEvent(tNFC_RESULT_DEVT *discoveredDevice) {
+static void handleRfDiscoveryEvent(tNFC_RESULT_DEVT* discoveredDevice) {
   if (discoveredDevice->more == NCI_DISCOVER_NTF_MORE) {
     // there is more discovery notification coming
     return;
@@ -221,356 +221,358 @@ static void handleRfDiscoveryEvent(tNFC_RESULT_DEVT *discoveredDevice) {
 **
 *******************************************************************************/
 static void nfaConnectionCallback(uint8_t connEvent,
-                                  tNFA_CONN_EVT_DATA *eventData) {
+                                  tNFA_CONN_EVT_DATA* eventData) {
   tNFA_STATUS status = NFA_STATUS_FAILED;
   DLOG_IF(INFO, nfc_debug_enabled)
       << StringPrintf("%s: event= %u", __func__, connEvent);
 
   switch (connEvent) {
-  case NFA_POLL_ENABLED_EVT: // whether polling successfully started
-  {
-    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-        "%s: NFA_POLL_ENABLED_EVT: status = %u", __func__, eventData->status);
+    case NFA_POLL_ENABLED_EVT:  // whether polling successfully started
+    {
+      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+          "%s: NFA_POLL_ENABLED_EVT: status = %u", __func__, eventData->status);
 
-    SyncEventGuard guard(sNfaEnableDisablePollingEvent);
-    sNfaEnableDisablePollingEvent.notifyOne();
-  } break;
+      SyncEventGuard guard(sNfaEnableDisablePollingEvent);
+      sNfaEnableDisablePollingEvent.notifyOne();
+    } break;
 
-  case NFA_POLL_DISABLED_EVT: // Listening/Polling stopped
-  {
-    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-        "%s: NFA_POLL_DISABLED_EVT: status = %u", __func__, eventData->status);
+    case NFA_POLL_DISABLED_EVT:  // Listening/Polling stopped
+    {
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: NFA_POLL_DISABLED_EVT: status = %u", __func__,
+                          eventData->status);
 
-    SyncEventGuard guard(sNfaEnableDisablePollingEvent);
-    sNfaEnableDisablePollingEvent.notifyOne();
-  } break;
+      SyncEventGuard guard(sNfaEnableDisablePollingEvent);
+      sNfaEnableDisablePollingEvent.notifyOne();
+    } break;
 
-  case NFA_RF_DISCOVERY_STARTED_EVT: // RF Discovery started
-  {
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: NFA_RF_DISCOVERY_STARTED_EVT: status = %u",
-                        __func__, eventData->status);
+    case NFA_RF_DISCOVERY_STARTED_EVT:  // RF Discovery started
+    {
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: NFA_RF_DISCOVERY_STARTED_EVT: status = %u",
+                          __func__, eventData->status);
 
-    SyncEventGuard guard(sNfaEnableDisablePollingEvent);
-    sNfaEnableDisablePollingEvent.notifyOne();
-  } break;
+      SyncEventGuard guard(sNfaEnableDisablePollingEvent);
+      sNfaEnableDisablePollingEvent.notifyOne();
+    } break;
 
-  case NFA_RF_DISCOVERY_STOPPED_EVT: // RF Discovery stopped event
-  {
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: NFA_RF_DISCOVERY_STOPPED_EVT: status = %u",
-                        __func__, eventData->status);
+    case NFA_RF_DISCOVERY_STOPPED_EVT:  // RF Discovery stopped event
+    {
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: NFA_RF_DISCOVERY_STOPPED_EVT: status = %u",
+                          __func__, eventData->status);
 
-    SyncEventGuard guard(sNfaEnableDisablePollingEvent);
-    sNfaEnableDisablePollingEvent.notifyOne();
-  } break;
+      SyncEventGuard guard(sNfaEnableDisablePollingEvent);
+      sNfaEnableDisablePollingEvent.notifyOne();
+    } break;
 
-  case NFA_DISC_RESULT_EVT: // NFC link/protocol discovery notificaiton
-    status = eventData->disc_result.status;
-    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-        "%s: NFA_DISC_RESULT_EVT: status = %d", __func__, status);
-    if (status != NFA_STATUS_OK) {
-      LOG(ERROR) << StringPrintf("%s: NFA_DISC_RESULT_EVT error: status = %d",
-                                 __func__, status);
-    } else {
-      NfcTag::getInstance().connectionEventHandler(connEvent, eventData);
-      handleRfDiscoveryEvent(&eventData->disc_result.discovery_ntf);
-    }
-    break;
-
-  case NFA_SELECT_RESULT_EVT: // NFC link/protocol discovery select response
-    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-        "%s: NFA_SELECT_RESULT_EVT: status = %d, gIsSelectingRfInterface = %d, "
-        "sIsDisabling=%d",
-        __func__, eventData->status, gIsSelectingRfInterface, sIsDisabling);
-
-    if (sIsDisabling)
-      break;
-
-    if (eventData->status != NFA_STATUS_OK) {
-      if (gIsSelectingRfInterface) {
-        nativeNfcTag_doConnectStatus(false);
+    case NFA_DISC_RESULT_EVT:  // NFC link/protocol discovery notificaiton
+      status = eventData->disc_result.status;
+      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+          "%s: NFA_DISC_RESULT_EVT: status = %d", __func__, status);
+      if (status != NFA_STATUS_OK) {
+        LOG(ERROR) << StringPrintf("%s: NFA_DISC_RESULT_EVT error: status = %d",
+                                   __func__, status);
+      } else {
+        NfcTag::getInstance().connectionEventHandler(connEvent, eventData);
+        handleRfDiscoveryEvent(&eventData->disc_result.discovery_ntf);
       }
-
-      LOG(ERROR) << StringPrintf("%s: NFA_SELECT_RESULT_EVT error: status = %d",
-                                 __func__, eventData->status);
-      NFA_Deactivate(FALSE);
-    }
-    break;
-
-  case NFA_DEACTIVATE_FAIL_EVT:
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: NFA_DEACTIVATE_FAIL_EVT: status = %d", __func__,
-                        eventData->status);
-    break;
-
-  case NFA_ACTIVATED_EVT: // NFC link/protocol activated
-    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-        "%s: NFA_ACTIVATED_EVT: gIsSelectingRfInterface=%d, sIsDisabling=%d",
-        __func__, gIsSelectingRfInterface, sIsDisabling);
-    if ((eventData->activated.activate_ntf.protocol != NFA_PROTOCOL_NFC_DEP) &&
-        (!isListenMode(eventData->activated))) {
-      nativeNfcTag_setRfInterface(
-          (tNFA_INTF_TYPE)eventData->activated.activate_ntf.intf_param.type);
-    }
-    if (EXTNS_GetConnectFlag() == TRUE) {
-      NfcTag::getInstance().setActivationState();
-      nativeNfcTag_doConnectStatus(true);
       break;
-    }
-    NfcTag::getInstance().setActive(true);
-    if (sIsDisabling || !sIsNfaEnabled)
-      break;
-    gActivated = true;
 
-    NfcTag::getInstance().setActivationState();
-    if (gIsSelectingRfInterface) {
-      nativeNfcTag_doConnectStatus(true);
-      break;
-    }
+    case NFA_SELECT_RESULT_EVT:  // NFC link/protocol discovery select response
+      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+          "%s: NFA_SELECT_RESULT_EVT: status = %d, gIsSelectingRfInterface = "
+          "%d, "
+          "sIsDisabling=%d",
+          __func__, eventData->status, gIsSelectingRfInterface, sIsDisabling);
 
-    nativeNfcTag_resetPresenceCheck();
-    if (isPeerToPeer(eventData->activated)) {
-      if (sReaderModeEnabled) {
-        DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-            "%s: ignoring peer target in reader mode.", __func__);
+      if (sIsDisabling) break;
+
+      if (eventData->status != NFA_STATUS_OK) {
+        if (gIsSelectingRfInterface) {
+          nativeNfcTag_doConnectStatus(false);
+        }
+
+        LOG(ERROR) << StringPrintf(
+            "%s: NFA_SELECT_RESULT_EVT error: status = %d", __func__,
+            eventData->status);
         NFA_Deactivate(FALSE);
+      }
+      break;
+
+    case NFA_DEACTIVATE_FAIL_EVT:
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: NFA_DEACTIVATE_FAIL_EVT: status = %d", __func__,
+                          eventData->status);
+      break;
+
+    case NFA_ACTIVATED_EVT:  // NFC link/protocol activated
+      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+          "%s: NFA_ACTIVATED_EVT: gIsSelectingRfInterface=%d, sIsDisabling=%d",
+          __func__, gIsSelectingRfInterface, sIsDisabling);
+      if ((eventData->activated.activate_ntf.protocol !=
+           NFA_PROTOCOL_NFC_DEP) &&
+          (!isListenMode(eventData->activated))) {
+        nativeNfcTag_setRfInterface(
+            (tNFA_INTF_TYPE)eventData->activated.activate_ntf.intf_param.type);
+      }
+      if (EXTNS_GetConnectFlag() == TRUE) {
+        NfcTag::getInstance().setActivationState();
+        nativeNfcTag_doConnectStatus(true);
         break;
       }
-      sP2pActive = true;
-      DLOG_IF(INFO, nfc_debug_enabled)
-          << StringPrintf("%s: NFA_ACTIVATED_EVT; is p2p", __func__);
-      if (NFC_GetNCIVersion() == NCI_VERSION_1_0) {
-        // Disable RF field events in case of p2p
-        uint8_t nfa_disable_rf_events[] = {0x00};
-        DLOG_IF(INFO, nfc_debug_enabled)
-            << StringPrintf("%s: Disabling RF field events", __func__);
-        status = NFA_SetConfig(NCI_PARAM_ID_RF_FIELD_INFO,
-                               sizeof(nfa_disable_rf_events),
-                               &nfa_disable_rf_events[0]);
-        if (status == NFA_STATUS_OK) {
-          DLOG_IF(INFO, nfc_debug_enabled)
-              << StringPrintf("%s: Disabled RF field events", __func__);
-        } else {
-          LOG(ERROR) << StringPrintf("%s: Failed to disable RF field events",
-                                     __func__);
-        }
-      }
-    } else if (pn544InteropIsBusy() == false) {
-      NfcTag::getInstance().connectionEventHandler(connEvent, eventData);
+      NfcTag::getInstance().setActive(true);
+      if (sIsDisabling || !sIsNfaEnabled) break;
+      gActivated = true;
 
-      // We know it is not activating for P2P.  If it activated in
-      // listen mode then it is likely for an SE transaction.
-      // Send the RF Event.
-      if (isListenMode(eventData->activated)) {
-        sSeRfActive = true;
+      NfcTag::getInstance().setActivationState();
+      if (gIsSelectingRfInterface) {
+        nativeNfcTag_doConnectStatus(true);
+        break;
       }
-    }
-    break;
 
-  case NFA_DEACTIVATED_EVT: // NFC link/protocol deactivated
-    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-        "%s: NFA_DEACTIVATED_EVT   Type: %u, gIsTagDeactivating: %d", __func__,
-        eventData->deactivated.type, gIsTagDeactivating);
-    NfcTag::getInstance().setDeactivationState(eventData->deactivated);
-    if (eventData->deactivated.type != NFA_DEACTIVATE_TYPE_SLEEP) {
-      {
-        SyncEventGuard g(gDeactivatedEvent);
-        gActivated = false; // guard this variable from multi-threaded access
-        gDeactivatedEvent.notifyOne();
-      }
       nativeNfcTag_resetPresenceCheck();
-      NfcTag::getInstance().connectionEventHandler(connEvent, eventData);
-      nativeNfcTag_abortWaits();
-      NfcTag::getInstance().abort();
-    } else if (gIsTagDeactivating) {
-      NfcTag::getInstance().setActive(false);
-      nativeNfcTag_doDeactivateStatus(0);
-    } else if (EXTNS_GetDeactivateFlag() == TRUE) {
-      NfcTag::getInstance().setActive(false);
-      nativeNfcTag_doDeactivateStatus(0);
-    }
-
-    // If RF is activated for what we think is a Secure Element transaction
-    // and it is deactivated to either IDLE or DISCOVERY mode, notify w/event.
-    if ((eventData->deactivated.type == NFA_DEACTIVATE_TYPE_IDLE) ||
-        (eventData->deactivated.type == NFA_DEACTIVATE_TYPE_DISCOVERY)) {
-      if (sSeRfActive) {
-        sSeRfActive = false;
-      } else if (sP2pActive) {
-        sP2pActive = false;
-        // Make sure RF field events are re-enabled
+      if (isPeerToPeer(eventData->activated)) {
+        if (sReaderModeEnabled) {
+          DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+              "%s: ignoring peer target in reader mode.", __func__);
+          NFA_Deactivate(FALSE);
+          break;
+        }
+        sP2pActive = true;
         DLOG_IF(INFO, nfc_debug_enabled)
-            << StringPrintf("%s: NFA_DEACTIVATED_EVT; is p2p", __func__);
+            << StringPrintf("%s: NFA_ACTIVATED_EVT; is p2p", __func__);
         if (NFC_GetNCIVersion() == NCI_VERSION_1_0) {
           // Disable RF field events in case of p2p
-          uint8_t nfa_enable_rf_events[] = {0x01};
-
-          if (!sIsDisabling && sIsNfaEnabled) {
+          uint8_t nfa_disable_rf_events[] = {0x00};
+          DLOG_IF(INFO, nfc_debug_enabled)
+              << StringPrintf("%s: Disabling RF field events", __func__);
+          status = NFA_SetConfig(NCI_PARAM_ID_RF_FIELD_INFO,
+                                 sizeof(nfa_disable_rf_events),
+                                 &nfa_disable_rf_events[0]);
+          if (status == NFA_STATUS_OK) {
             DLOG_IF(INFO, nfc_debug_enabled)
-                << StringPrintf("%s: Enabling RF field events", __func__);
-            status = NFA_SetConfig(NCI_PARAM_ID_RF_FIELD_INFO,
-                                   sizeof(nfa_enable_rf_events),
-                                   &nfa_enable_rf_events[0]);
-            if (status == NFA_STATUS_OK) {
+                << StringPrintf("%s: Disabled RF field events", __func__);
+          } else {
+            LOG(ERROR) << StringPrintf("%s: Failed to disable RF field events",
+                                       __func__);
+          }
+        }
+      } else if (pn544InteropIsBusy() == false) {
+        NfcTag::getInstance().connectionEventHandler(connEvent, eventData);
+
+        // We know it is not activating for P2P.  If it activated in
+        // listen mode then it is likely for an SE transaction.
+        // Send the RF Event.
+        if (isListenMode(eventData->activated)) {
+          sSeRfActive = true;
+        }
+      }
+      break;
+
+    case NFA_DEACTIVATED_EVT:  // NFC link/protocol deactivated
+      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+          "%s: NFA_DEACTIVATED_EVT   Type: %u, gIsTagDeactivating: %d",
+          __func__, eventData->deactivated.type, gIsTagDeactivating);
+      NfcTag::getInstance().setDeactivationState(eventData->deactivated);
+      if (eventData->deactivated.type != NFA_DEACTIVATE_TYPE_SLEEP) {
+        {
+          SyncEventGuard g(gDeactivatedEvent);
+          gActivated = false;  // guard this variable from multi-threaded access
+          gDeactivatedEvent.notifyOne();
+        }
+        nativeNfcTag_resetPresenceCheck();
+        NfcTag::getInstance().connectionEventHandler(connEvent, eventData);
+        nativeNfcTag_abortWaits();
+        NfcTag::getInstance().abort();
+      } else if (gIsTagDeactivating) {
+        NfcTag::getInstance().setActive(false);
+        nativeNfcTag_doDeactivateStatus(0);
+      } else if (EXTNS_GetDeactivateFlag() == TRUE) {
+        NfcTag::getInstance().setActive(false);
+        nativeNfcTag_doDeactivateStatus(0);
+      }
+
+      // If RF is activated for what we think is a Secure Element transaction
+      // and it is deactivated to either IDLE or DISCOVERY mode, notify w/event.
+      if ((eventData->deactivated.type == NFA_DEACTIVATE_TYPE_IDLE) ||
+          (eventData->deactivated.type == NFA_DEACTIVATE_TYPE_DISCOVERY)) {
+        if (sSeRfActive) {
+          sSeRfActive = false;
+        } else if (sP2pActive) {
+          sP2pActive = false;
+          // Make sure RF field events are re-enabled
+          DLOG_IF(INFO, nfc_debug_enabled)
+              << StringPrintf("%s: NFA_DEACTIVATED_EVT; is p2p", __func__);
+          if (NFC_GetNCIVersion() == NCI_VERSION_1_0) {
+            // Disable RF field events in case of p2p
+            uint8_t nfa_enable_rf_events[] = {0x01};
+
+            if (!sIsDisabling && sIsNfaEnabled) {
               DLOG_IF(INFO, nfc_debug_enabled)
-                  << StringPrintf("%s: Enabled RF field events", __func__);
-            } else {
-              LOG(ERROR) << StringPrintf("%s: Failed to enable RF field events",
-                                         __func__);
+                  << StringPrintf("%s: Enabling RF field events", __func__);
+              status = NFA_SetConfig(NCI_PARAM_ID_RF_FIELD_INFO,
+                                     sizeof(nfa_enable_rf_events),
+                                     &nfa_enable_rf_events[0]);
+              if (status == NFA_STATUS_OK) {
+                DLOG_IF(INFO, nfc_debug_enabled)
+                    << StringPrintf("%s: Enabled RF field events", __func__);
+              } else {
+                LOG(ERROR) << StringPrintf(
+                    "%s: Failed to enable RF field events", __func__);
+              }
             }
           }
         }
       }
-    }
 
-    break;
+      break;
 
-  case NFA_TLV_DETECT_EVT: // TLV Detection complete
-    status = eventData->tlv_detect.status;
-    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-        "%s: NFA_TLV_DETECT_EVT: status = %d, protocol = %d, num_tlvs = %d, "
-        "num_bytes = %d",
-        __func__, status, eventData->tlv_detect.protocol,
-        eventData->tlv_detect.num_tlvs, eventData->tlv_detect.num_bytes);
-    if (status != NFA_STATUS_OK) {
-      LOG(ERROR) << StringPrintf("%s: NFA_TLV_DETECT_EVT error: status = %d",
-                                 __func__, status);
-    }
-    break;
+    case NFA_TLV_DETECT_EVT:  // TLV Detection complete
+      status = eventData->tlv_detect.status;
+      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+          "%s: NFA_TLV_DETECT_EVT: status = %d, protocol = %d, num_tlvs = %d, "
+          "num_bytes = %d",
+          __func__, status, eventData->tlv_detect.protocol,
+          eventData->tlv_detect.num_tlvs, eventData->tlv_detect.num_bytes);
+      if (status != NFA_STATUS_OK) {
+        LOG(ERROR) << StringPrintf("%s: NFA_TLV_DETECT_EVT error: status = %d",
+                                   __func__, status);
+      }
+      break;
 
-  case NFA_NDEF_DETECT_EVT: // NDEF Detection complete;
-    // if status is failure, it means the tag does not contain any or valid NDEF
-    // data;  pass the failure status to the NFC Service;
-    status = eventData->ndef_detect.status;
-    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-        "%s: NFA_NDEF_DETECT_EVT: status = 0x%X, protocol = %u, "
-        "max_size = %u, cur_size = %u, flags = 0x%X",
-        __func__, status, eventData->ndef_detect.protocol,
-        eventData->ndef_detect.max_size, eventData->ndef_detect.cur_size,
-        eventData->ndef_detect.flags);
-    NfcTag::getInstance().connectionEventHandler(connEvent, eventData);
-    nativeNfcTag_doCheckNdefResult(status, eventData->ndef_detect.max_size,
-                                   eventData->ndef_detect.cur_size,
-                                   eventData->ndef_detect.flags);
-    break;
+    case NFA_NDEF_DETECT_EVT:  // NDEF Detection complete;
+      // if status is failure, it means the tag does not contain any or valid
+      // NDEF data;  pass the failure status to the NFC Service;
+      status = eventData->ndef_detect.status;
+      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+          "%s: NFA_NDEF_DETECT_EVT: status = 0x%X, protocol = %u, "
+          "max_size = %u, cur_size = %u, flags = 0x%X",
+          __func__, status, eventData->ndef_detect.protocol,
+          eventData->ndef_detect.max_size, eventData->ndef_detect.cur_size,
+          eventData->ndef_detect.flags);
+      NfcTag::getInstance().connectionEventHandler(connEvent, eventData);
+      nativeNfcTag_doCheckNdefResult(status, eventData->ndef_detect.max_size,
+                                     eventData->ndef_detect.cur_size,
+                                     eventData->ndef_detect.flags);
+      break;
 
-  case NFA_DATA_EVT: // Data message received (for non-NDEF reads)
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: NFA_DATA_EVT: status = 0x%X, len = %d", __func__,
-                        eventData->status, eventData->data.len);
-    nativeNfcTag_doTransceiveStatus(eventData->status, eventData->data.p_data,
-                                    eventData->data.len);
-    break;
-  case NFA_RW_INTF_ERROR_EVT:
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: NFC_RW_INTF_ERROR_EVT", __func__);
-    nativeNfcTag_notifyRfTimeout();
-    nativeNfcTag_doReadCompleted(NFA_STATUS_TIMEOUT);
-    break;
-  case NFA_SELECT_CPLT_EVT: // Select completed
-    status = eventData->status;
-    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-        "%s: NFA_SELECT_CPLT_EVT: status = %d", __func__, status);
-    if (status != NFA_STATUS_OK) {
-      LOG(ERROR) << StringPrintf("%s: NFA_SELECT_CPLT_EVT error: status = %d",
-                                 __func__, status);
-    }
-    break;
+    case NFA_DATA_EVT:  // Data message received (for non-NDEF reads)
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: NFA_DATA_EVT: status = 0x%X, len = %d", __func__,
+                          eventData->status, eventData->data.len);
+      nativeNfcTag_doTransceiveStatus(eventData->status, eventData->data.p_data,
+                                      eventData->data.len);
+      break;
+    case NFA_RW_INTF_ERROR_EVT:
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: NFC_RW_INTF_ERROR_EVT", __func__);
+      nativeNfcTag_notifyRfTimeout();
+      nativeNfcTag_doReadCompleted(NFA_STATUS_TIMEOUT);
+      break;
+    case NFA_SELECT_CPLT_EVT:  // Select completed
+      status = eventData->status;
+      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+          "%s: NFA_SELECT_CPLT_EVT: status = %d", __func__, status);
+      if (status != NFA_STATUS_OK) {
+        LOG(ERROR) << StringPrintf("%s: NFA_SELECT_CPLT_EVT error: status = %d",
+                                   __func__, status);
+      }
+      break;
 
-  case NFA_READ_CPLT_EVT: // NDEF-read or tag-specific-read completed
-    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-        "%s: NFA_READ_CPLT_EVT: status = 0x%X", __func__, eventData->status);
-    nativeNfcTag_doReadCompleted(eventData->status);
-    NfcTag::getInstance().connectionEventHandler(connEvent, eventData);
-    break;
+    case NFA_READ_CPLT_EVT:  // NDEF-read or tag-specific-read completed
+      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+          "%s: NFA_READ_CPLT_EVT: status = 0x%X", __func__, eventData->status);
+      nativeNfcTag_doReadCompleted(eventData->status);
+      NfcTag::getInstance().connectionEventHandler(connEvent, eventData);
+      break;
 
-  case NFA_WRITE_CPLT_EVT: // Write completed
-    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-        "%s: NFA_WRITE_CPLT_EVT: status = %d", __func__, eventData->status);
-    nativeNfcTag_doWriteStatus(eventData->status == NFA_STATUS_OK);
-    break;
+    case NFA_WRITE_CPLT_EVT:  // Write completed
+      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+          "%s: NFA_WRITE_CPLT_EVT: status = %d", __func__, eventData->status);
+      nativeNfcTag_doWriteStatus(eventData->status == NFA_STATUS_OK);
+      break;
 
-  case NFA_SET_TAG_RO_EVT: // Tag set as Read only
-    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-        "%s: NFA_SET_TAG_RO_EVT: status = %d", __func__, eventData->status);
-    nativeNfcTag_doMakeReadonlyResult(eventData->status);
-    break;
+    case NFA_SET_TAG_RO_EVT:  // Tag set as Read only
+      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+          "%s: NFA_SET_TAG_RO_EVT: status = %d", __func__, eventData->status);
+      nativeNfcTag_doMakeReadonlyResult(eventData->status);
+      break;
 
-  case NFA_CE_NDEF_WRITE_START_EVT: // NDEF write started
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: NFA_CE_NDEF_WRITE_START_EVT: status: %d", __func__,
-                        eventData->status);
+    case NFA_CE_NDEF_WRITE_START_EVT:  // NDEF write started
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: NFA_CE_NDEF_WRITE_START_EVT: status: %d",
+                          __func__, eventData->status);
 
-    if (eventData->status != NFA_STATUS_OK)
-      LOG(ERROR) << StringPrintf(
-          "%s: NFA_CE_NDEF_WRITE_START_EVT error: status = %d", __func__,
-          eventData->status);
-    break;
+      if (eventData->status != NFA_STATUS_OK)
+        LOG(ERROR) << StringPrintf(
+            "%s: NFA_CE_NDEF_WRITE_START_EVT error: status = %d", __func__,
+            eventData->status);
+      break;
 
-  case NFA_CE_NDEF_WRITE_CPLT_EVT: // NDEF write completed
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: FA_CE_NDEF_WRITE_CPLT_EVT: len = %u", __func__,
-                        eventData->ndef_write_cplt.len);
-    break;
+    case NFA_CE_NDEF_WRITE_CPLT_EVT:  // NDEF write completed
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: FA_CE_NDEF_WRITE_CPLT_EVT: len = %u", __func__,
+                          eventData->ndef_write_cplt.len);
+      break;
 
-  case NFA_LLCP_ACTIVATED_EVT: // LLCP link is activated
-    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-        "%s: NFA_LLCP_ACTIVATED_EVT: is_initiator: %d  remote_wks: %d, "
-        "remote_lsc: %d, remote_link_miu: %d, local_link_miu: %d",
-        __func__, eventData->llcp_activated.is_initiator,
-        eventData->llcp_activated.remote_wks,
-        eventData->llcp_activated.remote_lsc,
-        eventData->llcp_activated.remote_link_miu,
-        eventData->llcp_activated.local_link_miu);
+    case NFA_LLCP_ACTIVATED_EVT:  // LLCP link is activated
+      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+          "%s: NFA_LLCP_ACTIVATED_EVT: is_initiator: %d  remote_wks: %d, "
+          "remote_lsc: %d, remote_link_miu: %d, local_link_miu: %d",
+          __func__, eventData->llcp_activated.is_initiator,
+          eventData->llcp_activated.remote_wks,
+          eventData->llcp_activated.remote_lsc,
+          eventData->llcp_activated.remote_link_miu,
+          eventData->llcp_activated.local_link_miu);
 
-    PeerToPeer::getInstance().llcpActivatedHandler(getNative(0, 0),
-                                                   eventData->llcp_activated);
-    break;
+      PeerToPeer::getInstance().llcpActivatedHandler(getNative(0, 0),
+                                                     eventData->llcp_activated);
+      break;
 
-  case NFA_LLCP_DEACTIVATED_EVT: // LLCP link is deactivated
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: NFA_LLCP_DEACTIVATED_EVT", __func__);
-    PeerToPeer::getInstance().llcpDeactivatedHandler(
-        getNative(0, 0), eventData->llcp_deactivated);
-    break;
-  case NFA_LLCP_FIRST_PACKET_RECEIVED_EVT: // Received first packet over llcp
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: NFA_LLCP_FIRST_PACKET_RECEIVED_EVT", __func__);
-    PeerToPeer::getInstance().llcpFirstPacketHandler(getNative(0, 0));
-    break;
-  case NFA_PRESENCE_CHECK_EVT:
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: NFA_PRESENCE_CHECK_EVT", __func__);
-    nativeNfcTag_doPresenceCheckResult(eventData->status);
-    break;
-  case NFA_FORMAT_CPLT_EVT:
-    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-        "%s: NFA_FORMAT_CPLT_EVT: status=0x%X", __func__, eventData->status);
-    nativeNfcTag_formatStatus(eventData->status == NFA_STATUS_OK);
-    break;
+    case NFA_LLCP_DEACTIVATED_EVT:  // LLCP link is deactivated
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: NFA_LLCP_DEACTIVATED_EVT", __func__);
+      PeerToPeer::getInstance().llcpDeactivatedHandler(
+          getNative(0, 0), eventData->llcp_deactivated);
+      break;
+    case NFA_LLCP_FIRST_PACKET_RECEIVED_EVT:  // Received first packet over llcp
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: NFA_LLCP_FIRST_PACKET_RECEIVED_EVT", __func__);
+      PeerToPeer::getInstance().llcpFirstPacketHandler(getNative(0, 0));
+      break;
+    case NFA_PRESENCE_CHECK_EVT:
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: NFA_PRESENCE_CHECK_EVT", __func__);
+      nativeNfcTag_doPresenceCheckResult(eventData->status);
+      break;
+    case NFA_FORMAT_CPLT_EVT:
+      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+          "%s: NFA_FORMAT_CPLT_EVT: status=0x%X", __func__, eventData->status);
+      nativeNfcTag_formatStatus(eventData->status == NFA_STATUS_OK);
+      break;
 
-  case NFA_I93_CMD_CPLT_EVT:
-    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-        "%s: NFA_I93_CMD_CPLT_EVT: status=0x%X", __func__, eventData->status);
-    break;
+    case NFA_I93_CMD_CPLT_EVT:
+      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+          "%s: NFA_I93_CMD_CPLT_EVT: status=0x%X", __func__, eventData->status);
+      break;
 
-  case NFA_CE_UICC_LISTEN_CONFIGURED_EVT:
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: NFA_CE_UICC_LISTEN_CONFIGURED_EVT : status=0x%X",
-                        __func__, eventData->status);
-    break;
+    case NFA_CE_UICC_LISTEN_CONFIGURED_EVT:
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: NFA_CE_UICC_LISTEN_CONFIGURED_EVT : status=0x%X",
+                          __func__, eventData->status);
+      break;
 
-  case NFA_SET_P2P_LISTEN_TECH_EVT:
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: NFA_SET_P2P_LISTEN_TECH_EVT", __func__);
-    PeerToPeer::getInstance().connectionEventHandler(connEvent, eventData);
-    break;
+    case NFA_SET_P2P_LISTEN_TECH_EVT:
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: NFA_SET_P2P_LISTEN_TECH_EVT", __func__);
+      PeerToPeer::getInstance().connectionEventHandler(connEvent, eventData);
+      break;
 
-  default:
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: unknown event ????", __func__);
-    break;
+    default:
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: unknown event ????", __func__);
+      break;
   }
 }
 
@@ -585,11 +587,11 @@ static void nfaConnectionCallback(uint8_t connEvent,
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-static jboolean nfcManager_initNativeStruc(JNIEnv *e, jobject o) {
+static jboolean nfcManager_initNativeStruc(JNIEnv* e, jobject o) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter", __func__);
 
-  nfc_jni_native_data *nat =
-      (nfc_jni_native_data *)malloc(sizeof(struct nfc_jni_native_data));
+  nfc_jni_native_data* nat =
+      (nfc_jni_native_data*)malloc(sizeof(struct nfc_jni_native_data));
   if (nat == NULL) {
     LOG(ERROR) << StringPrintf("%s: fail allocate native data", __func__);
     return JNI_FALSE;
@@ -660,145 +662,145 @@ static jboolean nfcManager_initNativeStruc(JNIEnv *e, jobject o) {
 **
 *******************************************************************************/
 void nfaDeviceManagementCallback(uint8_t dmEvent,
-                                 tNFA_DM_CBACK_DATA *eventData) {
+                                 tNFA_DM_CBACK_DATA* eventData) {
   DLOG_IF(INFO, nfc_debug_enabled)
       << StringPrintf("%s: enter; event=0x%X", __func__, dmEvent);
 
   switch (dmEvent) {
-  case NFA_DM_ENABLE_EVT: /* Result of NFA_Enable */
-  {
-    SyncEventGuard guard(sNfaEnableEvent);
-    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-        "%s: NFA_DM_ENABLE_EVT; status=0x%X", __func__, eventData->status);
-    sIsNfaEnabled = eventData->status == NFA_STATUS_OK;
-    sIsDisabling = false;
-    sNfaEnableEvent.notifyOne();
-  } break;
-
-  case NFA_DM_DISABLE_EVT: /* Result of NFA_Disable */
-  {
-    SyncEventGuard guard(sNfaDisableEvent);
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: NFA_DM_DISABLE_EVT", __func__);
-    sIsNfaEnabled = false;
-    sIsDisabling = false;
-    sNfaDisableEvent.notifyOne();
-  } break;
-
-  case NFA_DM_SET_CONFIG_EVT: // result of NFA_SetConfig
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: NFA_DM_SET_CONFIG_EVT", __func__);
+    case NFA_DM_ENABLE_EVT: /* Result of NFA_Enable */
     {
-      SyncEventGuard guard(sNfaSetConfigEvent);
-      sNfaSetConfigEvent.notifyOne();
-    }
-    break;
-
-  case NFA_DM_GET_CONFIG_EVT: /* Result of NFA_GetConfig */
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: NFA_DM_GET_CONFIG_EVT", __func__);
-    {
-      SyncEventGuard guard(sNfaGetConfigEvent);
-      if (eventData->status == NFA_STATUS_OK &&
-          eventData->get_config.tlv_size <= sizeof(sConfig)) {
-        sCurrentConfigLen = eventData->get_config.tlv_size;
-        memcpy(sConfig, eventData->get_config.param_tlvs,
-               eventData->get_config.tlv_size);
-      } else {
-        LOG(ERROR) << StringPrintf("%s: NFA_DM_GET_CONFIG failed", __func__);
-        sCurrentConfigLen = 0;
-      }
-      sNfaGetConfigEvent.notifyOne();
-    }
-    break;
-
-  case NFA_DM_RF_FIELD_EVT:
-    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-        "%s: NFA_DM_RF_FIELD_EVT; status=0x%X; field status=%u", __func__,
-        eventData->rf_field.status, eventData->rf_field.rf_field_status);
-    if (!sP2pActive && eventData->rf_field.status == NFA_STATUS_OK) {
-      struct nfc_jni_native_data *nat = getNative(NULL, NULL);
-      JNIEnv *e = NULL;
-      ScopedAttach attach(nat->vm, &e);
-      if (e == NULL) {
-        LOG(ERROR) << StringPrintf("jni env is null");
-        return;
-      }
-      if (eventData->rf_field.rf_field_status == NFA_DM_RF_FIELD_ON)
-        e->CallVoidMethod(nat->manager,
-                          android::gCachedNfcManagerNotifyRfFieldActivated);
-      else
-        e->CallVoidMethod(nat->manager,
-                          android::gCachedNfcManagerNotifyRfFieldDeactivated);
-    }
-    break;
-
-  case NFA_DM_NFCC_TRANSPORT_ERR_EVT:
-  case NFA_DM_NFCC_TIMEOUT_EVT: {
-    if (dmEvent == NFA_DM_NFCC_TIMEOUT_EVT)
-      LOG(ERROR) << StringPrintf("%s: NFA_DM_NFCC_TIMEOUT_EVT; abort",
-                                 __func__);
-    else if (dmEvent == NFA_DM_NFCC_TRANSPORT_ERR_EVT)
-      LOG(ERROR) << StringPrintf("%s: NFA_DM_NFCC_TRANSPORT_ERR_EVT; abort",
-                                 __func__);
-
-    nativeNfcTag_abortWaits();
-    NfcTag::getInstance().abort();
-    sAbortConnlessWait = true;
-    nativeLlcpConnectionlessSocket_abortWait();
-    {
-      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-          "%s: aborting  sNfaEnableDisablePollingEvent", __func__);
-      SyncEventGuard guard(sNfaEnableDisablePollingEvent);
-      sNfaEnableDisablePollingEvent.notifyOne();
-    }
-    {
-      DLOG_IF(INFO, nfc_debug_enabled)
-          << StringPrintf("%s: aborting  sNfaEnableEvent", __func__);
       SyncEventGuard guard(sNfaEnableEvent);
+      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+          "%s: NFA_DM_ENABLE_EVT; status=0x%X", __func__, eventData->status);
+      sIsNfaEnabled = eventData->status == NFA_STATUS_OK;
+      sIsDisabling = false;
       sNfaEnableEvent.notifyOne();
-    }
-    {
-      DLOG_IF(INFO, nfc_debug_enabled)
-          << StringPrintf("%s: aborting  sNfaDisableEvent", __func__);
-      SyncEventGuard guard(sNfaDisableEvent);
-      sNfaDisableEvent.notifyOne();
-    }
-    sDiscoveryEnabled = false;
-    sPollingEnabled = false;
-    PowerSwitch::getInstance().abort();
+    } break;
 
-    if (!sIsDisabling && sIsNfaEnabled) {
-      EXTNS_Close();
-      NFA_Disable(FALSE);
-      sIsDisabling = true;
-    } else {
+    case NFA_DM_DISABLE_EVT: /* Result of NFA_Disable */
+    {
+      SyncEventGuard guard(sNfaDisableEvent);
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: NFA_DM_DISABLE_EVT", __func__);
       sIsNfaEnabled = false;
       sIsDisabling = false;
-    }
-    PowerSwitch::getInstance().initialize(PowerSwitch::UNKNOWN_LEVEL);
-    LOG(ERROR) << StringPrintf("%s: crash NFC service", __func__);
-    //////////////////////////////////////////////
-    // crash the NFC service process so it can restart automatically
-    abort();
-    //////////////////////////////////////////////
-  } break;
+      sNfaDisableEvent.notifyOne();
+    } break;
 
-  case NFA_DM_PWR_MODE_CHANGE_EVT:
-    PowerSwitch::getInstance().deviceManagementCallback(dmEvent, eventData);
-    break;
+    case NFA_DM_SET_CONFIG_EVT:  // result of NFA_SetConfig
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: NFA_DM_SET_CONFIG_EVT", __func__);
+      {
+        SyncEventGuard guard(sNfaSetConfigEvent);
+        sNfaSetConfigEvent.notifyOne();
+      }
+      break;
 
-  case NFA_DM_SET_POWER_SUB_STATE_EVT: {
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: NFA_DM_SET_POWER_SUB_STATE_EVT; status=0x%X",
-                        __FUNCTION__, eventData->power_sub_state.status);
-    SyncEventGuard guard(sNfaSetPowerSubState);
-    sNfaSetPowerSubState.notifyOne();
-  } break;
-  default:
-    DLOG_IF(INFO, nfc_debug_enabled)
-        << StringPrintf("%s: unhandled event", __func__);
-    break;
+    case NFA_DM_GET_CONFIG_EVT: /* Result of NFA_GetConfig */
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: NFA_DM_GET_CONFIG_EVT", __func__);
+      {
+        SyncEventGuard guard(sNfaGetConfigEvent);
+        if (eventData->status == NFA_STATUS_OK &&
+            eventData->get_config.tlv_size <= sizeof(sConfig)) {
+          sCurrentConfigLen = eventData->get_config.tlv_size;
+          memcpy(sConfig, eventData->get_config.param_tlvs,
+                 eventData->get_config.tlv_size);
+        } else {
+          LOG(ERROR) << StringPrintf("%s: NFA_DM_GET_CONFIG failed", __func__);
+          sCurrentConfigLen = 0;
+        }
+        sNfaGetConfigEvent.notifyOne();
+      }
+      break;
+
+    case NFA_DM_RF_FIELD_EVT:
+      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+          "%s: NFA_DM_RF_FIELD_EVT; status=0x%X; field status=%u", __func__,
+          eventData->rf_field.status, eventData->rf_field.rf_field_status);
+      if (!sP2pActive && eventData->rf_field.status == NFA_STATUS_OK) {
+        struct nfc_jni_native_data* nat = getNative(NULL, NULL);
+        JNIEnv* e = NULL;
+        ScopedAttach attach(nat->vm, &e);
+        if (e == NULL) {
+          LOG(ERROR) << StringPrintf("jni env is null");
+          return;
+        }
+        if (eventData->rf_field.rf_field_status == NFA_DM_RF_FIELD_ON)
+          e->CallVoidMethod(nat->manager,
+                            android::gCachedNfcManagerNotifyRfFieldActivated);
+        else
+          e->CallVoidMethod(nat->manager,
+                            android::gCachedNfcManagerNotifyRfFieldDeactivated);
+      }
+      break;
+
+    case NFA_DM_NFCC_TRANSPORT_ERR_EVT:
+    case NFA_DM_NFCC_TIMEOUT_EVT: {
+      if (dmEvent == NFA_DM_NFCC_TIMEOUT_EVT)
+        LOG(ERROR) << StringPrintf("%s: NFA_DM_NFCC_TIMEOUT_EVT; abort",
+                                   __func__);
+      else if (dmEvent == NFA_DM_NFCC_TRANSPORT_ERR_EVT)
+        LOG(ERROR) << StringPrintf("%s: NFA_DM_NFCC_TRANSPORT_ERR_EVT; abort",
+                                   __func__);
+
+      nativeNfcTag_abortWaits();
+      NfcTag::getInstance().abort();
+      sAbortConnlessWait = true;
+      nativeLlcpConnectionlessSocket_abortWait();
+      {
+        DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+            "%s: aborting  sNfaEnableDisablePollingEvent", __func__);
+        SyncEventGuard guard(sNfaEnableDisablePollingEvent);
+        sNfaEnableDisablePollingEvent.notifyOne();
+      }
+      {
+        DLOG_IF(INFO, nfc_debug_enabled)
+            << StringPrintf("%s: aborting  sNfaEnableEvent", __func__);
+        SyncEventGuard guard(sNfaEnableEvent);
+        sNfaEnableEvent.notifyOne();
+      }
+      {
+        DLOG_IF(INFO, nfc_debug_enabled)
+            << StringPrintf("%s: aborting  sNfaDisableEvent", __func__);
+        SyncEventGuard guard(sNfaDisableEvent);
+        sNfaDisableEvent.notifyOne();
+      }
+      sDiscoveryEnabled = false;
+      sPollingEnabled = false;
+      PowerSwitch::getInstance().abort();
+
+      if (!sIsDisabling && sIsNfaEnabled) {
+        EXTNS_Close();
+        NFA_Disable(FALSE);
+        sIsDisabling = true;
+      } else {
+        sIsNfaEnabled = false;
+        sIsDisabling = false;
+      }
+      PowerSwitch::getInstance().initialize(PowerSwitch::UNKNOWN_LEVEL);
+      LOG(ERROR) << StringPrintf("%s: crash NFC service", __func__);
+      //////////////////////////////////////////////
+      // crash the NFC service process so it can restart automatically
+      abort();
+      //////////////////////////////////////////////
+    } break;
+
+    case NFA_DM_PWR_MODE_CHANGE_EVT:
+      PowerSwitch::getInstance().deviceManagementCallback(dmEvent, eventData);
+      break;
+
+    case NFA_DM_SET_POWER_SUB_STATE_EVT: {
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: NFA_DM_SET_POWER_SUB_STATE_EVT; status=0x%X",
+                          __FUNCTION__, eventData->power_sub_state.status);
+      SyncEventGuard guard(sNfaSetPowerSubState);
+      sNfaSetPowerSubState.notifyOne();
+    } break;
+    default:
+      DLOG_IF(INFO, nfc_debug_enabled)
+          << StringPrintf("%s: unhandled event", __func__);
+      break;
   }
 }
 
@@ -813,10 +815,10 @@ void nfaDeviceManagementCallback(uint8_t dmEvent,
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-static jboolean nfcManager_sendRawFrame(JNIEnv *e, jobject, jbyteArray data) {
+static jboolean nfcManager_sendRawFrame(JNIEnv* e, jobject, jbyteArray data) {
   ScopedByteArrayRO bytes(e, data);
-  uint8_t *buf =
-      const_cast<uint8_t *>(reinterpret_cast<const uint8_t *>(&bytes[0]));
+  uint8_t* buf =
+      const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(&bytes[0]));
   size_t bufLen = bytes.size();
   tNFA_STATUS status = NFA_SendRawFrame(buf, bufLen, 0);
 
@@ -836,11 +838,11 @@ static jboolean nfcManager_sendRawFrame(JNIEnv *e, jobject, jbyteArray data) {
 ** Returns:         True if aid is accpted by NFA Layer.
 **
 *******************************************************************************/
-static jboolean nfcManager_routeAid(JNIEnv *e, jobject, jbyteArray aid,
+static jboolean nfcManager_routeAid(JNIEnv* e, jobject, jbyteArray aid,
                                     jint route, jint aidInfo) {
   ScopedByteArrayRO bytes(e, aid);
-  uint8_t *buf =
-      const_cast<uint8_t *>(reinterpret_cast<const uint8_t *>(&bytes[0]));
+  uint8_t* buf =
+      const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(&bytes[0]));
   size_t bufLen = bytes.size();
   return RoutingManager::getInstance().addAidRouting(buf, bufLen, route,
                                                      aidInfo);
@@ -857,10 +859,10 @@ static jboolean nfcManager_routeAid(JNIEnv *e, jobject, jbyteArray aid,
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-static jboolean nfcManager_unrouteAid(JNIEnv *e, jobject, jbyteArray aid) {
+static jboolean nfcManager_unrouteAid(JNIEnv* e, jobject, jbyteArray aid) {
   ScopedByteArrayRO bytes(e, aid);
-  uint8_t *buf =
-      const_cast<uint8_t *>(reinterpret_cast<const uint8_t *>(&bytes[0]));
+  uint8_t* buf =
+      const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(&bytes[0]));
   size_t bufLen = bytes.size();
   bool result = RoutingManager::getInstance().removeAidRouting(buf, bufLen);
   return result;
@@ -877,7 +879,7 @@ static jboolean nfcManager_unrouteAid(JNIEnv *e, jobject, jbyteArray aid) {
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-static jboolean nfcManager_commitRouting(JNIEnv *e, jobject) {
+static jboolean nfcManager_commitRouting(JNIEnv* e, jobject) {
   return RoutingManager::getInstance().commitRouting();
 }
 
@@ -893,13 +895,13 @@ static jboolean nfcManager_commitRouting(JNIEnv *e, jobject) {
 ** Returns:         Handle retrieve from RoutingManager.
 **
 *******************************************************************************/
-static jint nfcManager_doRegisterT3tIdentifier(JNIEnv *e, jobject,
+static jint nfcManager_doRegisterT3tIdentifier(JNIEnv* e, jobject,
                                                jbyteArray t3tIdentifier) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter", __func__);
 
   ScopedByteArrayRO bytes(e, t3tIdentifier);
-  uint8_t *buf =
-      const_cast<uint8_t *>(reinterpret_cast<const uint8_t *>(&bytes[0]));
+  uint8_t* buf =
+      const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(&bytes[0]));
   size_t bufLen = bytes.size();
   int handle = RoutingManager::getInstance().registerT3tIdentifier(buf, bufLen);
 
@@ -922,7 +924,7 @@ static jint nfcManager_doRegisterT3tIdentifier(JNIEnv *e, jobject,
 ** Returns:         None
 **
 *******************************************************************************/
-static void nfcManager_doDeregisterT3tIdentifier(JNIEnv *, jobject,
+static void nfcManager_doDeregisterT3tIdentifier(JNIEnv*, jobject,
                                                  jint handle) {
   DLOG_IF(INFO, nfc_debug_enabled)
       << StringPrintf("%s: enter; handle=%d", __func__, handle);
@@ -943,7 +945,7 @@ static void nfcManager_doDeregisterT3tIdentifier(JNIEnv *, jobject,
 ** Returns:         LF_T3T_MAX value.
 **
 *******************************************************************************/
-static jint nfcManager_getLfT3tMax(JNIEnv *, jobject) {
+static jint nfcManager_getLfT3tMax(JNIEnv*, jobject) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter", __func__);
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("LF_T3T_MAX=%d", sLfT3tMax);
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: exit", __func__);
@@ -962,13 +964,13 @@ static jint nfcManager_getLfT3tMax(JNIEnv *, jobject) {
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-static jboolean nfcManager_doInitialize(JNIEnv *e, jobject o) {
+static jboolean nfcManager_doInitialize(JNIEnv* e, jobject o) {
   DLOG_IF(INFO, nfc_debug_enabled)
       << StringPrintf("%s: enter; ver=%s nfa=%s NCI_VERSION=0x%02X", __func__,
                       nfca_version_string, nfa_version_string, NCI_VERSION);
   tNFA_STATUS stat = NFA_STATUS_OK;
 
-  PowerSwitch &powerSwitch = PowerSwitch::getInstance();
+  PowerSwitch& powerSwitch = PowerSwitch::getInstance();
 
   if (sIsNfaEnabled) {
     DLOG_IF(INFO, nfc_debug_enabled)
@@ -981,19 +983,19 @@ static jboolean nfcManager_doInitialize(JNIEnv *e, jobject o) {
   {
     unsigned long num = 0;
 
-    NfcAdaptation &theInstance = NfcAdaptation::GetInstance();
-    theInstance.Initialize(); // start GKI, NCI task, NFC task
+    NfcAdaptation& theInstance = NfcAdaptation::GetInstance();
+    theInstance.Initialize();  // start GKI, NCI task, NFC task
 
     {
       SyncEventGuard guard(sNfaEnableEvent);
-      tHAL_NFC_ENTRY *halFuncEntries = theInstance.GetHalEntryFuncs();
+      tHAL_NFC_ENTRY* halFuncEntries = theInstance.GetHalEntryFuncs();
 
       NFA_Init(halFuncEntries);
 
       stat = NFA_Enable(nfaDeviceManagementCallback, nfaConnectionCallback);
       if (stat == NFA_STATUS_OK) {
         num = initializeGlobalAppLogLevel();
-        sNfaEnableEvent.wait(); // wait for NFA command to finish
+        sNfaEnableEvent.wait();  // wait for NFA command to finish
       }
       EXTNS_Init(nfaDeviceManagementCallback, nfaConnectionCallback);
     }
@@ -1021,7 +1023,7 @@ static jboolean nfcManager_doInitialize(JNIEnv *e, jobject o) {
           NFA_SetConfig(NCI_PARAM_ID_NFC_DEP_OP, sizeof(uint8_t), &configData);
         }
 
-        struct nfc_jni_native_data *nat = getNative(e, o);
+        struct nfc_jni_native_data* nat = getNative(e, o);
 
         if (nat) {
           if (GetNumValue(NAME_POLLING_TECH_MASK, &num, sizeof(num)))
@@ -1082,11 +1084,11 @@ TheEnd:
   return sIsNfaEnabled ? JNI_TRUE : JNI_FALSE;
 }
 
-static void nfcManager_doEnableDtaMode(JNIEnv *, jobject) {
+static void nfcManager_doEnableDtaMode(JNIEnv*, jobject) {
   gIsDtaEnabled = true;
 }
 
-static void nfcManager_doDisableDtaMode(JNIEnv *, jobject) {
+static void nfcManager_doDisableDtaMode(JNIEnv*, jobject) {
   gIsDtaEnabled = false;
 }
 /*******************************************************************************
@@ -1104,14 +1106,14 @@ static void nfcManager_doDisableDtaMode(JNIEnv *, jobject) {
 ** Returns:         None
 **
 *******************************************************************************/
-static void nfcManager_enableDiscovery(JNIEnv *e, jobject o,
+static void nfcManager_enableDiscovery(JNIEnv* e, jobject o,
                                        jint technologies_mask,
                                        jboolean enable_lptd,
                                        jboolean reader_mode,
                                        jboolean enable_host_routing,
                                        jboolean enable_p2p, jboolean restart) {
   tNFA_TECHNOLOGY_MASK tech_mask = DEFAULT_TECH_MASK;
-  struct nfc_jni_native_data *nat = getNative(e, o);
+  struct nfc_jni_native_data* nat = getNative(e, o);
 
   if (technologies_mask == -1 && nat)
     tech_mask = (tNFA_TECHNOLOGY_MASK)nat->tech_mask;
@@ -1158,7 +1160,7 @@ static void nfcManager_enableDiscovery(JNIEnv *e, jobject o,
         NFA_DisableListening();
         NFA_SetRfDiscoveryDuration(READER_MODE_DISCOVERY_DURATION);
       } else if (!reader_mode && sReaderModeEnabled) {
-        struct nfc_jni_native_data *nat = getNative(e, o);
+        struct nfc_jni_native_data* nat = getNative(e, o);
         sReaderModeEnabled = false;
         NFA_EnableListening();
         NFA_SetRfDiscoveryDuration(nat->discovery_duration);
@@ -1197,7 +1199,7 @@ static void nfcManager_enableDiscovery(JNIEnv *e, jobject o,
 ** Returns:         None
 **
 *******************************************************************************/
-void nfcManager_disableDiscovery(JNIEnv *e, jobject o) {
+void nfcManager_disableDiscovery(JNIEnv* e, jobject o) {
   tNFA_STATUS status = NFA_STATUS_OK;
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter;", __func__);
 
@@ -1211,8 +1213,7 @@ void nfcManager_disableDiscovery(JNIEnv *e, jobject o) {
   // Stop RF Discovery.
   startRfDiscovery(false);
 
-  if (sPollingEnabled)
-    status = stopPolling_rfDiscoveryDisabled();
+  if (sPollingEnabled) status = stopPolling_rfDiscoveryDisabled();
 
   PeerToPeer::getInstance().enableP2pListening(false);
   sP2pEnabled = false;
@@ -1256,8 +1257,7 @@ void enableDisableLptd(bool enable) {
     sHasLptd = true;
   }
   // Bail if we checked and didn't find any LPTD config before
-  if (!sHasLptd)
-    return;
+  if (!sHasLptd) return;
   uint8_t enable_byte = enable ? 0x01 : 0x00;
 
   SyncEventGuard guard(sNfaSetConfigEvent);
@@ -1287,7 +1287,7 @@ void enableDisableLptd(bool enable) {
 ** Returns:         NativeLlcpServiceSocket Java object.
 **
 *******************************************************************************/
-static jobject nfcManager_doCreateLlcpServiceSocket(JNIEnv *e, jobject,
+static jobject nfcManager_doCreateLlcpServiceSocket(JNIEnv* e, jobject,
                                                     jint nSap, jstring sn,
                                                     jint miu, jint rw,
                                                     jint linearBufferLength) {
@@ -1368,7 +1368,7 @@ static jobject nfcManager_doCreateLlcpServiceSocket(JNIEnv *e, jobject,
 ** Returns:         Last error code.
 **
 *******************************************************************************/
-static jint nfcManager_doGetLastError(JNIEnv *, jobject) {
+static jint nfcManager_doGetLastError(JNIEnv*, jobject) {
   DLOG_IF(INFO, nfc_debug_enabled)
       << StringPrintf("%s: last error=%i", __func__, sLastError);
   return sLastError;
@@ -1385,7 +1385,7 @@ static jint nfcManager_doGetLastError(JNIEnv *, jobject) {
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-static jboolean nfcManager_doDeinitialize(JNIEnv *, jobject) {
+static jboolean nfcManager_doDeinitialize(JNIEnv*, jobject) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter", __func__);
 
   sIsDisabling = true;
@@ -1401,7 +1401,7 @@ static jboolean nfcManager_doDeinitialize(JNIEnv *, jobject) {
     if (stat == NFA_STATUS_OK) {
       DLOG_IF(INFO, nfc_debug_enabled)
           << StringPrintf("%s: wait for completion", __func__);
-      sNfaDisableEvent.wait(); // wait for NFA command to finish
+      sNfaDisableEvent.wait();  // wait for NFA command to finish
       PeerToPeer::getInstance().handleNfcOnOff(false);
     } else {
       LOG(ERROR) << StringPrintf("%s: fail disable; error=0x%X", __func__,
@@ -1426,7 +1426,7 @@ static jboolean nfcManager_doDeinitialize(JNIEnv *, jobject) {
     sNfaEnableDisablePollingEvent.notifyOne();
   }
 
-  NfcAdaptation &theInstance = NfcAdaptation::GetInstance();
+  NfcAdaptation& theInstance = NfcAdaptation::GetInstance();
   theInstance.Finalize();
 
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: exit", __func__);
@@ -1448,7 +1448,7 @@ static jboolean nfcManager_doDeinitialize(JNIEnv *, jobject) {
 ** Returns:         NativeLlcpSocket Java object.
 **
 *******************************************************************************/
-static jobject nfcManager_doCreateLlcpSocket(JNIEnv *e, jobject, jint nSap,
+static jobject nfcManager_doCreateLlcpSocket(JNIEnv* e, jobject, jint nSap,
                                              jint miu, jint rw,
                                              jint linearBufferLength) {
   DLOG_IF(INFO, nfc_debug_enabled)
@@ -1511,7 +1511,7 @@ static jobject nfcManager_doCreateLlcpSocket(JNIEnv *e, jobject, jint nSap,
 ** Returns:         NativeLlcpConnectionlessSocket Java object.
 **
 *******************************************************************************/
-static jobject nfcManager_doCreateLlcpConnectionlessSocket(JNIEnv *, jobject,
+static jobject nfcManager_doCreateLlcpConnectionlessSocket(JNIEnv*, jobject,
                                                            jint nSap,
                                                            jstring /*sn*/) {
   DLOG_IF(INFO, nfc_debug_enabled)
@@ -1530,7 +1530,7 @@ static jobject nfcManager_doCreateLlcpConnectionlessSocket(JNIEnv *, jobject,
 ** Returns:         True if the peer supports NFC-DEP.
 **
 *******************************************************************************/
-static bool isPeerToPeer(tNFA_ACTIVATED &activated) {
+static bool isPeerToPeer(tNFA_ACTIVATED& activated) {
   return activated.activate_ntf.protocol == NFA_PROTOCOL_NFC_DEP;
 }
 
@@ -1544,7 +1544,7 @@ static bool isPeerToPeer(tNFA_ACTIVATED &activated) {
 ** Returns:         True if this listen mode.
 **
 *******************************************************************************/
-static bool isListenMode(tNFA_ACTIVATED &activated) {
+static bool isListenMode(tNFA_ACTIVATED& activated) {
   return ((NFC_DISCOVERY_TYPE_LISTEN_A ==
            activated.activate_ntf.rf_tech_param.mode) ||
           (NFC_DISCOVERY_TYPE_LISTEN_B ==
@@ -1570,7 +1570,7 @@ static bool isListenMode(tNFA_ACTIVATED &activated) {
 ** Returns:         True
 **
 *******************************************************************************/
-static jboolean nfcManager_doCheckLlcp(JNIEnv *, jobject) {
+static jboolean nfcManager_doCheckLlcp(JNIEnv*, jobject) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s", __func__);
   return JNI_TRUE;
 }
@@ -1584,7 +1584,7 @@ static jboolean nfcManager_doCheckLlcp(JNIEnv *, jobject) {
 ** Returns:         True
 **
 *******************************************************************************/
-static jboolean nfcManager_doActivateLlcp(JNIEnv *, jobject) {
+static jboolean nfcManager_doActivateLlcp(JNIEnv*, jobject) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s", __func__);
   return JNI_TRUE;
 }
@@ -1598,10 +1598,10 @@ static jboolean nfcManager_doActivateLlcp(JNIEnv *, jobject) {
 ** Returns:         None
 **
 *******************************************************************************/
-static void nfcManager_doAbort(JNIEnv *e, jobject, jstring msg) {
+static void nfcManager_doAbort(JNIEnv* e, jobject, jstring msg) {
   ScopedUtfChars message = {e, msg};
   e->FatalError(message.c_str());
-  abort(); // <-- Unreachable
+  abort();  // <-- Unreachable
 }
 
 /*******************************************************************************
@@ -1613,11 +1613,11 @@ static void nfcManager_doAbort(JNIEnv *e, jobject, jstring msg) {
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-static jboolean nfcManager_doDownload(JNIEnv *, jobject) {
+static jboolean nfcManager_doDownload(JNIEnv*, jobject) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter", __func__);
-  NfcAdaptation &theInstance = NfcAdaptation::GetInstance();
+  NfcAdaptation& theInstance = NfcAdaptation::GetInstance();
 
-  theInstance.Initialize(); // start GKI, NCI task, NFC task
+  theInstance.Initialize();  // start GKI, NCI task, NFC task
   theInstance.DownloadFirmware();
   theInstance.Finalize();
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: exit", __func__);
@@ -1633,7 +1633,7 @@ static jboolean nfcManager_doDownload(JNIEnv *, jobject) {
 ** Returns:         None
 **
 *******************************************************************************/
-static void nfcManager_doResetTimeouts(JNIEnv *, jobject) {
+static void nfcManager_doResetTimeouts(JNIEnv*, jobject) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s", __func__);
   NfcTag::getInstance().resetAllTransceiveTimeouts();
 }
@@ -1651,8 +1651,7 @@ static void nfcManager_doResetTimeouts(JNIEnv *, jobject) {
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-static bool nfcManager_doSetTimeout(JNIEnv *, jobject, jint tech,
-                                    jint timeout) {
+static bool nfcManager_doSetTimeout(JNIEnv*, jobject, jint tech, jint timeout) {
   if (timeout <= 0) {
     LOG(ERROR) << StringPrintf("%s: Timeout must be positive.", __func__);
     return false;
@@ -1675,7 +1674,7 @@ static bool nfcManager_doSetTimeout(JNIEnv *, jobject, jint tech,
 ** Returns:         Timeout value.
 **
 *******************************************************************************/
-static jint nfcManager_doGetTimeout(JNIEnv *, jobject, jint tech) {
+static jint nfcManager_doGetTimeout(JNIEnv*, jobject, jint tech) {
   int timeout = NfcTag::getInstance().getTransceiveTimeout(tech);
   DLOG_IF(INFO, nfc_debug_enabled)
       << StringPrintf("%s: tech=%d, timeout=%d", __func__, tech, timeout);
@@ -1694,20 +1693,19 @@ static jint nfcManager_doGetTimeout(JNIEnv *, jobject, jint tech) {
 ** Returns:         Void
 **
 *******************************************************************************/
-static void nfcManager_doDump(JNIEnv *e, jobject obj, jobject fdobj) {
+static void nfcManager_doDump(JNIEnv* e, jobject obj, jobject fdobj) {
   int fd = jniGetFDFromFileDescriptor(e, fdobj);
-  if (fd < 0)
-    return;
+  if (fd < 0) return;
 
-  NfcAdaptation &theInstance = NfcAdaptation::GetInstance();
+  NfcAdaptation& theInstance = NfcAdaptation::GetInstance();
   theInstance.Dump(fd);
 }
 
-static jint nfcManager_doGetNciVersion(JNIEnv *, jobject) {
+static jint nfcManager_doGetNciVersion(JNIEnv*, jobject) {
   return NFC_GetNCIVersion();
 }
 
-static void nfcManager_doSetScreenState(JNIEnv *e, jobject o,
+static void nfcManager_doSetScreenState(JNIEnv* e, jobject o,
                                         jint screen_state_mask) {
   tNFA_STATUS status = NFA_STATUS_OK;
   uint8_t state = (screen_state_mask & NFA_SCREEN_STATE_MASK);
@@ -1794,25 +1792,19 @@ static void nfcManager_doSetScreenState(JNIEnv *e, jobject o,
 ** Returns:         None.
 **
 *******************************************************************************/
-static void nfcManager_doSetP2pInitiatorModes(JNIEnv *e, jobject o,
+static void nfcManager_doSetP2pInitiatorModes(JNIEnv* e, jobject o,
                                               jint modes) {
   DLOG_IF(INFO, nfc_debug_enabled)
       << StringPrintf("%s: modes=0x%X", __func__, modes);
-  struct nfc_jni_native_data *nat = getNative(e, o);
+  struct nfc_jni_native_data* nat = getNative(e, o);
 
   tNFA_TECHNOLOGY_MASK mask = 0;
-  if (modes & 0x01)
-    mask |= NFA_TECHNOLOGY_MASK_A;
-  if (modes & 0x02)
-    mask |= NFA_TECHNOLOGY_MASK_F;
-  if (modes & 0x04)
-    mask |= NFA_TECHNOLOGY_MASK_F;
-  if (modes & 0x08)
-    mask |= NFA_TECHNOLOGY_MASK_A_ACTIVE;
-  if (modes & 0x10)
-    mask |= NFA_TECHNOLOGY_MASK_F_ACTIVE;
-  if (modes & 0x20)
-    mask |= NFA_TECHNOLOGY_MASK_F_ACTIVE;
+  if (modes & 0x01) mask |= NFA_TECHNOLOGY_MASK_A;
+  if (modes & 0x02) mask |= NFA_TECHNOLOGY_MASK_F;
+  if (modes & 0x04) mask |= NFA_TECHNOLOGY_MASK_F;
+  if (modes & 0x08) mask |= NFA_TECHNOLOGY_MASK_A_ACTIVE;
+  if (modes & 0x10) mask |= NFA_TECHNOLOGY_MASK_F_ACTIVE;
+  if (modes & 0x20) mask |= NFA_TECHNOLOGY_MASK_F_ACTIVE;
   nat->tech_mask = mask;
 }
 
@@ -1828,29 +1820,26 @@ static void nfcManager_doSetP2pInitiatorModes(JNIEnv *e, jobject o,
 ** Returns:         None.
 **
 *******************************************************************************/
-static void nfcManager_doSetP2pTargetModes(JNIEnv *, jobject, jint modes) {
+static void nfcManager_doSetP2pTargetModes(JNIEnv*, jobject, jint modes) {
   DLOG_IF(INFO, nfc_debug_enabled)
       << StringPrintf("%s: modes=0x%X", __func__, modes);
   // Map in the right modes
   tNFA_TECHNOLOGY_MASK mask = 0;
-  if (modes & 0x01)
-    mask |= NFA_TECHNOLOGY_MASK_A;
-  if (modes & 0x02)
-    mask |= NFA_TECHNOLOGY_MASK_F;
-  if (modes & 0x04)
-    mask |= NFA_TECHNOLOGY_MASK_F;
+  if (modes & 0x01) mask |= NFA_TECHNOLOGY_MASK_A;
+  if (modes & 0x02) mask |= NFA_TECHNOLOGY_MASK_F;
+  if (modes & 0x04) mask |= NFA_TECHNOLOGY_MASK_F;
   if (modes & 0x08)
     mask |= NFA_TECHNOLOGY_MASK_A_ACTIVE | NFA_TECHNOLOGY_MASK_F_ACTIVE;
 
   PeerToPeer::getInstance().setP2pListenMask(mask);
 }
 
-static void nfcManager_doEnableScreenOffSuspend(JNIEnv *e, jobject o) {
+static void nfcManager_doEnableScreenOffSuspend(JNIEnv* e, jobject o) {
   PowerSwitch::getInstance().setScreenOffPowerState(
       PowerSwitch::POWER_STATE_FULL);
 }
 
-static void nfcManager_doDisableScreenOffSuspend(JNIEnv *e, jobject o) {
+static void nfcManager_doDisableScreenOffSuspend(JNIEnv* e, jobject o) {
   PowerSwitch::getInstance().setScreenOffPowerState(
       PowerSwitch::POWER_STATE_OFF);
 }
@@ -1861,78 +1850,78 @@ static void nfcManager_doDisableScreenOffSuspend(JNIEnv *e, jobject o) {
 **
 *****************************************************************************/
 static JNINativeMethod gMethods[] = {
-    {"doDownload", "()Z", (void *)nfcManager_doDownload},
+    {"doDownload", "()Z", (void*)nfcManager_doDownload},
 
-    {"initializeNativeStructure", "()Z", (void *)nfcManager_initNativeStruc},
+    {"initializeNativeStructure", "()Z", (void*)nfcManager_initNativeStruc},
 
-    {"doInitialize", "()Z", (void *)nfcManager_doInitialize},
+    {"doInitialize", "()Z", (void*)nfcManager_doInitialize},
 
-    {"doDeinitialize", "()Z", (void *)nfcManager_doDeinitialize},
+    {"doDeinitialize", "()Z", (void*)nfcManager_doDeinitialize},
 
-    {"sendRawFrame", "([B)Z", (void *)nfcManager_sendRawFrame},
+    {"sendRawFrame", "([B)Z", (void*)nfcManager_sendRawFrame},
 
-    {"routeAid", "([BII)Z", (void *)nfcManager_routeAid},
+    {"routeAid", "([BII)Z", (void*)nfcManager_routeAid},
 
-    {"unrouteAid", "([B)Z", (void *)nfcManager_unrouteAid},
+    {"unrouteAid", "([B)Z", (void*)nfcManager_unrouteAid},
 
-    {"commitRouting", "()Z", (void *)nfcManager_commitRouting},
+    {"commitRouting", "()Z", (void*)nfcManager_commitRouting},
 
     {"doRegisterT3tIdentifier", "([B)I",
-     (void *)nfcManager_doRegisterT3tIdentifier},
+     (void*)nfcManager_doRegisterT3tIdentifier},
 
     {"doDeregisterT3tIdentifier", "(I)V",
-     (void *)nfcManager_doDeregisterT3tIdentifier},
+     (void*)nfcManager_doDeregisterT3tIdentifier},
 
-    {"getLfT3tMax", "()I", (void *)nfcManager_getLfT3tMax},
+    {"getLfT3tMax", "()I", (void*)nfcManager_getLfT3tMax},
 
-    {"doEnableDiscovery", "(IZZZZZ)V", (void *)nfcManager_enableDiscovery},
+    {"doEnableDiscovery", "(IZZZZZ)V", (void*)nfcManager_enableDiscovery},
 
-    {"doCheckLlcp", "()Z", (void *)nfcManager_doCheckLlcp},
+    {"doCheckLlcp", "()Z", (void*)nfcManager_doCheckLlcp},
 
-    {"doActivateLlcp", "()Z", (void *)nfcManager_doActivateLlcp},
+    {"doActivateLlcp", "()Z", (void*)nfcManager_doActivateLlcp},
 
     {"doCreateLlcpConnectionlessSocket",
      "(ILjava/lang/String;)Lcom/android/nfc/dhimpl/"
      "NativeLlcpConnectionlessSocket;",
-     (void *)nfcManager_doCreateLlcpConnectionlessSocket},
+     (void*)nfcManager_doCreateLlcpConnectionlessSocket},
 
     {"doCreateLlcpServiceSocket",
      "(ILjava/lang/String;III)Lcom/android/nfc/dhimpl/NativeLlcpServiceSocket;",
-     (void *)nfcManager_doCreateLlcpServiceSocket},
+     (void*)nfcManager_doCreateLlcpServiceSocket},
 
     {"doCreateLlcpSocket", "(IIII)Lcom/android/nfc/dhimpl/NativeLlcpSocket;",
-     (void *)nfcManager_doCreateLlcpSocket},
+     (void*)nfcManager_doCreateLlcpSocket},
 
-    {"doGetLastError", "()I", (void *)nfcManager_doGetLastError},
+    {"doGetLastError", "()I", (void*)nfcManager_doGetLastError},
 
-    {"disableDiscovery", "()V", (void *)nfcManager_disableDiscovery},
+    {"disableDiscovery", "()V", (void*)nfcManager_disableDiscovery},
 
-    {"doSetTimeout", "(II)Z", (void *)nfcManager_doSetTimeout},
+    {"doSetTimeout", "(II)Z", (void*)nfcManager_doSetTimeout},
 
-    {"doGetTimeout", "(I)I", (void *)nfcManager_doGetTimeout},
+    {"doGetTimeout", "(I)I", (void*)nfcManager_doGetTimeout},
 
-    {"doResetTimeouts", "()V", (void *)nfcManager_doResetTimeouts},
+    {"doResetTimeouts", "()V", (void*)nfcManager_doResetTimeouts},
 
-    {"doAbort", "(Ljava/lang/String;)V", (void *)nfcManager_doAbort},
+    {"doAbort", "(Ljava/lang/String;)V", (void*)nfcManager_doAbort},
 
     {"doSetP2pInitiatorModes", "(I)V",
-     (void *)nfcManager_doSetP2pInitiatorModes},
+     (void*)nfcManager_doSetP2pInitiatorModes},
 
-    {"doSetP2pTargetModes", "(I)V", (void *)nfcManager_doSetP2pTargetModes},
+    {"doSetP2pTargetModes", "(I)V", (void*)nfcManager_doSetP2pTargetModes},
 
     {"doEnableScreenOffSuspend", "()V",
-     (void *)nfcManager_doEnableScreenOffSuspend},
+     (void*)nfcManager_doEnableScreenOffSuspend},
 
-    {"doSetScreenState", "(I)V", (void *)nfcManager_doSetScreenState},
+    {"doSetScreenState", "(I)V", (void*)nfcManager_doSetScreenState},
 
     {"doDisableScreenOffSuspend", "()V",
-     (void *)nfcManager_doDisableScreenOffSuspend},
+     (void*)nfcManager_doDisableScreenOffSuspend},
 
-    {"doDump", "(Ljava/io/FileDescriptor;)V", (void *)nfcManager_doDump},
+    {"doDump", "(Ljava/io/FileDescriptor;)V", (void*)nfcManager_doDump},
 
-    {"getNciVersion", "()I", (void *)nfcManager_doGetNciVersion},
-    {"doEnableDtaMode", "()V", (void *)nfcManager_doEnableDtaMode},
-    {"doDisableDtaMode", "()V", (void *)nfcManager_doDisableDtaMode}
+    {"getNciVersion", "()I", (void*)nfcManager_doGetNciVersion},
+    {"doEnableDtaMode", "()V", (void*)nfcManager_doEnableDtaMode},
+    {"doDisableDtaMode", "()V", (void*)nfcManager_doDisableDtaMode}
 
 };
 
@@ -1946,7 +1935,7 @@ static JNINativeMethod gMethods[] = {
 ** Returns:         Status of registration.
 **
 *******************************************************************************/
-int register_com_android_nfc_NativeNfcManager(JNIEnv *e) {
+int register_com_android_nfc_NativeNfcManager(JNIEnv* e) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter", __func__);
   PowerSwitch::getInstance().initialize(PowerSwitch::UNKNOWN_LEVEL);
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: exit", __func__);
@@ -1973,7 +1962,7 @@ void startRfDiscovery(bool isStart) {
   SyncEventGuard guard(sNfaEnableDisablePollingEvent);
   status = isStart ? NFA_StartRfDiscovery() : NFA_StopRfDiscovery();
   if (status == NFA_STATUS_OK) {
-    sNfaEnableDisablePollingEvent.wait(); // wait for NFA_RF_DISCOVERY_xxxx_EVT
+    sNfaEnableDisablePollingEvent.wait();  // wait for NFA_RF_DISCOVERY_xxxx_EVT
     sRfEnabled = isStart;
   } else {
     LOG(ERROR) << StringPrintf(
@@ -2003,7 +1992,7 @@ bool isDiscoveryStarted() { return sRfEnabled; }
 **
 *******************************************************************************/
 void doStartupConfig() {
-  struct nfc_jni_native_data *nat = getNative(0, 0);
+  struct nfc_jni_native_data* nat = getNative(0, 0);
   tNFA_STATUS stat = NFA_STATUS_FAILED;
   int actualLen = 0;
 
@@ -2015,15 +2004,14 @@ void doStartupConfig() {
     SyncEventGuard guard(sNfaSetConfigEvent);
     stat = NFA_SetConfig(NCI_PARAM_ID_ACT_ORDER, sizeof(act_mode_order_param),
                          &act_mode_order_param[0]);
-    if (stat == NFA_STATUS_OK)
-      sNfaSetConfigEvent.wait();
+    if (stat == NFA_STATUS_OK) sNfaSetConfigEvent.wait();
   }
 
   // configure RF polling frequency for each technology
   static tNFA_DM_DISC_FREQ_CFG nfa_dm_disc_freq_cfg;
   // values in the polling_frequency[] map to members of nfa_dm_disc_freq_cfg
   uint8_t polling_frequency[8] = {1, 1, 1, 1, 1, 1, 1, 1};
-  actualLen = GetStrValue(NAME_POLL_FREQUENCY, (char *)polling_frequency, 8);
+  actualLen = GetStrValue(NAME_POLL_FREQUENCY, (char*)polling_frequency, 8);
   if (actualLen == 8) {
     DLOG_IF(INFO, nfc_debug_enabled)
         << StringPrintf("%s: polling frequency", __func__);
@@ -2076,8 +2064,8 @@ void startStopPolling(bool isStartPolling) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: exit", __func__);
 }
 
-static tNFA_STATUS
-startPolling_rfDiscoveryDisabled(tNFA_TECHNOLOGY_MASK tech_mask) {
+static tNFA_STATUS startPolling_rfDiscoveryDisabled(
+    tNFA_TECHNOLOGY_MASK tech_mask) {
   tNFA_STATUS stat = NFA_STATUS_FAILED;
 
   unsigned long num = 0;
@@ -2096,7 +2084,7 @@ startPolling_rfDiscoveryDisabled(tNFA_TECHNOLOGY_MASK tech_mask) {
     DLOG_IF(INFO, nfc_debug_enabled)
         << StringPrintf("%s: wait for enable event", __func__);
     sPollingEnabled = true;
-    sNfaEnableDisablePollingEvent.wait(); // wait for NFA_POLL_ENABLED_EVT
+    sNfaEnableDisablePollingEvent.wait();  // wait for NFA_POLL_ENABLED_EVT
   } else {
     LOG(ERROR) << StringPrintf("%s: fail enable polling; error=0x%X", __func__,
                                stat);
@@ -2116,7 +2104,7 @@ static tNFA_STATUS stopPolling_rfDiscoveryDisabled() {
   stat = NFA_DisablePolling();
   if (stat == NFA_STATUS_OK) {
     sPollingEnabled = false;
-    sNfaEnableDisablePollingEvent.wait(); // wait for NFA_POLL_DISABLED_EVT
+    sNfaEnableDisablePollingEvent.wait();  // wait for NFA_POLL_DISABLED_EVT
   } else {
     LOG(ERROR) << StringPrintf("%s: fail disable polling; error=0x%X", __func__,
                                stat);
