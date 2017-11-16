@@ -50,7 +50,7 @@ DataQueue::DataQueue() {}
 DataQueue::~DataQueue() {
   mMutex.lock();
   while (mQueue.empty() == false) {
-    tHeader *header = mQueue.front();
+    tHeader* header = mQueue.front();
     mQueue.pop_front();
     free(header);
   }
@@ -75,14 +75,13 @@ bool DataQueue::isEmpty() {
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-bool DataQueue::enqueue(uint8_t *data, uint16_t dataLen) {
-  if ((data == NULL) || (dataLen == 0))
-    return false;
+bool DataQueue::enqueue(uint8_t* data, uint16_t dataLen) {
+  if ((data == NULL) || (dataLen == 0)) return false;
 
   mMutex.lock();
 
   bool retval = false;
-  tHeader *header = (tHeader *)malloc(sizeof(tHeader) + dataLen);
+  tHeader* header = (tHeader*)malloc(sizeof(tHeader) + dataLen);
 
   if (header) {
     memset(header, 0, sizeof(tHeader));
@@ -111,18 +110,18 @@ bool DataQueue::enqueue(uint8_t *data, uint16_t dataLen) {
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-bool DataQueue::dequeue(uint8_t *buffer, uint16_t bufferMaxLen,
-                        uint16_t &actualLen) {
+bool DataQueue::dequeue(uint8_t* buffer, uint16_t bufferMaxLen,
+                        uint16_t& actualLen) {
   mMutex.lock();
 
-  tHeader *header = mQueue.front();
+  tHeader* header = mQueue.front();
   bool retval = false;
 
   if (header && buffer && (bufferMaxLen > 0)) {
     if (header->mDataLen <= bufferMaxLen) {
       // caller's buffer is big enough to store all data
       actualLen = header->mDataLen;
-      char *src = (char *)(header) + sizeof(tHeader) + header->mOffset;
+      char* src = (char*)(header) + sizeof(tHeader) + header->mOffset;
       memcpy(buffer, src, actualLen);
 
       mQueue.pop_front();
@@ -130,7 +129,7 @@ bool DataQueue::dequeue(uint8_t *buffer, uint16_t bufferMaxLen,
     } else {
       // caller's buffer is too small
       actualLen = bufferMaxLen;
-      char *src = (char *)(header) + sizeof(tHeader) + header->mOffset;
+      char* src = (char*)(header) + sizeof(tHeader) + header->mOffset;
       memcpy(buffer, src, actualLen);
       // adjust offset so the next dequeue() will get the remainder
       header->mDataLen -= actualLen;

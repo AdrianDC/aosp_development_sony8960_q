@@ -74,7 +74,7 @@ CondVar::~CondVar() {
 ** Returns:         None.
 **
 *******************************************************************************/
-void CondVar::wait(Mutex &mutex) {
+void CondVar::wait(Mutex& mutex) {
   int const res = pthread_cond_wait(&mCondition, mutex.nativeHandle());
   if (res) {
     LOG(ERROR) << StringPrintf("CondVar::wait: fail wait; error=0x%X", res);
@@ -91,7 +91,7 @@ void CondVar::wait(Mutex &mutex) {
 ** Returns:         True if wait is successful; false if timeout occurs.
 **
 *******************************************************************************/
-bool CondVar::wait(Mutex &mutex, long millisec) {
+bool CondVar::wait(Mutex& mutex, long millisec) {
   bool retVal = false;
   struct timespec absoluteTime;
 
@@ -113,7 +113,7 @@ bool CondVar::wait(Mutex &mutex, long millisec) {
   if ((waitResult != 0) && (waitResult != ETIMEDOUT))
     LOG(ERROR) << StringPrintf("CondVar::wait: fail timed wait; error=0x%X",
                                waitResult);
-  retVal = (waitResult == 0); // waited successfully
+  retVal = (waitResult == 0);  // waited successfully
   return retVal;
 }
 

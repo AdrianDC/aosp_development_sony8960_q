@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <nativehelper/ScopedPrimitiveArray.h>
+#include <nativehelper/ScopedUtfChars.h>
 #include "JavaClassConstants.h"
 #include "PeerToPeer.h"
 #include "_OverrideLog.h"
-#include <nativehelper/ScopedPrimitiveArray.h>
-#include <nativehelper/ScopedUtfChars.h>
 
 namespace android {
 
@@ -33,7 +33,7 @@ namespace android {
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-static jboolean nativeLlcpSocket_doConnect(JNIEnv *e, jobject o, jint nSap) {
+static jboolean nativeLlcpSocket_doConnect(JNIEnv* e, jobject o, jint nSap) {
   DLOG_IF(INFO, nfc_debug_enabled)
       << StringPrintf("%s: enter; sap=%d", __func__, nSap);
 
@@ -57,7 +57,7 @@ static jboolean nativeLlcpSocket_doConnect(JNIEnv *e, jobject o, jint nSap) {
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-static jboolean nativeLlcpSocket_doConnectBy(JNIEnv *e, jobject o, jstring sn) {
+static jboolean nativeLlcpSocket_doConnectBy(JNIEnv* e, jobject o, jstring sn) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter", __func__);
 
   PeerToPeer::tJNI_HANDLE jniHandle =
@@ -85,7 +85,7 @@ static jboolean nativeLlcpSocket_doConnectBy(JNIEnv *e, jobject o, jstring sn) {
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-static jboolean nativeLlcpSocket_doClose(JNIEnv *e, jobject o) {
+static jboolean nativeLlcpSocket_doClose(JNIEnv* e, jobject o) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter", __func__);
 
   PeerToPeer::tJNI_HANDLE jniHandle =
@@ -108,15 +108,15 @@ static jboolean nativeLlcpSocket_doClose(JNIEnv *e, jobject o) {
 ** Returns:         True if sent ok.
 **
 *******************************************************************************/
-static jboolean nativeLlcpSocket_doSend(JNIEnv *e, jobject o, jbyteArray data) {
+static jboolean nativeLlcpSocket_doSend(JNIEnv* e, jobject o, jbyteArray data) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter", __func__);
 
   ScopedByteArrayRO bytes(e, data);
 
   PeerToPeer::tJNI_HANDLE jniHandle =
       (PeerToPeer::tJNI_HANDLE)nfc_jni_get_nfc_socket_handle(e, o);
-  uint8_t *raw_ptr = const_cast<uint8_t *>(reinterpret_cast<const uint8_t *>(
-      &bytes[0])); // TODO: API bug: send should take const*!
+  uint8_t* raw_ptr = const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(
+      &bytes[0]));  // TODO: API bug: send should take const*!
   bool stat = PeerToPeer::getInstance().send(jniHandle, raw_ptr, bytes.size());
 
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: exit", __func__);
@@ -135,7 +135,7 @@ static jboolean nativeLlcpSocket_doSend(JNIEnv *e, jobject o, jbyteArray data) {
 ** Returns:         Number of bytes received.
 **
 *******************************************************************************/
-static jint nativeLlcpSocket_doReceive(JNIEnv *e, jobject o,
+static jint nativeLlcpSocket_doReceive(JNIEnv* e, jobject o,
                                        jbyteArray origBuffer) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter", __func__);
 
@@ -145,7 +145,7 @@ static jint nativeLlcpSocket_doReceive(JNIEnv *e, jobject o,
       (PeerToPeer::tJNI_HANDLE)nfc_jni_get_nfc_socket_handle(e, o);
   uint16_t actualLen = 0;
   bool stat = PeerToPeer::getInstance().receive(
-      jniHandle, reinterpret_cast<uint8_t *>(&bytes[0]), bytes.size(),
+      jniHandle, reinterpret_cast<uint8_t*>(&bytes[0]), bytes.size(),
       actualLen);
 
   jint retval = 0;
@@ -170,7 +170,7 @@ static jint nativeLlcpSocket_doReceive(JNIEnv *e, jobject o,
 ** Returns:         Peer's maximum information unit.
 **
 *******************************************************************************/
-static jint nativeLlcpSocket_doGetRemoteSocketMIU(JNIEnv *e, jobject o) {
+static jint nativeLlcpSocket_doGetRemoteSocketMIU(JNIEnv* e, jobject o) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter", __func__);
 
   PeerToPeer::tJNI_HANDLE jniHandle =
@@ -192,7 +192,7 @@ static jint nativeLlcpSocket_doGetRemoteSocketMIU(JNIEnv *e, jobject o) {
 ** Returns:         Peer's receive window size.
 **
 *******************************************************************************/
-static jint nativeLlcpSocket_doGetRemoteSocketRW(JNIEnv *e, jobject o) {
+static jint nativeLlcpSocket_doGetRemoteSocketRW(JNIEnv* e, jobject o) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter", __func__);
 
   PeerToPeer::tJNI_HANDLE jniHandle =
@@ -209,16 +209,15 @@ static jint nativeLlcpSocket_doGetRemoteSocketRW(JNIEnv *e, jobject o) {
 **
 *****************************************************************************/
 static JNINativeMethod gMethods[] = {
-    {"doConnect", "(I)Z", (void *)nativeLlcpSocket_doConnect},
+    {"doConnect", "(I)Z", (void*)nativeLlcpSocket_doConnect},
     {"doConnectBy", "(Ljava/lang/String;)Z",
-     (void *)nativeLlcpSocket_doConnectBy},
-    {"doClose", "()Z", (void *)nativeLlcpSocket_doClose},
-    {"doSend", "([B)Z", (void *)nativeLlcpSocket_doSend},
-    {"doReceive", "([B)I", (void *)nativeLlcpSocket_doReceive},
+     (void*)nativeLlcpSocket_doConnectBy},
+    {"doClose", "()Z", (void*)nativeLlcpSocket_doClose},
+    {"doSend", "([B)Z", (void*)nativeLlcpSocket_doSend},
+    {"doReceive", "([B)I", (void*)nativeLlcpSocket_doReceive},
     {"doGetRemoteSocketMiu", "()I",
-     (void *)nativeLlcpSocket_doGetRemoteSocketMIU},
-    {"doGetRemoteSocketRw", "()I",
-     (void *)nativeLlcpSocket_doGetRemoteSocketRW},
+     (void*)nativeLlcpSocket_doGetRemoteSocketMIU},
+    {"doGetRemoteSocketRw", "()I", (void*)nativeLlcpSocket_doGetRemoteSocketRW},
 };
 
 /*******************************************************************************
@@ -231,9 +230,9 @@ static JNINativeMethod gMethods[] = {
 ** Returns:         Status of registration.
 **
 *******************************************************************************/
-int register_com_android_nfc_NativeLlcpSocket(JNIEnv *e) {
+int register_com_android_nfc_NativeLlcpSocket(JNIEnv* e) {
   return jniRegisterNativeMethods(e, gNativeLlcpSocketClassName, gMethods,
                                   NELEM(gMethods));
 }
 
-} // namespace android
+}  // namespace android

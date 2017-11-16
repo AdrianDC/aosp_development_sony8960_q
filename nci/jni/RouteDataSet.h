@@ -33,11 +33,11 @@
 **
 *****************************************************************************/
 class RouteData {
-public:
+ public:
   enum RouteType { ProtocolRoute, TechnologyRoute };
   RouteType mRouteType;
 
-protected:
+ protected:
   RouteData(RouteType routeType) : mRouteType(routeType) {}
 };
 
@@ -49,16 +49,20 @@ protected:
 **
 *****************************************************************************/
 class RouteDataForProtocol : public RouteData {
-public:
-  int mNfaEeHandle; // for example 0x4f3, 0x4f4
+ public:
+  int mNfaEeHandle;  // for example 0x4f3, 0x4f4
   bool mSwitchOn;
   bool mSwitchOff;
   bool mBatteryOff;
   tNFA_PROTOCOL_MASK mProtocol;
 
   RouteDataForProtocol()
-      : RouteData(ProtocolRoute), mNfaEeHandle(NFA_HANDLE_INVALID),
-        mSwitchOn(false), mSwitchOff(false), mBatteryOff(false), mProtocol(0) {}
+      : RouteData(ProtocolRoute),
+        mNfaEeHandle(NFA_HANDLE_INVALID),
+        mSwitchOn(false),
+        mSwitchOff(false),
+        mBatteryOff(false),
+        mProtocol(0) {}
 };
 
 /*****************************************************************************
@@ -69,16 +73,19 @@ public:
 **
 *****************************************************************************/
 class RouteDataForTechnology : public RouteData {
-public:
-  int mNfaEeHandle; // for example 0x4f3, 0x4f4
+ public:
+  int mNfaEeHandle;  // for example 0x4f3, 0x4f4
   bool mSwitchOn;
   bool mSwitchOff;
   bool mBatteryOff;
   tNFA_TECHNOLOGY_MASK mTechnology;
 
   RouteDataForTechnology()
-      : RouteData(TechnologyRoute), mNfaEeHandle(NFA_HANDLE_INVALID),
-        mSwitchOn(false), mSwitchOff(false), mBatteryOff(false),
+      : RouteData(TechnologyRoute),
+        mNfaEeHandle(NFA_HANDLE_INVALID),
+        mSwitchOn(false),
+        mSwitchOff(false),
+        mBatteryOff(false),
         mTechnology(0) {}
 };
 
@@ -94,7 +101,7 @@ public:
 **
 *****************************************************************************/
 class AidBuffer {
-public:
+ public:
   /*******************************************************************************
   **
   ** Function:        AidBuffer
@@ -107,7 +114,7 @@ public:
   ** Returns:         None.
   **
   *******************************************************************************/
-  AidBuffer(std::string &aid);
+  AidBuffer(std::string& aid);
 
   /*******************************************************************************
   **
@@ -120,11 +127,11 @@ public:
   *******************************************************************************/
   ~AidBuffer();
 
-  uint8_t *buffer() { return mBuffer; };
+  uint8_t* buffer() { return mBuffer; };
   int length() { return mBufferLen; };
 
-private:
-  uint8_t *mBuffer;
+ private:
+  uint8_t* mBuffer;
   uint32_t mBufferLen;
 };
 
@@ -140,8 +147,8 @@ private:
 **
 *****************************************************************************/
 class RouteDataSet {
-public:
-  typedef std::vector<RouteData *> Database;
+ public:
+  typedef std::vector<RouteData*> Database;
   enum DatabaseSelection { DefaultRouteDatabase, SecElemRouteDatabase };
 
   /*******************************************************************************
@@ -187,7 +194,7 @@ public:
   ** Returns:         Pointer to database.
   **
   *******************************************************************************/
-  Database *getDatabase(DatabaseSelection selection);
+  Database* getDatabase(DatabaseSelection selection);
 
   /*******************************************************************************
   **
@@ -199,7 +206,7 @@ public:
   ** Returns:         True if ok.
   **
   *******************************************************************************/
-  static bool saveToFile(const char *routesXml);
+  static bool saveToFile(const char* routesXml);
 
   /*******************************************************************************
   **
@@ -211,7 +218,7 @@ public:
   ** Returns:         True if ok.
   **
   *******************************************************************************/
-  static bool loadFromFile(std::string &routesXml);
+  static bool loadFromFile(std::string& routesXml);
 
   /*******************************************************************************
   **
@@ -235,10 +242,10 @@ public:
   *******************************************************************************/
   void printDiagnostic();
 
-private:
-  Database mSecElemRouteDatabase; // routes when NFC service selects sec elem
-  Database mDefaultRouteDatabase; // routes when NFC service deselects sec elem
-  static const char *sConfigFile;
+ private:
+  Database mSecElemRouteDatabase;  // routes when NFC service selects sec elem
+  Database mDefaultRouteDatabase;  // routes when NFC service deselects sec elem
+  static const char* sConfigFile;
   static const bool sDebug = false;
 
   /*******************************************************************************
@@ -263,7 +270,7 @@ private:
   ** Returns:         None.
   **
   *******************************************************************************/
-  void importProtocolRoute(xmlNodePtr &element, Database &database);
+  void importProtocolRoute(xmlNodePtr& element, Database& database);
 
   /*******************************************************************************
   **
@@ -276,5 +283,5 @@ private:
   ** Returns:         None.
   **
   *******************************************************************************/
-  void importTechnologyRoute(xmlNodePtr &element, Database &database);
+  void importTechnologyRoute(xmlNodePtr& element, Database& database);
 };

@@ -18,11 +18,11 @@
  *  Import and export general routing data using a XML file.
  */
 #include "RouteDataSet.h"
-#include "_OverrideLog.h"
-#include "libxml/xmlmemory.h"
 #include <base/logging.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include "_OverrideLog.h"
+#include "libxml/xmlmemory.h"
 
 extern char bcm_nfc_location[];
 
@@ -37,7 +37,7 @@ extern char bcm_nfc_location[];
 ** Returns:         None.
 **
 *******************************************************************************/
-AidBuffer::AidBuffer(std::string &aid) : mBuffer(NULL), mBufferLen(0) {
+AidBuffer::AidBuffer(std::string& aid) : mBuffer(NULL), mBufferLen(0) {
   unsigned int num = 0;
   const char delimiter = ':';
   std::string::size_type pos1 = 0;
@@ -76,7 +76,7 @@ AidBuffer::~AidBuffer() { delete[] mBuffer; }
 /*******************************************************************************/
 /*******************************************************************************/
 
-const char *RouteDataSet::sConfigFile = "/param/route.xml";
+const char* RouteDataSet::sConfigFile = "/param/route.xml";
 
 /*******************************************************************************
 **
@@ -171,43 +171,42 @@ bool RouteDataSet::import() {
       << StringPrintf("%s: root=%s", fn, node1->name);
 
   node1 = node1->xmlChildrenNode;
-  while (node1) // loop through all elements in <Routes ...
+  while (node1)  // loop through all elements in <Routes ...
   {
-    if (xmlStrcmp(node1->name, (const xmlChar *)"Route") == 0) {
-      xmlChar *value = xmlGetProp(node1, (const xmlChar *)"Type");
+    if (xmlStrcmp(node1->name, (const xmlChar*)"Route") == 0) {
+      xmlChar* value = xmlGetProp(node1, (const xmlChar*)"Type");
       if (value &&
-          (xmlStrcmp(value, (const xmlChar *)"SecElemSelectedRoutes") == 0)) {
+          (xmlStrcmp(value, (const xmlChar*)"SecElemSelectedRoutes") == 0)) {
         DLOG_IF(INFO, nfc_debug_enabled)
             << StringPrintf("%s: found SecElemSelectedRoutes", fn);
         xmlNodePtr node2 = node1->xmlChildrenNode;
-        while (node2) // loop all elements in <Route
-                      // Type="SecElemSelectedRoutes" ...
+        while (node2)  // loop all elements in <Route
+                       // Type="SecElemSelectedRoutes" ...
         {
-          if (xmlStrcmp(node2->name, (const xmlChar *)"Proto") == 0)
+          if (xmlStrcmp(node2->name, (const xmlChar*)"Proto") == 0)
             importProtocolRoute(node2, mSecElemRouteDatabase);
-          else if (xmlStrcmp(node2->name, (const xmlChar *)"Tech") == 0)
+          else if (xmlStrcmp(node2->name, (const xmlChar*)"Tech") == 0)
             importTechnologyRoute(node2, mSecElemRouteDatabase);
           node2 = node2->next;
-        } // loop all elements in <Route Type="SecElemSelectedRoutes" ...
+        }  // loop all elements in <Route Type="SecElemSelectedRoutes" ...
       } else if (value &&
-                 (xmlStrcmp(value, (const xmlChar *)"DefaultRoutes") == 0)) {
+                 (xmlStrcmp(value, (const xmlChar*)"DefaultRoutes") == 0)) {
         DLOG_IF(INFO, nfc_debug_enabled)
             << StringPrintf("%s: found DefaultRoutes", fn);
         xmlNodePtr node2 = node1->xmlChildrenNode;
-        while (node2) // loop all elements in <Route Type="DefaultRoutes" ...
+        while (node2)  // loop all elements in <Route Type="DefaultRoutes" ...
         {
-          if (xmlStrcmp(node2->name, (const xmlChar *)"Proto") == 0)
+          if (xmlStrcmp(node2->name, (const xmlChar*)"Proto") == 0)
             importProtocolRoute(node2, mDefaultRouteDatabase);
-          else if (xmlStrcmp(node2->name, (const xmlChar *)"Tech") == 0)
+          else if (xmlStrcmp(node2->name, (const xmlChar*)"Tech") == 0)
             importTechnologyRoute(node2, mDefaultRouteDatabase);
           node2 = node2->next;
-        } // loop all elements in <Route Type="DefaultRoutes" ...
+        }  // loop all elements in <Route Type="DefaultRoutes" ...
       }
-      if (value)
-        xmlFree(value);
-    } // check <Route ...
+      if (value) xmlFree(value);
+    }  // check <Route ...
     node1 = node1->next;
-  } // loop through all elements in <Routes ...
+  }  // loop through all elements in <Routes ...
   retval = true;
 
 TheEnd:
@@ -228,9 +227,9 @@ TheEnd:
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-bool RouteDataSet::saveToFile(const char *routesXml) {
+bool RouteDataSet::saveToFile(const char* routesXml) {
   static const char fn[] = "RouteDataSet::saveToFile";
-  FILE *fh = NULL;
+  FILE* fh = NULL;
   size_t actualWritten = 0;
   bool retval = false;
   std::string filename(bcm_nfc_location);
@@ -248,14 +247,12 @@ bool RouteDataSet::saveToFile(const char *routesXml) {
   fclose(fh);
   DLOG_IF(INFO, nfc_debug_enabled)
       << StringPrintf("%s: wrote %zu bytes", fn, actualWritten);
-  if (retval == false)
-    LOG(ERROR) << StringPrintf("%s: error during write", fn);
+  if (retval == false) LOG(ERROR) << StringPrintf("%s: error during write", fn);
 
   // set file permission to
   // owner read, write; group read; other read
   stat = chmod(filename.c_str(), S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-  if (stat == -1)
-    LOG(ERROR) << StringPrintf("%s: error during chmod", fn);
+  if (stat == -1) LOG(ERROR) << StringPrintf("%s: error during chmod", fn);
   return retval;
 }
 
@@ -269,8 +266,8 @@ bool RouteDataSet::saveToFile(const char *routesXml) {
 ** Returns:         True if ok.
 **
 *******************************************************************************/
-bool RouteDataSet::loadFromFile(std::string &routesXml) {
-  FILE *fh = NULL;
+bool RouteDataSet::loadFromFile(std::string& routesXml) {
+  FILE* fh = NULL;
   size_t actual = 0;
   char buffer[1024];
   std::string filename(bcm_nfc_location);
@@ -285,8 +282,7 @@ bool RouteDataSet::loadFromFile(std::string &routesXml) {
 
   while (true) {
     actual = fread(buffer, sizeof(char), sizeof(buffer), fh);
-    if (actual == 0)
-      break;
+    if (actual == 0) break;
     routesXml.append(buffer, actual);
   }
   fclose(fh);
@@ -306,28 +302,28 @@ bool RouteDataSet::loadFromFile(std::string &routesXml) {
 ** Returns:         None.
 **
 *******************************************************************************/
-void RouteDataSet::importProtocolRoute(xmlNodePtr &element,
-                                       Database &database) {
-  const xmlChar *id = (const xmlChar *)"Id";
-  const xmlChar *secElem = (const xmlChar *)"SecElem";
-  const xmlChar *trueString = (const xmlChar *)"true";
-  const xmlChar *switchOn = (const xmlChar *)"SwitchOn";
-  const xmlChar *switchOff = (const xmlChar *)"SwitchOff";
-  const xmlChar *batteryOff = (const xmlChar *)"BatteryOff";
-  RouteDataForProtocol *data = new RouteDataForProtocol;
-  xmlChar *value = NULL;
+void RouteDataSet::importProtocolRoute(xmlNodePtr& element,
+                                       Database& database) {
+  const xmlChar* id = (const xmlChar*)"Id";
+  const xmlChar* secElem = (const xmlChar*)"SecElem";
+  const xmlChar* trueString = (const xmlChar*)"true";
+  const xmlChar* switchOn = (const xmlChar*)"SwitchOn";
+  const xmlChar* switchOff = (const xmlChar*)"SwitchOff";
+  const xmlChar* batteryOff = (const xmlChar*)"BatteryOff";
+  RouteDataForProtocol* data = new RouteDataForProtocol;
+  xmlChar* value = NULL;
 
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
       "%s: element=%s", "RouteDataSet::importProtocolRoute", element->name);
   value = xmlGetProp(element, id);
   if (value) {
-    if (xmlStrcmp(value, (const xmlChar *)"T1T") == 0)
+    if (xmlStrcmp(value, (const xmlChar*)"T1T") == 0)
       data->mProtocol = NFA_PROTOCOL_MASK_T1T;
-    else if (xmlStrcmp(value, (const xmlChar *)"T2T") == 0)
+    else if (xmlStrcmp(value, (const xmlChar*)"T2T") == 0)
       data->mProtocol = NFA_PROTOCOL_MASK_T2T;
-    else if (xmlStrcmp(value, (const xmlChar *)"T3T") == 0)
+    else if (xmlStrcmp(value, (const xmlChar*)"T3T") == 0)
       data->mProtocol = NFA_PROTOCOL_MASK_T3T;
-    else if (xmlStrcmp(value, (const xmlChar *)"IsoDep") == 0)
+    else if (xmlStrcmp(value, (const xmlChar*)"IsoDep") == 0)
       data->mProtocol = NFA_PROTOCOL_MASK_ISO_DEP;
     xmlFree(value);
     DLOG_IF(INFO, nfc_debug_enabled)
@@ -337,7 +333,7 @@ void RouteDataSet::importProtocolRoute(xmlNodePtr &element,
 
   value = xmlGetProp(element, secElem);
   if (value) {
-    data->mNfaEeHandle = strtol((char *)value, NULL, 16);
+    data->mNfaEeHandle = strtol((char*)value, NULL, 16);
     xmlFree(value);
     data->mNfaEeHandle = data->mNfaEeHandle | NFA_HANDLE_GROUP_EE;
     DLOG_IF(INFO, nfc_debug_enabled)
@@ -376,26 +372,26 @@ void RouteDataSet::importProtocolRoute(xmlNodePtr &element,
 ** Returns:         None.
 **
 *******************************************************************************/
-void RouteDataSet::importTechnologyRoute(xmlNodePtr &element,
-                                         Database &database) {
-  const xmlChar *id = (const xmlChar *)"Id";
-  const xmlChar *secElem = (const xmlChar *)"SecElem";
-  const xmlChar *trueString = (const xmlChar *)"true";
-  const xmlChar *switchOn = (const xmlChar *)"SwitchOn";
-  const xmlChar *switchOff = (const xmlChar *)"SwitchOff";
-  const xmlChar *batteryOff = (const xmlChar *)"BatteryOff";
-  RouteDataForTechnology *data = new RouteDataForTechnology;
-  xmlChar *value = NULL;
+void RouteDataSet::importTechnologyRoute(xmlNodePtr& element,
+                                         Database& database) {
+  const xmlChar* id = (const xmlChar*)"Id";
+  const xmlChar* secElem = (const xmlChar*)"SecElem";
+  const xmlChar* trueString = (const xmlChar*)"true";
+  const xmlChar* switchOn = (const xmlChar*)"SwitchOn";
+  const xmlChar* switchOff = (const xmlChar*)"SwitchOff";
+  const xmlChar* batteryOff = (const xmlChar*)"BatteryOff";
+  RouteDataForTechnology* data = new RouteDataForTechnology;
+  xmlChar* value = NULL;
 
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
       "%s: element=%s", "RouteDataSet::importTechnologyRoute", element->name);
   value = xmlGetProp(element, id);
   if (value) {
-    if (xmlStrcmp(value, (const xmlChar *)"NfcA") == 0)
+    if (xmlStrcmp(value, (const xmlChar*)"NfcA") == 0)
       data->mTechnology = NFA_TECHNOLOGY_MASK_A;
-    else if (xmlStrcmp(value, (const xmlChar *)"NfcB") == 0)
+    else if (xmlStrcmp(value, (const xmlChar*)"NfcB") == 0)
       data->mTechnology = NFA_TECHNOLOGY_MASK_B;
-    else if (xmlStrcmp(value, (const xmlChar *)"NfcF") == 0)
+    else if (xmlStrcmp(value, (const xmlChar*)"NfcF") == 0)
       data->mTechnology = NFA_TECHNOLOGY_MASK_F;
     xmlFree(value);
     DLOG_IF(INFO, nfc_debug_enabled)
@@ -405,7 +401,7 @@ void RouteDataSet::importTechnologyRoute(xmlNodePtr &element,
 
   value = xmlGetProp(element, secElem);
   if (value) {
-    data->mNfaEeHandle = strtol((char *)value, NULL, 16);
+    data->mNfaEeHandle = strtol((char*)value, NULL, 16);
     xmlFree(value);
     data->mNfaEeHandle = data->mNfaEeHandle | NFA_HANDLE_GROUP_EE;
     DLOG_IF(INFO, nfc_debug_enabled)
@@ -462,12 +458,12 @@ bool RouteDataSet::deleteFile() {
 ** Returns:         Pointer to database.
 **
 *******************************************************************************/
-RouteDataSet::Database *RouteDataSet::getDatabase(DatabaseSelection selection) {
+RouteDataSet::Database* RouteDataSet::getDatabase(DatabaseSelection selection) {
   switch (selection) {
-  case DefaultRouteDatabase:
-    return &mDefaultRouteDatabase;
-  case SecElemRouteDatabase:
-    return &mSecElemRouteDatabase;
+    case DefaultRouteDatabase:
+      return &mDefaultRouteDatabase;
+    case SecElemRouteDatabase:
+      return &mSecElemRouteDatabase;
   }
   return NULL;
 }
@@ -483,25 +479,25 @@ RouteDataSet::Database *RouteDataSet::getDatabase(DatabaseSelection selection) {
 *******************************************************************************/
 void RouteDataSet::printDiagnostic() {
   static const char fn[] = "RouteDataSet::printDiagnostic";
-  Database *db = getDatabase(DefaultRouteDatabase);
+  Database* db = getDatabase(DefaultRouteDatabase);
 
   DLOG_IF(INFO, nfc_debug_enabled)
       << StringPrintf("%s: default route database", fn);
   for (Database::iterator iter = db->begin(); iter != db->end(); iter++) {
-    RouteData *routeData = *iter;
+    RouteData* routeData = *iter;
     switch (routeData->mRouteType) {
-    case RouteData::ProtocolRoute: {
-      RouteDataForProtocol *proto = (RouteDataForProtocol *)routeData;
-      DLOG_IF(INFO, nfc_debug_enabled)
-          << StringPrintf("%s: ee h=0x%X; protocol=0x%X", fn,
-                          proto->mNfaEeHandle, proto->mProtocol);
-    } break;
-    case RouteData::TechnologyRoute: {
-      RouteDataForTechnology *tech = (RouteDataForTechnology *)routeData;
-      DLOG_IF(INFO, nfc_debug_enabled)
-          << StringPrintf("%s: ee h=0x%X; technology=0x%X", fn,
-                          tech->mNfaEeHandle, tech->mTechnology);
-    } break;
+      case RouteData::ProtocolRoute: {
+        RouteDataForProtocol* proto = (RouteDataForProtocol*)routeData;
+        DLOG_IF(INFO, nfc_debug_enabled)
+            << StringPrintf("%s: ee h=0x%X; protocol=0x%X", fn,
+                            proto->mNfaEeHandle, proto->mProtocol);
+      } break;
+      case RouteData::TechnologyRoute: {
+        RouteDataForTechnology* tech = (RouteDataForTechnology*)routeData;
+        DLOG_IF(INFO, nfc_debug_enabled)
+            << StringPrintf("%s: ee h=0x%X; technology=0x%X", fn,
+                            tech->mNfaEeHandle, tech->mTechnology);
+      } break;
     }
   }
 
@@ -509,20 +505,20 @@ void RouteDataSet::printDiagnostic() {
       << StringPrintf("%s: sec elem route database", fn);
   db = getDatabase(SecElemRouteDatabase);
   for (Database::iterator iter2 = db->begin(); iter2 != db->end(); iter2++) {
-    RouteData *routeData = *iter2;
+    RouteData* routeData = *iter2;
     switch (routeData->mRouteType) {
-    case RouteData::ProtocolRoute: {
-      RouteDataForProtocol *proto = (RouteDataForProtocol *)routeData;
-      DLOG_IF(INFO, nfc_debug_enabled)
-          << StringPrintf("%s: ee h=0x%X; protocol=0x%X", fn,
-                          proto->mNfaEeHandle, proto->mProtocol);
-    } break;
-    case RouteData::TechnologyRoute: {
-      RouteDataForTechnology *tech = (RouteDataForTechnology *)routeData;
-      DLOG_IF(INFO, nfc_debug_enabled)
-          << StringPrintf("%s: ee h=0x%X; technology=0x%X", fn,
-                          tech->mNfaEeHandle, tech->mTechnology);
-    } break;
+      case RouteData::ProtocolRoute: {
+        RouteDataForProtocol* proto = (RouteDataForProtocol*)routeData;
+        DLOG_IF(INFO, nfc_debug_enabled)
+            << StringPrintf("%s: ee h=0x%X; protocol=0x%X", fn,
+                            proto->mNfaEeHandle, proto->mProtocol);
+      } break;
+      case RouteData::TechnologyRoute: {
+        RouteDataForTechnology* tech = (RouteDataForTechnology*)routeData;
+        DLOG_IF(INFO, nfc_debug_enabled)
+            << StringPrintf("%s: ee h=0x%X; technology=0x%X", fn,
+                            tech->mNfaEeHandle, tech->mTechnology);
+      } break;
     }
   }
 }

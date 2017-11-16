@@ -30,7 +30,7 @@
 typedef struct {
   uint8_t type[2];
   uint8_t len;
-  uint8_t *val;
+  uint8_t* val;
 } tlv_t;
 
 typedef enum {
@@ -65,8 +65,8 @@ typedef enum {
  ** NOTE: Internally this function will use phNxpNciHal_get_version from HAL.
  *******************************************************************************/
 
-NFCSTATUS phNxpExtns_get_version(uint32_t *hw_ver, uint32_t *fw_ver,
-                                 uint32_t *sw_ver);
+NFCSTATUS phNxpExtns_get_version(uint32_t* hw_ver, uint32_t* fw_ver,
+                                 uint32_t* sw_ver);
 
 /*******************************************************************************
  **
@@ -84,7 +84,7 @@ NFCSTATUS phNxpExtns_get_version(uint32_t *hw_ver, uint32_t *fw_ver,
  **       For extended TLV, it will use NFA_SendRawFrame.
  *******************************************************************************/
 
-NFCSTATUS phNxpNciHal_read_tlv(tlv_t *tlv);
+NFCSTATUS phNxpNciHal_read_tlv(tlv_t* tlv);
 
 /*******************************************************************************
  **
@@ -101,7 +101,7 @@ NFCSTATUS phNxpNciHal_read_tlv(tlv_t *tlv);
  **       For extended TLV, it will use NFA_SendRawFrame.
  *******************************************************************************/
 
-NFCSTATUS phNxpNciHal_write_tlv(tlv_t *tlv);
+NFCSTATUS phNxpNciHal_write_tlv(tlv_t* tlv);
 
 /*******************************************************************************
  **

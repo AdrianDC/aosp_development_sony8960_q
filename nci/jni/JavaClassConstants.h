@@ -30,10 +30,10 @@ extern jmethodID gCachedNfcManagerNotifyHostEmuActivated;
 extern jmethodID gCachedNfcManagerNotifyHostEmuData;
 extern jmethodID gCachedNfcManagerNotifyHostEmuDeactivated;
 
-extern const char *gNativeP2pDeviceClassName;
-extern const char *gNativeLlcpServiceSocketClassName;
-extern const char *gNativeLlcpConnectionlessSocketClassName;
-extern const char *gNativeLlcpSocketClassName;
-extern const char *gNativeNfcTagClassName;
-extern const char *gNativeNfcManagerClassName;
-} // namespace android
+extern const char* gNativeP2pDeviceClassName;
+extern const char* gNativeLlcpServiceSocketClassName;
+extern const char* gNativeLlcpConnectionlessSocketClassName;
+extern const char* gNativeLlcpSocketClassName;
+extern const char* gNativeNfcTagClassName;
+extern const char* gNativeNfcManagerClassName;
+}  // namespace android

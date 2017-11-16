@@ -48,7 +48,8 @@ PowerSwitch::PowerSwitch()
     : mCurrLevel(UNKNOWN_LEVEL),
       mCurrDeviceMgtPowerState(NFA_DM_PWR_STATE_UNKNOWN),
       mExpectedDeviceMgtPowerState(NFA_DM_PWR_STATE_UNKNOWN),
-      mDesiredScreenOffPowerState(0), mCurrActivity(0) {}
+      mDesiredScreenOffPowerState(0),
+      mCurrActivity(0) {}
 
 /*******************************************************************************
 **
@@ -70,7 +71,7 @@ PowerSwitch::~PowerSwitch() {}
 ** Returns:         Reference to this object.
 **
 *******************************************************************************/
-PowerSwitch &PowerSwitch::getInstance() { return sPowerSwitch; }
+PowerSwitch& PowerSwitch::getInstance() { return sPowerSwitch; }
 
 /*******************************************************************************
 **
@@ -95,19 +96,19 @@ void PowerSwitch::initialize(PowerLevel level) {
       "%s: desired screen-off state=%d", fn, mDesiredScreenOffPowerState);
 
   switch (level) {
-  case FULL_POWER:
-    mCurrDeviceMgtPowerState = NFA_DM_PWR_MODE_FULL;
-    mCurrLevel = level;
-    break;
+    case FULL_POWER:
+      mCurrDeviceMgtPowerState = NFA_DM_PWR_MODE_FULL;
+      mCurrLevel = level;
+      break;
 
-  case UNKNOWN_LEVEL:
-    mCurrDeviceMgtPowerState = NFA_DM_PWR_STATE_UNKNOWN;
-    mCurrLevel = level;
-    break;
+    case UNKNOWN_LEVEL:
+      mCurrDeviceMgtPowerState = NFA_DM_PWR_STATE_UNKNOWN;
+      mCurrLevel = level;
+      break;
 
-  default:
-    LOG(ERROR) << StringPrintf("%s: not handled", fn);
-    break;
+    default:
+      LOG(ERROR) << StringPrintf("%s: not handled", fn);
+      break;
   }
   mMutex.unlock();
 }
@@ -170,25 +171,26 @@ bool PowerSwitch::setLevel(PowerLevel newLevel) {
   }
 
   switch (newLevel) {
-  case FULL_POWER:
-    if (mCurrDeviceMgtPowerState == NFA_DM_PWR_MODE_OFF_SLEEP)
-      retval = setPowerOffSleepState(false);
-    break;
+    case FULL_POWER:
+      if (mCurrDeviceMgtPowerState == NFA_DM_PWR_MODE_OFF_SLEEP)
+        retval = setPowerOffSleepState(false);
+      break;
 
-  case LOW_POWER:
-  case POWER_OFF:
-    if (isPowerOffSleepFeatureEnabled())
-      retval = setPowerOffSleepState(true);
-    else if (mDesiredScreenOffPowerState == 1) //.conf file desires full-power
-    {
-      mCurrLevel = FULL_POWER;
-      retval = true;
-    }
-    break;
+    case LOW_POWER:
+    case POWER_OFF:
+      if (isPowerOffSleepFeatureEnabled())
+        retval = setPowerOffSleepState(true);
+      else if (mDesiredScreenOffPowerState ==
+               1)  //.conf file desires full-power
+      {
+        mCurrLevel = FULL_POWER;
+        retval = true;
+      }
+      break;
 
-  default:
-    LOG(ERROR) << StringPrintf("%s: not handled", fn);
-    break;
+    default:
+      LOG(ERROR) << StringPrintf("%s: not handled", fn);
+      break;
   }
 
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
@@ -272,14 +274,14 @@ bool PowerSwitch::setPowerOffSleepState(bool sleep) {
   tNFA_STATUS stat = NFA_STATUS_FAILED;
   bool retval = false;
 
-  if (sleep) // enter power-off-sleep state
+  if (sleep)  // enter power-off-sleep state
   {
     // make sure the current power state is ON
     if (mCurrDeviceMgtPowerState != NFA_DM_PWR_MODE_OFF_SLEEP) {
       SyncEventGuard guard(mPowerStateEvent);
       mExpectedDeviceMgtPowerState =
-          NFA_DM_PWR_MODE_OFF_SLEEP; // if power adjustment is ok, then this is
-                                     // the expected state
+          NFA_DM_PWR_MODE_OFF_SLEEP;  // if power adjustment is ok, then this is
+                                      // the expected state
       DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: try power off", fn);
       stat = NFA_PowerOffSleepMode(TRUE);
       if (stat == NFA_STATUS_OK) {
@@ -296,15 +298,15 @@ bool PowerSwitch::setPowerOffSleepState(bool sleep) {
           mCurrDeviceMgtPowerState);
       goto TheEnd;
     }
-  } else // exit power-off-sleep state
+  } else  // exit power-off-sleep state
   {
     // make sure the current power state is OFF
     if (mCurrDeviceMgtPowerState != NFA_DM_PWR_MODE_FULL) {
       SyncEventGuard guard(mPowerStateEvent);
       mCurrDeviceMgtPowerState = NFA_DM_PWR_STATE_UNKNOWN;
       mExpectedDeviceMgtPowerState =
-          NFA_DM_PWR_MODE_FULL; // if power adjustment is ok, then this is the
-                                // expected state
+          NFA_DM_PWR_MODE_FULL;  // if power adjustment is ok, then this is the
+                                 // expected state
       DLOG_IF(INFO, nfc_debug_enabled)
           << StringPrintf("%s: try full power", fn);
       stat = NFA_PowerOffSleepMode(FALSE);
@@ -349,15 +351,15 @@ TheEnd:
 ** Returns:         Text representation of power level.
 **
 *******************************************************************************/
-const char *
-PowerSwitch::deviceMgtPowerStateToString(uint8_t deviceMgtPowerState) {
+const char* PowerSwitch::deviceMgtPowerStateToString(
+    uint8_t deviceMgtPowerState) {
   switch (deviceMgtPowerState) {
-  case NFA_DM_PWR_MODE_FULL:
-    return "DM-FULL";
-  case NFA_DM_PWR_MODE_OFF_SLEEP:
-    return "DM-OFF";
-  default:
-    return "DM-unknown????";
+    case NFA_DM_PWR_MODE_FULL:
+      return "DM-FULL";
+    case NFA_DM_PWR_MODE_OFF_SLEEP:
+      return "DM-OFF";
+    default:
+      return "DM-unknown????";
   }
 }
 
@@ -371,18 +373,18 @@ PowerSwitch::deviceMgtPowerStateToString(uint8_t deviceMgtPowerState) {
 ** Returns:         Text representation of power level.
 **
 *******************************************************************************/
-const char *PowerSwitch::powerLevelToString(PowerLevel level) {
+const char* PowerSwitch::powerLevelToString(PowerLevel level) {
   switch (level) {
-  case UNKNOWN_LEVEL:
-    return "PS-UNKNOWN";
-  case FULL_POWER:
-    return "PS-FULL";
-  case LOW_POWER:
-    return "PS-LOW-POWER";
-  case POWER_OFF:
-    return "PS-POWER-OFF";
-  default:
-    return "PS-unknown????";
+    case UNKNOWN_LEVEL:
+      return "PS-UNKNOWN";
+    case FULL_POWER:
+      return "PS-FULL";
+    case LOW_POWER:
+      return "PS-LOW-POWER";
+    case POWER_OFF:
+      return "PS-POWER-OFF";
+    default:
+      return "PS-unknown????";
   }
 }
 
@@ -396,17 +398,17 @@ const char *PowerSwitch::powerLevelToString(PowerLevel level) {
 ** Returns:         Text representation of power level.
 **
 *******************************************************************************/
-const char *
-PowerSwitch::screenOffPowerStateToString(ScreenOffPowerState state) {
+const char* PowerSwitch::screenOffPowerStateToString(
+    ScreenOffPowerState state) {
   switch (state) {
-  case POWER_STATE_OFF:
-    return "SOPS-POWER_OFF";
-  case POWER_STATE_FULL:
-    return "SOPS-FULL";
-  case POWER_STATE_CARD_EMULATION:
-    return "SOPS-CARD_EMULATION";
-  default:
-    return "SOPS-unknown????";
+    case POWER_STATE_OFF:
+      return "SOPS-POWER_OFF";
+    case POWER_STATE_FULL:
+      return "SOPS-FULL";
+    case POWER_STATE_CARD_EMULATION:
+      return "SOPS-CARD_EMULATION";
+    default:
+      return "SOPS-unknown????";
   }
 }
 
@@ -438,27 +440,27 @@ void PowerSwitch::abort() {
 **
 *******************************************************************************/
 void PowerSwitch::deviceManagementCallback(uint8_t event,
-                                           tNFA_DM_CBACK_DATA *eventData) {
+                                           tNFA_DM_CBACK_DATA* eventData) {
   static const char fn[] = "PowerSwitch::deviceManagementCallback";
 
   switch (event) {
-  case NFA_DM_PWR_MODE_CHANGE_EVT: {
-    tNFA_DM_PWR_MODE_CHANGE &power_mode = eventData->power_mode;
-    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
-        "%s: NFA_DM_PWR_MODE_CHANGE_EVT; status=0x%X; device mgt power "
-        "state=%s (0x%X)",
-        fn, power_mode.status,
-        sPowerSwitch.deviceMgtPowerStateToString(power_mode.power_mode),
-        power_mode.power_mode);
-    SyncEventGuard guard(sPowerSwitch.mPowerStateEvent);
-    if (power_mode.status == NFA_STATUS_OK) {
-      // the event data does not contain the newly configured power mode,
-      // so this code assigns the expected value
-      sPowerSwitch.mCurrDeviceMgtPowerState =
-          sPowerSwitch.mExpectedDeviceMgtPowerState;
-    }
-    sPowerSwitch.mPowerStateEvent.notifyOne();
-  } break;
+    case NFA_DM_PWR_MODE_CHANGE_EVT: {
+      tNFA_DM_PWR_MODE_CHANGE& power_mode = eventData->power_mode;
+      DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+          "%s: NFA_DM_PWR_MODE_CHANGE_EVT; status=0x%X; device mgt power "
+          "state=%s (0x%X)",
+          fn, power_mode.status,
+          sPowerSwitch.deviceMgtPowerStateToString(power_mode.power_mode),
+          power_mode.power_mode);
+      SyncEventGuard guard(sPowerSwitch.mPowerStateEvent);
+      if (power_mode.status == NFA_STATUS_OK) {
+        // the event data does not contain the newly configured power mode,
+        // so this code assigns the expected value
+        sPowerSwitch.mCurrDeviceMgtPowerState =
+            sPowerSwitch.mExpectedDeviceMgtPowerState;
+      }
+      sPowerSwitch.mPowerStateEvent.notifyOne();
+    } break;
   }
 }
 

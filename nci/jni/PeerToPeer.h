@@ -18,12 +18,12 @@
  *  Communicate with a peer using NFC-DEP, LLCP, SNEP.
  */
 #pragma once
+#include <utils/RefBase.h>
+#include <utils/StrongPointer.h>
+#include <string>
 #include "NfcJniUtil.h"
 #include "SyncEvent.h"
 #include "nfa_p2p_api.h"
-#include <string>
-#include <utils/RefBase.h>
-#include <utils/StrongPointer.h>
 
 class P2pServer;
 class P2pClient;
@@ -38,7 +38,7 @@ class NfaConn;
 **
 *****************************************************************************/
 class PeerToPeer {
-public:
+ public:
   typedef unsigned int tJNI_HANDLE;
 
   /*******************************************************************************
@@ -72,7 +72,7 @@ public:
   ** Returns:         Singleton PeerToPeer object.
   **
   *******************************************************************************/
-  static PeerToPeer &getInstance();
+  static PeerToPeer& getInstance();
 
   /*******************************************************************************
   **
@@ -96,8 +96,8 @@ public:
   ** Returns:         None
   **
   *******************************************************************************/
-  void llcpActivatedHandler(nfc_jni_native_data *nativeData,
-                            tNFA_LLCP_ACTIVATED &activated);
+  void llcpActivatedHandler(nfc_jni_native_data* nativeData,
+                            tNFA_LLCP_ACTIVATED& activated);
 
   /*******************************************************************************
   **
@@ -110,10 +110,10 @@ public:
   ** Returns:         None
   **
   *******************************************************************************/
-  void llcpDeactivatedHandler(nfc_jni_native_data *nativeData,
-                              tNFA_LLCP_DEACTIVATED &deactivated);
+  void llcpDeactivatedHandler(nfc_jni_native_data* nativeData,
+                              tNFA_LLCP_DEACTIVATED& deactivated);
 
-  void llcpFirstPacketHandler(nfc_jni_native_data *nativeData);
+  void llcpFirstPacketHandler(nfc_jni_native_data* nativeData);
 
   /*******************************************************************************
   **
@@ -126,7 +126,7 @@ public:
   ** Returns:         None
   **
   *******************************************************************************/
-  void connectionEventHandler(uint8_t event, tNFA_CONN_EVT_DATA *eventData);
+  void connectionEventHandler(uint8_t event, tNFA_CONN_EVT_DATA* eventData);
 
   /*******************************************************************************
   **
@@ -140,7 +140,7 @@ public:
   ** Returns:         True if ok.
   **
   *******************************************************************************/
-  bool registerServer(tJNI_HANDLE jniHandle, const char *serviceName);
+  bool registerServer(tJNI_HANDLE jniHandle, const char* serviceName);
 
   /*******************************************************************************
   **
@@ -194,7 +194,7 @@ public:
   ** Returns:         True if ok.
   **
   *******************************************************************************/
-  bool connectConnOriented(tJNI_HANDLE jniHandle, const char *serviceName);
+  bool connectConnOriented(tJNI_HANDLE jniHandle, const char* serviceName);
 
   /*******************************************************************************
   **
@@ -221,7 +221,7 @@ public:
   ** Returns:         True if ok.
   **
   *******************************************************************************/
-  bool send(tJNI_HANDLE jniHandle, uint8_t *buffer, uint16_t bufferLen);
+  bool send(tJNI_HANDLE jniHandle, uint8_t* buffer, uint16_t bufferLen);
 
   /*******************************************************************************
   **
@@ -236,8 +236,8 @@ public:
   ** Returns:         True if ok.
   **
   *******************************************************************************/
-  bool receive(tJNI_HANDLE jniHandle, uint8_t *buffer, uint16_t bufferLen,
-               uint16_t &actualLen);
+  bool receive(tJNI_HANDLE jniHandle, uint8_t* buffer, uint16_t bufferLen,
+               uint16_t& actualLen);
 
   /*******************************************************************************
   **
@@ -356,7 +356,7 @@ public:
   **
   *******************************************************************************/
   static void nfaServerCallback(tNFA_P2P_EVT p2pEvent,
-                                tNFA_P2P_EVT_DATA *eventData);
+                                tNFA_P2P_EVT_DATA* eventData);
 
   /*******************************************************************************
   **
@@ -370,16 +370,16 @@ public:
   **
   *******************************************************************************/
   static void nfaClientCallback(tNFA_P2P_EVT p2pEvent,
-                                tNFA_P2P_EVT_DATA *eventData);
+                                tNFA_P2P_EVT_DATA* eventData);
 
-private:
+ private:
   static const int sMax = 10;
   static PeerToPeer sP2p;
 
   // Variables below only accessed from a single thread
-  uint16_t mRemoteWKS;                     // Peer's well known services
-  bool mIsP2pListening;                    // If P2P listening is enabled or not
-  tNFA_TECHNOLOGY_MASK mP2pListenTechMask; // P2P Listen mask
+  uint16_t mRemoteWKS;   // Peer's well known services
+  bool mIsP2pListening;  // If P2P listening is enabled or not
+  tNFA_TECHNOLOGY_MASK mP2pListenTechMask;  // P2P Listen mask
 
   // Variable below is protected by mNewJniHandleMutex
   tJNI_HANDLE mNextJniHandle;
@@ -392,13 +392,14 @@ private:
   android::sp<P2pClient> mClients[sMax];
 
   // Synchronization variables
-  SyncEvent mSetTechEvent; // completion event for NFA_SetP2pListenTech()
-  SyncEvent mSnepDefaultServerStartStopEvent; // completion event for
-                                              // NFA_SnepStartDefaultServer(),
-                                              // NFA_SnepStopDefaultServer()
-  SyncEvent mSnepRegisterEvent; // completion event for NFA_SnepRegisterClient()
-  Mutex mDisconnectMutex;       // synchronize the disconnect operation
-  Mutex mNewJniHandleMutex;     // synchronize the creation of a new JNI handle
+  SyncEvent mSetTechEvent;  // completion event for NFA_SetP2pListenTech()
+  SyncEvent mSnepDefaultServerStartStopEvent;  // completion event for
+                                               // NFA_SnepStartDefaultServer(),
+                                               // NFA_SnepStopDefaultServer()
+  SyncEvent
+      mSnepRegisterEvent;    // completion event for NFA_SnepRegisterClient()
+  Mutex mDisconnectMutex;    // synchronize the disconnect operation
+  Mutex mNewJniHandleMutex;  // synchronize the creation of a new JNI handle
 
   /*******************************************************************************
   **
@@ -412,7 +413,7 @@ private:
   **
   *******************************************************************************/
   static void ndefTypeCallback(tNFA_NDEF_EVT event,
-                               tNFA_NDEF_EVT_DATA *evetnData);
+                               tNFA_NDEF_EVT_DATA* evetnData);
 
   /*******************************************************************************
   **
@@ -448,7 +449,7 @@ private:
   ** Returns:         PeerToPeer object.
   **
   *******************************************************************************/
-  android::sp<P2pServer> findServerLocked(const char *serviceName);
+  android::sp<P2pServer> findServerLocked(const char* serviceName);
 
   /*******************************************************************************
   **
@@ -486,7 +487,7 @@ private:
   ** Returns:         True if ok.
   **
   *******************************************************************************/
-  bool createDataLinkConn(tJNI_HANDLE jniHandle, const char *serviceName,
+  bool createDataLinkConn(tJNI_HANDLE jniHandle, const char* serviceName,
                           uint8_t destinationSap);
 
   /*******************************************************************************
@@ -558,16 +559,16 @@ private:
 **
 *****************************************************************************/
 class NfaConn : public android::RefBase {
-public:
-  tNFA_HANDLE mNfaConnHandle;         // NFA handle of the P2P connection
-  PeerToPeer::tJNI_HANDLE mJniHandle; // JNI handle of the P2P connection
+ public:
+  tNFA_HANDLE mNfaConnHandle;          // NFA handle of the P2P connection
+  PeerToPeer::tJNI_HANDLE mJniHandle;  // JNI handle of the P2P connection
   uint16_t mMaxInfoUnit;
   uint8_t mRecvWindow;
   uint16_t mRemoteMaxInfoUnit;
   uint8_t mRemoteRecvWindow;
-  SyncEvent mReadEvent;          // event for reading
-  SyncEvent mCongEvent;          // event for congestion
-  SyncEvent mDisconnectingEvent; // event for disconnecting
+  SyncEvent mReadEvent;           // event for reading
+  SyncEvent mCongEvent;           // event for congestion
+  SyncEvent mDisconnectingEvent;  // event for disconnecting
 
   /*******************************************************************************
   **
@@ -589,13 +590,13 @@ public:
 **
 *****************************************************************************/
 class P2pServer : public android::RefBase {
-public:
+ public:
   static const std::string sSnepServiceName;
 
-  tNFA_HANDLE mNfaP2pServerHandle;    // NFA p2p handle of local server
-  PeerToPeer::tJNI_HANDLE mJniHandle; // JNI Handle
-  SyncEvent mRegServerEvent;          // for NFA_P2pRegisterServer()
-  SyncEvent mConnRequestEvent;        // for accept()
+  tNFA_HANDLE mNfaP2pServerHandle;     // NFA p2p handle of local server
+  PeerToPeer::tJNI_HANDLE mJniHandle;  // JNI Handle
+  SyncEvent mRegServerEvent;           // for NFA_P2pRegisterServer()
+  SyncEvent mConnRequestEvent;         // for accept()
   std::string mServiceName;
 
   /*******************************************************************************
@@ -607,7 +608,7 @@ public:
   ** Returns:         None
   **
   *******************************************************************************/
-  P2pServer(PeerToPeer::tJNI_HANDLE jniHandle, const char *serviceName);
+  P2pServer(PeerToPeer::tJNI_HANDLE jniHandle, const char* serviceName);
 
   /*******************************************************************************
   **
@@ -684,7 +685,7 @@ public:
   *******************************************************************************/
   bool removeServerConnection(PeerToPeer::tJNI_HANDLE jniHandle);
 
-private:
+ private:
   Mutex mMutex;
   // mServerConn is protected by mMutex
   android::sp<NfaConn> mServerConn[MAX_NFA_CONNS_PER_SERVER];
@@ -711,13 +712,13 @@ private:
 **
 *****************************************************************************/
 class P2pClient : public android::RefBase {
-public:
-  tNFA_HANDLE mNfaP2pClientHandle; // NFA p2p handle of client
-  bool mIsConnecting;              // Set true while connecting
+ public:
+  tNFA_HANDLE mNfaP2pClientHandle;  // NFA p2p handle of client
+  bool mIsConnecting;               // Set true while connecting
   android::sp<NfaConn> mClientConn;
-  SyncEvent mRegisteringEvent; // For client registration
-  SyncEvent mConnectingEvent;  // for NFA_P2pConnectByName or Sap()
-  SyncEvent mSnepEvent;        // To wait for SNEP completion
+  SyncEvent mRegisteringEvent;  // For client registration
+  SyncEvent mConnectingEvent;   // for NFA_P2pConnectByName or Sap()
+  SyncEvent mSnepEvent;         // To wait for SNEP completion
 
   /*******************************************************************************
   **

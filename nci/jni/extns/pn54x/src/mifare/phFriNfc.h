@@ -59,7 +59,7 @@
  * asynchronous processing the definition of the Process(ing) function can
  * be arbitrary, if present at all.
  */
-typedef void (*pphFriNfc_Cr_t)(void *, NFCSTATUS);
+typedef void (*pphFriNfc_Cr_t)(void*, NFCSTATUS);
 
 /*
  * Completion Routine structure
@@ -82,13 +82,14 @@ typedef struct phFriNfc_CplRt {
                                      * component would give its own processing
                                      * function address to the lower layer.
                                      */
-  void *Context;                    /* Instance address (context) parameter.
-                                     *   The stack initializer (or depending on the implementation:
-                                     * the calling component)                    needs to set this
-                                     * member to the                    address of the component
-                                     * context structure                    instance                    within
-                                     * the completion path: A                    calling component would give its
-                                     * own instance address                    to the lower layer.
+  void* Context;                    /* Instance address (context) parameter.
+                                     * The stack initializer (or depending on the
+                                     * implementation: the calling component)
+                                     * needs to set this member to the address of
+                                     * the component context structure instance
+                                     * within the completion path: A
+                                     * calling component would give its own
+                                     * instance address to the lower layer.
                                      */
 } phFriNfc_CplRt_t;
 

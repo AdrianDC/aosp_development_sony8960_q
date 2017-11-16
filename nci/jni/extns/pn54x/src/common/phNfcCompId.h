@@ -37,7 +37,7 @@
  * this value except for NFCSTATUS_SUCCESS. The enumeration function uses
  * CID_NFC_NONE to mark unassigned "References".
  */
-#define CID_NFC_NONE                                                           \
+#define CID_NFC_NONE \
   0x00 /* Unassigned or doesn't apply (see #NFCSTATUS_SUCCESS) */
 #define CID_NFC_TML 0x01             /* Transport Mapping Layer */
 #define CID_NFC_LLC 0x07             /* Logical Link Control Layer */
