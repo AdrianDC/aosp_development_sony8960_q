@@ -84,6 +84,7 @@ public class WifiInjector {
     private final SupplicantP2pIfaceHal mSupplicantP2pIfaceHal;
     private final WifiVendorHal mWifiVendorHal;
     private final WifiStateMachine mWifiStateMachine;
+    private final WifiStateMachinePrime mWifiStateMachinePrime;
     private final WifiSettingsStore mSettingsStore;
     private final OpenNetworkNotifier mOpenNetworkNotifier;
     private final WifiLockManager mLockManager;
@@ -224,6 +225,11 @@ public class WifiInjector {
                 wifiStateMachineLooper, UserManager.get(mContext),
                 this, mBackupManagerProxy, mCountryCode, mWifiNative,
                 new WrongPasswordNotifier(mContext, mFrameworkFacade));
+        IBinder b = mFrameworkFacade.getService(Context.NETWORKMANAGEMENT_SERVICE);
+        INetworkManagementService networkManagementService =
+                INetworkManagementService.Stub.asInterface(b);
+        mWifiStateMachinePrime = new WifiStateMachinePrime(this, wifiStateMachineLooper,
+                mWifiNative, networkManagementService);
         mOpenNetworkNotifier = new OpenNetworkNotifier(mContext,
                 mWifiStateMachineHandlerThread.getLooper(), mFrameworkFacade, mClock, mWifiMetrics,
                 mWifiConfigManager, mWifiConfigStore, mWifiStateMachine,
@@ -234,7 +240,8 @@ public class WifiInjector {
                 mWifiConfigManager, mWifiConfigStore, mFrameworkFacade);
         mLockManager = new WifiLockManager(mContext, BatteryStatsService.getService());
         mWifiController = new WifiController(mContext, mWifiStateMachine, mSettingsStore,
-                mLockManager, mWifiServiceHandlerThread.getLooper(), mFrameworkFacade);
+                mLockManager, mWifiServiceHandlerThread.getLooper(), mFrameworkFacade,
+                mWifiStateMachinePrime);
         mSelfRecovery = new SelfRecovery(mWifiController, mClock);
         mWifiLastResortWatchdog = new WifiLastResortWatchdog(mSelfRecovery, mWifiMetrics);
         mWifiMulticastLockManager = new WifiMulticastLockManager(mWifiStateMachine,
@@ -297,6 +304,10 @@ public class WifiInjector {
 
     public WifiStateMachine getWifiStateMachine() {
         return mWifiStateMachine;
+    }
+
+    public WifiStateMachinePrime getWifiStateMachinePrime() {
+        return mWifiStateMachinePrime;
     }
 
     public WifiSettingsStore getWifiSettingsStore() {

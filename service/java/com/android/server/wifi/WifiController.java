@@ -93,6 +93,7 @@ public class WifiController extends StateMachine {
 
     /* References to values tracked in WifiService */
     private final WifiStateMachine mWifiStateMachine;
+    private final WifiStateMachinePrime mWifiStateMachinePrime;
     private final WifiSettingsStore mSettingsStore;
     private final WifiLockManager mWifiLockManager;
 
@@ -143,11 +144,13 @@ public class WifiController extends StateMachine {
     private EcmState mEcmState = new EcmState();
 
     WifiController(Context context, WifiStateMachine wsm, WifiSettingsStore wss,
-            WifiLockManager wifiLockManager, Looper looper, FrameworkFacade f) {
+            WifiLockManager wifiLockManager, Looper looper, FrameworkFacade f,
+            WifiStateMachinePrime wsmp) {
         super(TAG, looper);
         mFacade = f;
         mContext = context;
         mWifiStateMachine = wsm;
+        mWifiStateMachinePrime = wsmp;
         mSettingsStore = wss;
         mWifiLockManager = wifiLockManager;
 

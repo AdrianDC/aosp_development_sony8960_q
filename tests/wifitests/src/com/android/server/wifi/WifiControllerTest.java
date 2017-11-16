@@ -88,6 +88,7 @@ public class WifiControllerTest {
     @Mock FrameworkFacade mFacade;
     @Mock WifiSettingsStore mSettingsStore;
     @Mock WifiStateMachine mWifiStateMachine;
+    @Mock WifiStateMachinePrime mWifiStateMachinePrime;
     @Mock WifiLockManager mWifiLockManager;
     @Mock ContentResolver mContentResolver;
 
@@ -110,7 +111,8 @@ public class WifiControllerTest {
                 ArgumentCaptor.forClass(ContentObserver.class);
 
         mWifiController = new WifiController(mContext, mWifiStateMachine,
-                mSettingsStore, mWifiLockManager, mLooper.getLooper(), mFacade);
+                mSettingsStore, mWifiLockManager, mLooper.getLooper(), mFacade,
+                mWifiStateMachinePrime);
         verify(mFacade, times(3)).registerContentObserver(eq(mContext), any(Uri.class), eq(false),
                 observerCaptor.capture());
 
@@ -367,7 +369,8 @@ public class WifiControllerTest {
         when(mContext.getContentResolver()).thenReturn(mock(ContentResolver.class));
 
         mWifiController = new WifiController(mContext, mWifiStateMachine,
-                mSettingsStore, mWifiLockManager, mLooper.getLooper(), mFacade);
+                mSettingsStore, mWifiLockManager, mLooper.getLooper(), mFacade,
+                mWifiStateMachinePrime);
 
         mWifiController.start();
         mLooper.dispatchAll();
