@@ -16,6 +16,7 @@
 
 package com.android.server.wifi.rtt;
 
+import android.app.ActivityManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -39,13 +40,13 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.os.RemoteException;
-import android.os.SystemClock;
 import android.os.UserHandle;
 import android.os.WorkSource;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.WakeupMessage;
+import com.android.server.wifi.Clock;
 import com.android.server.wifi.util.NativeUtil;
 import com.android.server.wifi.util.WifiPermissionsUtil;
 
@@ -69,9 +70,11 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
     private static final boolean VDBG = true; // STOPSHIP if true
 
     private final Context mContext;
+    private Clock mClock;
     private IWifiAwareManager mAwareBinder;
     private RttNative mRttNative;
     private WifiPermissionsUtil mWifiPermissionsUtil;
+    private ActivityManager mActivityManager;
     private PowerManager mPowerManager;
 
     private RttServiceSynchronized mRttServiceSynchronized;
@@ -79,7 +82,10 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
     @VisibleForTesting
     public static final String HAL_RANGING_TIMEOUT_TAG = TAG + " HAL Ranging Timeout";
 
-    private static final long HAL_RANGING_TIMEOUT_MS = 5_000;
+    private static final long HAL_RANGING_TIMEOUT_MS = 5_000; // 5 sec
+
+    // TODO: b/69323456 convert to a settable value
+    /* package */ static final long BACKGROUND_PROCESS_EXEC_GAP_MS = 1_800_000; // 30 min
 
     public RttServiceImpl(Context context) {
         mContext = context;
@@ -93,17 +99,21 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
      * Initializes the RTT service (usually with objects from an injector).
      *
      * @param looper The looper on which to synchronize operations.
+     * @param clock A mockable clock.
      * @param awareBinder The Wi-Fi Aware service (binder) if supported on the system.
      * @param rttNative The Native interface to the HAL.
      * @param wifiPermissionsUtil Utility for permission checks.
      */
-    public void start(Looper looper, IWifiAwareManager awareBinder, RttNative rttNative,
+    public void start(Looper looper, Clock clock, IWifiAwareManager awareBinder,
+            RttNative rttNative,
             WifiPermissionsUtil wifiPermissionsUtil) {
+        mClock = clock;
         mAwareBinder = awareBinder;
         mRttNative = rttNative;
         mWifiPermissionsUtil = wifiPermissionsUtil;
         mRttServiceSynchronized = new RttServiceSynchronized(looper, rttNative);
 
+        mActivityManager = (ActivityManager) mContext.getSystemService(Context.ACTIVITY_SERVICE);
         mPowerManager = mContext.getSystemService(PowerManager.class);
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED);
@@ -323,6 +333,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
 
         private RttNative mRttNative;
         private int mNextCommandId = 1000;
+        private Map<Integer, RttRequesterInfo> mRttRequesterInfo = new HashMap<>();
         private List<RttRequestInfo> mRttRequestQueue = new LinkedList<>();
         private WakeupMessage mRangingTimeoutMessage = null;
 
@@ -540,10 +551,23 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                 return;
             }
 
+            if (!preExecThrottleCheck(nextRequest.workSource)) {
+                Log.w(TAG, "RttServiceSynchronized.startRanging: execution throttled - nextRequest="
+                        + nextRequest + ", mRttRequesterInfo=" + mRttRequesterInfo);
+                try {
+                    nextRequest.callback.onRangingFailure(RangingResultCallback.STATUS_CODE_FAIL);
+                } catch (RemoteException e) {
+                    Log.e(TAG, "RttServiceSynchronized.startRanging: throttled, callback failed -- "
+                            + e);
+                }
+                executeNextRangingRequestIfPossible(true);
+                return;
+            }
+
             nextRequest.cmdId = mNextCommandId++;
             if (mRttNative.rangeRequest(nextRequest.cmdId, nextRequest.request)) {
                 mRangingTimeoutMessage.schedule(
-                        SystemClock.elapsedRealtime() + HAL_RANGING_TIMEOUT_MS);
+                        mClock.getElapsedSinceBootMillis() + HAL_RANGING_TIMEOUT_MS);
             } else {
                 Log.w(TAG, "RttServiceSynchronized.startRanging: native rangeRequest call failed");
                 try {
@@ -555,6 +579,64 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                 executeNextRangingRequestIfPossible(true);
             }
             nextRequest.dispatchedToNative = true;
+        }
+
+        /**
+         * Perform pre-execution throttling checks:
+         * - If all uids in ws are in background then check last execution and block if request is
+         *   more frequent than permitted
+         * - If executing (i.e. permitted) then update execution time
+         *
+         * Returns true to permit execution, false to abort it.
+         */
+        private boolean preExecThrottleCheck(WorkSource ws) {
+            if (VDBG) Log.v(TAG, "preExecThrottleCheck: ws=" + ws);
+
+            // are all UIDs running in the background or is at least 1 in the foreground?
+            boolean allUidsInBackground = true;
+            for (int i = 0; i < ws.size(); ++i) {
+                int uidImportance = mActivityManager.getUidImportance(ws.get(i));
+                if (VDBG) {
+                    Log.v(TAG, "preExecThrottleCheck: uid=" + ws.get(i) + " -> importance="
+                            + uidImportance);
+                }
+                if (uidImportance
+                        <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE) {
+                    allUidsInBackground = false;
+                    break;
+                }
+            }
+
+            // if all UIDs are in background then check timestamp since last execution and see if
+            // any is permitted (infrequent enough)
+            boolean allowExecution = false;
+            long mostRecentExecutionPermitted =
+                    mClock.getElapsedSinceBootMillis() - BACKGROUND_PROCESS_EXEC_GAP_MS;
+            if (allUidsInBackground) {
+                for (int i = 0; i < ws.size(); ++i) {
+                    RttRequesterInfo info = mRttRequesterInfo.get(ws.get(i));
+                    if (info == null || info.lastRangingExecuted < mostRecentExecutionPermitted) {
+                        allowExecution = true;
+                        break;
+                    }
+                }
+            } else {
+                allowExecution = true;
+            }
+
+            // update exec time
+            if (allowExecution) {
+                for (int i = 0; i < ws.size(); ++i) {
+                    RttRequesterInfo info = mRttRequesterInfo.get(ws.get(i));
+                    if (info == null) {
+                        info = new RttRequesterInfo();
+                        mRttRequesterInfo.put(ws.get(i), info);
+                    }
+                    info.lastRangingExecuted = mClock.getElapsedSinceBootMillis();
+                }
+            }
+
+            return allowExecution;
         }
 
         /**
@@ -754,6 +836,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         // dump call (asynchronous most likely)
         protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
             pw.println("  mNextCommandId: " + mNextCommandId);
+            pw.println("  mRttRequesterInfo: " + mRttRequesterInfo);
             pw.println("  mRttRequestQueue: " + mRttRequestQueue);
             pw.println("  mRangingTimeoutMessage: " + mRangingTimeoutMessage);
             mRttNative.dump(fd, pw, args);
@@ -781,6 +864,16 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                     ", request=").append(request.toString()).append(", callback=").append(
                     callback).append(", cmdId=").append(cmdId).append(
                     ", peerHandlesTranslated=").append(peerHandlesTranslated).toString();
+        }
+    }
+
+    private static class RttRequesterInfo {
+        public long lastRangingExecuted;
+
+        @Override
+        public String toString() {
+            return new StringBuilder("RttRequesterInfo: lastRangingExecuted=").append(
+                    lastRangingExecuted).toString();
         }
     }
 }
