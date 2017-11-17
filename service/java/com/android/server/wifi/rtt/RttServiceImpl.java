@@ -67,7 +67,7 @@ import java.util.Map;
  */
 public class RttServiceImpl extends IWifiRttManager.Stub {
     private static final String TAG = "RttServiceImpl";
-    private static final boolean VDBG = true; // STOPSHIP if true
+    private static final boolean VDBG = false; // STOPSHIP if true
 
     private final Context mContext;
     private Clock mClock;
