@@ -335,6 +335,24 @@ public class WifiNative {
      ********************************************************/
 
     /**
+     * Callback to notify supplicant death.
+     */
+    public interface SupplicantDeathEventHandler {
+        /**
+         * Invoked when the supplicant dies.
+         */
+        void onDeath();
+    }
+
+    /**
+     * Registers a death notification for supplicant.
+     * @return Returns true on success.
+     */
+    public boolean registerSupplicantDeathHandler(@NonNull SupplicantDeathEventHandler handler) {
+        return mSupplicantStaIfaceHal.registerDeathHandler(handler);
+    }
+
+    /**
      * This method is called repeatedly until the connection to wpa_supplicant is
      * established and a STA iface is setup.
      *

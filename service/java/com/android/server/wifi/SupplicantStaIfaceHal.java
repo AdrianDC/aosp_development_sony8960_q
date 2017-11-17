@@ -53,6 +53,7 @@ import android.util.Log;
 import android.util.Pair;
 import android.util.SparseArray;
 
+import com.android.server.wifi.WifiNative.SupplicantDeathEventHandler;
 import com.android.server.wifi.hotspot2.AnqpEvent;
 import com.android.server.wifi.hotspot2.IconEvent;
 import com.android.server.wifi.hotspot2.WnmData;
@@ -102,6 +103,7 @@ public class SupplicantStaIfaceHal {
             new HashMap<>();
     private HashMap<String, SupplicantStaNetworkHal> mCurrentNetworkRemoteHandles = new HashMap<>();
     private HashMap<String, WifiConfiguration> mCurrentNetworkLocalConfigs = new HashMap<>();
+    private SupplicantDeathEventHandler mDeathEventHandler;
     private final Context mContext;
     private final WifiMonitor mWifiMonitor;
 
@@ -347,6 +349,32 @@ public class SupplicantStaIfaceHal {
     }
 
     /**
+     * Registers a death notification for supplicant.
+     * @return Returns true on success.
+     */
+    public boolean registerDeathHandler(@NonNull SupplicantDeathEventHandler handler) {
+        if (mDeathEventHandler != null) {
+            Log.e(TAG, "Death handler already present");
+            return false;
+        }
+        mDeathEventHandler = handler;
+        return true;
+    }
+
+    /**
+     * Deregisters a death notification for supplicant.
+     * @return Returns true on success.
+     */
+    public boolean deregisterDeathHandler() {
+        if (mDeathEventHandler == null) {
+            Log.e(TAG, "No Death handler present");
+            return false;
+        }
+        mDeathEventHandler = null;
+        return true;
+    }
+
+    /**
      * Teardown a STA interface for the specified iface name.
      *
      * @param ifaceName Name of the interface.
@@ -382,6 +410,9 @@ public class SupplicantStaIfaceHal {
 
     private void supplicantServiceDiedHandler() {
         synchronized (mLock) {
+            if (mDeathEventHandler != null) {
+                mDeathEventHandler.onDeath();
+            }
             for (String ifaceName : mISupplicantStaIfaces.keySet()) {
                 mWifiMonitor.broadcastSupplicantDisconnectionEvent(ifaceName);
             }

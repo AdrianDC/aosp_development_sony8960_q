@@ -99,6 +99,7 @@ public class SupplicantStaIfaceHalTest {
     @Mock Context mContext;
     @Mock WifiMonitor mWifiMonitor;
     @Mock SupplicantStaNetworkHal mSupplicantStaNetworkMock;
+    @Mock WifiNative.SupplicantDeathEventHandler mSupplicantHalDeathHandler;
     SupplicantStatus mStatusSuccess;
     SupplicantStatus mStatusFailure;
     ISupplicant.IfaceInfo mStaIface0;
@@ -1269,11 +1270,13 @@ public class SupplicantStaIfaceHalTest {
         executeAndValidateInitializationSequence();
         assertNotNull(mServiceManagerDeathCaptor.getValue());
         assertTrue(mDut.isInitializationComplete());
+        assertTrue(mDut.registerDeathHandler(mSupplicantHalDeathHandler));
 
         mServiceManagerDeathCaptor.getValue().serviceDied(5L);
 
         assertFalse(mDut.isInitializationComplete());
         verify(mWifiMonitor).broadcastSupplicantDisconnectionEvent(eq(WLAN0_IFACE_NAME));
+        verify(mSupplicantHalDeathHandler).onDeath();
     }
 
     /**
@@ -1284,11 +1287,13 @@ public class SupplicantStaIfaceHalTest {
         executeAndValidateInitializationSequence();
         assertNotNull(mSupplicantDeathCaptor.getValue());
         assertTrue(mDut.isInitializationComplete());
+        assertTrue(mDut.registerDeathHandler(mSupplicantHalDeathHandler));
 
         mSupplicantDeathCaptor.getValue().serviceDied(5L);
 
         assertFalse(mDut.isInitializationComplete());
         verify(mWifiMonitor).broadcastSupplicantDisconnectionEvent(eq(WLAN0_IFACE_NAME));
+        verify(mSupplicantHalDeathHandler).onDeath();
     }
 
     /**
