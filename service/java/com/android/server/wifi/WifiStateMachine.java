@@ -1676,9 +1676,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     /**
      * TODO: doc
      */
-    public int syncGetWifiApState() {
-        return mWifiApState.get();
-    }
+    //public int syncGetWifiApState() {
+    //    return mWifiApState.get();
+    //}
 
     /**
      * TODO: doc
@@ -2920,6 +2920,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         // Update state
         mWifiApState.set(wifiApState);
 
+        // TODO: when this code is removed, also remove syncGetWifiApStateByName()
         if (mVerboseLoggingEnabled) log("setWifiApState: " + syncGetWifiApStateByName());
     }
 

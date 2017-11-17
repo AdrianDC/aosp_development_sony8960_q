@@ -31,6 +31,7 @@ import static android.net.wifi.WifiManager.SAP_START_FAILURE_NO_CHANNEL;
 import static android.net.wifi.WifiManager.WIFI_AP_STATE_DISABLED;
 import static android.net.wifi.WifiManager.WIFI_AP_STATE_DISABLING;
 import static android.net.wifi.WifiManager.WIFI_AP_STATE_ENABLED;
+import static android.net.wifi.WifiManager.WIFI_AP_STATE_ENABLING;
 import static android.net.wifi.WifiManager.WIFI_AP_STATE_FAILED;
 import static android.net.wifi.WifiManager.WIFI_STATE_DISABLED;
 import static android.provider.Settings.Secure.LOCATION_MODE_HIGH_ACCURACY;
@@ -45,6 +46,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
@@ -370,10 +372,11 @@ public class WifiServiceImplTest {
     /**
      * Verify that wifi can be enabled by a caller with WIFI_STATE_CHANGE permission when wifi is
      * off (no hotspot, no airplane mode).
+     *
+     * Note: hotspot is disabled by default
      */
     @Test
     public void testSetWifiEnabledSuccess() throws Exception {
-        when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_DISABLED);
         when(mSettingsStore.handleWifiToggled(eq(true))).thenReturn(true);
         when(mSettingsStore.isAirplaneModeOn()).thenReturn(false);
         assertTrue(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, true));
@@ -385,7 +388,6 @@ public class WifiServiceImplTest {
      */
     @Test
     public void testSetWifiEnabledNoToggle() throws Exception {
-        when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_DISABLED);
         when(mSettingsStore.handleWifiToggled(eq(true))).thenReturn(false);
         assertTrue(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, true));
         verify(mWifiController, never()).sendMessage(eq(CMD_WIFI_TOGGLED));
@@ -402,7 +404,6 @@ public class WifiServiceImplTest {
                                                 eq("WifiService"));
         when(mSettingsStore.isAirplaneModeOn()).thenReturn(false);
         mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, true);
-        verify(mWifiStateMachine, never()).syncGetWifiApState();
     }
 
     /**
@@ -441,7 +442,17 @@ public class WifiServiceImplTest {
      */
     @Test
     public void testSetWifiEnabledFromNetworkSettingsHolderWhenApEnabled() throws Exception {
-        when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_ENABLED);
+        when(mFrameworkFacade.inStorageManagerCryptKeeperBounce()).thenReturn(false);
+        when(mSettingsStore.isWifiToggleEnabled()).thenReturn(false);
+        mWifiServiceImpl.checkAndStartWifi();
+
+        verify(mContext).registerReceiver(mBroadcastReceiverCaptor.capture(),
+                (IntentFilter) argThat(new IntentFilterMatcher()));
+
+        TestUtil.sendWifiApStateChanged(mBroadcastReceiverCaptor.getValue(), mContext,
+                WIFI_AP_STATE_ENABLED, WIFI_AP_STATE_ENABLING, SAP_START_FAILURE_GENERAL,
+                WIFI_IFACE_NAME, IFACE_IP_MODE_LOCAL_ONLY);
+
         when(mSettingsStore.handleWifiToggled(eq(true))).thenReturn(true);
         when(mContext.checkPermission(
                 eq(android.Manifest.permission.NETWORK_SETTINGS), anyInt(), anyInt()))
@@ -456,7 +467,17 @@ public class WifiServiceImplTest {
      */
     @Test
     public void testSetWifiEnabledFromAppFailsWhenApEnabled() throws Exception {
-        when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_ENABLED);
+        when(mFrameworkFacade.inStorageManagerCryptKeeperBounce()).thenReturn(false);
+        when(mSettingsStore.isWifiToggleEnabled()).thenReturn(false);
+        mWifiServiceImpl.checkAndStartWifi();
+
+        verify(mContext).registerReceiver(mBroadcastReceiverCaptor.capture(),
+                (IntentFilter) argThat(new IntentFilterMatcher()));
+
+        TestUtil.sendWifiApStateChanged(mBroadcastReceiverCaptor.getValue(), mContext,
+                WIFI_AP_STATE_ENABLED, WIFI_AP_STATE_ENABLING, SAP_START_FAILURE_GENERAL,
+                WIFI_IFACE_NAME, IFACE_IP_MODE_LOCAL_ONLY);
+
         when(mContext.checkPermission(
                 eq(android.Manifest.permission.NETWORK_SETTINGS), anyInt(), anyInt()))
                         .thenReturn(PackageManager.PERMISSION_DENIED);
@@ -472,7 +493,6 @@ public class WifiServiceImplTest {
      */
     @Test
     public void testSetWifiDisabledSuccess() throws Exception {
-        when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_DISABLED);
         when(mSettingsStore.handleWifiToggled(eq(false))).thenReturn(true);
         assertTrue(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, false));
         verify(mWifiController).sendMessage(eq(CMD_WIFI_TOGGLED));
@@ -483,7 +503,6 @@ public class WifiServiceImplTest {
      */
     @Test
     public void testSetWifiDisabledNoToggle() throws Exception {
-        when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_DISABLED);
         when(mSettingsStore.handleWifiToggled(eq(false))).thenReturn(false);
         assertTrue(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, false));
         verify(mWifiController, never()).sendMessage(eq(CMD_WIFI_TOGGLED));
@@ -495,7 +514,6 @@ public class WifiServiceImplTest {
      */
     @Test(expected = SecurityException.class)
     public void testSetWifiDisabledWithoutPermission() throws Exception {
-        when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_DISABLED);
         doThrow(new SecurityException()).when(mContext)
                 .enforceCallingOrSelfPermission(eq(android.Manifest.permission.CHANGE_WIFI_STATE),
                                                 eq("WifiService"));
@@ -560,6 +578,58 @@ public class WifiServiceImplTest {
     }
 
     /**
+     * Ensure we return the proper variable for the softap state after getting an AP state change
+     * broadcast.
+     */
+    @Test
+    public void testGetWifiApEnabled() {
+        // set up WifiServiceImpl with a live thread for testing
+        HandlerThread serviceHandlerThread = new HandlerThread("ServiceHandlerThreadForTest");
+        serviceHandlerThread.start();
+        when(mWifiInjector.getWifiServiceHandlerThread()).thenReturn(serviceHandlerThread);
+        mWifiServiceImpl = new WifiServiceImpl(mContext, mWifiInjector, mAsyncChannel);
+        mWifiServiceImpl.setWifiHandlerLogForTest(mLog);
+
+        // ap should be disabled when wifi hasn't been started
+        assertEquals(WifiManager.WIFI_AP_STATE_DISABLED, mWifiServiceImpl.getWifiApEnabledState());
+
+        when(mFrameworkFacade.inStorageManagerCryptKeeperBounce()).thenReturn(false);
+        when(mSettingsStore.isWifiToggleEnabled()).thenReturn(false);
+        mWifiServiceImpl.checkAndStartWifi();
+        mLooper.dispatchAll();
+
+        // ap should be disabled initially
+        assertEquals(WifiManager.WIFI_AP_STATE_DISABLED, mWifiServiceImpl.getWifiApEnabledState());
+
+        // send an ap state change to verify WifiServiceImpl is updated
+        verify(mContext).registerReceiver(mBroadcastReceiverCaptor.capture(),
+                (IntentFilter) argThat(new IntentFilterMatcher()));
+
+        TestUtil.sendWifiApStateChanged(mBroadcastReceiverCaptor.getValue(), mContext,
+                WIFI_AP_STATE_FAILED, WIFI_AP_STATE_DISABLED, SAP_START_FAILURE_GENERAL,
+                WIFI_IFACE_NAME, IFACE_IP_MODE_LOCAL_ONLY);
+        mLooper.dispatchAll();
+
+        assertEquals(WifiManager.WIFI_AP_STATE_FAILED, mWifiServiceImpl.getWifiApEnabledState());
+    }
+
+    /**
+     * Ensure we do not allow unpermitted callers to get the wifi ap state.
+     */
+    @Test
+    public void testGetWifiApEnabledPermissionDenied() {
+        // we should not be able to get the state
+        doThrow(new SecurityException()).when(mContext)
+                .enforceCallingOrSelfPermission(eq(android.Manifest.permission.ACCESS_WIFI_STATE),
+                                                eq("WifiService"));
+
+        try {
+            mWifiServiceImpl.getWifiApEnabledState();
+            fail("expected SecurityException");
+        } catch (SecurityException expected) { }
+    }
+
+    /**
      * Make sure we do not start wifi if System services have to be restarted to decrypt the device.
      */
     @Test
@@ -591,7 +661,6 @@ public class WifiServiceImplTest {
         when(mSettingsStore.handleWifiToggled(true)).thenReturn(true);
         when(mSettingsStore.isWifiToggleEnabled()).thenReturn(true);
         when(mWifiStateMachine.syncGetWifiState()).thenReturn(WIFI_STATE_DISABLED);
-        when(mWifiStateMachine.syncGetWifiApState()).thenReturn(WifiManager.WIFI_AP_STATE_DISABLED);
         when(mContext.getPackageName()).thenReturn(ANDROID_SYSTEM_PACKAGE);
         mWifiServiceImpl.checkAndStartWifi();
         verify(mWifiController).start();

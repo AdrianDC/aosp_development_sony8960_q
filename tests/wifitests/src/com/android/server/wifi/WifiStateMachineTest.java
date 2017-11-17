@@ -16,18 +16,6 @@
 
 package com.android.server.wifi;
 
-import static android.net.wifi.WifiManager.EXTRA_PREVIOUS_WIFI_AP_STATE;
-import static android.net.wifi.WifiManager.EXTRA_WIFI_AP_FAILURE_REASON;
-import static android.net.wifi.WifiManager.EXTRA_WIFI_AP_INTERFACE_NAME;
-import static android.net.wifi.WifiManager.EXTRA_WIFI_AP_MODE;
-import static android.net.wifi.WifiManager.EXTRA_WIFI_AP_STATE;
-import static android.net.wifi.WifiManager.WIFI_AP_STATE_DISABLED;
-import static android.net.wifi.WifiManager.WIFI_AP_STATE_DISABLING;
-import static android.net.wifi.WifiManager.WIFI_AP_STATE_ENABLED;
-import static android.net.wifi.WifiManager.WIFI_AP_STATE_ENABLING;
-
-import static com.android.server.wifi.LocalOnlyHotspotRequestInfo.HOTSPOT_NO_ERROR;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -578,21 +566,6 @@ public class WifiStateMachineTest {
         assertEquals("DisconnectedState", getCurrentState().getName());
     }
 
-    private void checkApStateChangedBroadcast(Intent intent, int expectedCurrentState,
-            int expectedPrevState, int expectedErrorCode, String expectedIfaceName,
-            int expectedMode) {
-        int currentState = intent.getIntExtra(EXTRA_WIFI_AP_STATE, WIFI_AP_STATE_DISABLED);
-        int prevState = intent.getIntExtra(EXTRA_PREVIOUS_WIFI_AP_STATE, WIFI_AP_STATE_DISABLED);
-        int errorCode = intent.getIntExtra(EXTRA_WIFI_AP_FAILURE_REASON, HOTSPOT_NO_ERROR);
-        String ifaceName = intent.getStringExtra(EXTRA_WIFI_AP_INTERFACE_NAME);
-        int mode = intent.getIntExtra(EXTRA_WIFI_AP_MODE, WifiManager.IFACE_IP_MODE_UNSPECIFIED);
-        assertEquals(expectedCurrentState, currentState);
-        assertEquals(expectedPrevState, prevState);
-        assertEquals(expectedErrorCode, errorCode);
-        assertEquals(expectedIfaceName, ifaceName);
-        assertEquals(expectedMode, mode);
-    }
-
     private void loadComponentsInApMode(int mode) throws Exception {
         SoftApModeConfiguration config = new SoftApModeConfiguration(mode, new WifiConfiguration());
         mWsm.setHostApRunning(config, true);
@@ -602,18 +575,6 @@ public class WifiStateMachineTest {
 
         verify(mWifiNative).setupForSoftApMode(WIFI_IFACE_NAME);
         verify(mSoftApManager).start();
-
-        // get the SoftApManager.Listener and trigger some updates
-        SoftApManager.Listener listener = mSoftApManagerListenerCaptor.getValue();
-        listener.onStateChanged(WIFI_AP_STATE_ENABLING, 0);
-        assertEquals(WIFI_AP_STATE_ENABLING, mWsm.syncGetWifiApState());
-        listener.onStateChanged(WIFI_AP_STATE_ENABLED, 0);
-        assertEquals(WIFI_AP_STATE_ENABLED, mWsm.syncGetWifiApState());
-        listener.onStateChanged(WIFI_AP_STATE_DISABLING, 0);
-        assertEquals(WIFI_AP_STATE_DISABLING, mWsm.syncGetWifiApState());
-        // note, this will trigger a mode change when TestLooper is dispatched
-        listener.onStateChanged(WIFI_AP_STATE_DISABLED, 0);
-        assertEquals(WIFI_AP_STATE_DISABLED, mWsm.syncGetWifiApState());
     }
 
     private void setupMockWpsPbc() throws Exception {

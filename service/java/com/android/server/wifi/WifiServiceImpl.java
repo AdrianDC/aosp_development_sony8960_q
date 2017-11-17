@@ -97,6 +97,7 @@ import android.provider.Settings;
 import android.util.ArrayMap;
 import android.util.ArraySet;
 import android.util.Log;
+import android.util.MutableInt;
 import android.util.Slog;
 
 import com.android.internal.annotations.GuardedBy;
@@ -197,6 +198,18 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private WifiConfiguration mLocalOnlyHotspotConfig = null;
     @GuardedBy("mLocalOnlyHotspotRequests")
     private final ConcurrentHashMap<String, Integer> mIfaceIpModes;
+
+    /**
+     * One of:  {@link WifiManager#WIFI_AP_STATE_DISABLED},
+     *          {@link WifiManager#WIFI_AP_STATE_DISABLING},
+     *          {@link WifiManager#WIFI_AP_STATE_ENABLED},
+     *          {@link WifiManager#WIFI_AP_STATE_ENABLING},
+     *          {@link WifiManager#WIFI_AP_STATE_FAILED}
+     *
+     * Access/maintenance MUST be done on the wifi service thread
+     */
+    private int mWifiApState = WifiManager.WIFI_AP_STATE_DISABLED;
+
 
     /**
      * Callback for use with LocalOnlyHotspot to unregister requesting applications upon death.
@@ -787,8 +800,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         }
 
         // If SoftAp is enabled, only Settings is allowed to toggle wifi
-        boolean apEnabled =
-                mWifiStateMachine.syncGetWifiApState() != WifiManager.WIFI_AP_STATE_DISABLED;
+        boolean apEnabled = mWifiApState != WifiManager.WIFI_AP_STATE_DISABLED;
 
         if (apEnabled && !isFromSettings) {
             mLog.info("setWifiEnabled SoftAp not disabled: only Settings can enable wifi").flush();
@@ -860,7 +872,13 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public int getWifiApEnabledState() {
         enforceAccessPermission();
         mLog.info("getWifiApEnabledState uid=%").c(Binder.getCallingUid()).flush();
-        return mWifiStateMachine.syncGetWifiApState();
+
+        // hand off work to our handler thread
+        MutableInt apState = new MutableInt(WifiManager.WIFI_AP_STATE_DISABLED);
+        mClientHandler.runWithScissors(() -> {
+            apState.value = mWifiApState;
+        }, 0);
+        return apState.value;
     }
 
     /**
@@ -1021,6 +1039,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
     /**
      * Private method to handle SoftAp state changes
+     *
+     * <p> MUST be called from the WifiStateMachine thread.
      */
     private void handleWifiApStateChange(
             int currentState, int previousState, int errorCode, String ifaceName, int mode) {
@@ -1028,6 +1048,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         Slog.d(TAG, "handleWifiApStateChange: currentState=" + currentState
                 + " previousState=" + previousState + " errorCode= " + errorCode
                 + " ifaceName=" + ifaceName + " mode=" + mode);
+
+        // update the tracking ap state variable
+        mWifiApState = currentState;
 
         // check if we have a failure - since it is possible (worst case scenario where
         // WifiController and WifiStateMachine are out of sync wrt modes) to get two FAILED
