@@ -210,9 +210,8 @@ public class SoftApManagerTest {
         when(mApInterface.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
         when(mWifiNative.setupForSoftApMode(eq(TEST_INTERFACE_NAME)))
                 .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mApInterface));
+        when(mApInterface.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
 
-        when(mApInterface.startHostapd(any())).thenReturn(true);
-        when(mApInterface.stopHostapd()).thenReturn(true);
         when(mWifiApConfigStore.getApConfiguration()).thenReturn(null);
         SoftApModeConfiguration nullApConfig =
                 new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
@@ -579,8 +578,6 @@ public class SoftApManagerTest {
         when(mWifiNative.setupForSoftApMode(eq(TEST_INTERFACE_NAME)))
                 .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mApInterface));
 
-        when(mApInterface.startHostapd(any())).thenReturn(true);
-        when(mApInterface.stopHostapd()).thenReturn(true);
         when(mWifiNative.isHalStarted()).thenReturn(true);
 
         SoftApManager newSoftApManager = new SoftApManager(mContext,

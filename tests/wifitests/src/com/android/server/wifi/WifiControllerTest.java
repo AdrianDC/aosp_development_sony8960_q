@@ -460,11 +460,13 @@ public class WifiControllerTest {
     public void testRestartWifiStackDoesNotExitAPMode() throws Exception {
         mWifiController.obtainMessage(CMD_SET_AP, 1).sendToTarget();
         mLooper.dispatchAll();
+        verify(mWifiStateMachinePrime).enterSoftAPMode(any());
         assertEquals("ApEnabledState", getCurrentState().getName());
 
         reset(mWifiStateMachine);
         mWifiController.sendMessage(CMD_RESTART_WIFI);
         mLooper.dispatchAll();
         verifyZeroInteractions(mWifiStateMachine);
+        verify(mWifiStateMachinePrime, never()).disableWifi();
     }
 }

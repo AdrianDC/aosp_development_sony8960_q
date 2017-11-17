@@ -205,6 +205,7 @@ public class WifiStateMachinePrime {
         }
 
         private void cleanup() {
+            mWifiNative.disableSupplicant();
             mWifiNative.tearDown();
         }
 
@@ -252,6 +253,9 @@ public class WifiStateMachinePrime {
 
             @Override
             public void enter() {
+                // For now - need to clean up from other mode management in WSM
+                cleanup();
+
                 final Message message = mModeStateMachine.getCurrentMessage();
                 if (message.what != ModeStateMachine.CMD_START_SOFT_AP_MODE) {
                     Log.d(TAG, "Entering SoftAPMode (idle)");
@@ -275,7 +279,8 @@ public class WifiStateMachinePrime {
                         // not in active state, nothing to stop.
                         break;
                     case CMD_START_AP_FAILURE:
-                        Log.e(TAG, "Failed to start SoftApMode.  Wait for next mode command.");
+                        // with interface management in softapmanager, no setup failures can be seen
+                        // here
                         break;
                     case CMD_AP_STOPPED:
                         Log.d(TAG, "SoftApModeActiveState stopped.  Wait for next mode command.");
@@ -288,7 +293,9 @@ public class WifiStateMachinePrime {
 
             @Override
             public void exit() {
-                cleanup();
+                // while in transition, cleanup is done on entering states.  in the future, each
+                // mode will clean up their own state on exit
+                //cleanup();
             }
 
             private void initializationFailed(String message) {
@@ -300,8 +307,9 @@ public class WifiStateMachinePrime {
         class WifiDisabledState extends State {
             @Override
             public void enter() {
-                // make sure everything is torn down
                 Log.d(TAG, "Entering WifiDisabledState");
+                // make sure everything is torn down
+                cleanup();
             }
 
             @Override
@@ -371,7 +379,7 @@ public class WifiStateMachinePrime {
                 }
                 this.mActiveModeManager = mWifiInjector.makeSoftApManager(mNMService,
                         new SoftApListener(), softApModeConfig);
-                mActiveModeManager.start();
+                this.mActiveModeManager.start();
             }
 
             @Override

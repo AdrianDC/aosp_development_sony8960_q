@@ -235,12 +235,11 @@ public class SoftApManager implements ActiveModeManager {
     }
 
     /**
-     * Teardown soft AP.
+     * Teardown soft AP and teardown the interface.
      */
     private void stopSoftAp() {
         if (!mWifiNative.stopSoftAp()) {
-            Log.d(TAG, "Soft AP stop failed");
-            return;
+            Log.e(TAG, "Soft AP stop failed");
         }
         Log.d(TAG, "Soft AP is stopped");
     }
@@ -308,9 +307,11 @@ public class SoftApManager implements ActiveModeManager {
                         if (statusAndInterface.first == WifiNative.SETUP_SUCCESS) {
                             mApInterface = statusAndInterface.second;
                         } else {
+                            Log.e(TAG, "setup failure when creating ap interface.");
                             incrementMetricsForSetupFailure(statusAndInterface.first);
                         }
                         if (mApInterface == null) {
+                            Log.e(TAG, "Not starting softap mode without an interface.");
                             updateApState(WifiManager.WIFI_AP_STATE_FAILED,
                                           WifiManager.WIFI_AP_STATE_DISABLED,
                                           WifiManager.SAP_START_FAILURE_GENERAL);
@@ -323,6 +324,7 @@ public class SoftApManager implements ActiveModeManager {
                         } catch (RemoteException e) {
                             // Failed to get the interface name. This is not a good sign and we
                             // should report a failure.
+                            Log.e(TAG, "Failed to get the interface name.");
                             updateApState(WifiManager.WIFI_AP_STATE_FAILED,
                                           WifiManager.WIFI_AP_STATE_DISABLED,
                                           WifiManager.SAP_START_FAILURE_GENERAL);

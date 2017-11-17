@@ -4150,6 +4150,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             // Tearing down the client interfaces below is going to stop our supplicant.
             mWifiMonitor.stopAllMonitoring();
 
+            // stop hostapd in case it was running from SoftApMode
+            mWifiNative.stopSoftAp();
+
             mWifiNative.deregisterWificondDeathHandler();
             mWifiNative.tearDown();
         }
@@ -4296,9 +4299,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         transitionTo(mInitialState);
                     }
                     break;
+                case CMD_START_AP:
+                    // now go directly to softap mode since we handle teardown in WSMP
+                    transitionTo(mSoftApState);
+                    break;
                 case CMD_START_SUPPLICANT:
                 case CMD_STOP_SUPPLICANT:
-                case CMD_START_AP:
                 case CMD_STOP_AP:
                 case CMD_SET_OPERATIONAL_MODE:
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DEFERRED;
@@ -4448,10 +4454,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         sendMessage(mBufferedScanMsg.remove());
                     break;
                 case CMD_START_AP:
-                    /* Cannot start soft AP while in client mode */
-                    loge("Failed to start soft AP with a running supplicant");
-                    setWifiApState(WIFI_AP_STATE_FAILED, WifiManager.SAP_START_FAILURE_GENERAL,
-                            null, WifiManager.IFACE_IP_MODE_UNSPECIFIED);
+                //    /* Cannot start soft AP while in client mode */
+                //    loge("Failed to start soft AP with a running supplicant");
+                //    setWifiApState(WIFI_AP_STATE_FAILED, WifiManager.SAP_START_FAILURE_GENERAL,
+                //            null, WifiManager.IFACE_IP_MODE_UNSPECIFIED);
+                    // now go directly to softap mode since we handle teardown in WSMP
+                    transitionTo(mSoftApState);
                     break;
                 case CMD_SET_OPERATIONAL_MODE:
                     mOperationalMode = message.arg1;
@@ -4907,6 +4915,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             }
             mWifiInfo.reset();
             mWifiInfo.setSupplicantState(SupplicantState.DISCONNECTED);
+            setWifiState(WIFI_STATE_DISABLED);
         }
 
         @Override
@@ -6945,6 +6954,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         private String mIfaceName;
         private int mMode;
 
+        /*
         private class SoftApListener implements SoftApManager.Listener {
             @Override
             public void onStateChanged(int state, int reason) {
@@ -6957,6 +6967,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 setWifiApState(state, reason, mIfaceName, mMode);
             }
         }
+        */
 
         @Override
         public void enter() {
@@ -6964,9 +6975,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             if (message.what != CMD_START_AP) {
                 throw new RuntimeException("Illegal transition to SoftApState: " + message);
             }
+            /*
             SoftApModeConfiguration config = (SoftApModeConfiguration) message.obj;
             mMode = config.getTargetMode();
-            /*
+
             IApInterface apInterface = null;
             Pair<Integer, IApInterface> statusAndInterface =
                     mWifiNative.setupForSoftApMode(mInterfaceName);
@@ -6993,13 +7005,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 transitionTo(mInitialState);
                 return;
             }
-            */
+
             checkAndSetConnectivityInstance();
             mSoftApManager = mWifiInjector.makeSoftApManager(mNwService,
                                                              new SoftApListener(),
                                                              config);
             mSoftApManager.start();
             mWifiStateTracker.updateState(WifiStateTracker.SOFT_AP);
+            */
         }
 
         @Override
@@ -7018,7 +7031,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     /* Ignore start command when it is starting/started. */
                     break;
                 case CMD_STOP_AP:
-                    mSoftApManager.stop();
+                    //mSoftApManager.stop();
+                    transitionTo(mInitialState);
                     break;
                 case CMD_START_AP_FAILURE:
                     transitionTo(mInitialState);
