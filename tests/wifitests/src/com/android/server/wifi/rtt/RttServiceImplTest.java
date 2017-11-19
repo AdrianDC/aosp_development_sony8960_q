@@ -37,6 +37,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import android.app.ActivityManager;
 import android.app.AlarmManager;
 import android.app.test.MockAnswerUtil;
 import android.app.test.TestAlarmManager;
@@ -63,6 +64,7 @@ import android.os.WorkSource;
 import android.os.test.TestLooper;
 import android.util.Pair;
 
+import com.android.server.wifi.Clock;
 import com.android.server.wifi.util.WifiPermissionsUtil;
 
 import libcore.util.HexEncoding;
@@ -109,6 +111,12 @@ public class RttServiceImplTest {
 
     @Mock
     public Context mockContext;
+
+    @Mock
+    public ActivityManager mockActivityManager;
+
+    @Mock
+    public Clock mockClock;
 
     @Mock
     public RttNative mockNative;
@@ -159,6 +167,11 @@ public class RttServiceImplTest {
                 .thenReturn(mAlarmManager.getAlarmManager());
         mInOrder = inOrder(mAlarmManager.getAlarmManager(), mockContext);
 
+        when(mockContext.getSystemService(Context.ACTIVITY_SERVICE)).thenReturn(
+                mockActivityManager);
+        when(mockActivityManager.getUidImportance(anyInt())).thenReturn(
+                ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE);
+
         when(mockPermissionUtil.checkCallersLocationPermission(eq(mPackageName),
                 anyInt())).thenReturn(true);
         when(mockNative.isReady()).thenReturn(true);
@@ -174,7 +187,8 @@ public class RttServiceImplTest {
         doAnswer(mBinderLinkToDeathCounter).when(mockIbinder).linkToDeath(any(), anyInt());
         doAnswer(mBinderUnlinkToDeathCounter).when(mockIbinder).unlinkToDeath(any(), anyInt());
 
-        mDut.start(mMockLooper.getLooper(), mockAwareManagerBinder, mockNative, mockPermissionUtil);
+        mDut.start(mMockLooper.getLooper(), mockClock, mockAwareManagerBinder, mockNative,
+                mockPermissionUtil);
         mMockLooper.dispatchAll();
         ArgumentCaptor<BroadcastReceiver> bcastRxCaptor = ArgumentCaptor.forClass(
                 BroadcastReceiver.class);
@@ -666,6 +680,175 @@ public class RttServiceImplTest {
     }
 
     /**
+     * Validate that ranging requests from background apps are throttled. The sequence is:
+     * - Time 1: Background request -> ok
+     * - Time 2 = t1 + 0.5gap: Background request -> fail (throttled)
+     * - Time 3 = t1 + 1.1gap: Background request -> ok
+     * - Time 4 = t3 + small: Foreground request -> ok
+     * - Time 5 = t4 + small: Background request -> fail (throttled)
+     */
+    @Test
+    public void testRangingThrottleBackground() throws Exception {
+        RangingRequest request1 = RttTestUtils.getDummyRangingRequest((byte) 1);
+        RangingRequest request2 = RttTestUtils.getDummyRangingRequest((byte) 2);
+        RangingRequest request3 = RttTestUtils.getDummyRangingRequest((byte) 3);
+        RangingRequest request4 = RttTestUtils.getDummyRangingRequest((byte) 4);
+        RangingRequest request5 = RttTestUtils.getDummyRangingRequest((byte) 5);
+
+        Pair<List<RttResult>, List<RangingResult>> result1 = RttTestUtils.getDummyRangingResults(
+                request1);
+        Pair<List<RttResult>, List<RangingResult>> result3 = RttTestUtils.getDummyRangingResults(
+                request3);
+        Pair<List<RttResult>, List<RangingResult>> result4 = RttTestUtils.getDummyRangingResults(
+                request4);
+
+        InOrder cbInorder = inOrder(mockCallback);
+
+        ClockAnswer clock = new ClockAnswer();
+        doAnswer(clock).when(mockClock).getElapsedSinceBootMillis();
+        when(mockActivityManager.getUidImportance(anyInt())).thenReturn(
+                ActivityManager.RunningAppProcessInfo.IMPORTANCE_GONE); // far background
+
+        // (1) issue a request at time t1: should be dispatched since first one!
+        clock.time = 100;
+        mDut.startRanging(mockIbinder, mPackageName, null, request1, mockCallback);
+        mMockLooper.dispatchAll();
+
+        verify(mockNative).rangeRequest(mIntCaptor.capture(), eq(request1));
+        verifyWakeupSet();
+
+        // (1.1) get result
+        mDut.onRangingResults(mIntCaptor.getValue(), result1.first);
+        mMockLooper.dispatchAll();
+
+        cbInorder.verify(mockCallback).onRangingResults(result1.second);
+        verifyWakeupCancelled();
+
+        // (2) issue a request at time t2 = t1 + 0.5 gap: should be rejected (throttled)
+        clock.time = 100 + RttServiceImpl.BACKGROUND_PROCESS_EXEC_GAP_MS / 2;
+        mDut.startRanging(mockIbinder, mPackageName, null, request2, mockCallback);
+        mMockLooper.dispatchAll();
+
+        cbInorder.verify(mockCallback).onRangingFailure(RangingResultCallback.STATUS_CODE_FAIL);
+
+        // (3) issue a request at time t3 = t1 + 1.1 gap: should be dispatched since enough time
+        clock.time = 100 + RttServiceImpl.BACKGROUND_PROCESS_EXEC_GAP_MS * 11 / 10;
+        mDut.startRanging(mockIbinder, mPackageName, null, request3, mockCallback);
+        mMockLooper.dispatchAll();
+
+        verify(mockNative).rangeRequest(mIntCaptor.capture(), eq(request3));
+        verifyWakeupSet();
+
+        // (3.1) get result
+        mDut.onRangingResults(mIntCaptor.getValue(), result3.first);
+        mMockLooper.dispatchAll();
+
+        cbInorder.verify(mockCallback).onRangingResults(result3.second);
+        verifyWakeupCancelled();
+
+        // (4) issue a foreground request at t4 = t3 + small: should be dispatched (foreground!)
+        when(mockActivityManager.getUidImportance(anyInt())).thenReturn(
+                ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND);
+
+        clock.time = clock.time + 5;
+        mDut.startRanging(mockIbinder, mPackageName, null, request4, mockCallback);
+        mMockLooper.dispatchAll();
+
+        verify(mockNative).rangeRequest(mIntCaptor.capture(), eq(request4));
+        verifyWakeupSet();
+
+        // (4.1) get result
+        mDut.onRangingResults(mIntCaptor.getValue(), result4.first);
+        mMockLooper.dispatchAll();
+
+        cbInorder.verify(mockCallback).onRangingResults(result4.second);
+        verifyWakeupCancelled();
+
+        // (5) issue a background request at t5 = t4 + small: should be rejected (throttled)
+        when(mockActivityManager.getUidImportance(anyInt())).thenReturn(
+                ActivityManager.RunningAppProcessInfo.IMPORTANCE_GONE);
+
+        clock.time = clock.time + 5;
+        mDut.startRanging(mockIbinder, mPackageName, null, request5, mockCallback);
+        mMockLooper.dispatchAll();
+
+        cbInorder.verify(mockCallback).onRangingFailure(RangingResultCallback.STATUS_CODE_FAIL);
+
+        verify(mockNative, atLeastOnce()).isReady();
+        verifyNoMoreInteractions(mockNative, mockCallback, mAlarmManager.getAlarmManager());
+    }
+
+    /**
+     * Validate that throttling of background request handles multiple work source correctly:
+     * - Time t1: background request uid=10: ok
+     * - Time t2 = t1+small: background request ws={10,20}: ok
+     * - Time t3 = t1+gap: background request uid=10: fail (throttled)
+     */
+    @Test
+    public void testRangingThrottleBackgroundWorkSources() throws Exception {
+        WorkSource wsReq1 = new WorkSource(10);
+        WorkSource wsReq2 = new WorkSource(10);
+        wsReq2.add(20);
+
+        RangingRequest request1 = RttTestUtils.getDummyRangingRequest((byte) 1);
+        RangingRequest request2 = RttTestUtils.getDummyRangingRequest((byte) 2);
+        RangingRequest request3 = RttTestUtils.getDummyRangingRequest((byte) 3);
+
+        Pair<List<RttResult>, List<RangingResult>> result1 = RttTestUtils.getDummyRangingResults(
+                request1);
+        Pair<List<RttResult>, List<RangingResult>> result2 = RttTestUtils.getDummyRangingResults(
+                request2);
+
+        InOrder cbInorder = inOrder(mockCallback);
+
+        ClockAnswer clock = new ClockAnswer();
+        doAnswer(clock).when(mockClock).getElapsedSinceBootMillis();
+        when(mockActivityManager.getUidImportance(anyInt())).thenReturn(
+                ActivityManager.RunningAppProcessInfo.IMPORTANCE_GONE); // far background
+
+        // (1) issue a request at time t1 for {10}: should be dispatched since first one!
+        clock.time = 100;
+        mDut.startRanging(mockIbinder, mPackageName, wsReq1, request1, mockCallback);
+        mMockLooper.dispatchAll();
+
+        verify(mockNative).rangeRequest(mIntCaptor.capture(), eq(request1));
+        verifyWakeupSet();
+
+        // (1.1) get result
+        mDut.onRangingResults(mIntCaptor.getValue(), result1.first);
+        mMockLooper.dispatchAll();
+
+        cbInorder.verify(mockCallback).onRangingResults(result1.second);
+        verifyWakeupCancelled();
+
+        // (2) issue a request at time t2 = t1 + 0.5 gap for {10,20}: should be dispatched since
+        //     uid=20 should not be throttled
+        clock.time = 100 + RttServiceImpl.BACKGROUND_PROCESS_EXEC_GAP_MS / 2;
+        mDut.startRanging(mockIbinder, mPackageName, wsReq2, request2, mockCallback);
+        mMockLooper.dispatchAll();
+
+        verify(mockNative).rangeRequest(mIntCaptor.capture(), eq(request2));
+        verifyWakeupSet();
+
+        // (2.1) get result
+        mDut.onRangingResults(mIntCaptor.getValue(), result2.first);
+        mMockLooper.dispatchAll();
+
+        cbInorder.verify(mockCallback).onRangingResults(result2.second);
+        verifyWakeupCancelled();
+
+        // (3) issue a request at t3 = t1 + 1.1 * gap for {10}: should be rejected (throttled)
+        clock.time = 100 + RttServiceImpl.BACKGROUND_PROCESS_EXEC_GAP_MS * 11 / 10;
+        mDut.startRanging(mockIbinder, mPackageName, wsReq1, request3, mockCallback);
+        mMockLooper.dispatchAll();
+
+        cbInorder.verify(mockCallback).onRangingFailure(RangingResultCallback.STATUS_CODE_FAIL);
+
+        verify(mockNative, atLeastOnce()).isReady();
+        verifyNoMoreInteractions(mockNative, mockCallback, mAlarmManager.getAlarmManager());
+    }
+
+    /**
      * Validate that when Wi-Fi gets disabled (HAL level) the ranging queue gets cleared.
      */
     @Test
@@ -829,4 +1012,11 @@ public class RttServiceImplTest {
         }
     }
 
+    private class ClockAnswer extends MockAnswerUtil.AnswerWithArguments {
+        public long time;
+
+        public long answer() {
+            return time;
+        }
+    }
 }

@@ -26,6 +26,7 @@ import android.hardware.wifi.V1_0.NanEnableRequest;
 import android.hardware.wifi.V1_0.NanInitiateDataPathRequest;
 import android.hardware.wifi.V1_0.NanMatchAlg;
 import android.hardware.wifi.V1_0.NanPublishRequest;
+import android.hardware.wifi.V1_0.NanRangingIndication;
 import android.hardware.wifi.V1_0.NanRespondToDataPathIndicationRequest;
 import android.hardware.wifi.V1_0.NanSubscribeRequest;
 import android.hardware.wifi.V1_0.NanTransmitFollowupRequest;
@@ -430,10 +431,12 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
         req.baseConfigs.disableMatchExpirationIndication = true;
         req.baseConfigs.disableFollowupReceivedIndication = false;
 
-        // TODO: configure ranging and security
-        req.baseConfigs.securityConfig.securityType = NanDataPathSecurityType.OPEN;
-        req.baseConfigs.rangingRequired = false;
         req.autoAcceptDataPathRequests = false;
+
+        req.baseConfigs.rangingRequired = publishConfig.mEnableRanging;
+
+        // TODO: configure security
+        req.baseConfigs.securityConfig.securityType = NanDataPathSecurityType.OPEN;
 
         req.publishType = publishConfig.mPublishType;
         req.txType = NanTxType.BROADCAST;
@@ -493,9 +496,23 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
         req.baseConfigs.disableMatchExpirationIndication = true;
         req.baseConfigs.disableFollowupReceivedIndication = false;
 
-        // TODO: configure ranging and security
+        req.baseConfigs.rangingRequired =
+                subscribeConfig.mMinDistanceMmSet || subscribeConfig.mMaxDistanceMmSet;
+        req.baseConfigs.configRangingIndications = 0;
+        // TODO: b/69428593 remove correction factors once HAL converted from CM to MM
+        if (subscribeConfig.mMinDistanceMmSet) {
+            req.baseConfigs.distanceIngressCm = (short) Math.min(
+                    subscribeConfig.mMinDistanceMm / 10, Short.MAX_VALUE);
+            req.baseConfigs.configRangingIndications |= NanRangingIndication.INGRESS_MET_MASK;
+        }
+        if (subscribeConfig.mMaxDistanceMmSet) {
+            req.baseConfigs.distanceEgressCm = (short) Math.min(subscribeConfig.mMaxDistanceMm / 10,
+                    Short.MAX_VALUE);
+            req.baseConfigs.configRangingIndications |= NanRangingIndication.EGRESS_MET_MASK;
+        }
+
+        // TODO: configure security
         req.baseConfigs.securityConfig.securityType = NanDataPathSecurityType.OPEN;
-        req.baseConfigs.rangingRequired = false;
 
         req.subscribeType = subscribeConfig.mSubscribeType;
 

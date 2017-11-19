@@ -46,7 +46,7 @@ import java.util.List;
  */
 public class RttNative extends IWifiRttControllerEventCallback.Stub {
     private static final String TAG = "RttNative";
-    private static final boolean VDBG = true; // STOPSHIP if true
+    private static final boolean VDBG = false; // STOPSHIP if true
 
     private final RttServiceImpl mRttService;
     private final HalDeviceManager mHalDeviceManager;
