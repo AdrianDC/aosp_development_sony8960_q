@@ -257,32 +257,11 @@ public class WificondControlTest {
     public void testEnableSupplicant() throws Exception {
         when(mWifiInjector.makeWificond()).thenReturn(mWificond);
         when(mWificond.createClientInterface(TEST_INTERFACE_NAME)).thenReturn(mClientInterface);
-        when(mClientInterface.enableSupplicant()).thenReturn(true);
+        when(mWificond.enableSupplicant()).thenReturn(true);
 
         mWificondControl.setupDriverForClientMode(TEST_INTERFACE_NAME);
         assertTrue(mWificondControl.enableSupplicant());
-        verify(mClientInterface).enableSupplicant();
-    }
-
-    /**
-     * Verifies that enableSupplicant() returns false when there is no configured
-     * client interface.
-     */
-    @Test
-    public void testEnableSupplicantErrorWhenNoClientInterfaceConfigured() throws Exception {
-        when(mWifiInjector.makeWificond()).thenReturn(mWificond);
-        when(mWificond.createClientInterface(TEST_INTERFACE_NAME)).thenReturn(mClientInterface);
-
-        // Configure client interface.
-        IClientInterface returnedClientInterface =
-                mWificondControl.setupDriverForClientMode(TEST_INTERFACE_NAME);
-        assertEquals(mClientInterface, returnedClientInterface);
-
-        // Tear down interfaces.
-        assertTrue(mWificondControl.tearDownInterfaces());
-
-        // Enabling supplicant should fail.
-        assertFalse(mWificondControl.enableSupplicant());
+        verify(mWificond).enableSupplicant();
     }
 
     /**
@@ -292,32 +271,11 @@ public class WificondControlTest {
     public void testDisableSupplicant() throws Exception {
         when(mWifiInjector.makeWificond()).thenReturn(mWificond);
         when(mWificond.createClientInterface(TEST_INTERFACE_NAME)).thenReturn(mClientInterface);
-        when(mClientInterface.disableSupplicant()).thenReturn(true);
+        when(mWificond.disableSupplicant()).thenReturn(true);
 
         mWificondControl.setupDriverForClientMode(TEST_INTERFACE_NAME);
         assertTrue(mWificondControl.disableSupplicant());
-        verify(mClientInterface).disableSupplicant();
-    }
-
-    /**
-     * Verifies that disableSupplicant() returns false when there is no configured
-     * client interface.
-     */
-    @Test
-    public void testDisableSupplicantErrorWhenNoClientInterfaceConfigured() throws Exception {
-        when(mWifiInjector.makeWificond()).thenReturn(mWificond);
-        when(mWificond.createClientInterface(TEST_INTERFACE_NAME)).thenReturn(mClientInterface);
-
-        // Configure client interface.
-        IClientInterface returnedClientInterface =
-                mWificondControl.setupDriverForClientMode(TEST_INTERFACE_NAME);
-        assertEquals(mClientInterface, returnedClientInterface);
-
-        // Tear down interfaces.
-        assertTrue(mWificondControl.tearDownInterfaces());
-
-        // Disabling supplicant should fail.
-        assertFalse(mWificondControl.disableSupplicant());
+        verify(mWificond).disableSupplicant();
     }
 
     /**
