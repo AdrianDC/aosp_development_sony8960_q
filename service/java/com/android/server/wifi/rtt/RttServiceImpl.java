@@ -24,15 +24,14 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.hardware.wifi.V1_0.RttResult;
 import android.hardware.wifi.V1_0.RttStatus;
-import android.net.wifi.ScanResult;
 import android.net.wifi.aware.IWifiAwareMacAddressProvider;
 import android.net.wifi.aware.IWifiAwareManager;
-import android.net.wifi.aware.PeerHandle;
 import android.net.wifi.rtt.IRttCallback;
 import android.net.wifi.rtt.IWifiRttManager;
 import android.net.wifi.rtt.RangingRequest;
 import android.net.wifi.rtt.RangingResult;
 import android.net.wifi.rtt.RangingResultCallback;
+import android.net.wifi.rtt.ResponderConfig;
 import android.net.wifi.rtt.WifiRttManager;
 import android.os.Binder;
 import android.os.Handler;
@@ -47,7 +46,6 @@ import android.util.Log;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.WakeupMessage;
 import com.android.server.wifi.Clock;
-import com.android.server.wifi.util.NativeUtil;
 import com.android.server.wifi.util.WifiPermissionsUtil;
 
 import libcore.util.HexEncoding;
@@ -349,24 +347,12 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
 
         private void cancelRanging(RttRequestInfo rri) {
             ArrayList<byte[]> macAddresses = new ArrayList<>();
-            for (RangingRequest.RttPeer peer : rri.request.mRttPeers) {
-                if (peer instanceof RangingRequest.RttPeerAp) {
-                    ScanResult scanResult =
-                            ((RangingRequest.RttPeerAp) peer).scanResult;
-
-                    byte[] addr = NativeUtil.macAddressToByteArray(scanResult.BSSID);
-                    if (addr.length != 6) {
-                        Log.e(TAG, "Invalid configuration: unexpected BSSID length -- "
-                                + peer);
-                        continue;
-                    }
-                    macAddresses.add(addr);
-                } else if (peer instanceof RangingRequest.RttPeerAware) {
-                    if (((RangingRequest.RttPeerAware) peer).peerMacAddress != null) {
-                        macAddresses.add(
-                                ((RangingRequest.RttPeerAware) peer).peerMacAddress);
-                    }
+            for (ResponderConfig peer : rri.request.mRttPeers) {
+                if (peer.macAddress.length != 6) {
+                    Log.e(TAG, "Invalid configuration: unexpected BSSID length -- " + peer);
+                    continue;
                 }
+                macAddresses.add(peer.macAddress);
             }
 
             mRttNative.rangeCancel(rri.cmdId, macAddresses);
@@ -652,12 +638,9 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
          */
         private boolean processAwarePeerHandles(RttRequestInfo request) {
             List<Integer> peerIdsNeedingTranslation = new ArrayList<>();
-            for (RangingRequest.RttPeer rttPeer: request.request.mRttPeers) {
-                if (rttPeer instanceof RangingRequest.RttPeerAware) {
-                    RangingRequest.RttPeerAware awarePeer = (RangingRequest.RttPeerAware) rttPeer;
-                    if (awarePeer.peerHandle != null && awarePeer.peerMacAddress == null) {
-                        peerIdsNeedingTranslation.add(awarePeer.peerHandle.peerId);
-                    }
+            for (ResponderConfig rttPeer : request.request.mRttPeers) {
+                if (rttPeer.peerHandle != null && rttPeer.macAddress == null) {
+                    peerIdsNeedingTranslation.add(rttPeer.peerHandle.peerId);
                 }
             }
 
@@ -713,12 +696,9 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                         + ", peerIdToMacMap=" + peerIdToMacMap);
             }
 
-            for (RangingRequest.RttPeer rttPeer: request.request.mRttPeers) {
-                if (rttPeer instanceof RangingRequest.RttPeerAware) {
-                    RangingRequest.RttPeerAware awarePeer = (RangingRequest.RttPeerAware) rttPeer;
-                    if (awarePeer.peerHandle != null && awarePeer.peerMacAddress == null) {
-                        awarePeer.peerMacAddress = peerIdToMacMap.get(awarePeer.peerHandle.peerId);
-                    }
+            for (ResponderConfig rttPeer: request.request.mRttPeers) {
+                if (rttPeer.peerHandle != null && rttPeer.macAddress == null) {
+                    rttPeer.macAddress = peerIdToMacMap.get(rttPeer.peerHandle.peerId);
                 }
             }
 
@@ -787,45 +767,38 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
 
             List<RangingResult> finalResults = new ArrayList<>(request.mRttPeers.size());
 
-            for (RangingRequest.RttPeer peer: request.mRttPeers) {
-                byte[] addr;
-                if (peer instanceof RangingRequest.RttPeerAp) {
-                    addr = NativeUtil.macAddressToByteArray(
-                            ((RangingRequest.RttPeerAp) peer).scanResult.BSSID);
-                } else if (peer instanceof RangingRequest.RttPeerAware) {
-                    addr = ((RangingRequest.RttPeerAware) peer).peerMacAddress;
-                } else {
-                    Log.w(TAG, "postProcessResults: unknown peer type -- " + peer.getClass());
-                    continue;
-                }
-
+            for (ResponderConfig peer: request.mRttPeers) {
                 RttResult resultForRequest = resultEntries.get(
-                        new String(HexEncoding.encode(addr)));
+                        new String(HexEncoding.encode(peer.macAddress)));
                 if (resultForRequest == null) {
                     if (VDBG) {
                         Log.v(TAG, "postProcessResults: missing=" + new String(
-                                HexEncoding.encode(addr)));
+                                HexEncoding.encode(peer.macAddress)));
                     }
-                    finalResults.add(
-                            new RangingResult(RangingResult.STATUS_FAIL, addr, 0, 0, 0, 0));
+                    if (peer.peerHandle == null) {
+                        finalResults.add(
+                                new RangingResult(RangingResult.STATUS_FAIL, peer.macAddress, 0, 0,
+                                        0, 0));
+                    } else {
+                        finalResults.add(
+                                new RangingResult(RangingResult.STATUS_FAIL, peer.peerHandle, 0, 0,
+                                        0, 0));
+                    }
                 } else {
                     int status = resultForRequest.status == RttStatus.SUCCESS
                             ? RangingResult.STATUS_SUCCESS : RangingResult.STATUS_FAIL;
-                    PeerHandle peerHandle = null;
-                    if (peer instanceof RangingRequest.RttPeerAware) {
-                        peerHandle = ((RangingRequest.RttPeerAware) peer).peerHandle;
-                    }
-
-                    if (peerHandle == null) {
+                    if (peer.peerHandle == null) {
                         finalResults.add(
-                                new RangingResult(status, addr, resultForRequest.distanceInMm,
-                                        resultForRequest.distanceSdInMm, resultForRequest.rssi,
-                                        resultForRequest.timeStampInUs));
+                                new RangingResult(status, peer.macAddress,
+                                        resultForRequest.distanceInMm,
+                                        resultForRequest.distanceSdInMm,
+                                        resultForRequest.rssi, resultForRequest.timeStampInUs));
                     } else {
                         finalResults.add(
-                                new RangingResult(status, peerHandle, resultForRequest.distanceInMm,
-                                        resultForRequest.distanceSdInMm, resultForRequest.rssi,
-                                        resultForRequest.timeStampInUs));
+                                new RangingResult(status, peer.peerHandle,
+                                        resultForRequest.distanceInMm,
+                                        resultForRequest.distanceSdInMm,
+                                        resultForRequest.rssi, resultForRequest.timeStampInUs));
                     }
                 }
             }

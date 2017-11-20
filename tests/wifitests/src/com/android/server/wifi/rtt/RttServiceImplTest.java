@@ -53,6 +53,7 @@ import android.net.wifi.rtt.IRttCallback;
 import android.net.wifi.rtt.RangingRequest;
 import android.net.wifi.rtt.RangingResult;
 import android.net.wifi.rtt.RangingResultCallback;
+import android.net.wifi.rtt.ResponderConfig;
 import android.net.wifi.rtt.WifiRttManager;
 import android.os.Handler;
 import android.os.IBinder;
@@ -253,11 +254,15 @@ public class RttServiceImplTest {
     @Test
     public void testRangingFlowUsingAwarePeerHandles() throws Exception {
         RangingRequest request = RttTestUtils.getDummyRangingRequest((byte) 0xA);
-        PeerHandle peerHandle = new PeerHandle(1022);
-        request.mRttPeers.add(new RangingRequest.RttPeerAware(peerHandle));
+        PeerHandle peerHandle1 = new PeerHandle(1022);
+        PeerHandle peerHandle2 = new PeerHandle(1023);
+        request.mRttPeers.add(ResponderConfig.fromWifiAwarePeerHandleWithDefaults(peerHandle1));
+        request.mRttPeers.add(ResponderConfig.fromWifiAwarePeerHandleWithDefaults(peerHandle2));
         Map<Integer, byte[]> peerHandleToMacMap = new HashMap<>();
-        byte[] macAwarePeer = HexEncoding.decode("AABBCCDDEEFF".toCharArray(), false);
-        peerHandleToMacMap.put(1022, macAwarePeer);
+        byte[] macAwarePeer1 = HexEncoding.decode("AABBCCDDEEFF".toCharArray(), false);
+        byte[] macAwarePeer2 = HexEncoding.decode("BBBBBBEEEEEE".toCharArray(), false);
+        peerHandleToMacMap.put(peerHandle1.peerId, macAwarePeer1);
+        peerHandleToMacMap.put(peerHandle2.peerId, macAwarePeer2);
 
         AwareTranslatePeerHandlesToMac answer = new AwareTranslatePeerHandlesToMac(mDefaultUid,
                 peerHandleToMacMap);
@@ -274,13 +279,18 @@ public class RttServiceImplTest {
         RangingRequest finalRequest = mRequestCaptor.getValue();
         assertNotEquals("Request to native is not null", null, finalRequest);
         assertEquals("Size of request", request.mRttPeers.size(), finalRequest.mRttPeers.size());
-        assertEquals("Aware peer MAC", macAwarePeer,
-                ((RangingRequest.RttPeerAware) finalRequest.mRttPeers.get(
-                        finalRequest.mRttPeers.size() - 1)).peerMacAddress);
+        assertEquals("Aware peer 1 MAC", macAwarePeer1,
+                finalRequest.mRttPeers.get(finalRequest.mRttPeers.size() - 2).macAddress);
+        assertEquals("Aware peer 2 MAC", macAwarePeer2,
+                finalRequest.mRttPeers.get(finalRequest.mRttPeers.size() - 1).macAddress);
 
-        // issue results
+        // issue results - but remove the one for peer #2
         Pair<List<RttResult>, List<RangingResult>> results =
                 RttTestUtils.getDummyRangingResults(mRequestCaptor.getValue());
+        results.first.remove(results.first.size() - 1);
+        RangingResult removed = results.second.remove(results.second.size() - 1);
+        results.second.add(
+                new RangingResult(RangingResult.STATUS_FAIL, removed.getPeerHandle(), 0, 0, 0, 0));
         mDut.onRangingResults(mIntCaptor.getValue(), results.first);
         mMockLooper.dispatchAll();
 
@@ -607,8 +617,12 @@ public class RttServiceImplTest {
         RangingRequest request = RttTestUtils.getDummyRangingRequest((byte) 0);
         Pair<List<RttResult>, List<RangingResult>> results = RttTestUtils.getDummyRangingResults(
                 request);
-        results.first.remove(0);
-        RangingResult removed = results.second.remove(0);
+        results.first.remove(2); // remove a direct AWARE request
+        RangingResult removed = results.second.remove(2);
+        results.second.add(
+                new RangingResult(RangingResult.STATUS_FAIL, removed.getMacAddress(), 0, 0, 0, 0));
+        results.first.remove(0); // remove an AP request
+        removed = results.second.remove(0);
         results.second.add(
                 new RangingResult(RangingResult.STATUS_FAIL, removed.getMacAddress(), 0, 0, 0, 0));
 
