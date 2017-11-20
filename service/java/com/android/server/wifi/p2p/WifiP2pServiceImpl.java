@@ -16,6 +16,7 @@
 
 package com.android.server.wifi.p2p;
 
+import android.annotation.NonNull;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -524,7 +525,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                     }
                     mHalDeviceManager = mWifiInjector.getHalDeviceManager();
                 }
-                mIWifiP2pIface = mHalDeviceManager.createP2pIface(() -> {
+                mIWifiP2pIface = mHalDeviceManager.createP2pIface((@NonNull String ifaceName) -> {
                     if (DBG) Log.d(TAG, "IWifiP2pIface destroyedListener");
                     synchronized (mLock) {
                         mIWifiP2pIface = null;

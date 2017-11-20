@@ -17,6 +17,7 @@
 package com.android.server.wifi;
 
 import static com.android.server.wifi.HalDeviceManager.START_HAL_RETRY_TIMES;
+import static com.android.server.wifi.HalDeviceManager.getName;
 
 import static junit.framework.Assert.assertEquals;
 
@@ -55,6 +56,8 @@ import android.os.Handler;
 import android.os.IHwBinder;
 import android.os.test.TestLooper;
 import android.util.Log;
+
+import com.android.server.wifi.HalDeviceManager.InterfaceDestroyedListener;
 
 import org.hamcrest.core.IsNull;
 import org.junit.After;
@@ -301,13 +304,13 @@ public class HalDeviceManagerTest {
         executeAndValidateInitializationSequence();
         executeAndValidateStartupSequence();
 
-        HalDeviceManager.InterfaceDestroyedListener staDestroyedListener = mock(
-                HalDeviceManager.InterfaceDestroyedListener.class);
+        InterfaceDestroyedListener staDestroyedListener = mock(
+                InterfaceDestroyedListener.class);
         HalDeviceManager.InterfaceAvailableForRequestListener staAvailListener = mock(
                 HalDeviceManager.InterfaceAvailableForRequestListener.class);
 
-        HalDeviceManager.InterfaceDestroyedListener nanDestroyedListener = mock(
-                HalDeviceManager.InterfaceDestroyedListener.class);
+        InterfaceDestroyedListener nanDestroyedListener = mock(
+                InterfaceDestroyedListener.class);
         HalDeviceManager.InterfaceAvailableForRequestListener nanAvailListener = mock(
                 HalDeviceManager.InterfaceAvailableForRequestListener.class);
 
@@ -339,18 +342,18 @@ public class HalDeviceManagerTest {
         chipMock.interfaceNames.get(IfaceType.STA).remove("sta0");
 
         // now try to request another NAN
-        nanIface = mDut.createNanIface(nanDestroyedListener, mHandler);
+        IWifiIface nanIface2 = mDut.createNanIface(nanDestroyedListener, mHandler);
         mDut.registerInterfaceAvailableForRequestListener(IfaceType.NAN, nanAvailListener,
                 mHandler);
-        collector.checkThat("NAN can't be created", nanIface, IsNull.nullValue());
+        collector.checkThat("NAN can't be created", nanIface2, IsNull.nullValue());
 
         // verify that Wi-Fi is shut-down: should also get all onDestroyed messages that are
         // registered (even if they seem out-of-sync to chip)
         mTestLooper.dispatchAll();
         verify(mWifiMock, times(2)).stop();
         verify(mManagerStatusListenerMock, times(2)).onStatusChanged();
-        verify(staDestroyedListener).onDestroyed();
-        verify(nanDestroyedListener).onDestroyed();
+        verify(staDestroyedListener).onDestroyed(getName(staIface));
+        verify(nanDestroyedListener).onDestroyed(getName(nanIface));
 
         verifyNoMoreInteractions(mManagerStatusListenerMock, staDestroyedListener, staAvailListener,
                 nanDestroyedListener, nanAvailListener);
@@ -605,8 +608,8 @@ public class HalDeviceManagerTest {
         executeAndValidateInitializationSequence();
         executeAndValidateStartupSequence();
 
-        HalDeviceManager.InterfaceDestroyedListener idl = mock(
-                HalDeviceManager.InterfaceDestroyedListener.class);
+        InterfaceDestroyedListener idl = mock(
+                InterfaceDestroyedListener.class);
         HalDeviceManager.InterfaceAvailableForRequestListener iafrl = mock(
                 HalDeviceManager.InterfaceAvailableForRequestListener.class);
 
@@ -627,7 +630,7 @@ public class HalDeviceManagerTest {
         mTestLooper.dispatchAll();
 
         // verify: callback triggered
-        verify(idl).onDestroyed();
+        verify(idl).onDestroyed(getName(iface));
         verify(mManagerStatusListenerMock, times(2)).onStatusChanged();
 
         verifyNoMoreInteractions(mManagerStatusListenerMock, idl, iafrl);
@@ -648,8 +651,8 @@ public class HalDeviceManagerTest {
         executeAndValidateInitializationSequence();
         executeAndValidateStartupSequence();
 
-        HalDeviceManager.InterfaceDestroyedListener idl = mock(
-                HalDeviceManager.InterfaceDestroyedListener.class);
+        InterfaceDestroyedListener idl = mock(
+                InterfaceDestroyedListener.class);
         HalDeviceManager.InterfaceAvailableForRequestListener iafrl = mock(
                 HalDeviceManager.InterfaceAvailableForRequestListener.class);
 
@@ -670,7 +673,7 @@ public class HalDeviceManagerTest {
         mTestLooper.dispatchAll();
 
         // verify: callback triggered
-        verify(idl).onDestroyed();
+        verify(idl).onDestroyed(getName(iface));
         verify(mManagerStatusListenerMock, times(2)).onStatusChanged();
 
         verifyNoMoreInteractions(mManagerStatusListenerMock, idl, iafrl);
@@ -703,29 +706,29 @@ public class HalDeviceManagerTest {
         executeAndValidateInitializationSequence();
         executeAndValidateStartupSequence();
 
-        HalDeviceManager.InterfaceDestroyedListener staDestroyedListener = mock(
-                HalDeviceManager.InterfaceDestroyedListener.class);
+        InterfaceDestroyedListener staDestroyedListener = mock(
+                InterfaceDestroyedListener.class);
         HalDeviceManager.InterfaceAvailableForRequestListener staAvailListener = mock(
                 HalDeviceManager.InterfaceAvailableForRequestListener.class);
 
-        HalDeviceManager.InterfaceDestroyedListener staDestroyedListener2 = mock(
-                HalDeviceManager.InterfaceDestroyedListener.class);
+        InterfaceDestroyedListener staDestroyedListener2 = mock(
+                InterfaceDestroyedListener.class);
 
-        HalDeviceManager.InterfaceDestroyedListener apDestroyedListener = mock(
-                HalDeviceManager.InterfaceDestroyedListener.class);
+        InterfaceDestroyedListener apDestroyedListener = mock(
+                InterfaceDestroyedListener.class);
         HalDeviceManager.InterfaceAvailableForRequestListener apAvailListener = mock(
                 HalDeviceManager.InterfaceAvailableForRequestListener.class);
 
-        HalDeviceManager.InterfaceDestroyedListener p2pDestroyedListener = mock(
-                HalDeviceManager.InterfaceDestroyedListener.class);
+        InterfaceDestroyedListener p2pDestroyedListener = mock(
+                InterfaceDestroyedListener.class);
         HalDeviceManager.InterfaceAvailableForRequestListener p2pAvailListener = mock(
                 HalDeviceManager.InterfaceAvailableForRequestListener.class);
 
-        HalDeviceManager.InterfaceDestroyedListener p2pDestroyedListener2 = mock(
-                HalDeviceManager.InterfaceDestroyedListener.class);
+        InterfaceDestroyedListener p2pDestroyedListener2 = mock(
+                InterfaceDestroyedListener.class);
 
-        HalDeviceManager.InterfaceDestroyedListener nanDestroyedListener = mock(
-                HalDeviceManager.InterfaceDestroyedListener.class);
+        InterfaceDestroyedListener nanDestroyedListener = mock(
+                InterfaceDestroyedListener.class);
         HalDeviceManager.InterfaceAvailableForRequestListener nanAvailListener = mock(
                 HalDeviceManager.InterfaceAvailableForRequestListener.class);
 
@@ -801,7 +804,12 @@ public class HalDeviceManagerTest {
                 apDestroyedListener, // destroyedListener
                 null, // availableListener
                 // destroyedInterfacesDestroyedListeners...
-                staDestroyedListener, staDestroyedListener2, p2pDestroyedListener
+                new InterfaceDestroyedListenerWithIfaceName(
+                        getName(staIface), staDestroyedListener),
+                new InterfaceDestroyedListenerWithIfaceName(
+                        getName(staIface), staDestroyedListener2),
+                new InterfaceDestroyedListenerWithIfaceName(
+                        getName(p2pIface), p2pDestroyedListener)
         );
         collector.checkThat("allocated AP interface", apIface, IsNull.notNullValue());
 
@@ -825,7 +833,9 @@ public class HalDeviceManagerTest {
                 null, // tearDownList
                 staDestroyedListener, // destroyedListener
                 null, // availableListener
-                apDestroyedListener // destroyedInterfacesDestroyedListeners...
+                // destroyedInterfacesDestroyedListeners...
+                new InterfaceDestroyedListenerWithIfaceName(
+                        getName(apIface), apDestroyedListener)
         );
         collector.checkThat("allocated STA interface", staIface, IsNull.notNullValue());
 
@@ -834,7 +844,7 @@ public class HalDeviceManagerTest {
         inOrderNanAvail.verify(nanAvailListener).onAvailableForRequest();
 
         mTestLooper.dispatchAll();
-        verify(apDestroyedListener).onDestroyed();
+        verify(apDestroyedListener).onDestroyed(getName(apIface));
 
         // Request P2P: expect success now
         p2pIface = validateInterfaceSequence(chipMock,
@@ -864,7 +874,7 @@ public class HalDeviceManagerTest {
         inOrderP2pAvail.verify(p2pAvailListener).onAvailableForRequest();
         inOrderNanAvail.verify(nanAvailListener).onAvailableForRequest();
         verify(chipMock.chip, times(2)).removeP2pIface("p2p0");
-        verify(p2pDestroyedListener2).onDestroyed();
+        verify(p2pDestroyedListener2).onDestroyed(getName(p2pIface));
 
         // Should now be able to request and get NAN
         nanIface = validateInterfaceSequence(chipMock,
@@ -918,13 +928,13 @@ public class HalDeviceManagerTest {
         executeAndValidateInitializationSequence();
         executeAndValidateStartupSequence();
 
-        HalDeviceManager.InterfaceDestroyedListener staDestroyedListener1 = mock(
-                HalDeviceManager.InterfaceDestroyedListener.class);
+        InterfaceDestroyedListener staDestroyedListener1 = mock(
+                InterfaceDestroyedListener.class);
         HalDeviceManager.InterfaceAvailableForRequestListener staAvailListener1 = mock(
                 HalDeviceManager.InterfaceAvailableForRequestListener.class);
 
-        HalDeviceManager.InterfaceDestroyedListener staDestroyedListener2 = mock(
-                HalDeviceManager.InterfaceDestroyedListener.class);
+        InterfaceDestroyedListener staDestroyedListener2 = mock(
+                InterfaceDestroyedListener.class);
 
         // get STA interface
         IWifiIface staIface1 = validateInterfaceSequence(chipMock,
@@ -1025,25 +1035,25 @@ public class HalDeviceManagerTest {
         executeAndValidateInitializationSequence();
         executeAndValidateStartupSequence();
 
-        HalDeviceManager.InterfaceDestroyedListener staDestroyedListener = mock(
-                HalDeviceManager.InterfaceDestroyedListener.class);
-        HalDeviceManager.InterfaceDestroyedListener staDestroyedListener2 = mock(
-                HalDeviceManager.InterfaceDestroyedListener.class);
+        InterfaceDestroyedListener staDestroyedListener = mock(
+                InterfaceDestroyedListener.class);
+        InterfaceDestroyedListener staDestroyedListener2 = mock(
+                InterfaceDestroyedListener.class);
         HalDeviceManager.InterfaceAvailableForRequestListener staAvailListener = mock(
                 HalDeviceManager.InterfaceAvailableForRequestListener.class);
 
-        HalDeviceManager.InterfaceDestroyedListener apDestroyedListener = mock(
-                HalDeviceManager.InterfaceDestroyedListener.class);
+        InterfaceDestroyedListener apDestroyedListener = mock(
+                InterfaceDestroyedListener.class);
         HalDeviceManager.InterfaceAvailableForRequestListener apAvailListener = mock(
                 HalDeviceManager.InterfaceAvailableForRequestListener.class);
 
-        HalDeviceManager.InterfaceDestroyedListener p2pDestroyedListener = mock(
-                HalDeviceManager.InterfaceDestroyedListener.class);
+        InterfaceDestroyedListener p2pDestroyedListener = mock(
+                InterfaceDestroyedListener.class);
         HalDeviceManager.InterfaceAvailableForRequestListener p2pAvailListener = mock(
                 HalDeviceManager.InterfaceAvailableForRequestListener.class);
 
-        HalDeviceManager.InterfaceDestroyedListener nanDestroyedListener = mock(
-                HalDeviceManager.InterfaceDestroyedListener.class);
+        InterfaceDestroyedListener nanDestroyedListener = mock(
+                InterfaceDestroyedListener.class);
         HalDeviceManager.InterfaceAvailableForRequestListener nanAvailListener = mock(
                 HalDeviceManager.InterfaceAvailableForRequestListener.class);
 
@@ -1134,7 +1144,7 @@ public class HalDeviceManagerTest {
         inOrderStaAvail.verify(staAvailListener).onAvailableForRequest();
         inOrderApAvail.verify(apAvailListener).onAvailableForRequest();
         verify(chipMock.chip).removeApIface("ap0");
-        verify(apDestroyedListener).onDestroyed();
+        verify(apDestroyedListener).onDestroyed(getName(apIface));
 
         // create STA2: using a later clock
         when(mClock.getUptimeSinceBootMillis()).thenReturn(20L);
@@ -1166,7 +1176,9 @@ public class HalDeviceManagerTest {
                 null, // tearDownList
                 apDestroyedListener, // destroyedListener
                 null, // availableListener (already registered),
-                staDestroyedListener2
+                // destroyedInterfacesDestroyedListeners...
+                new InterfaceDestroyedListenerWithIfaceName(
+                        getName(staIface2), staDestroyedListener2)
         );
         collector.checkThat("AP interface wasn't created", apIface, IsNull.notNullValue());
 
@@ -1177,7 +1189,7 @@ public class HalDeviceManagerTest {
         inOrderP2pAvail.verify(p2pAvailListener).onAvailableForRequest();
         inOrderNanAvail.verify(nanAvailListener).onAvailableForRequest();
         verify(chipMock.chip).removeP2pIface("p2p0");
-        verify(p2pDestroyedListener).onDestroyed();
+        verify(p2pDestroyedListener).onDestroyed(getName(p2pIface));
 
         // create NAN
         nanIface = validateInterfaceSequence(chipMock,
@@ -1338,8 +1350,8 @@ public class HalDeviceManagerTest {
         executeAndValidateInitializationSequence();
         executeAndValidateStartupSequence();
 
-        HalDeviceManager.InterfaceDestroyedListener idl = mock(
-                HalDeviceManager.InterfaceDestroyedListener.class);
+        InterfaceDestroyedListener idl = mock(
+                InterfaceDestroyedListener.class);
         HalDeviceManager.InterfaceAvailableForRequestListener iafrl = mock(
                 HalDeviceManager.InterfaceAvailableForRequestListener.class);
 
@@ -1375,7 +1387,7 @@ public class HalDeviceManagerTest {
                 break;
         }
 
-        verify(idl).onDestroyed();
+        verify(idl).onDestroyed(ifaceName);
         verify(iafrl, times(expectedAvailableCalls)).onAvailableForRequest();
 
         verifyNoMoreInteractions(mManagerStatusListenerMock, idl, iafrl);
@@ -1404,18 +1416,18 @@ public class HalDeviceManagerTest {
         executeAndValidateInitializationSequence();
         executeAndValidateStartupSequence();
 
-        HalDeviceManager.InterfaceDestroyedListener staDestroyedListener = mock(
-                HalDeviceManager.InterfaceDestroyedListener.class);
+        InterfaceDestroyedListener staDestroyedListener = mock(
+                InterfaceDestroyedListener.class);
         HalDeviceManager.InterfaceAvailableForRequestListener staAvailListener = mock(
                 HalDeviceManager.InterfaceAvailableForRequestListener.class);
 
-        HalDeviceManager.InterfaceDestroyedListener nanDestroyedListener = mock(
-                HalDeviceManager.InterfaceDestroyedListener.class);
+        InterfaceDestroyedListener nanDestroyedListener = mock(
+                InterfaceDestroyedListener.class);
         HalDeviceManager.InterfaceAvailableForRequestListener nanAvailListener = mock(
                 HalDeviceManager.InterfaceAvailableForRequestListener.class);
 
-        HalDeviceManager.InterfaceDestroyedListener p2pDestroyedListener = mock(
-                HalDeviceManager.InterfaceDestroyedListener.class);
+        InterfaceDestroyedListener p2pDestroyedListener = mock(
+                InterfaceDestroyedListener.class);
         HalDeviceManager.InterfaceAvailableForRequestListener p2pAvailListener = null;
 
         // Request STA
@@ -1452,7 +1464,9 @@ public class HalDeviceManagerTest {
                 new IWifiIface[]{nanIface}, // tearDownList
                 p2pDestroyedListener, // destroyedListener
                 p2pAvailListener, // availableListener
-                nanDestroyedListener // destroyedInterfacesDestroyedListeners...
+                // destroyedInterfacesDestroyedListeners...
+                new InterfaceDestroyedListenerWithIfaceName(
+                        getName(nanIface), nanDestroyedListener)
         );
 
         // Request NAN: expect failure
@@ -1467,7 +1481,7 @@ public class HalDeviceManagerTest {
         collector.checkThat("P2P removal success", status, equalTo(true));
 
         mTestLooper.dispatchAll();
-        verify(p2pDestroyedListener).onDestroyed();
+        verify(p2pDestroyedListener).onDestroyed(getName(p2pIface));
         verify(nanAvailListener).onAvailableForRequest();
 
         // Request NAN: expect success now
@@ -1494,9 +1508,9 @@ public class HalDeviceManagerTest {
     private IWifiIface validateInterfaceSequence(ChipMockBase chipMock,
             boolean chipModeValid, int chipModeId,
             int ifaceTypeToCreate, String ifaceName, int finalChipMode, IWifiIface[] tearDownList,
-            HalDeviceManager.InterfaceDestroyedListener destroyedListener,
+            InterfaceDestroyedListener destroyedListener,
             HalDeviceManager.InterfaceAvailableForRequestListener availableListener,
-            HalDeviceManager.InterfaceDestroyedListener... destroyedInterfacesDestroyedListeners)
+            InterfaceDestroyedListenerWithIfaceName...destroyedInterfacesDestroyedListeners)
             throws Exception {
         // configure chip mode response
         chipMock.chipModeValid = chipModeValid;
@@ -1607,9 +1621,8 @@ public class HalDeviceManagerTest {
         // verify: callbacks on deleted interfaces
         mTestLooper.dispatchAll();
         for (int i = 0; i < destroyedInterfacesDestroyedListeners.length; ++i) {
-            verify(destroyedInterfacesDestroyedListeners[i]).onDestroyed();
+            destroyedInterfacesDestroyedListeners[i].validate();
         }
-
         return iface;
     }
 
@@ -1633,6 +1646,21 @@ public class HalDeviceManagerTest {
         WifiStatus status = new WifiStatus();
         status.code = code;
         return status;
+    }
+
+    private static class InterfaceDestroyedListenerWithIfaceName {
+        private final String mIfaceName;
+        @Mock private final InterfaceDestroyedListener mListener;
+
+        InterfaceDestroyedListenerWithIfaceName(
+                String ifaceName, InterfaceDestroyedListener listener) {
+            mIfaceName = ifaceName;
+            mListener = listener;
+        }
+
+        public void validate() {
+            verify(mListener).onDestroyed(mIfaceName);
+        }
     }
 
     private static class Mutable<E> {

@@ -149,7 +149,7 @@ public class WifiAwareNativeManagerTest {
                 equalTo(mWifiNanIfaceMock));
 
         // 8 onDestroyed: disable usage
-        mDestroyedListenerCaptor.getValue().onDestroyed();
+        mDestroyedListenerCaptor.getValue().onDestroyed(new String());
 
         mInOrder.verify(mWifiAwareStateManagerMock).disableUsage();
         collector.checkThat("null interface", mDut.getWifiNanIface(), nullValue());

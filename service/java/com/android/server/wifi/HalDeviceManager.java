@@ -16,6 +16,7 @@
 
 package com.android.server.wifi;
 
+import android.annotation.NonNull;
 import android.hardware.wifi.V1_0.IWifi;
 import android.hardware.wifi.V1_0.IWifiApIface;
 import android.hardware.wifi.V1_0.IWifiChip;
@@ -284,7 +285,7 @@ public class HalDeviceManager {
             }
 
             return cacheEntry.destroyedListeners.add(
-                    new InterfaceDestroyedListenerProxy(destroyedListener, handler));
+                    new InterfaceDestroyedListenerProxy(name, destroyedListener, handler));
         }
     }
 
@@ -382,8 +383,10 @@ public class HalDeviceManager {
          *
          * Can be registered when the interface is requested with createXxxIface() - will
          * only be valid if the interface creation was successful - i.e. a non-null was returned.
+         *
+         * @param ifaceName Name of the interface that was destroyed.
          */
-        void onDestroyed();
+        void onDestroyed(@NonNull String ifaceName);
     }
 
     /**
@@ -1346,7 +1349,8 @@ public class HalDeviceManager {
                     cacheEntry.type = ifaceType;
                     if (destroyedListener != null) {
                         cacheEntry.destroyedListeners.add(
-                                new InterfaceDestroyedListenerProxy(destroyedListener, handler));
+                                new InterfaceDestroyedListenerProxy(
+                                        cacheEntry.name, destroyedListener, handler));
                     }
                     cacheEntry.creationTime = mClock.getUptimeSinceBootMillis();
 
@@ -1939,15 +1943,18 @@ public class HalDeviceManager {
 
     private class InterfaceDestroyedListenerProxy extends
             ListenerProxy<InterfaceDestroyedListener> {
-        InterfaceDestroyedListenerProxy(InterfaceDestroyedListener destroyedListener,
-                Handler handler) {
+        private final String mIfaceName;
+        InterfaceDestroyedListenerProxy(@NonNull String ifaceName,
+                                        InterfaceDestroyedListener destroyedListener,
+                                        Handler handler) {
             super(destroyedListener, handler == null ? new Handler(Looper.myLooper()) : handler,
                     true, "InterfaceDestroyedListenerProxy");
+            mIfaceName = ifaceName;
         }
 
         @Override
         protected void action() {
-            mListener.onDestroyed();
+            mListener.onDestroyed(mIfaceName);
         }
     }
 
