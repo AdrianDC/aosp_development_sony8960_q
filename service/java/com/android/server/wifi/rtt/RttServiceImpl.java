@@ -42,8 +42,8 @@ import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.WorkSource;
 import android.util.Log;
+import android.util.SparseIntArray;
 
-import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.WakeupMessage;
 import com.android.server.wifi.Clock;
 import com.android.server.wifi.util.WifiPermissionsUtil;
@@ -77,13 +77,15 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
 
     private RttServiceSynchronized mRttServiceSynchronized;
 
-    @VisibleForTesting
-    public static final String HAL_RANGING_TIMEOUT_TAG = TAG + " HAL Ranging Timeout";
+    /* package */ static final String HAL_RANGING_TIMEOUT_TAG = TAG + " HAL Ranging Timeout";
 
     private static final long HAL_RANGING_TIMEOUT_MS = 5_000; // 5 sec
 
     // TODO: b/69323456 convert to a settable value
     /* package */ static final long BACKGROUND_PROCESS_EXEC_GAP_MS = 1_800_000; // 30 min
+
+    // arbitrary, larger than anything reasonable
+    /* package */ static final int MAX_QUEUED_PER_UID = 20;
 
     public RttServiceImpl(Context context) {
         mContext = context;
@@ -463,6 +465,19 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         private void queueRangingRequest(int uid, WorkSource workSource, IBinder binder,
                 IBinder.DeathRecipient dr, String callingPackage, RangingRequest request,
                 IRttCallback callback) {
+            if (isRequestorSpamming(workSource)) {
+                Log.w(TAG,
+                        "Work source " + workSource + " is spamming, dropping request: " + request);
+                binder.unlinkToDeath(dr, 0);
+                try {
+                    callback.onRangingFailure(RangingResultCallback.STATUS_CODE_FAIL);
+                } catch (RemoteException e) {
+                    Log.e(TAG,  "RttServiceSynchronized.queueRangingRequest: spamming, callback "
+                            + "failed -- " + e);
+                }
+                return;
+            }
+
             RttRequestInfo newRequest = new RttRequestInfo();
             newRequest.uid = uid;
             newRequest.workSource = workSource;
@@ -478,6 +493,30 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
             }
 
             executeNextRangingRequestIfPossible(false);
+        }
+
+        private boolean isRequestorSpamming(WorkSource ws) {
+            if (VDBG) Log.v(TAG, "isRequestorSpamming: ws" + ws);
+
+            SparseIntArray counts = new SparseIntArray();
+
+            for (RttRequestInfo rri : mRttRequestQueue) {
+                for (int i = 0; i < rri.workSource.size(); ++i) {
+                    int uid = rri.workSource.get(i);
+                    counts.put(uid, counts.get(uid) + 1);
+                }
+            }
+
+            for (int i = 0; i < ws.size(); ++i) {
+                if (counts.get(ws.get(i)) < MAX_QUEUED_PER_UID) {
+                    return false;
+                }
+            }
+
+            if (VDBG) {
+                Log.v(TAG, "isRequestorSpamming: ws=" + ws + ", someone is spamming: " + counts);
+            }
+            return true;
         }
 
         private void executeNextRangingRequestIfPossible(boolean popFirst) {

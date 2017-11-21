@@ -202,6 +202,9 @@ public class RttServiceImplTest {
 
     @After
     public void tearDown() throws Exception {
+        assertEquals("Binder links != unlinks to death (size)",
+                mBinderLinkToDeathCounter.mUniqueExecs.size(),
+                mBinderUnlinkToDeathCounter.mUniqueExecs.size());
         assertEquals("Binder links != unlinks to death", mBinderLinkToDeathCounter.mUniqueExecs,
                 mBinderUnlinkToDeathCounter.mUniqueExecs);
     }
@@ -857,6 +860,125 @@ public class RttServiceImplTest {
         mMockLooper.dispatchAll();
 
         cbInorder.verify(mockCallback).onRangingFailure(RangingResultCallback.STATUS_CODE_FAIL);
+
+        verify(mockNative, atLeastOnce()).isReady();
+        verifyNoMoreInteractions(mockNative, mockCallback, mAlarmManager.getAlarmManager());
+    }
+
+    /**
+     * Validate that flooding the service with ranging requests will cause it to start rejecting
+     * rejects from the flooding uid. Single UID.
+     */
+    @Test
+    public void testRejectFloodingRequestsSingleUid() throws Exception {
+        runFloodRequestsTest(true);
+    }
+
+    /**
+     * Validate that flooding the service with ranging requests will cause it to start rejecting
+     * rejects from the flooding uid. WorkSource (all identical).
+     */
+    @Test
+    public void testRejectFloodingRequestsIdenticalWorksources() throws Exception {
+        runFloodRequestsTest(false);
+    }
+
+    /**
+     * Validate that flooding the service with ranging requests will cause it to start rejecting
+     * rejects from the flooding uid. WorkSource (with one constant UID but other varying UIDs -
+     * the varying UIDs should prevent the flood throttle)
+     */
+    @Test
+    public void testDontRejectFloodingRequestsVariousUids() throws Exception {
+        RangingRequest request = RttTestUtils.getDummyRangingRequest((byte) 1);
+        WorkSource ws = new WorkSource(10);
+
+        // 1. issue a request
+        mDut.startRanging(mockIbinder, mPackageName, ws, request, mockCallback);
+        mMockLooper.dispatchAll();
+
+        verify(mockNative).rangeRequest(mIntCaptor.capture(), eq(request));
+        verifyWakeupSet();
+
+        // 2. issue FLOOD LEVEL requests + 10 at various UIDs - no failure expected
+        for (int i = 0; i < RttServiceImpl.MAX_QUEUED_PER_UID + 10; ++i) {
+            WorkSource wsExtra = new WorkSource(ws);
+            wsExtra.add(11 + i);
+            mDut.startRanging(mockIbinder, mPackageName, wsExtra, request, mockCallback);
+        }
+        mMockLooper.dispatchAll();
+
+        // 3. clear queue
+        mDut.disable();
+        mMockLooper.dispatchAll();
+
+        verifyWakeupCancelled();
+        verify(mockNative).rangeCancel(eq(mIntCaptor.getValue()), any());
+        verify(mockCallback, times(RttServiceImpl.MAX_QUEUED_PER_UID + 11)).onRangingFailure(
+                RangingResultCallback.STATUS_CODE_FAIL_RTT_NOT_AVAILABLE);
+
+        verify(mockNative, atLeastOnce()).isReady();
+        verifyNoMoreInteractions(mockNative, mockCallback, mAlarmManager.getAlarmManager());
+    }
+
+    /**
+     * Utility to run configurable tests for flooding range requests.
+     * - Execute a single request
+     * - Flood service with requests: using same ID or same WorkSource
+     * - Provide results (to clear queue) and execute another test: validate succeeds
+     */
+    private void runFloodRequestsTest(boolean useUids) throws Exception {
+        RangingRequest request = RttTestUtils.getDummyRangingRequest((byte) 1);
+        Pair<List<RttResult>, List<RangingResult>> result = RttTestUtils.getDummyRangingResults(
+                request);
+
+        WorkSource ws = new WorkSource();
+        ws.add(10);
+        ws.add(20);
+        ws.add(30);
+
+        InOrder cbInorder = inOrder(mockCallback);
+        InOrder nativeInorder = inOrder(mockNative);
+
+        // 1. issue a request
+        mDut.startRanging(mockIbinder, mPackageName, useUids ? null : ws, request, mockCallback);
+        mMockLooper.dispatchAll();
+
+        nativeInorder.verify(mockNative).rangeRequest(mIntCaptor.capture(), eq(request));
+        verifyWakeupSet();
+
+        // 2. issue FLOOD LEVEL requests + 10: should get 11 failures (10 extra + 1 original)
+        for (int i = 0; i < RttServiceImpl.MAX_QUEUED_PER_UID + 10; ++i) {
+            mDut.startRanging(mockIbinder, mPackageName, useUids ? null : ws, request,
+                    mockCallback);
+        }
+        mMockLooper.dispatchAll();
+
+        cbInorder.verify(mockCallback, times(11)).onRangingFailure(
+                RangingResultCallback.STATUS_CODE_FAIL);
+
+        // 3. provide results
+        mDut.onRangingResults(mIntCaptor.getValue(), result.first);
+        mMockLooper.dispatchAll();
+
+        cbInorder.verify(mockCallback).onRangingResults(result.second);
+        verifyWakeupCancelled();
+
+        nativeInorder.verify(mockNative).rangeRequest(mIntCaptor.capture(), eq(request));
+        verifyWakeupSet();
+
+        // 4. issue a request: don't expect a failure
+        mDut.startRanging(mockIbinder, mPackageName, useUids ? null : ws, request, mockCallback);
+        mMockLooper.dispatchAll();
+
+        // 5. clear queue
+        mDut.disable();
+        mMockLooper.dispatchAll();
+
+        verifyWakeupCancelled();
+        nativeInorder.verify(mockNative).rangeCancel(eq(mIntCaptor.getValue()), any());
+        cbInorder.verify(mockCallback, times(RttServiceImpl.MAX_QUEUED_PER_UID)).onRangingFailure(
+                RangingResultCallback.STATUS_CODE_FAIL_RTT_NOT_AVAILABLE);
 
         verify(mockNative, atLeastOnce()).isReady();
         verifyNoMoreInteractions(mockNative, mockCallback, mAlarmManager.getAlarmManager());
