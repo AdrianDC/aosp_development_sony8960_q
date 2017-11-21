@@ -16,6 +16,7 @@
 
 package com.android.server.wifi.aware;
 
+import android.annotation.NonNull;
 import android.hardware.wifi.V1_0.IWifiNanIface;
 import android.hardware.wifi.V1_0.IfaceType;
 import android.hardware.wifi.V1_0.WifiStatus;
@@ -150,7 +151,7 @@ public class WifiAwareNativeManager {
     private class InterfaceDestroyedListener implements
             HalDeviceManager.InterfaceDestroyedListener {
         @Override
-        public void onDestroyed() {
+        public void onDestroyed(@NonNull String ifaceName) {
             if (DBG) Log.d(TAG, "Interface was destroyed");
             awareIsDown();
         }
