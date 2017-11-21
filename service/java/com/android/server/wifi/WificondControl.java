@@ -251,12 +251,12 @@ public class WificondControl {
     * @return Returns true on success.
     */
     public boolean disableSupplicant() {
-        if (mClientInterface == null) {
-            Log.e(TAG, "No valid wificond client interface handler");
+        if (mWificond == null) {
+            Log.e(TAG, "No valid handler");
             return false;
         }
         try {
-            return mClientInterface.disableSupplicant();
+            return mWificond.disableSupplicant();
         } catch (RemoteException e) {
             Log.e(TAG, "Failed to disable supplicant due to remote exception");
         }
@@ -268,13 +268,13 @@ public class WificondControl {
     * @return Returns true on success.
     */
     public boolean enableSupplicant() {
-        if (mClientInterface == null) {
-            Log.e(TAG, "No valid wificond client interface handler");
+        if (mWificond == null) {
+            Log.e(TAG, "No valid wificond handler");
             return false;
         }
 
         try {
-            return mClientInterface.enableSupplicant();
+            return mWificond.enableSupplicant();
         } catch (RemoteException e) {
             Log.e(TAG, "Failed to enable supplicant due to remote exception");
         }
