@@ -2415,38 +2415,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         return mWifiStateMachine.getAggressiveHandover();
     }
 
-    @Override
-    public void setAllowScansWithTraffic(int enabled) {
-        enforceAccessPermission();
-        mLog.info("setAllowScansWithTraffic uid=% enabled=%")
-                .c(Binder.getCallingUid())
-                .c(enabled).flush();
-        mWifiStateMachine.setAllowScansWithTraffic(enabled);
-    }
-
-    @Override
-    public int getAllowScansWithTraffic() {
-        enforceAccessPermission();
-        mLog.info("getAllowScansWithTraffic uid=%").c(Binder.getCallingUid()).flush();
-        return mWifiStateMachine.getAllowScansWithTraffic();
-    }
-
-    @Override
-    public boolean setEnableAutoJoinWhenAssociated(boolean enabled) {
-        enforceChangePermission();
-        mLog.info("setEnableAutoJoinWhenAssociated uid=% enabled=%")
-                .c(Binder.getCallingUid())
-                .c(enabled).flush();
-        return mWifiStateMachine.setEnableAutoJoinWhenAssociated(enabled);
-    }
-
-    @Override
-    public boolean getEnableAutoJoinWhenAssociated() {
-        enforceAccessPermission();
-        mLog.info("getEnableAutoJoinWhenAssociated uid=%").c(Binder.getCallingUid()).flush();
-        return mWifiStateMachine.getEnableAutoJoinWhenAssociated();
-    }
-
     /* Return the Wifi Connection statistics object */
     @Override
     public WifiConnectionStatistics getConnectionStatistics() {
