@@ -38,16 +38,26 @@ public class WakeupController {
     private final Handler mHandler;
     private final FrameworkFacade mFrameworkFacade;
     private final ContentObserver mContentObserver;
+    private final WakeupLock mWakeupLock;
+    private final WifiConfigManager mWifiConfigManager;
 
     /** Whether this feature is enabled in Settings. */
     private boolean mWifiWakeupEnabled;
 
+    /** Whether the WakeupController is currently active. */
+    private boolean mIsActive = false;
+
     public WakeupController(
             Context context,
             Looper looper,
+            WakeupLock wakeupLock,
+            WifiConfigManager wifiConfigManager,
+            WifiConfigStore wifiConfigStore,
             FrameworkFacade frameworkFacade) {
         mContext = context;
         mHandler = new Handler(looper);
+        mWakeupLock = wakeupLock;
+        mWifiConfigManager = wifiConfigManager;
         mFrameworkFacade = frameworkFacade;
         mContentObserver = new ContentObserver(mHandler) {
             @Override
@@ -59,6 +69,19 @@ public class WakeupController {
         mFrameworkFacade.registerContentObserver(mContext, Settings.Global.getUriFor(
                 Settings.Global.WIFI_WAKEUP_ENABLED), true, mContentObserver);
         mContentObserver.onChange(false /* selfChange */);
+
+        // registering the store data here has the effect of reading the persisted value of the
+        // data sources after system boot finishes
+        WakeupConfigStoreData wakeupConfigStoreData =
+                new WakeupConfigStoreData(new IsActiveDataSource(), mWakeupLock.getDataSource());
+        wifiConfigStore.registerStoreData(wakeupConfigStoreData);
+    }
+
+    private void setActive(boolean isActive) {
+        if (mIsActive != isActive) {
+            mIsActive = isActive;
+            mWifiConfigManager.saveToStore(false /* forceWrite */);
+        }
     }
 
     /**
@@ -70,5 +93,18 @@ public class WakeupController {
     @VisibleForTesting
     boolean isEnabled() {
         return mWifiWakeupEnabled;
+    }
+
+    private class IsActiveDataSource implements WakeupConfigStoreData.DataSource<Boolean> {
+
+        @Override
+        public Boolean getData() {
+            return mIsActive;
+        }
+
+        @Override
+        public void setData(Boolean data) {
+            mIsActive = data;
+        }
     }
 }

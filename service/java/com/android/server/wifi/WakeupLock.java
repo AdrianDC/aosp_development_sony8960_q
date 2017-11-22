@@ -17,12 +17,14 @@
 package com.android.server.wifi;
 
 import android.util.ArrayMap;
+import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A lock to determine whether Auto Wifi can re-enable Wifi.
@@ -31,17 +33,23 @@ import java.util.Map;
  */
 public class WakeupLock {
 
+    private static final String TAG = WakeupLock.class.getSimpleName();
+
     @VisibleForTesting
     static final int CONSECUTIVE_MISSED_SCANS_REQUIRED_TO_EVICT = 3;
 
-    private Map<ScanResultMatchInfo, Integer> mLockedNetworks = new ArrayMap<>();
 
-    // TODO(easchwar) read initial value of mLockedNetworks from file
-    public WakeupLock() {
+    private final WifiConfigManager mWifiConfigManager;
+    private final Map<ScanResultMatchInfo, Integer> mLockedNetworks = new ArrayMap<>();
+
+    public WakeupLock(WifiConfigManager wifiConfigManager) {
+        mWifiConfigManager = wifiConfigManager;
     }
 
     /**
      * Initializes the WakeupLock with the given {@link ScanResultMatchInfo} list.
+     *
+     * <p>This saves the wakeup lock to the store.
      *
      * @param scanResultList list of ScanResultMatchInfos to start the lock with
      */
@@ -50,17 +58,23 @@ public class WakeupLock {
         for (ScanResultMatchInfo scanResultMatchInfo : scanResultList) {
             mLockedNetworks.put(scanResultMatchInfo, CONSECUTIVE_MISSED_SCANS_REQUIRED_TO_EVICT);
         }
+
+        Log.d(TAG, "Lock initialized. Number of networks: " + mLockedNetworks.size());
+
+        mWifiConfigManager.saveToStore(false /* forceWrite */);
     }
 
     /**
      * Updates the lock with the given {@link ScanResultMatchInfo} list.
      *
      * <p>If a network in the lock is not present in the list, reduce the number of scans
-     * required to evict by one. Remove any entries in the list with 0 scans required to evict.
+     * required to evict by one. Remove any entries in the list with 0 scans required to evict. If
+     * any entries in the lock are removed, the store is updated.
      *
      * @param scanResultList list of present ScanResultMatchInfos to update the lock with
      */
     public void update(Collection<ScanResultMatchInfo> scanResultList) {
+        boolean hasChanged = false;
         Iterator<Map.Entry<ScanResultMatchInfo, Integer>> it =
                 mLockedNetworks.entrySet().iterator();
         while (it.hasNext()) {
@@ -76,9 +90,13 @@ public class WakeupLock {
             entry.setValue(entry.getValue() - 1);
             if (entry.getValue() <= 0) {
                 it.remove();
+                hasChanged = true;
             }
         }
-        // TODO(easchwar) write the updated list to file
+
+        if (hasChanged) {
+            mWifiConfigManager.saveToStore(false /* forceWrite */);
+        }
     }
 
     /**
@@ -86,5 +104,28 @@ public class WakeupLock {
      */
     public boolean isEmpty() {
         return mLockedNetworks.isEmpty();
+    }
+
+    /** Returns the data source for the WakeupLock config store data. */
+    public WakeupConfigStoreData.DataSource<Set<ScanResultMatchInfo>> getDataSource() {
+        return new WakeupLockDataSource();
+    }
+
+    private class WakeupLockDataSource
+            implements WakeupConfigStoreData.DataSource<Set<ScanResultMatchInfo>> {
+
+        @Override
+        public Set<ScanResultMatchInfo> getData() {
+            return mLockedNetworks.keySet();
+        }
+
+        @Override
+        public void setData(Set<ScanResultMatchInfo> data) {
+            mLockedNetworks.clear();
+            for (ScanResultMatchInfo network : data) {
+                mLockedNetworks.put(network, CONSECUTIVE_MISSED_SCANS_REQUIRED_TO_EVICT);
+            }
+
+        }
     }
 }
