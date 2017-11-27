@@ -31,7 +31,6 @@
 #include "NfcJniUtil.h"
 #include "NfcTag.h"
 #include "Pn544Interop.h"
-#include "config.h"
 
 #include "ndef_utils.h"
 #include "nfa_api.h"

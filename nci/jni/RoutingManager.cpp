@@ -25,9 +25,9 @@
 
 #include "JavaClassConstants.h"
 #include "RoutingManager.h"
-#include "config.h"
 #include "nfa_ce_api.h"
 #include "nfa_ee_api.h"
+#include "nfc_config.h"
 
 using android::base::StringPrintf;
 
@@ -50,52 +50,33 @@ static const int MAX_NUM_EE = 5;
 
 RoutingManager::RoutingManager() {
   static const char fn[] = "RoutingManager::RoutingManager()";
-  unsigned long num = 0;
 
   // Get the active SE
-  if (GetNumValue("ACTIVE_SE", &num, sizeof(num)))
-    mActiveSe = num;
-  else
-    mActiveSe = 0x00;
+  mActiveSe = NfcConfig::getUnsigned("ACTIVE_SE", 0x00);
 
   // Get the active SE for Nfc-F
-  if (GetNumValue("ACTIVE_SE_NFCF", &num, sizeof(num)))
-    mActiveSeNfcF = num;
-  else
-    mActiveSeNfcF = 0x00;
+  mActiveSeNfcF = NfcConfig::getUnsigned("ACTIVE_SE_NFCF", 0x00);
   DLOG_IF(INFO, nfc_debug_enabled)
       << StringPrintf("%s: Active SE for Nfc-F is 0x%02X", fn, mActiveSeNfcF);
 
   // Get the "default" route
-  if (GetNumValue("DEFAULT_ISODEP_ROUTE", &num, sizeof(num)))
-    mDefaultEe = num;
-  else
-    mDefaultEe = 0x00;
+  mDefaultEe = NfcConfig::getUnsigned("DEFAULT_ISODEP_ROUTE", 0x00);
   DLOG_IF(INFO, nfc_debug_enabled)
       << StringPrintf("%s: default route is 0x%02X", fn, mDefaultEe);
 
   // Get the "default" route for Nfc-F
-  if (GetNumValue("DEFAULT_NFCF_ROUTE", &num, sizeof(num)))
-    mDefaultEeNfcF = num;
-  else
-    mDefaultEeNfcF = 0x00;
+  mDefaultEeNfcF = NfcConfig::getUnsigned("DEFAULT_NFCF_ROUTE", 0x00);
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
       "%s: default route for Nfc-F is 0x%02X", fn, mDefaultEeNfcF);
 
   // Get the default "off-host" route.  This is hard-coded at the Java layer
   // but we can override it here to avoid forcing Java changes.
-  if (GetNumValue("DEFAULT_OFFHOST_ROUTE", &num, sizeof(num)))
-    mOffHostEe = num;
-  else
-    mOffHostEe = 0xf4;
-
-  if (GetNumValue("AID_MATCHING_MODE", &num, sizeof(num)))
-    mAidMatchingMode = num;
-  else
-    mAidMatchingMode = AID_MATCHING_EXACT_ONLY;
-
+  mOffHostEe = NfcConfig::getUnsigned("DEFAULT_OFFHOST_ROUTE", 0xf4);
   DLOG_IF(INFO, nfc_debug_enabled)
       << StringPrintf("%s: mOffHostEe=0x%02X", fn, mOffHostEe);
+
+  mAidMatchingMode =
+      NfcConfig::getUnsigned("AID_MATCHING_MODE", AID_MATCHING_EXACT_ONLY);
 
   memset(&mEeInfo, 0, sizeof(mEeInfo));
   mReceivedEeInfo = false;

@@ -26,7 +26,8 @@ LOCAL_C_INCLUDES += \
     $(VOB_COMPONENTS)/hal/int \
     $(VOB_COMPONENTS)/include \
     $(VOB_COMPONENTS)/gki/ulinux \
-    $(VOB_COMPONENTS)/gki/common
+    $(VOB_COMPONENTS)/gki/common \
+    system/nfc/utils/include
 
 LOCAL_SHARED_LIBRARIES := \
     libicuuc \
