@@ -1734,12 +1734,19 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public WifiInfo getConnectionInfo(String callingPackage) {
         enforceAccessPermission();
-        mLog.info("getConnectionInfo uid=%").c(Binder.getCallingUid()).flush();
+        int uid = Binder.getCallingUid();
+        mLog.info("getConnectionInfo uid=%").c(uid).flush();
         /*
          * Make sure we have the latest information, by sending
          * a status request to the supplicant.
          */
-        return mWifiStateMachine.syncRequestConnectionInfo(callingPackage);
+        long ident = Binder.clearCallingIdentity();
+        try {
+            WifiInfo result = mWifiStateMachine.syncRequestConnectionInfo(callingPackage, uid);
+            return result;
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
     }
 
     /**

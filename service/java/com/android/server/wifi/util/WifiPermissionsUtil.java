@@ -22,7 +22,6 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.pm.UserInfo;
 import android.net.NetworkScoreManager;
-import android.os.Binder;
 import android.os.RemoteException;
 import android.os.UserManager;
 import android.provider.Settings;
@@ -202,24 +201,19 @@ public class WifiPermissionsUtil {
      * current user.
      */
     private boolean isCurrentProfile(int uid) {
-        final long token = Binder.clearCallingIdentity();
-        try {
-            int currentUser = mWifiPermissionsWrapper.getCurrentUser();
-            int callingUserId = mWifiPermissionsWrapper.getCallingUserId(uid);
-            if (callingUserId == currentUser) {
-                return true;
-            } else {
-                List<UserInfo> userProfiles = mUserManager.getProfiles(currentUser);
-                for (UserInfo user : userProfiles) {
-                    if (user.id == callingUserId) {
-                        return true;
-                    }
+        int currentUser = mWifiPermissionsWrapper.getCurrentUser();
+        int callingUserId = mWifiPermissionsWrapper.getCallingUserId(uid);
+        if (callingUserId == currentUser) {
+            return true;
+        } else {
+            List<UserInfo> userProfiles = mUserManager.getProfiles(currentUser);
+            for (UserInfo user : userProfiles) {
+                if (user.id == callingUserId) {
+                    return true;
                 }
             }
-            return false;
-        } finally {
-            Binder.restoreCallingIdentity(token);
         }
+        return false;
     }
 
     /**
