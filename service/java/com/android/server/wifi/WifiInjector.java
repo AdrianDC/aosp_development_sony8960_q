@@ -85,7 +85,6 @@ public class WifiInjector {
     private final WifiVendorHal mWifiVendorHal;
     private final WifiStateMachine mWifiStateMachine;
     private final WifiSettingsStore mSettingsStore;
-    private final WifiCertManager mCertManager;
     private final OpenNetworkNotifier mOpenNetworkNotifier;
     private final WifiLockManager mLockManager;
     private final WifiController mWifiController;
@@ -224,7 +223,6 @@ public class WifiInjector {
                 wifiStateMachineLooper, UserManager.get(mContext),
                 this, mBackupManagerProxy, mCountryCode, mWifiNative,
                 new WrongPasswordNotifier(mContext, mFrameworkFacade));
-        mCertManager = new WifiCertManager(mContext);
         mOpenNetworkNotifier = new OpenNetworkNotifier(mContext,
                 mWifiStateMachineHandlerThread.getLooper(), mFrameworkFacade, mClock, mWifiMetrics,
                 mWifiConfigManager, mWifiConfigStore, mWifiStateMachine,
@@ -299,10 +297,6 @@ public class WifiInjector {
 
     public WifiSettingsStore getWifiSettingsStore() {
         return mSettingsStore;
-    }
-
-    public WifiCertManager getWifiCertManager() {
-        return mCertManager;
     }
 
     public WifiLockManager getWifiLockManager() {

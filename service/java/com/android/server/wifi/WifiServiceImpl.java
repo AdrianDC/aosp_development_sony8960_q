@@ -175,8 +175,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     final WifiSettingsStore mSettingsStore;
     /* Logs connection events and some general router and scan stats */
     private final WifiMetrics mWifiMetrics;
-    /* Manages affiliated certificates for current user */
-    private final WifiCertManager mCertManager;
 
     private final WifiInjector mWifiInjector;
     /* Backup/Restore Module */
@@ -438,7 +436,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mPowerManager = mContext.getSystemService(PowerManager.class);
         mAppOps = (AppOpsManager) mContext.getSystemService(Context.APP_OPS_SERVICE);
         mActivityManager = (ActivityManager) mContext.getSystemService(Context.ACTIVITY_SERVICE);
-        mCertManager = mWifiInjector.getWifiCertManager();
         mWifiLockManager = mWifiInjector.getWifiLockManager();
         mWifiMulticastLockManager = mWifiInjector.getWifiMulticastLockManager();
         HandlerThread wifiServiceHandlerThread = mWifiInjector.getWifiServiceHandlerThread();
@@ -2520,14 +2517,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             sb.append(String.format(" %02x", s.charAt(n) & 0xffff));
         }
         return sb.toString();
-    }
-
-    public void hideCertFromUnaffiliatedUsers(String alias) {
-        mCertManager.hideCertFromUnaffiliatedUsers(alias);
-    }
-
-    public String[] listClientCertsForCurrentUser() {
-        return mCertManager.listClientCertsForCurrentUser();
     }
 
     /**
