@@ -16,6 +16,7 @@
 
 package com.android.server.wifi.hotspot2;
 
+import android.content.Context;
 import android.net.wifi.hotspot2.PasspointConfiguration;
 
 import com.android.server.wifi.Clock;
@@ -94,5 +95,26 @@ public class PasspointObjectFactory{
      */
     public CertificateVerifier makeCertificateVerifier() {
         return new CertificateVerifier();
+    }
+
+    /**
+     * Create an instance of {@link PasspointProvisioner}.
+     *
+     * @param context
+     * @return {@link PasspointProvisioner}
+     */
+    public PasspointProvisioner makePasspointProvisioner(Context context,
+            OsuNetworkConnection osuNetworkConnection) {
+        return new PasspointProvisioner(context, osuNetworkConnection);
+    }
+
+    /**
+     * Create an instance of {@link OsuNetworkConnection}.
+     *
+     * @param context
+     * @return {@link OsuNetworkConnection}
+     */
+    public OsuNetworkConnection makeOsuNetworkConnection(Context context) {
+        return new OsuNetworkConnection(context);
     }
 }
