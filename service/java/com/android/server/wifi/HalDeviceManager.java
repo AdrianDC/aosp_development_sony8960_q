@@ -17,6 +17,7 @@
 package com.android.server.wifi;
 
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.hardware.wifi.V1_0.IWifi;
 import android.hardware.wifi.V1_0.IWifiApIface;
 import android.hardware.wifi.V1_0.IWifiChip;
@@ -35,7 +36,6 @@ import android.hidl.manager.V1_0.IServiceManager;
 import android.hidl.manager.V1_0.IServiceNotification;
 import android.os.Handler;
 import android.os.HwRemoteBinder;
-import android.os.Looper;
 import android.os.RemoteException;
 import android.util.Log;
 import android.util.LongSparseArray;
@@ -103,13 +103,14 @@ public class HalDeviceManager {
      * single copy kept.
      *
      * @param listener ManagerStatusListener listener object.
-     * @param handler Handler on which to dispatch listener. Null implies a new Handler based on
-     *                the current looper.
+     * @param handler Handler on which to dispatch listener. Null implies the listener will be
+     *                invoked synchronously from the context of the client which triggered the
+     *                state change.
      */
-    public void registerStatusListener(ManagerStatusListener listener, Handler handler) {
+    public void registerStatusListener(@NonNull ManagerStatusListener listener,
+            @Nullable Handler handler) {
         synchronized (mLock) {
-            if (!mManagerStatusListeners.add(new ManagerStatusListenerProxy(listener,
-                    handler == null ? new Handler(Looper.myLooper()) : handler))) {
+            if (!mManagerStatusListeners.add(new ManagerStatusListenerProxy(listener, handler))) {
                 Log.w(TAG, "registerStatusListener: duplicate registration ignored");
             }
         }
@@ -198,36 +199,37 @@ public class HalDeviceManager {
      * @param destroyedListener Optional (nullable) listener to call when the allocated interface
      *                          is removed. Will only be registered and used if an interface is
      *                          created successfully.
-     * @param handler The Handler on which to dispatch the listener. A null implies a new Handler
-     *                based on the current looper.
+     * @param handler Handler on which to dispatch listener. Null implies the listener will be
+     *                invoked synchronously from the context of the client which triggered the
+     *                iface destruction.
      * @return A newly created interface - or null if the interface could not be created.
      */
-    public IWifiStaIface createStaIface(InterfaceDestroyedListener destroyedListener,
-            Handler handler) {
+    public IWifiStaIface createStaIface(@Nullable InterfaceDestroyedListener destroyedListener,
+            @Nullable Handler handler) {
         return (IWifiStaIface) createIface(IfaceType.STA, destroyedListener, handler);
     }
 
     /**
      * Create AP interface if possible (see createStaIface doc).
      */
-    public IWifiApIface createApIface(InterfaceDestroyedListener destroyedListener,
-            Handler handler) {
+    public IWifiApIface createApIface(@Nullable InterfaceDestroyedListener destroyedListener,
+            @Nullable Handler handler) {
         return (IWifiApIface) createIface(IfaceType.AP, destroyedListener, handler);
     }
 
     /**
      * Create P2P interface if possible (see createStaIface doc).
      */
-    public IWifiP2pIface createP2pIface(InterfaceDestroyedListener destroyedListener,
-            Handler handler) {
+    public IWifiP2pIface createP2pIface(@Nullable InterfaceDestroyedListener destroyedListener,
+            @Nullable Handler handler) {
         return (IWifiP2pIface) createIface(IfaceType.P2P, destroyedListener, handler);
     }
 
     /**
      * Create NAN interface if possible (see createStaIface doc).
      */
-    public IWifiNanIface createNanIface(InterfaceDestroyedListener destroyedListener,
-            Handler handler) {
+    public IWifiNanIface createNanIface(@Nullable InterfaceDestroyedListener destroyedListener,
+            @Nullable Handler handler) {
         return (IWifiNanIface) createIface(IfaceType.NAN, destroyedListener, handler);
     }
 
@@ -269,11 +271,16 @@ public class HalDeviceManager {
      * and false on failure. This listener is in addition to the one registered when the interface
      * was created - allowing non-creators to monitor interface status.
      *
-     * Listener called-back on the specified handler - or on the current looper if a null is passed.
+     * @param destroyedListener Listener to call when the allocated interface is removed.
+     *                          Will only be registered and used if an interface is created
+     *                          successfully.
+     * @param handler Handler on which to dispatch listener. Null implies the listener will be
+     *                invoked synchronously from the context of the client which triggered the
+     *                iface destruction.
      */
     public boolean registerDestroyedListener(IWifiIface iface,
-            InterfaceDestroyedListener destroyedListener,
-            Handler handler) {
+            @NonNull InterfaceDestroyedListener destroyedListener,
+            @Nullable Handler handler) {
         String name = getName(iface);
         if (DBG) Log.d(TAG, "registerDestroyedListener: iface(name)=" + name);
 
@@ -304,11 +311,12 @@ public class HalDeviceManager {
      * @param ifaceType The interface type (IfaceType) to be monitored.
      * @param listener Listener to call when an interface of the requested
      *                 type could be created
-     * @param handler The Handler on which to dispatch the listener. A null implies a new Handler
-     *                on the current looper.
+     * @param handler Handler on which to dispatch listener. Null implies the listener will be
+     *                invoked synchronously from the context of the client which triggered the
+     *                mode change.
      */
     public void registerInterfaceAvailableForRequestListener(int ifaceType,
-            InterfaceAvailableForRequestListener listener, Handler handler) {
+            @NonNull InterfaceAvailableForRequestListener listener, @Nullable Handler handler) {
         if (DBG) Log.d(TAG, "registerInterfaceAvailableForRequestListener: ifaceType=" + ifaceType);
 
         synchronized (mLock) {
@@ -1215,9 +1223,8 @@ public class HalDeviceManager {
 
     private class ManagerStatusListenerProxy  extends
             ListenerProxy<ManagerStatusListener> {
-        ManagerStatusListenerProxy(ManagerStatusListener statusListener,
-                Handler handler) {
-            super(statusListener, handler, true, "ManagerStatusListenerProxy");
+        ManagerStatusListenerProxy(ManagerStatusListener statusListener, Handler handler) {
+            super(statusListener, handler, "ManagerStatusListenerProxy");
         }
 
         @Override
@@ -1902,11 +1909,8 @@ public class HalDeviceManager {
     }
 
     private abstract class ListenerProxy<LISTENER>  {
-        private static final int LISTENER_TRIGGERED = 0;
-
         protected LISTENER mListener;
         private Handler mHandler;
-        private boolean mFrontOfQueue;
 
         // override equals & hash to make sure that the container HashSet is unique with respect to
         // the contained listener
@@ -1921,23 +1925,20 @@ public class HalDeviceManager {
         }
 
         void trigger() {
-            if (mFrontOfQueue) {
-                mHandler.postAtFrontOfQueue(() -> {
-                    action();
-                });
-            } else {
+            if (mHandler != null) {
                 mHandler.post(() -> {
                     action();
                 });
+            } else {
+                action();
             }
         }
 
         protected abstract void action();
 
-        ListenerProxy(LISTENER listener, Handler handler, boolean frontOfQueue, String tag) {
+        ListenerProxy(LISTENER listener, Handler handler, String tag) {
             mListener = listener;
             mHandler = handler;
-            mFrontOfQueue = frontOfQueue;
         }
     }
 
@@ -1947,8 +1948,7 @@ public class HalDeviceManager {
         InterfaceDestroyedListenerProxy(@NonNull String ifaceName,
                                         InterfaceDestroyedListener destroyedListener,
                                         Handler handler) {
-            super(destroyedListener, handler == null ? new Handler(Looper.myLooper()) : handler,
-                    true, "InterfaceDestroyedListenerProxy");
+            super(destroyedListener, handler, "InterfaceDestroyedListenerProxy");
             mIfaceName = ifaceName;
         }
 
@@ -1962,8 +1962,7 @@ public class HalDeviceManager {
             ListenerProxy<InterfaceAvailableForRequestListener> {
         InterfaceAvailableForRequestListenerProxy(
                 InterfaceAvailableForRequestListener destroyedListener, Handler handler) {
-            super(destroyedListener, handler == null ? new Handler(Looper.myLooper()) : handler,
-                    false, "InterfaceAvailableForRequestListenerProxy");
+            super(destroyedListener, handler, "InterfaceAvailableForRequestListenerProxy");
         }
 
         @Override

@@ -637,6 +637,77 @@ public class HalDeviceManagerTest {
     }
 
     /**
+     * Validate creation of AP interface when in STA mode with a single STA iface created.
+     * Expect a change in chip mode.
+     */
+    @Test
+    public void testCreateApWithStIfaceUpTestChipV1UsingNoHandlerListeners() throws Exception {
+        TestChipV1 chipMock = new TestChipV1();
+        chipMock.initialize();
+
+        InterfaceDestroyedListener staIdl = mock(
+                InterfaceDestroyedListener.class);
+        HalDeviceManager.InterfaceAvailableForRequestListener staIafrl = mock(
+                HalDeviceManager.InterfaceAvailableForRequestListener.class);
+        InterfaceDestroyedListener apIdl = mock(
+                InterfaceDestroyedListener.class);
+        HalDeviceManager.InterfaceAvailableForRequestListener apIafrl = mock(
+                HalDeviceManager.InterfaceAvailableForRequestListener.class);
+
+        mInOrder = inOrder(mServiceManagerMock, mWifiMock, chipMock.chip,
+                mManagerStatusListenerMock, staIdl, staIafrl, apIdl, apIafrl);
+        executeAndValidateInitializationSequence();
+
+        // Register listener & start Wi-Fi
+        mDut.registerStatusListener(mManagerStatusListenerMock, null);
+        assertTrue(mDut.start());
+        mInOrder.verify(mManagerStatusListenerMock).onStatusChanged();
+
+        mDut.registerInterfaceAvailableForRequestListener(IfaceType.STA, staIafrl, null);
+        mDut.registerInterfaceAvailableForRequestListener(IfaceType.AP, apIafrl, null);
+
+        mInOrder.verify(staIafrl).onAvailableForRequest();
+        mInOrder.verify(apIafrl).onAvailableForRequest();
+
+        // Create STA Iface first.
+        IWifiStaIface staIface = mock(IWifiStaIface.class);
+        doAnswer(new GetNameAnswer("wlan0")).when(staIface).getName(
+                any(IWifiIface.getNameCallback.class));
+        doAnswer(new GetTypeAnswer(IfaceType.STA)).when(staIface).getType(
+                any(IWifiIface.getTypeCallback.class));
+        doAnswer(new CreateXxxIfaceAnswer(chipMock, mStatusOk, staIface)).when(
+                chipMock.chip).createStaIface(any(IWifiChip.createStaIfaceCallback.class));
+        assertEquals(staIface, mDut.createStaIface(staIdl, null));
+
+        mInOrder.verify(chipMock.chip).configureChip(TestChipV1.STA_CHIP_MODE_ID);
+        mInOrder.verify(apIafrl).onAvailableForRequest();
+
+        // Now Create AP Iface.
+        IWifiApIface apIface = mock(IWifiApIface.class);
+        doAnswer(new GetNameAnswer("wlan0")).when(apIface).getName(
+                any(IWifiIface.getNameCallback.class));
+        doAnswer(new GetTypeAnswer(IfaceType.AP)).when(apIface).getType(
+                any(IWifiIface.getTypeCallback.class));
+        doAnswer(new CreateXxxIfaceAnswer(chipMock, mStatusOk, apIface)).when(
+                chipMock.chip).createApIface(any(IWifiChip.createApIfaceCallback.class));
+        assertEquals(apIface, mDut.createApIface(apIdl, null));
+
+        mInOrder.verify(chipMock.chip).removeStaIface(getName(staIface));
+        mInOrder.verify(staIdl).onDestroyed(getName(staIface));
+        mInOrder.verify(chipMock.chip).configureChip(TestChipV1.AP_CHIP_MODE_ID);
+        mInOrder.verify(staIafrl).onAvailableForRequest();
+
+        // Stop Wi-Fi
+        mDut.stop();
+
+        mInOrder.verify(mWifiMock).stop();
+        mInOrder.verify(mManagerStatusListenerMock).onStatusChanged();
+        mInOrder.verify(apIdl).onDestroyed(getName(apIface));
+
+        verifyNoMoreInteractions(mManagerStatusListenerMock, staIdl, staIafrl, apIdl, apIafrl);
+    }
+
+    /**
      * Validate creation of AP interface when in AP mode - but with no interface created. Expect
      * no change in chip mode.
      */
