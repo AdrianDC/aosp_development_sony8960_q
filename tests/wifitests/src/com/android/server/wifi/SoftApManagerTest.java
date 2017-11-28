@@ -93,7 +93,7 @@ public class SoftApManagerTest {
     @Mock Context mContext;
     @Mock Resources mResources;
     @Mock WifiNative mWifiNative;
-    @Mock SoftApManager.Listener mListener;
+    @Mock WifiManager.SoftApCallback mCallback;
     @Mock InterfaceConfiguration mInterfaceConfiguration;
     @Mock FrameworkFacade mFrameworkFacade;
     @Mock IApInterface mApInterface;
@@ -144,7 +144,7 @@ public class SoftApManagerTest {
                                                            mFrameworkFacade,
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
-                                                           mListener,
+                                                           mCallback,
                                                            mNmService,
                                                            mWifiApConfigStore,
                                                            config,
@@ -220,7 +220,7 @@ public class SoftApManagerTest {
                                                            mFrameworkFacade,
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
-                                                           mListener,
+                                                           mCallback,
                                                            mNmService,
                                                            mWifiApConfigStore,
                                                            nullApConfig,
@@ -228,7 +228,7 @@ public class SoftApManagerTest {
         mLooper.dispatchAll();
         newSoftApManager.start();
         mLooper.dispatchAll();
-        verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
+        verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
                 WifiManager.SAP_START_FAILURE_GENERAL);
         ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
         verify(mContext, times(2)).sendStickyBroadcastAsUser(intentCaptor.capture(),
@@ -264,7 +264,7 @@ public class SoftApManagerTest {
                                                            mFrameworkFacade,
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
-                                                           mListener,
+                                                           mCallback,
                                                            mNmService,
                                                            mWifiApConfigStore,
                                                            nullApConfig,
@@ -272,7 +272,7 @@ public class SoftApManagerTest {
         mLooper.dispatchAll();
         newSoftApManager.start();
         mLooper.dispatchAll();
-        verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
+        verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
                 WifiManager.SAP_START_FAILURE_GENERAL);
         ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
         verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(),
@@ -306,7 +306,7 @@ public class SoftApManagerTest {
                                                            mFrameworkFacade,
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
-                                                           mListener,
+                                                           mCallback,
                                                            mNmService,
                                                            mWifiApConfigStore,
                                                            nullApConfig,
@@ -314,7 +314,7 @@ public class SoftApManagerTest {
         mLooper.dispatchAll();
         newSoftApManager.start();
         mLooper.dispatchAll();
-        verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
+        verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
                 WifiManager.SAP_START_FAILURE_GENERAL);
         ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
         verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(),
@@ -348,7 +348,7 @@ public class SoftApManagerTest {
                                                            mFrameworkFacade,
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
-                                                           mListener,
+                                                           mCallback,
                                                            mNmService,
                                                            mWifiApConfigStore,
                                                            nullApConfig,
@@ -356,7 +356,7 @@ public class SoftApManagerTest {
         mLooper.dispatchAll();
         newSoftApManager.start();
         mLooper.dispatchAll();
-        verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
+        verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
                 WifiManager.SAP_START_FAILURE_GENERAL);
         ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
         verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(),
@@ -393,7 +393,7 @@ public class SoftApManagerTest {
                                                            mFrameworkFacade,
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
-                                                           mListener,
+                                                           mCallback,
                                                            mNmService,
                                                            mWifiApConfigStore,
                                                            nullApConfig,
@@ -401,7 +401,7 @@ public class SoftApManagerTest {
         mLooper.dispatchAll();
         newSoftApManager.start();
         mLooper.dispatchAll();
-        verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
+        verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
                 WifiManager.SAP_START_FAILURE_GENERAL);
         ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
         verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(),
@@ -439,7 +439,7 @@ public class SoftApManagerTest {
                                                            mFrameworkFacade,
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
-                                                           mListener,
+                                                           mCallback,
                                                            mNmService,
                                                            mWifiApConfigStore,
                                                            nullApConfig,
@@ -447,7 +447,7 @@ public class SoftApManagerTest {
         mLooper.dispatchAll();
         newSoftApManager.start();
         mLooper.dispatchAll();
-        verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
+        verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
                 WifiManager.SAP_START_FAILURE_GENERAL);
         ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
         verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(),
@@ -486,7 +486,7 @@ public class SoftApManagerTest {
                                                            mFrameworkFacade,
                                                            mWifiNative,
                                                            null,
-                                                           mListener,
+                                                           mCallback,
                                                            mNmService,
                                                            mWifiApConfigStore,
                                                            softApConfig,
@@ -534,7 +534,7 @@ public class SoftApManagerTest {
                                                            mFrameworkFacade,
                                                            mWifiNative,
                                                            null,
-                                                           mListener,
+                                                           mCallback,
                                                            mNmService,
                                                            mWifiApConfigStore,
                                                            softApConfig,
@@ -585,7 +585,7 @@ public class SoftApManagerTest {
                                                            mFrameworkFacade,
                                                            mWifiNative,
                                                            null,
-                                                           mListener,
+                                                           mCallback,
                                                            mNmService,
                                                            mWifiApConfigStore,
                                                            softApConfig,
@@ -633,7 +633,7 @@ public class SoftApManagerTest {
                                                            mFrameworkFacade,
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
-                                                           mListener,
+                                                           mCallback,
                                                            mNmService,
                                                            mWifiApConfigStore,
                                                            softApConfig,
@@ -673,7 +673,7 @@ public class SoftApManagerTest {
                                                            mFrameworkFacade,
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
-                                                           mListener,
+                                                           mCallback,
                                                            mNmService,
                                                            mWifiApConfigStore,
                                                            softApModeConfig,
@@ -682,7 +682,7 @@ public class SoftApManagerTest {
         mLooper.dispatchAll();
         newSoftApManager.start();
         mLooper.dispatchAll();
-        verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
+        verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
                 WifiManager.SAP_START_FAILURE_GENERAL);
     }
 
@@ -696,7 +696,7 @@ public class SoftApManagerTest {
         mSoftApManager.stop();
         mLooper.dispatchAll();
         /* Verify no state changes. */
-        verify(mListener, never()).onStateChanged(anyInt(), anyInt());
+        verify(mCallback, never()).onStateChanged(anyInt(), anyInt());
         verify(mContext, never()).sendStickyBroadcastAsUser(any(), any());
     }
 
@@ -712,14 +712,14 @@ public class SoftApManagerTest {
         // reset to clear verified Intents for ap state change updates
         reset(mContext);
 
-        InOrder order = inOrder(mListener);
+        InOrder order = inOrder(mCallback);
 
         mSoftApManager.stop();
         mLooper.dispatchAll();
 
         verify(mWifiNative).stopSoftAp();
-        order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLING, 0);
-        order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLED, 0);
+        order.verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLING, 0);
+        order.verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLED, 0);
         ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
         verify(mContext, times(2)).sendStickyBroadcastAsUser(intentCaptor.capture(),
                 eq(UserHandle.ALL));
@@ -747,9 +747,9 @@ public class SoftApManagerTest {
 
         mDeathListenerCaptor.getValue().onDeath();
         mLooper.dispatchAll();
-        InOrder order = inOrder(mListener);
-        order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLING, 0);
-        order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
+        InOrder order = inOrder(mCallback);
+        order.verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLING, 0);
+        order.verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
                 WifiManager.SAP_START_FAILURE_GENERAL);
         ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
         verify(mContext, times(2)).sendStickyBroadcastAsUser(intentCaptor.capture(),
@@ -944,7 +944,7 @@ public class SoftApManagerTest {
             SoftApModeConfiguration softApConfig) throws Exception {
         WifiConfiguration expectedConfig;
         InOrder order =
-                inOrder(mListener, mApInterface, mWifiNative, mNmService);
+                inOrder(mCallback, mApInterface, mWifiNative, mNmService);
 
         when(mWifiNative.isHalStarted()).thenReturn(false);
         when(mWifiNative.setCountryCodeHal(TEST_COUNTRY_CODE.toUpperCase(Locale.ROOT)))
@@ -970,7 +970,7 @@ public class SoftApManagerTest {
 
         mSoftApManager.start();
         mLooper.dispatchAll();
-        order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_ENABLING, 0);
+        order.verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_ENABLING, 0);
         order.verify(mWifiNative).registerWificondDeathHandler(mDeathListenerCaptor.capture());
         order.verify(mNmService).registerObserver(mNetworkObserverCaptor.capture());
         ArgumentCaptor<WifiConfiguration> configCaptor =
@@ -980,7 +980,7 @@ public class SoftApManagerTest {
         WifiConfigurationTestUtil.assertConfigurationEqual(expectedConfig, configCaptor.getValue());
         mNetworkObserverCaptor.getValue().interfaceLinkStateChanged(TEST_INTERFACE_NAME, true);
         mLooper.dispatchAll();
-        order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_ENABLED, 0);
+        order.verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_ENABLED, 0);
         verify(mContext, times(2)).sendStickyBroadcastAsUser(intentCaptor.capture(),
                                                              eq(UserHandle.ALL));
         List<Intent> capturedIntents = intentCaptor.getAllValues();
@@ -998,8 +998,8 @@ public class SoftApManagerTest {
 
     /** Verifies that soft AP was not disabled. */
     protected void verifySoftApNotDisabled() throws Exception {
-        verify(mListener, never()).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLING, 0);
-        verify(mListener, never()).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLED, 0);
+        verify(mCallback, never()).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLING, 0);
+        verify(mCallback, never()).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLED, 0);
     }
 
     private void checkApStateChangedBroadcast(Intent intent, int expectedCurrentState,

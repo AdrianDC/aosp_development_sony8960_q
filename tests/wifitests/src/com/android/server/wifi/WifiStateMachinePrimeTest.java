@@ -58,7 +58,7 @@ public class WifiStateMachinePrimeTest {
     @Mock ScanOnlyModeManager mScanOnlyModeManager;
     @Mock SoftApManager mSoftApManager;
     ScanOnlyModeManager.Listener mScanOnlyListener;
-    SoftApManager.Listener mSoftApListener;
+    WifiManager.SoftApCallback mSoftApCallback;
     WifiStateMachinePrime mWifiStateMachinePrime;
 
     /**
@@ -136,12 +136,12 @@ public class WifiStateMachinePrimeTest {
                     public SoftApManager answer(InvocationOnMock invocation) {
                         Object[] args = invocation.getArguments();
                         assertEquals(mNMService, (INetworkManagementService) args[0]);
-                        mSoftApListener = (SoftApManager.Listener) args[1];
+                        mSoftApCallback = (WifiManager.SoftApCallback) args[1];
                         assertEquals(softApConfig, (SoftApModeConfiguration) args[2]);
                         return mSoftApManager;
                     }
                 }).when(mWifiInjector).makeSoftApManager(any(INetworkManagementService.class),
-                                                         any(SoftApManager.Listener.class),
+                                                         any(WifiManager.SoftApCallback.class),
                                                          any());
         mWifiStateMachinePrime.enterSoftAPMode(softApConfig);
         mLooper.dispatchAll();
@@ -238,7 +238,7 @@ public class WifiStateMachinePrimeTest {
     public void testDisableWifiFromSoftApModeState() throws Exception {
         enterSoftApActiveMode();
         // now inject failure through the SoftApManager.Listener
-        mSoftApListener.onStateChanged(WifiManager.WIFI_AP_STATE_FAILED, 0);
+        mSoftApCallback.onStateChanged(WifiManager.WIFI_AP_STATE_FAILED, 0);
         mLooper.dispatchAll();
         assertEquals(SOFT_AP_MODE_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
 
@@ -287,7 +287,7 @@ public class WifiStateMachinePrimeTest {
     public void testEnterSoftApModeActiveWhenAlreadyInSoftApMode() throws Exception {
         enterSoftApActiveMode();
         // now inject failure through the SoftApManager.Listener
-        mSoftApListener.onStateChanged(WifiManager.WIFI_AP_STATE_FAILED, 0);
+        mSoftApCallback.onStateChanged(WifiManager.WIFI_AP_STATE_FAILED, 0);
         mLooper.dispatchAll();
         assertEquals(SOFT_AP_MODE_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
         // clear the first call to start SoftApManager
@@ -320,7 +320,7 @@ public class WifiStateMachinePrimeTest {
     public void testSoftApFailureWhenActive() throws Exception {
         enterSoftApActiveMode();
         // now inject failure through the SoftApManager.Listener
-        mSoftApListener.onStateChanged(WifiManager.WIFI_AP_STATE_FAILED, 0);
+        mSoftApCallback.onStateChanged(WifiManager.WIFI_AP_STATE_FAILED, 0);
         mLooper.dispatchAll();
         assertEquals(SOFT_AP_MODE_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
         verify(mSoftApManager).stop();
@@ -350,7 +350,7 @@ public class WifiStateMachinePrimeTest {
     public void testSoftApDisabledWhenActive() throws Exception {
         enterSoftApActiveMode();
         // now inject failure through the SoftApManager.Listener
-        mSoftApListener.onStateChanged(WifiManager.WIFI_AP_STATE_FAILED, 0);
+        mSoftApCallback.onStateChanged(WifiManager.WIFI_AP_STATE_FAILED, 0);
         mLooper.dispatchAll();
         assertEquals(SOFT_AP_MODE_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
         verify(mSoftApManager).stop();
@@ -431,11 +431,11 @@ public class WifiStateMachinePrimeTest {
                 new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, config2);
 
         when(mWifiInjector.makeSoftApManager(any(INetworkManagementService.class),
-                                             any(SoftApManager.Listener.class),
+                                             any(WifiManager.SoftApCallback.class),
                                              eq(softApConfig1)))
                 .thenReturn(mSoftApManager);
         when(mWifiInjector.makeSoftApManager(any(INetworkManagementService.class),
-                                             any(SoftApManager.Listener.class),
+                                             any(WifiManager.SoftApCallback.class),
                                              eq(softApConfig2)))
                 .thenReturn(mSoftApManager);
 

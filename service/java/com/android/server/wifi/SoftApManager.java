@@ -73,7 +73,7 @@ public class SoftApManager implements ActiveModeManager {
 
     private final SoftApStateMachine mStateMachine;
 
-    private final Listener mListener;
+    private final WifiManager.SoftApCallback mCallback;
 
     private IApInterface mApInterface;
     private String mApInterfaceName;
@@ -97,24 +97,12 @@ public class SoftApManager implements ActiveModeManager {
         }
     };
 
-    /**
-     * Listener for soft AP state changes.
-     */
-    public interface Listener {
-        /**
-         * Invoke when AP state changed.
-         * @param state new AP state
-         * @param failureReason reason when in failed state
-         */
-        void onStateChanged(int state, int failureReason);
-    }
-
     public SoftApManager(Context context,
                          Looper looper,
                          FrameworkFacade framework,
                          WifiNative wifiNative,
                          String countryCode,
-                         Listener listener,
+                         WifiManager.SoftApCallback callback,
                          INetworkManagementService nms,
                          WifiApConfigStore wifiApConfigStore,
                          @NonNull SoftApModeConfiguration apConfig,
@@ -123,7 +111,7 @@ public class SoftApManager implements ActiveModeManager {
         mFrameworkFacade = framework;
         mWifiNative = wifiNative;
         mCountryCode = countryCode;
-        mListener = listener;
+        mCallback = callback;
         mNwService = nms;
         mWifiApConfigStore = wifiApConfigStore;
         mMode = apConfig.getTargetMode();
@@ -158,8 +146,8 @@ public class SoftApManager implements ActiveModeManager {
      * @param reason Failure reason if the new AP state is in failure state
      */
     private void updateApState(int newState, int currentState, int reason) {
-        if (mListener != null) {
-            mListener.onStateChanged(newState, reason);
+        if (mCallback != null) {
+            mCallback.onStateChanged(newState, reason);
         }
 
         //send the AP state change broadcast
@@ -482,7 +470,9 @@ public class SoftApManager implements ActiveModeManager {
                 mNumAssociatedStations = numStations;
                 Log.d(TAG, "Number of associated stations changed: " + mNumAssociatedStations);
 
-                // TODO:(b/63906412) send it up to settings.
+                if (mCallback != null) {
+                    mCallback.onNumClientsChanged(mNumAssociatedStations);
+                }
                 mWifiMetrics.addSoftApNumAssociatedStationsChangedEvent(mNumAssociatedStations,
                         mMode);
 

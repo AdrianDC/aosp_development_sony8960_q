@@ -24,6 +24,7 @@ import android.net.NetworkScoreManager;
 import android.net.wifi.IWifiScanner;
 import android.net.wifi.IWificond;
 import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.net.wifi.WifiNetworkScoreCache;
 import android.net.wifi.WifiScanner;
 import android.os.BatteryStats;
@@ -409,10 +410,10 @@ public class WifiInjector {
      * @return an instance of SoftApManager
      */
     public SoftApManager makeSoftApManager(INetworkManagementService nmService,
-                                           SoftApManager.Listener listener,
+                                           WifiManager.SoftApCallback callback,
                                            @NonNull SoftApModeConfiguration config) {
         return new SoftApManager(mContext, mWifiStateMachineHandlerThread.getLooper(),
-                mFrameworkFacade, mWifiNative, mCountryCode.getCountryCode(), listener,
+                mFrameworkFacade, mWifiNative, mCountryCode.getCountryCode(), callback,
                 nmService, mWifiApConfigStore, config, mWifiMetrics);
     }
 
