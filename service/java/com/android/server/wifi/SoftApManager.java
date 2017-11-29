@@ -25,9 +25,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.InterfaceConfiguration;
 import android.net.wifi.IApInterface;
-import android.net.wifi.IApInterfaceEventCallback;
 import android.net.wifi.WifiConfiguration;
-import android.net.wifi.WifiConfiguration.KeyMgmt;
 import android.net.wifi.WifiManager;
 import android.os.INetworkManagementService;
 import android.os.Looper;
@@ -41,9 +39,9 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 import com.android.server.net.BaseNetworkObserver;
+import com.android.server.wifi.WifiNative.SoftApListener;
 import com.android.server.wifi.util.ApConfigUtil;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 /**
@@ -76,16 +74,14 @@ public class SoftApManager implements ActiveModeManager {
 
     private int mNumAssociatedStations = 0;
 
-    /**
-     * Listener for AP Interface events.
-     */
-    public class ApInterfaceListener extends IApInterfaceEventCallback.Stub {
+    private final SoftApListener mSoftApListener = new SoftApListener() {
         @Override
         public void onNumAssociatedStationsChanged(int numStations) {
             mStateMachine.sendMessage(
                     SoftApStateMachine.CMD_NUM_ASSOCIATED_STATIONS_CHANGED, numStations);
         }
-    }
+    };
+
 
     /**
      * Listener for soft AP state changes.
@@ -227,71 +223,24 @@ public class SoftApManager implements ActiveModeManager {
                 return ERROR_GENERIC;
             }
         }
-
-        int encryptionType = getIApInterfaceEncryptionType(localConfig);
-
         if (localConfig.hiddenSSID) {
             Log.d(TAG, "SoftAP is a hidden network");
         }
-
-        try {
-            // Note that localConfig.SSID is intended to be either a hex string or "double quoted".
-            // However, it seems that whatever is handing us these configurations does not obey
-            // this convention.
-            boolean success = mApInterface.writeHostapdConfig(
-                    localConfig.SSID.getBytes(StandardCharsets.UTF_8), localConfig.hiddenSSID,
-                    localConfig.apChannel, encryptionType,
-                    (localConfig.preSharedKey != null)
-                            ? localConfig.preSharedKey.getBytes(StandardCharsets.UTF_8)
-                            : new byte[0]);
-            if (!success) {
-                Log.e(TAG, "Failed to write hostapd configuration");
-                return ERROR_GENERIC;
-            }
-
-            success = mApInterface.startHostapd(new ApInterfaceListener());
-            if (!success) {
-                Log.e(TAG, "Failed to start hostapd.");
-                return ERROR_GENERIC;
-            }
-        } catch (RemoteException e) {
-            Log.e(TAG, "Exception in starting soft AP: " + e);
+        if (!mWifiNative.startSoftAp(localConfig, mSoftApListener)) {
+            Log.e(TAG, "Soft AP start failed");
+            return ERROR_GENERIC;
         }
-
         Log.d(TAG, "Soft AP is started");
 
         return SUCCESS;
-    }
-
-    private static int getIApInterfaceEncryptionType(WifiConfiguration localConfig) {
-        int encryptionType;
-        switch (localConfig.getAuthType()) {
-            case KeyMgmt.NONE:
-                encryptionType = IApInterface.ENCRYPTION_TYPE_NONE;
-                break;
-            case KeyMgmt.WPA_PSK:
-                encryptionType = IApInterface.ENCRYPTION_TYPE_WPA;
-                break;
-            case KeyMgmt.WPA2_PSK:
-                encryptionType = IApInterface.ENCRYPTION_TYPE_WPA2;
-                break;
-            default:
-                // We really shouldn't default to None, but this was how NetworkManagementService
-                // used to do this.
-                encryptionType = IApInterface.ENCRYPTION_TYPE_NONE;
-                break;
-        }
-        return encryptionType;
     }
 
     /**
      * Teardown soft AP.
      */
     private void stopSoftAp() {
-        try {
-            mApInterface.stopHostapd();
-        } catch (RemoteException e) {
-            Log.e(TAG, "Exception in stopping soft AP: " + e);
+        if (!mWifiNative.stopSoftAp()) {
+            Log.d(TAG, "Soft AP stop failed");
             return;
         }
         Log.d(TAG, "Soft AP is stopped");

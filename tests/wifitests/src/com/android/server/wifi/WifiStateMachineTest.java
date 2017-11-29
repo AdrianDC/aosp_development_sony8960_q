@@ -63,6 +63,8 @@ import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
 import android.net.wifi.WpsInfo;
+import android.net.wifi.hotspot2.IProvisioningCallback;
+import android.net.wifi.hotspot2.OsuProvider;
 import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.net.wifi.hotspot2.pps.HomeSp;
 import android.net.wifi.p2p.IWifiP2pManager;
@@ -102,6 +104,7 @@ import com.android.internal.util.IState;
 import com.android.internal.util.StateMachine;
 import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.hotspot2.PasspointManager;
+import com.android.server.wifi.hotspot2.PasspointProvisioningTestUtil;
 import com.android.server.wifi.p2p.WifiP2pServiceImpl;
 import com.android.server.wifi.util.WifiPermissionsUtil;
 
@@ -334,6 +337,7 @@ public class WifiStateMachineTest {
     IpClient.Callback mIpClientCallback;
     PhoneStateListener mPhoneStateListener;
     NetworkRequest mDefaultNetworkRequest;
+    OsuProvider mOsuProvider;
 
     final ArgumentCaptor<SoftApManager.Listener> mSoftApManagerListenerCaptor =
                     ArgumentCaptor.forClass(SoftApManager.Listener.class);
@@ -370,6 +374,8 @@ public class WifiStateMachineTest {
     @Mock ScanDetailCache mScanDetailCache;
     @Mock BaseWifiDiagnostics mWifiDiagnostics;
     @Mock ConnectivityManager mConnectivityManager;
+    @Mock IProvisioningCallback mProvisioningCallback;
+    @Mock HandlerThread mWifiServiceHandlerThread;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -413,6 +419,8 @@ public class WifiStateMachineTest {
         when(mWifiInjector.getWifiPermissionsUtil()).thenReturn(mWifiPermissionsUtil);
         when(mWifiInjector.makeTelephonyManager()).thenReturn(mTelephonyManager);
         when(mWifiInjector.getClock()).thenReturn(mClock);
+        when(mWifiServiceHandlerThread.getLooper()).thenReturn(mLooper.getLooper());
+        when(mWifiInjector.getWifiServiceHandlerThread()).thenReturn(mWifiServiceHandlerThread);
 
         when(mWifiNative.setupForClientMode(WIFI_IFACE_NAME))
                 .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mClientInterface));
@@ -423,7 +431,8 @@ public class WifiStateMachineTest {
         when(mWifiNative.enableSupplicant()).thenReturn(true);
         when(mWifiNative.disableSupplicant()).thenReturn(true);
         when(mWifiNative.getFrameworkNetworkId(anyInt())).thenReturn(0);
-
+        when(mWifiNative.initializeVendorHal(any(WifiNative.VendorHalDeathEventHandler.class)))
+                .thenReturn(true);
 
         mFrameworkFacade = getFrameworkFacade();
         mContext = getContext();
@@ -461,6 +470,8 @@ public class WifiStateMachineTest {
 
         when(mWifiPermissionsUtil.checkNetworkSettingsPermission(anyInt())).thenReturn(true);
         initializeWsm();
+
+        mOsuProvider = PasspointProvisioningTestUtil.generateOsuProvider(true);
     }
 
     private void registerAsyncChannel(Consumer<AsyncChannel> consumer, Messenger messenger) {
@@ -1776,6 +1787,57 @@ public class WifiStateMachineTest {
         assertNull(mWsm.syncGetMatchingWifiConfig(new ScanResult(), mWsmAsyncChannel));
         mLooper.stopAutoDispatch();
         verify(mPasspointManager, never()).getMatchingWifiConfig(any(ScanResult.class));
+    }
+
+    /**
+     * Verify that syncStartSubscriptionProvisioning will redirect calls with right parameters
+     * to {@link PasspointManager} with expected true being returned when in client mode.
+     */
+    @Test
+    public void syncStartSubscriptionProvisioningInClientMode() throws Exception {
+        mLooper.startAutoDispatch();
+        mWsm.syncInitialize(mWsmAsyncChannel);
+        verify(mPasspointManager).initializeProvisioner(any(Looper.class));
+        mLooper.stopAutoDispatch();
+
+        loadComponentsInStaMode();
+        when(mPasspointManager.startSubscriptionProvisioning(anyInt(),
+                any(OsuProvider.class), any(IProvisioningCallback.class))).thenReturn(true);
+        mLooper.startAutoDispatch();
+        assertEquals(true, mWsm.syncStartSubscriptionProvisioning(
+                OTHER_USER_UID, mOsuProvider, mProvisioningCallback, mWsmAsyncChannel));
+        verify(mPasspointManager).startSubscriptionProvisioning(OTHER_USER_UID, mOsuProvider,
+                mProvisioningCallback);
+        mLooper.stopAutoDispatch();
+    }
+
+    /**
+     * Verify that syncStartSubscriptionProvisioning will be a no-op and return false before
+     * SUPPLICANT_START command is received by the WSM.
+     */
+    @Test
+    public void syncStartSubscriptionProvisioningBeforeSupplicantOrAPStart() throws Exception {
+        mLooper.startAutoDispatch();
+        assertEquals(false, mWsm.syncStartSubscriptionProvisioning(
+                OTHER_USER_UID, mOsuProvider, mProvisioningCallback, mWsmAsyncChannel));
+        mLooper.stopAutoDispatch();
+        verify(mPasspointManager, never()).startSubscriptionProvisioning(
+                anyInt(), any(OsuProvider.class), any(IProvisioningCallback.class));
+    }
+
+    /**
+     * Verify that syncStartSubscriptionProvisioning will be a no-op and return false when not in
+     * client mode.
+     */
+    @Test
+    public void syncStartSubscriptionProvisioningInAPMode() throws Exception {
+        loadComponentsInApMode(WifiManager.IFACE_IP_MODE_LOCAL_ONLY);
+        mLooper.startAutoDispatch();
+        assertEquals(false, mWsm.syncStartSubscriptionProvisioning(
+                OTHER_USER_UID, mOsuProvider, mProvisioningCallback, mWsmAsyncChannel));
+        mLooper.stopAutoDispatch();
+        verify(mPasspointManager, never()).startSubscriptionProvisioning(
+                anyInt(), any(OsuProvider.class), any(IProvisioningCallback.class));
     }
 
     /**

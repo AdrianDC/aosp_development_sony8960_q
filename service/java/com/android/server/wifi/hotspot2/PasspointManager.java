@@ -33,8 +33,10 @@ import android.graphics.drawable.Icon;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
+import android.net.wifi.hotspot2.IProvisioningCallback;
 import android.net.wifi.hotspot2.OsuProvider;
 import android.net.wifi.hotspot2.PasspointConfiguration;
+import android.os.Looper;
 import android.os.UserHandle;
 import android.text.TextUtils;
 import android.util.Log;
@@ -99,6 +101,7 @@ public class PasspointManager {
     private final WifiConfigManager mWifiConfigManager;
     private final CertificateVerifier mCertVerifier;
     private final WifiMetrics mWifiMetrics;
+    private final PasspointProvisioner mPasspointProvisioner;
 
     // Counter used for assigning unique identifier to each provider.
     private long mProviderIndex;
@@ -212,7 +215,24 @@ public class PasspointManager {
         mProviderIndex = 0;
         wifiConfigStore.registerStoreData(objectFactory.makePasspointConfigStoreData(
                 mKeyStore, mSimAccessor, new DataSourceHandler()));
+        mPasspointProvisioner = objectFactory.makePasspointProvisioner(context,
+                objectFactory.makeOsuNetworkConnection(context));
         sPasspointManager = this;
+    }
+
+    /**
+     * Initializes the provisioning flow with a looper
+     */
+    public void initializeProvisioner(Looper looper) {
+        mPasspointProvisioner.init(looper);
+    }
+
+    /**
+     * Enable verbose logging
+     * @param verbose more than 0 enables verbose logging
+     */
+    public void enableVerboseLogging(int verbose) {
+        mPasspointProvisioner.enableVerboseLogging(verbose);
     }
 
     /**
@@ -703,5 +723,17 @@ public class PasspointManager {
                 enterpriseConfig.getClientCertificateAlias(), false);
         mProviders.put(passpointConfig.getHomeSp().getFqdn(), provider);
         return true;
+    }
+
+    /**
+     * Start the subscription provisioning flow with a provider.
+     * @param callingUid integer indicating the uid of the caller
+     * @param provider {@link OsuProvider} the provider to subscribe to
+     * @param callback {@link IProvisioningCallback} callback to update status to the caller
+     * @return boolean return value from the provisioning method
+     */
+    public boolean startSubscriptionProvisioning(int callingUid, OsuProvider provider,
+            IProvisioningCallback callback) {
+        return mPasspointProvisioner.startSubscriptionProvisioning(callingUid, provider, callback);
     }
 }
