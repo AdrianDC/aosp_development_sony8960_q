@@ -16,6 +16,7 @@
 
 package com.android.server.wifi;
 
+import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.net.apf.ApfCapabilities;
@@ -28,6 +29,7 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiWakeReasonAndCounts;
 import android.os.SystemClock;
+import android.text.TextUtils;
 import android.util.Log;
 import android.util.Pair;
 import android.util.SparseArray;
@@ -39,6 +41,8 @@ import com.android.server.wifi.util.FrameParser;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -47,11 +51,13 @@ import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TimeZone;
-
 
 /**
  * Native calls for bring up/shut down of the supplicant daemon and for
@@ -158,6 +164,105 @@ public class WifiNative {
      * some duplication to ease transition.
      */
     /**
+     * Meta-info about every iface that is active.
+     */
+    private static class Iface {
+        /** Type of ifaces possible */
+        public static final int IFACE_TYPE_AP = 0;
+        public static final int IFACE_TYPE_STA = 1;
+
+        @IntDef({IFACE_TYPE_AP, IFACE_TYPE_STA})
+        @Retention(RetentionPolicy.SOURCE)
+        public @interface IfaceType{}
+
+        /** Identifier allocated for the interface */
+        public final int id;
+        /** Type of the iface: STA or AP */
+        public final @IfaceType int type;
+        /** Name of the interface */
+        public String name;
+        /** External iface destroyed listener for the iface */
+        public InterfaceCallback externalListener;
+
+        Iface(int id, @Iface.IfaceType int type) {
+            this.id = id;
+            this.type = type;
+        }
+    }
+
+    /**
+     * Iface Management entity. This class maintains list of all the active ifaces.
+     */
+    private static class IfaceManager {
+        /** Integer to allocate for the next iface being created */
+        private int mNextId;
+        /** Map of the id to the iface structure */
+        private HashMap<Integer, Iface> mIfaces = new HashMap<>();
+
+        /** Allocate a new iface for the given type */
+        private Iface allocateIface(@Iface.IfaceType  int type) {
+            Iface iface = new Iface(mNextId, type);
+            mIfaces.put(mNextId, iface);
+            mNextId++;
+            return iface;
+        }
+
+        /** Remove the iface using the provided id */
+        private Iface removeIface(int id) {
+            return mIfaces.remove(id);
+        }
+
+        /** Lookup the iface using the provided id */
+        private Iface getIface(int id) {
+            return mIfaces.get(id);
+        }
+
+        /** Lookup the iface using the provided name */
+        private Iface getIface(@NonNull String ifaceName) {
+            for (Iface iface : mIfaces.values()) {
+                if (TextUtils.equals(iface.name, ifaceName)) {
+                    return iface;
+                }
+            }
+            return null;
+        }
+
+        /** Iterator to use for deleting all the ifaces while performing teardown on each of them */
+        private Iterator<Integer> getIfaceIdIter() {
+            return mIfaces.keySet().iterator();
+        }
+
+        /** Checks if there are any iface active. */
+        private boolean hasAnyIface() {
+            return !mIfaces.isEmpty();
+        }
+
+        /** Checks if there are any iface of the given type active. */
+        private boolean hasAnyIfaceOfType(@Iface.IfaceType int type) {
+            for (Iface iface : mIfaces.values()) {
+                if (iface.type == type) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /** Checks if there are any STA iface active. */
+        private boolean hasAnyStaIface() {
+            return hasAnyIfaceOfType(Iface.IFACE_TYPE_STA);
+        }
+
+        /** Checks if there are any AP iface active. */
+        private boolean hasAnyApIface() {
+            return hasAnyIfaceOfType(Iface.IFACE_TYPE_AP);
+        }
+    }
+
+    private Object mLock = new Object();
+    private final IfaceManager mIfaceMgr = new IfaceManager();
+    private HashSet<StatusListener> mStatusListeners = new HashSet<>();
+
+    /**
      * Initialize the native modules.
      *
      * @return true on success, false otherwise.
@@ -186,6 +291,7 @@ public class WifiNative {
      * @param listener StatusListener listener object.
      */
     public void registerStatusListener(@NonNull StatusListener listener) {
+        mStatusListeners.add(listener);
     }
 
     /**
