@@ -19,6 +19,7 @@ package com.android.server.wifi;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.net.InterfaceConfiguration;
 import android.net.apf.ApfCapabilities;
 import android.net.wifi.IApInterface;
 import android.net.wifi.IClientInterface;
@@ -673,6 +674,31 @@ public class WifiNative {
             }
             Log.i(mTAG, "Successfully setup iface=" + iface.name);
             return iface.name;
+        }
+    }
+
+    /**
+     * Check if the interface is up or down.
+     *
+     * @param ifaceName Name of the interface.
+     * @return true if iface is up, false if it's down or on error.
+     */
+    public boolean isInterfaceUp(@NonNull String ifaceName) {
+        synchronized (mLock) {
+            final Iface iface = mIfaceMgr.getIface(ifaceName);
+            if (iface == null) {
+                Log.e(mTAG, "Trying to get iface state on invalid iface=" + ifaceName);
+                return false;
+            }
+            InterfaceConfiguration config = null;
+            try {
+                config = mNwManagementService.getInterfaceConfig(ifaceName);
+            } catch (RemoteException e) {
+            }
+            if (config == null) {
+                return false;
+            }
+            return config.isUp();
         }
     }
 

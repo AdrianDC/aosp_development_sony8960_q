@@ -17,11 +17,14 @@
 package com.android.server.wifi;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 import android.app.test.MockAnswerUtil;
+import android.net.InterfaceConfiguration;
 import android.net.wifi.IApInterface;
 import android.net.wifi.IClientInterface;
 import android.os.INetworkManagementService;
@@ -583,6 +586,33 @@ public class WifiNativeInterfaceManagementTest {
         // none of the mocks are used because the iface does not exist in the internal
         // database.
         mWifiNative.teardownInterface(IFACE_NAME_0);
+
+        verifyNoMoreInteractions(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal,
+                mNwManagementService, mIfaceCallback0, mIfaceCallback1);
+    }
+
+    /**
+     * Verifies the interface state query API.
+     */
+    @Test
+    public void testIsInterfaceUp() throws Exception {
+        executeAndValidateSetupClientInterface(
+                false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
+                mNetworkObserverCaptor0);
+
+        InterfaceConfiguration config = new InterfaceConfiguration();
+        when(mNwManagementService.getInterfaceConfig(IFACE_NAME_0)).thenReturn(config);
+
+        config.setInterfaceUp();
+        assertTrue(mWifiNative.isInterfaceUp(IFACE_NAME_0));
+
+        config.setInterfaceDown();
+        assertFalse(mWifiNative.isInterfaceUp(IFACE_NAME_0));
+
+        when(mNwManagementService.getInterfaceConfig(IFACE_NAME_0)).thenReturn(null);
+        assertFalse(mWifiNative.isInterfaceUp(IFACE_NAME_0));
+
+        verify(mNwManagementService, times(3)).getInterfaceConfig(IFACE_NAME_0);
 
         verifyNoMoreInteractions(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal,
                 mNwManagementService, mIfaceCallback0, mIfaceCallback1);
