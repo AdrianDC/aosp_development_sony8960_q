@@ -215,9 +215,7 @@ public class PasspointManager {
         mProviderIndex = 0;
         wifiConfigStore.registerStoreData(objectFactory.makePasspointConfigStoreData(
                 mKeyStore, mSimAccessor, new DataSourceHandler()));
-        mPasspointProvisioner = objectFactory.makePasspointProvisioner(context,
-                objectFactory.makeOsuNetworkConnection(context),
-                objectFactory.makeOsuServerConnection());
+        mPasspointProvisioner = objectFactory.makePasspointProvisioner(context);
         sPasspointManager = this;
     }
 

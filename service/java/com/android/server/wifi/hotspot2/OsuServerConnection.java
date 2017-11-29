@@ -19,17 +19,20 @@ package com.android.server.wifi.hotspot2;
 import android.net.Network;
 import android.util.Log;
 
+import com.android.org.conscrypt.TrustManagerImpl;
+
 import java.io.IOException;
 import java.net.URL;
 import java.security.KeyManagementException;
-import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
+import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
+import java.util.Collection;
+import java.util.List;
 
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
@@ -40,8 +43,7 @@ import javax.net.ssl.X509TrustManager;
 public class OsuServerConnection {
     private static final String TAG = "OsuServerConnection";
 
-    private static final String HTTP = "http";
-    private static final String HTTPS = "https";
+    private static final int DNS_NAME = 2;
 
     private SSLSocketFactory mSocketFactory;
     private URL mUrl;
@@ -51,7 +53,6 @@ public class OsuServerConnection {
     private PasspointProvisioner.OsuServerCallbacks mOsuServerCallbacks;
     private boolean mSetupComplete = false;
     private boolean mVerboseLoggingEnabled = false;
-
     /**
      * Sets up callback for event
      * @param callbacks OsuServerCallbacks to be invoked for server related events
@@ -62,17 +63,18 @@ public class OsuServerConnection {
 
     /**
      * Initialize socket factory for server connection using HTTPS
-     * @param tlsVersion String indicating the TLS version that will be used
+     * @param tlsContext SSLContext that will be used for HTTPS connection
+     * @param trustManagerImpl TrustManagerImpl delegate to validate certs
      */
-    public void init(String tlsVersion) {
-        // TODO(sohanirao) : Create and pass in a custom WFA Keystore
+    public void init(SSLContext tlsContext, TrustManagerImpl trustManagerImpl) {
+        if (tlsContext == null) {
+            return;
+        }
         try {
-            // TODO(sohanirao) : Use the custom key store instead
-            mTrustManager = new WFATrustManager(KeyStore.getInstance("AndroidCAStore"));
-            SSLContext tlsContext = SSLContext.getInstance(tlsVersion);
+            mTrustManager = new WFATrustManager(trustManagerImpl);
             tlsContext.init(null, new TrustManager[] { mTrustManager }, null);
             mSocketFactory = tlsContext.getSocketFactory();
-        } catch (KeyStoreException | NoSuchAlgorithmException | KeyManagementException e) {
+        } catch (KeyManagementException e) {
             Log.w(TAG, "Initialization failed");
             e.printStackTrace();
             return;
@@ -108,7 +110,7 @@ public class OsuServerConnection {
     public boolean connect(URL url, Network network) {
         mNetwork = network;
         mUrl = url;
-        HttpsURLConnection urlConnection = null;
+        HttpsURLConnection urlConnection;
         try {
             urlConnection = (HttpsURLConnection) mNetwork.openConnection(mUrl);
             urlConnection.setSSLSocketFactory(mSocketFactory);
@@ -126,11 +128,12 @@ public class OsuServerConnection {
      * Validate the OSU server
      */
     public boolean validateProvider(String friendlyName) {
-        X509Certificate[] certs = mTrustManager.getTrustChain();
-        if (certs == null) {
+        X509Certificate providerCert = mTrustManager.getProviderCert();
+        // TODO : Validate friendly name
+        if (providerCert == null) {
+            Log.e(TAG, "Provider doesn't have valid certs");
             return false;
         }
-        // TODO(sohanirao) : Validate friendly name
         return true;
     }
 
@@ -142,11 +145,11 @@ public class OsuServerConnection {
     }
 
     private class WFATrustManager implements X509TrustManager {
-        private X509Certificate[] mTrustChain;
-        KeyStore mKeyStore;
+        private TrustManagerImpl mDelegate;
+        private List<X509Certificate> mServerCerts;
 
-        WFATrustManager(KeyStore ks) {
-            mKeyStore = ks;
+        WFATrustManager(TrustManagerImpl trustManagerImpl) {
+            mDelegate = trustManagerImpl;
         }
 
         @Override
@@ -164,11 +167,17 @@ public class OsuServerConnection {
                 Log.v(TAG, "checkServerTrusted " + authType);
             }
             boolean certsValid = false;
-            for (X509Certificate cert : chain) {
-                // TODO(sohanirao) : Validation of certs
+            try {
+                // Perform certificate path validation and get validated certs
+                mServerCerts = mDelegate.getTrustedChainForServer(chain, authType,
+                        (SSLSocket) null);
                 certsValid = true;
+            } catch (CertificateException e) {
+                Log.e(TAG, "Unable to validate certs " + e);
+                if (mVerboseLoggingEnabled) {
+                    e.printStackTrace();
+                }
             }
-            mTrustChain = chain;
             if (mOsuServerCallbacks != null) {
                 mOsuServerCallbacks.onServerValidationStatus(
                         mOsuServerCallbacks.getSessionId(), certsValid);
@@ -183,8 +192,44 @@ public class OsuServerConnection {
             return null;
         }
 
-        public X509Certificate[] getTrustChain() {
-            return mTrustChain;
+        /**
+         * Returns the OSU certificate matching the FQDN of the OSU server
+         * @return X509Certificate OSU certificate matching FQDN of OSU server
+         */
+        public X509Certificate getProviderCert() {
+            if (mServerCerts == null || mServerCerts.size() <= 0) {
+                return null;
+            }
+            X509Certificate providerCert = null;
+            String fqdn = mUrl.getHost();
+            try {
+                for (X509Certificate certificate : mServerCerts) {
+                    Collection<List<?>> col = certificate.getSubjectAlternativeNames();
+                    if (col == null) {
+                        continue;
+                    }
+                    for (List<?> name : col) {
+                        if (name == null) {
+                            continue;
+                        }
+                        if (name.size() >= DNS_NAME
+                                && name.get(0).getClass() == Integer.class
+                                && name.get(1).toString().equals(fqdn)) {
+                            providerCert = certificate;
+                            if (mVerboseLoggingEnabled) {
+                                Log.v(TAG, "OsuCert found");
+                            }
+                            break;
+                        }
+                    }
+                }
+            } catch (CertificateParsingException e) {
+                Log.e(TAG, "Unable to match certificate to " + fqdn);
+                if (mVerboseLoggingEnabled) {
+                    e.printStackTrace();
+                }
+            }
+            return providerCert;
         }
     }
 }

@@ -70,7 +70,8 @@ LOCAL_STATIC_JAVA_LIBRARIES := \
 	android.hardware.wifi.supplicant-V1.1-java
 LOCAL_REQUIRED_MODULES := \
 	services \
-	libwifi-service
+	libwifi-service \
+	cacerts_wfa
 LOCAL_MODULE_TAGS :=
 LOCAL_MODULE := wifi-service
 LOCAL_INIT_RC := wifi-events.rc

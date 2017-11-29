@@ -46,18 +46,21 @@ public class PasspointProvisioner {
     private final OsuNetworkCallbacks mOsuNetworkCallbacks;
     private final OsuNetworkConnection mOsuNetworkConnection;
     private final OsuServerConnection mOsuServerConnection;
+    private final WfaKeyStore mWfaKeyStore;
+    private final PasspointObjectFactory mObjectFactory;
 
     private int mCurrentSessionId = 0;
     private int mCallingUid;
     private boolean mVerboseLoggingEnabled = false;
 
-    PasspointProvisioner(Context context, OsuNetworkConnection osuNetworkConnection,
-            OsuServerConnection osuServerConnection) {
+    PasspointProvisioner(Context context, PasspointObjectFactory objectFactory) {
         mContext = context;
-        mOsuNetworkConnection = osuNetworkConnection;
+        mOsuNetworkConnection = objectFactory.makeOsuNetworkConnection(context);
         mProvisioningStateMachine = new ProvisioningStateMachine();
         mOsuNetworkCallbacks = new OsuNetworkCallbacks();
-        mOsuServerConnection = osuServerConnection;
+        mOsuServerConnection = objectFactory.makeOsuServerConnection();
+        mWfaKeyStore = objectFactory.makeWfaKeyStore();
+        mObjectFactory = objectFactory;
     }
 
     /**
@@ -67,7 +70,9 @@ public class PasspointProvisioner {
     public void init(Looper looper) {
         mProvisioningStateMachine.start(new Handler(looper));
         mOsuNetworkConnection.init(mProvisioningStateMachine.getHandler());
-        mOsuServerConnection.init(TLS_VERSION);
+        mWfaKeyStore.load();
+        mOsuServerConnection.init(mObjectFactory.getSSLContext(TLS_VERSION),
+                mObjectFactory.getTrustManagerImpl(mWfaKeyStore.get()));
     }
 
     /**
@@ -251,7 +256,7 @@ public class PasspointProvisioner {
             changeState(OSU_PROVIDER_VERIFIED);
             invokeProvisioningCallback(PROVISIONING_STATUS,
                     ProvisioningCallback.OSU_STATUS_PROVIDER_VERIFIED);
-            // TODO(sohanirao) : send Initial SOAP Exchange
+            // TODO : send Initial SOAP Exchange
         }
 
         /**
