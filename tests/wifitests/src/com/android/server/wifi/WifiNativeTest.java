@@ -28,6 +28,7 @@ import static org.mockito.Mockito.when;
 import android.net.wifi.IApInterface;
 import android.net.wifi.IClientInterface;
 import android.net.wifi.WifiConfiguration;
+import android.os.INetworkManagementService;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Pair;
 
@@ -148,6 +149,7 @@ public class WifiNativeTest {
     @Mock private WifiVendorHal mWifiVendorHal;
     @Mock private WificondControl mWificondControl;
     @Mock private SupplicantStaIfaceHal mStaIfaceHal;
+    @Mock private INetworkManagementService mNwService;
     private WifiNative mWifiNative;
 
     @Before
@@ -156,8 +158,8 @@ public class WifiNativeTest {
         when(mWifiVendorHal.isVendorHalSupported()).thenReturn(true);
         when(mWifiVendorHal.startVendorHalSta()).thenReturn(true);
         when(mWifiVendorHal.startVendorHalAp()).thenReturn(true);
-        mWifiNative =
-                new WifiNative(WIFI_IFACE_NAME, mWifiVendorHal, mStaIfaceHal, mWificondControl);
+        mWifiNative = new WifiNative(
+                WIFI_IFACE_NAME, mWifiVendorHal, mStaIfaceHal, mWificondControl, mNwService);
     }
 
     /**
