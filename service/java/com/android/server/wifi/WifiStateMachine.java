@@ -57,7 +57,6 @@ import android.net.StaticIpConfiguration;
 import android.net.TrafficStats;
 import android.net.dhcp.DhcpClient;
 import android.net.ip.IpClient;
-import android.net.wifi.IApInterface;
 import android.net.wifi.IClientInterface;
 import android.net.wifi.RssiPacketCountInfo;
 import android.net.wifi.ScanResult;
@@ -6967,7 +6966,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             }
             SoftApModeConfiguration config = (SoftApModeConfiguration) message.obj;
             mMode = config.getTargetMode();
-
+            /*
             IApInterface apInterface = null;
             Pair<Integer, IApInterface> statusAndInterface =
                     mWifiNative.setupForSoftApMode(mInterfaceName);
@@ -6994,12 +6993,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 transitionTo(mInitialState);
                 return;
             }
-
+            */
             checkAndSetConnectivityInstance();
             mSoftApManager = mWifiInjector.makeSoftApManager(mNwService,
                                                              new SoftApListener(),
-                                                             apInterface,
-                                                             mIfaceName,
                                                              config);
             mSoftApManager.start();
             mWifiStateTracker.updateState(WifiStateTracker.SOFT_AP);

@@ -397,7 +397,6 @@ public class WifiStateMachineTest {
                 .thenReturn(mWifiConnectivityManager);
         when(mWifiInjector.makeSoftApManager(any(INetworkManagementService.class),
                                              mSoftApManagerListenerCaptor.capture(),
-                                             any(IApInterface.class), anyString(),
                                              any(SoftApModeConfiguration.class)))
                 .thenReturn(mSoftApManager);
         when(mWifiInjector.getPasspointManager()).thenReturn(mPasspointManager);
@@ -415,8 +414,6 @@ public class WifiStateMachineTest {
 
         when(mWifiNative.setupForClientMode(WIFI_IFACE_NAME))
                 .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mClientInterface));
-        when(mWifiNative.setupForSoftApMode(WIFI_IFACE_NAME))
-                .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mApInterface));
         when(mApInterface.getInterfaceName()).thenReturn(WIFI_IFACE_NAME);
         when(mWifiNative.getInterfaceName()).thenReturn(WIFI_IFACE_NAME);
         when(mWifiNative.enableSupplicant()).thenReturn(true);
@@ -573,7 +570,6 @@ public class WifiStateMachineTest {
 
         assertEquals("SoftApState", getCurrentState().getName());
 
-        verify(mWifiNative).setupForSoftApMode(WIFI_IFACE_NAME);
         verify(mSoftApManager).start();
     }
 
@@ -2439,40 +2435,6 @@ public class WifiStateMachineTest {
         boolean succeeded = mWsm.syncDisableNetwork(mWsmAsyncChannel, 0);
         mLooper.stopAutoDispatch();
         assertFalse(succeeded);
-    }
-
-    /**
-     * Test that failure to start HAL in AP mode increments the corresponding metrics.
-     */
-    @Test
-    public void testSetupForSoftApModeHalFailureIncrementsMetrics() throws Exception {
-        when(mWifiNative.setupForSoftApMode(WIFI_IFACE_NAME))
-                .thenReturn(Pair.create(WifiNative.SETUP_FAILURE_HAL, null));
-
-        SoftApModeConfiguration config = new SoftApModeConfiguration(
-                WifiManager.IFACE_IP_MODE_TETHERED, new WifiConfiguration());
-        mWsm.setHostApRunning(config, true);
-        mLooper.dispatchAll();
-
-        verify(mWifiNative).setupForSoftApMode(WIFI_IFACE_NAME);
-        verify(mWifiMetrics).incrementNumWifiOnFailureDueToHal();
-    }
-
-    /**
-     * Test that failure to start HAL in AP mode increments the corresponding metrics.
-     */
-    @Test
-    public void testSetupForSoftApModeWificondFailureIncrementsMetrics() throws Exception {
-        when(mWifiNative.setupForSoftApMode(WIFI_IFACE_NAME))
-                .thenReturn(Pair.create(WifiNative.SETUP_FAILURE_WIFICOND, null));
-
-        SoftApModeConfiguration config = new SoftApModeConfiguration(
-                WifiManager.IFACE_IP_MODE_TETHERED, new WifiConfiguration());
-        mWsm.setHostApRunning(config, true);
-        mLooper.dispatchAll();
-
-        verify(mWifiNative).setupForSoftApMode(WIFI_IFACE_NAME);
-        verify(mWifiMetrics).incrementNumWifiOnFailureDueToWificond();
     }
 
     /**

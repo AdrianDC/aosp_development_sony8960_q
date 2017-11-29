@@ -17,15 +17,12 @@
 package com.android.server.wifi;
 
 import android.annotation.NonNull;
-import android.net.wifi.IApInterface;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
 import android.os.INetworkManagementService;
 import android.os.Looper;
 import android.os.Message;
-import android.os.RemoteException;
 import android.util.Log;
-import android.util.Pair;
 
 import com.android.internal.util.Protocol;
 import com.android.internal.util.State;
@@ -252,8 +249,6 @@ public class WifiStateMachinePrime {
         }
 
         class SoftAPModeState extends State {
-            IApInterface mApInterface = null;
-            String mIfaceName = null;
 
             @Override
             public void enter() {
@@ -263,32 +258,6 @@ public class WifiStateMachinePrime {
                     return;
                 }
 
-                // Continue with setup since we are changing modes
-                mApInterface = null;
-
-                Pair<Integer, IApInterface> statusAndInterface =
-                        mWifiNative.setupForSoftApMode(mInterfaceName);
-                if (statusAndInterface.first == WifiNative.SETUP_SUCCESS) {
-                    mApInterface = statusAndInterface.second;
-                } else {
-                    // TODO: incorporate metrics - or this particular one will be done in WifiNative
-                    //incrementMetricsForSetupFailure(statusAndInterface.first);
-                }
-                if (mApInterface == null) {
-                    // TODO: update battery stats that a failure occured - best to do in
-                    // initialization Failed.  Keeping line copied from WSM for a reference
-                    //setWifiApState(WIFI_AP_STATE_FAILED,
-                    //        WifiManager.SAP_START_FAILURE_GENERAL, null, mMode);
-                    initializationFailed("Could not get IApInterface instance");
-                    return;
-                }
-
-                try {
-                    mIfaceName = mApInterface.getInterfaceName();
-                } catch (RemoteException e) {
-                    initializationFailed("Could not get IApInterface name");
-                    return;
-                }
                 mModeStateMachine.transitionTo(mSoftAPModeActiveState);
             }
 
@@ -306,8 +275,6 @@ public class WifiStateMachinePrime {
                         // not in active state, nothing to stop.
                         break;
                     case CMD_START_AP_FAILURE:
-                        // remove the saved config for the start attempt
-                        mApConfigQueue.poll();
                         Log.e(TAG, "Failed to start SoftApMode.  Wait for next mode command.");
                         break;
                     case CMD_AP_STOPPED:
@@ -322,14 +289,6 @@ public class WifiStateMachinePrime {
             @Override
             public void exit() {
                 cleanup();
-            }
-
-            protected IApInterface getInterface() {
-                return mApInterface;
-            }
-
-            protected String getInterfaceName() {
-                return mIfaceName;
             }
 
             private void initializationFailed(String message) {
@@ -411,8 +370,7 @@ public class WifiStateMachinePrime {
                     config = null;
                 }
                 this.mActiveModeManager = mWifiInjector.makeSoftApManager(mNMService,
-                        new SoftApListener(), ((SoftAPModeState) mSoftAPModeState).getInterface(),
-                        ((SoftAPModeState) mSoftAPModeState).getInterfaceName(), softApModeConfig);
+                        new SoftApListener(), softApModeConfig);
                 mActiveModeManager.start();
             }
 
