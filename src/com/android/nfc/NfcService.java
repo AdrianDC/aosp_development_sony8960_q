@@ -784,8 +784,8 @@ public class NfcService implements DeviceHostListener {
         boolean isActiveForUser =
                 (!um.hasUserRestriction(UserManager.DISALLOW_OUTGOING_BEAM, uh)) &&
                 isGlobalEnabled;
-        if (DBG){
-            Log.d(TAG, "Enforcing a policy change on user: " + uh +
+        if (DBG) {
+            Log.d(TAG, "Enforcing a policy change on user: " + mUserId +
                     ", isActiveForUser = " + isActiveForUser);
         }
         try {
@@ -796,7 +796,7 @@ public class NfcService implements DeviceHostListener {
                             PackageManager.COMPONENT_ENABLED_STATE_ENABLED :
                             PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                             PackageManager.DONT_KILL_APP,
-                    uh.getIdentifier());
+                    mUserId);
         } catch (RemoteException e) {
             Log.w(TAG, "Unable to change Beam status for user " + uh);
         }
@@ -2378,8 +2378,23 @@ public class NfcService implements DeviceHostListener {
                 sendMessage(NfcService.MSG_APPLY_SCREEN_STATE, screenState);
             } else if (action.equals(Intent.ACTION_USER_SWITCHED)) {
                 int userId = intent.getIntExtra(Intent.EXTRA_USER_HANDLE, 0);
+                int beamSetting = PackageManager.COMPONENT_ENABLED_STATE_DEFAULT;
+                try {
+                    IPackageManager mIpm = IPackageManager.Stub.asInterface(ServiceManager.getService("package"));
+                    beamSetting = mIpm.getComponentEnabledSetting(new ComponentName(
+                            BeamShareActivity.class.getPackageName$(),
+                            BeamShareActivity.class.getName()),
+                            userId);
+                } catch(RemoteException e) {
+                    Log.e(TAG, "Error int getComponentEnabledSetting for BeamShareActivity");
+                }
                 synchronized (this) {
                     mUserId = userId;
+                    if (beamSetting == PackageManager.COMPONENT_ENABLED_STATE_DISABLED) {
+                       mIsNdefPushEnabled = false;
+                    } else {
+                       mIsNdefPushEnabled = true;
+                    }
                 }
                 mP2pLinkManager.onUserSwitched(getUserId());
                 if (mIsHceCapable) {
