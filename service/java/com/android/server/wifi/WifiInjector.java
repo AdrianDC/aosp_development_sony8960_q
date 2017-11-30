@@ -43,6 +43,7 @@ import android.util.LocalLog;
 import com.android.internal.R;
 import com.android.internal.app.IBatteryStats;
 import com.android.internal.os.PowerProfile;
+import com.android.server.am.ActivityManagerService;
 import com.android.server.am.BatteryStatsService;
 import com.android.server.net.DelayedDiskWrite;
 import com.android.server.net.IpConfigStore;
@@ -560,5 +561,9 @@ public class WifiInjector {
 
     public ScanRequestProxy getScanRequestProxy() {
         return mScanRequestProxy;
+    }
+
+    public ActivityManagerService getActivityManagerService() {
+        return (ActivityManagerService) ActivityManager.getService();
     }
 }

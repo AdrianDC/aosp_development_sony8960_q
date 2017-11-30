@@ -51,6 +51,12 @@ public class BaseWifiDiagnostics {
         pw.println("set config_wifi_enable_wifi_firmware_debugging to enable");
     }
 
+    /**
+     * Starts taking a standard android bugreport
+     * android will prompt the user to send the bugreport when it's complete
+     */
+    public void takeBugReport() { }
+
     protected synchronized void dump(PrintWriter pw) {
         pw.println("Chipset information :-----------------------------------------------");
         pw.println("FW Version is: " + mFirmwareVersion);

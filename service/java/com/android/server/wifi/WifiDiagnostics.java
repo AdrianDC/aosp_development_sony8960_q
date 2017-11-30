@@ -16,6 +16,7 @@
 
 package com.android.server.wifi;
 
+import android.app.ActivityManager;
 import android.content.Context;
 import android.util.Base64;
 
@@ -108,6 +109,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
     private final LastMileLogger mLastMileLogger;
     private final Runtime mJavaRuntime;
     private int mMaxRingBufferSizeBytes;
+    private WifiInjector mWifiInjector;
 
     public WifiDiagnostics(Context context, WifiInjector wifiInjector,
                            WifiStateMachine wifiStateMachine, WifiNative wifiNative,
@@ -125,6 +127,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
         mLog = wifiInjector.makeLog(TAG);
         mLastMileLogger = lastMileLogger;
         mJavaRuntime = wifiInjector.getJavaRuntime();
+        mWifiInjector = wifiInjector;
     }
 
     @Override
@@ -243,6 +246,23 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
         mLastMileLogger.dump(pw);
 
         pw.println("--------------------------------------------------------------------");
+    }
+
+    @Override
+    /**
+     * Initiates a system-level bugreport, in a non-blocking fashion.
+     */
+    public void takeBugReport() {
+        if (mBuildProperties.isUserBuild()) {
+            return;
+        }
+
+        try {
+            mWifiInjector.getActivityManagerService().requestBugReport(
+                    ActivityManager.BUGREPORT_OPTION_WIFI);
+        } catch (Exception e) {  // diagnostics should never crash system_server
+            mLog.err("error taking bugreport: %").c(e.getClass().getName()).flush();
+        }
     }
 
     /* private methods and data */
