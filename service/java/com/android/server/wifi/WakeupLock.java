@@ -21,6 +21,8 @@ import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
 
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
@@ -109,6 +111,15 @@ public class WakeupLock {
     /** Returns the data source for the WakeupLock config store data. */
     public WakeupConfigStoreData.DataSource<Set<ScanResultMatchInfo>> getDataSource() {
         return new WakeupLockDataSource();
+    }
+
+    /** Dumps wakeup lock contents. */
+    public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+        pw.println("WakeupLock: ");
+        pw.println("Locked networks: " + mLockedNetworks.size());
+        for (Map.Entry<ScanResultMatchInfo, Integer> entry : mLockedNetworks.entrySet()) {
+            pw.println(entry.getKey() + ", scans to evict: " + entry.getValue());
+        }
     }
 
     private class WakeupLockDataSource

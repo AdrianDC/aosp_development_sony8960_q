@@ -2281,6 +2281,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         } else {
             pw.println("mWifiConnectivityManager is not initialized");
         }
+        mWifiInjector.getWakeupController().dump(fd, pw, args);
     }
 
     public void handleUserSwitch(int userId) {

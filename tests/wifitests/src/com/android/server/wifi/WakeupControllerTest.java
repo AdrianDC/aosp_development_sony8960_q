@@ -31,6 +31,9 @@ import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintWriter;
+
 /**
  * Unit tests for {@link WakeupController}.
  */
@@ -88,5 +91,18 @@ public class WakeupControllerTest {
     public void registersWakeupConfigStoreData() {
         mWakeupController = newWakeupController();
         verify(mWifiConfigStore).registerStoreData(any(WakeupConfigStoreData.class));
+    }
+
+    /**
+     * Verify that dump calls also dump the state of the WakeupLock.
+     */
+    @Test
+    public void dumpIncludesWakeupLock() {
+        mWakeupController = newWakeupController();
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        PrintWriter writer = new PrintWriter(stream);
+        mWakeupController.dump(null, writer, null);
+
+        verify(mWakeupLock).dump(null, writer, null);
     }
 }

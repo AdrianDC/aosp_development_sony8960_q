@@ -24,6 +24,9 @@ import android.provider.Settings;
 
 import com.android.internal.annotations.VisibleForTesting;
 
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
+
 /**
  * WakeupController is responsible managing Auto Wifi.
  *
@@ -93,6 +96,15 @@ public class WakeupController {
     @VisibleForTesting
     boolean isEnabled() {
         return mWifiWakeupEnabled;
+    }
+
+    /** Dumps wakeup controller state. */
+    public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+        pw.println("Dump of WakeupController");
+        pw.println("mWifiWakeupEnabled: " + mWifiWakeupEnabled);
+        pw.println("USE_PLATFORM_WIFI_WAKE: " + USE_PLATFORM_WIFI_WAKE);
+        pw.println("mIsActive: " + mIsActive);
+        mWakeupLock.dump(fd, pw, args);
     }
 
     private class IsActiveDataSource implements WakeupConfigStoreData.DataSource<Boolean> {
