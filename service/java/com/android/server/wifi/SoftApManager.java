@@ -250,15 +250,16 @@ public class SoftApManager implements ActiveModeManager {
         // Commands for the state machine.
         public static final int CMD_START = 0;
         public static final int CMD_STOP = 1;
-        public static final int CMD_AP_INTERFACE_BINDER_DEATH = 2;
+        public static final int CMD_WIFICOND_BINDER_DEATH = 2;
         public static final int CMD_INTERFACE_STATUS_CHANGED = 3;
         public static final int CMD_NUM_ASSOCIATED_STATIONS_CHANGED = 4;
 
         private final State mIdleState = new IdleState();
         private final State mStartedState = new StartedState();
 
-        private final StateMachineDeathRecipient mDeathRecipient =
-                new StateMachineDeathRecipient(this, CMD_AP_INTERFACE_BINDER_DEATH);
+        private final WifiNative.WificondDeathEventHandler mWificondDeathRecipient = () -> {
+            sendMessage(CMD_WIFICOND_BINDER_DEATH);
+        };
 
         private NetworkObserver mNetworkObserver;
 
@@ -291,7 +292,7 @@ public class SoftApManager implements ActiveModeManager {
         private class IdleState extends State {
             @Override
             public void enter() {
-                mDeathRecipient.unlinkToDeath();
+                mWifiNative.deregisterWificondDeathHandler();
                 unregisterObserver();
             }
 
@@ -313,8 +314,7 @@ public class SoftApManager implements ActiveModeManager {
                         updateApState(WifiManager.WIFI_AP_STATE_ENABLING,
                                 WifiManager.WIFI_AP_STATE_DISABLED, 0);
                         setNumAssociatedStations(0);
-                        if (!mDeathRecipient.linkToDeath(mApInterface.asBinder())) {
-                            mDeathRecipient.unlinkToDeath();
+                        if (!mWifiNative.registerWificondDeathHandler(mWificondDeathRecipient)) {
                             updateApState(WifiManager.WIFI_AP_STATE_FAILED,
                                     WifiManager.WIFI_AP_STATE_ENABLING,
                                     WifiManager.SAP_START_FAILURE_GENERAL);
@@ -322,12 +322,11 @@ public class SoftApManager implements ActiveModeManager {
                                     false, WifiManager.SAP_START_FAILURE_GENERAL);
                             break;
                         }
-
                         try {
                             mNetworkObserver = new NetworkObserver(mApInterfaceName);
                             mNwService.registerObserver(mNetworkObserver);
                         } catch (RemoteException e) {
-                            mDeathRecipient.unlinkToDeath();
+                            mWifiNative.deregisterWificondDeathHandler();
                             unregisterObserver();
                             updateApState(WifiManager.WIFI_AP_STATE_FAILED,
                                           WifiManager.WIFI_AP_STATE_ENABLING,
@@ -343,7 +342,7 @@ public class SoftApManager implements ActiveModeManager {
                             if (result == ERROR_NO_CHANNEL) {
                                 failureReason = WifiManager.SAP_START_FAILURE_NO_CHANNEL;
                             }
-                            mDeathRecipient.unlinkToDeath();
+                            mWifiNative.deregisterWificondDeathHandler();
                             unregisterObserver();
                             updateApState(WifiManager.WIFI_AP_STATE_FAILED,
                                           WifiManager.WIFI_AP_STATE_ENABLING,
@@ -428,13 +427,13 @@ public class SoftApManager implements ActiveModeManager {
                     case CMD_START:
                         // Already started, ignore this command.
                         break;
-                    case CMD_AP_INTERFACE_BINDER_DEATH:
+                    case CMD_WIFICOND_BINDER_DEATH:
                     case CMD_STOP:
                         updateApState(WifiManager.WIFI_AP_STATE_DISABLING,
                                 WifiManager.WIFI_AP_STATE_ENABLED, 0);
                         setNumAssociatedStations(0);
                         stopSoftAp();
-                        if (message.what == CMD_AP_INTERFACE_BINDER_DEATH) {
+                        if (message.what == CMD_WIFICOND_BINDER_DEATH) {
                             updateApState(WifiManager.WIFI_AP_STATE_FAILED,
                                           WifiManager.WIFI_AP_STATE_DISABLING,
                                           WifiManager.SAP_START_FAILURE_GENERAL);

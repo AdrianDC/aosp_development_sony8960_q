@@ -23,15 +23,7 @@ import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyShort;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import android.app.test.MockAnswerUtil;
 import android.content.Context;
@@ -62,6 +54,8 @@ import com.android.server.wifi.hotspot2.IconEvent;
 import com.android.server.wifi.hotspot2.WnmData;
 import com.android.server.wifi.util.NativeUtil;
 
+import libcore.util.NonNull;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -91,7 +85,8 @@ public class SupplicantStaIfaceHalTest {
     private static final String SUPPLICANT_SSID = NETWORK_ID_TO_SSID.get(SUPPLICANT_NETWORK_ID);
     private static final int ROAM_NETWORK_ID = 4;
     private static final String BSSID = "fa:45:23:23:12:12";
-    private static final String WLAN_IFACE_NAME = "wlan0";
+    private static final String WLAN0_IFACE_NAME = "wlan0";
+    private static final String WLAN1_IFACE_NAME = "wlan1";
     private static final String P2P_IFACE_NAME = "p2p0";
     private static final String ICON_FILE_NAME  = "blahblah";
     private static final int ICON_FILE_SIZE = 72;
@@ -104,9 +99,11 @@ public class SupplicantStaIfaceHalTest {
     @Mock Context mContext;
     @Mock WifiMonitor mWifiMonitor;
     @Mock SupplicantStaNetworkHal mSupplicantStaNetworkMock;
+    @Mock WifiNative.SupplicantDeathEventHandler mSupplicantHalDeathHandler;
     SupplicantStatus mStatusSuccess;
     SupplicantStatus mStatusFailure;
-    ISupplicant.IfaceInfo mStaIface;
+    ISupplicant.IfaceInfo mStaIface0;
+    ISupplicant.IfaceInfo mStaIface1;
     ISupplicant.IfaceInfo mP2pIface;
     ArrayList<ISupplicant.IfaceInfo> mIfaceInfoList;
     ISupplicantStaIfaceCallback mISupplicantStaIfaceCallback;
@@ -143,6 +140,7 @@ public class SupplicantStaIfaceHalTest {
 
         @Override
         protected SupplicantStaNetworkHal getStaNetworkMockable(
+                @NonNull String ifaceName,
                 ISupplicantStaNetwork iSupplicantStaNetwork) {
             return mSupplicantStaNetworkMock;
         }
@@ -153,11 +151,13 @@ public class SupplicantStaIfaceHalTest {
         MockitoAnnotations.initMocks(this);
         mStatusSuccess = createSupplicantStatus(SupplicantStatusCode.SUCCESS);
         mStatusFailure = createSupplicantStatus(SupplicantStatusCode.FAILURE_UNKNOWN);
-        mStaIface = createIfaceInfo(IfaceType.STA, WLAN_IFACE_NAME);
+        mStaIface0 = createIfaceInfo(IfaceType.STA, WLAN0_IFACE_NAME);
+        mStaIface1 = createIfaceInfo(IfaceType.STA, WLAN1_IFACE_NAME);
         mP2pIface = createIfaceInfo(IfaceType.P2P, P2P_IFACE_NAME);
 
         mIfaceInfoList = new ArrayList<>();
-        mIfaceInfoList.add(mStaIface);
+        mIfaceInfoList.add(mStaIface0);
+        mIfaceInfoList.add(mStaIface1);
         mIfaceInfoList.add(mP2pIface);
 
         when(mServiceManagerMock.linkToDeath(any(IHwBinder.DeathRecipient.class),
@@ -216,6 +216,50 @@ public class SupplicantStaIfaceHalTest {
         executeAndValidateInitializationSequence(false, false, false, true);
     }
 
+
+    /**
+     * Sunny day scenario for SupplicantStaIfaceHal initialization
+     * Asserts successful initialization of second interface
+     */
+    @Test
+    public void testSetupTwoInterfaces() throws Exception {
+        executeAndValidateInitializationSequence(false, false, false, false);
+        assertTrue(mDut.setupIface(WLAN1_IFACE_NAME));
+    }
+
+    /**
+     * Ensures that we do not allow operations on an interface until it's setup.
+     */
+    @Test
+    public void testEnsureOperationFailsUntilSetupInterfaces() throws Exception {
+        executeAndValidateInitializationSequence(false, false, false, false);
+
+        // Ensure that the cancel wps operation is failed because wlan1 interface is not yet setup.
+        assertFalse(mDut.cancelWps(WLAN1_IFACE_NAME));
+        verify(mISupplicantStaIfaceMock, never()).cancelWps();
+
+        // Now setup the wlan1 interface and Ensure that the cancel wps operation is successful.
+        assertTrue(mDut.setupIface(WLAN1_IFACE_NAME));
+        when(mISupplicantStaIfaceMock.cancelWps()).thenReturn(mStatusSuccess);
+        assertTrue(mDut.cancelWps(WLAN1_IFACE_NAME));
+        verify(mISupplicantStaIfaceMock).cancelWps();
+    }
+
+    /**
+     * Sunny day scenario for SupplicantStaIfaceHal interface teardown.
+     * Asserts successful initialization of second interface
+     */
+    @Test
+    public void testTeardownTwoInterfaces() throws Exception {
+        testSetupTwoInterfaces();
+        assertTrue(mDut.teardownIface(WLAN0_IFACE_NAME));
+        assertTrue(mDut.teardownIface(WLAN1_IFACE_NAME));
+
+        // Ensure that the cancel wps operation is failed because there are no interfaces setup.
+        assertFalse(mDut.cancelWps(WLAN0_IFACE_NAME));
+        verify(mISupplicantStaIfaceMock, never()).cancelWps();
+    }
+
     /**
      * Tests the loading of networks using {@link SupplicantStaNetworkHal}.
      * Fills up only the SSID field of configs and uses it as a configKey as well.
@@ -251,7 +295,7 @@ public class SupplicantStaIfaceHalTest {
 
         Map<String, WifiConfiguration> configs = new HashMap<>();
         SparseArray<Map<String, String>> extras = new SparseArray<>();
-        assertTrue(mDut.loadNetworks(configs, extras));
+        assertTrue(mDut.loadNetworks(WLAN0_IFACE_NAME, configs, extras));
 
         assertEquals(3, configs.size());
         assertEquals(3, extras.size());
@@ -317,7 +361,7 @@ public class SupplicantStaIfaceHalTest {
 
         Map<String, WifiConfiguration> configs = new HashMap<>();
         SparseArray<Map<String, String>> extras = new SparseArray<>();
-        assertTrue(mDut.loadNetworks(configs, extras));
+        assertTrue(mDut.loadNetworks(WLAN0_IFACE_NAME, configs, extras));
 
         assertEquals(2, configs.size());
         assertEquals(2, extras.size());
@@ -356,7 +400,7 @@ public class SupplicantStaIfaceHalTest {
 
         Map<String, WifiConfiguration> configs = new HashMap<>();
         SparseArray<Map<String, String>> extras = new SparseArray<>();
-        assertFalse(mDut.loadNetworks(configs, extras));
+        assertFalse(mDut.loadNetworks(WLAN0_IFACE_NAME, configs, extras));
     }
 
     /**
@@ -381,7 +425,7 @@ public class SupplicantStaIfaceHalTest {
 
         Map<String, WifiConfiguration> configs = new HashMap<>();
         SparseArray<Map<String, String>> extras = new SparseArray<>();
-        assertFalse(mDut.loadNetworks(configs, extras));
+        assertFalse(mDut.loadNetworks(WLAN0_IFACE_NAME, configs, extras));
     }
 
     /**
@@ -412,7 +456,7 @@ public class SupplicantStaIfaceHalTest {
 
         Map<String, WifiConfiguration> configs = new HashMap<>();
         SparseArray<Map<String, String>> extras = new SparseArray<>();
-        assertTrue(mDut.loadNetworks(configs, extras));
+        assertTrue(mDut.loadNetworks(WLAN0_IFACE_NAME, configs, extras));
         assertTrue(configs.isEmpty());
     }
 
@@ -445,7 +489,7 @@ public class SupplicantStaIfaceHalTest {
 
         Map<String, WifiConfiguration> configs = new HashMap<>();
         SparseArray<Map<String, String>> extras = new SparseArray<>();
-        assertTrue(mDut.loadNetworks(configs, extras));
+        assertTrue(mDut.loadNetworks(WLAN0_IFACE_NAME, configs, extras));
         assertTrue(configs.isEmpty());
     }
 
@@ -469,7 +513,7 @@ public class SupplicantStaIfaceHalTest {
         setupMocksForConnectSequence(true /*haveExistingNetwork*/);
         // Make this network different by changing SSID.
         config.SSID = "AnDifferentSSID";
-        assertTrue(mDut.connectToNetwork(config));
+        assertTrue(mDut.connectToNetwork(WLAN0_IFACE_NAME, config));
         verify(mISupplicantStaIfaceMock).removeNetwork(SUPPLICANT_NETWORK_ID);
         verify(mISupplicantStaIfaceMock)
                 .addNetwork(any(ISupplicantStaIface.addNetworkCallback.class));
@@ -483,7 +527,7 @@ public class SupplicantStaIfaceHalTest {
         // Reset mocks for mISupplicantStaIfaceMock because we finished the first connection.
         reset(mISupplicantStaIfaceMock);
         setupMocksForConnectSequence(true /*haveExistingNetwork*/);
-        assertTrue(mDut.connectToNetwork(config));
+        assertTrue(mDut.connectToNetwork(WLAN0_IFACE_NAME, config));
         verify(mISupplicantStaIfaceMock, never()).removeNetwork(anyInt());
         verify(mISupplicantStaIfaceMock, never())
                 .addNetwork(any(ISupplicantStaIface.addNetworkCallback.class));
@@ -504,7 +548,7 @@ public class SupplicantStaIfaceHalTest {
         assertFalse(TextUtils.equals(
                 testBssid, config.getNetworkSelectionStatus().getNetworkSelectionBSSID()));
         config.getNetworkSelectionStatus().setNetworkSelectionBSSID(testBssid);
-        assertTrue(mDut.connectToNetwork(config));
+        assertTrue(mDut.connectToNetwork(WLAN0_IFACE_NAME, config));
         verify(mSupplicantStaNetworkMock).setBssid(eq(testBssid));
         verify(mISupplicantStaIfaceMock, never()).removeNetwork(anyInt());
         verify(mISupplicantStaIfaceMock, never())
@@ -526,7 +570,7 @@ public class SupplicantStaIfaceHalTest {
         }).when(mISupplicantStaIfaceMock).addNetwork(
                 any(ISupplicantStaIface.addNetworkCallback.class));
 
-        assertFalse(mDut.connectToNetwork(createTestWifiConfiguration()));
+        assertFalse(mDut.connectToNetwork(WLAN0_IFACE_NAME, createTestWifiConfiguration()));
     }
 
     /**
@@ -540,7 +584,7 @@ public class SupplicantStaIfaceHalTest {
         when(mSupplicantStaNetworkMock.saveWifiConfiguration(any(WifiConfiguration.class)))
                 .thenReturn(false);
 
-        assertFalse(mDut.connectToNetwork(createTestWifiConfiguration()));
+        assertFalse(mDut.connectToNetwork(WLAN0_IFACE_NAME, createTestWifiConfiguration()));
         // We should have removed the existing network once before connection and once more
         // on failure to save network configuration.
         verify(mISupplicantStaIfaceMock, times(2)).removeNetwork(anyInt());
@@ -558,7 +602,7 @@ public class SupplicantStaIfaceHalTest {
                 .when(mSupplicantStaNetworkMock).saveWifiConfiguration(
                         any(WifiConfiguration.class));
 
-        assertFalse(mDut.connectToNetwork(createTestWifiConfiguration()));
+        assertFalse(mDut.connectToNetwork(WLAN0_IFACE_NAME, createTestWifiConfiguration()));
         // We should have removed the existing network once before connection and once more
         // on failure to save network configuration.
         verify(mISupplicantStaIfaceMock, times(2)).removeNetwork(anyInt());
@@ -574,7 +618,7 @@ public class SupplicantStaIfaceHalTest {
 
         when(mSupplicantStaNetworkMock.select()).thenReturn(false);
 
-        assertFalse(mDut.connectToNetwork(createTestWifiConfiguration()));
+        assertFalse(mDut.connectToNetwork(WLAN0_IFACE_NAME, createTestWifiConfiguration()));
     }
 
     /**
@@ -584,7 +628,7 @@ public class SupplicantStaIfaceHalTest {
     public void testRoamToSameNetwork() throws Exception {
         executeAndValidateInitializationSequence();
         executeAndValidateRoamSequence(true);
-        assertTrue(mDut.connectToNetwork(createTestWifiConfiguration()));
+        assertTrue(mDut.connectToNetwork(WLAN0_IFACE_NAME, createTestWifiConfiguration()));
     }
 
     /**
@@ -609,7 +653,7 @@ public class SupplicantStaIfaceHalTest {
         WifiConfiguration roamingConfig = new WifiConfiguration();
         roamingConfig.networkId = connectedNetworkId;
         roamingConfig.getNetworkSelectionStatus().setNetworkSelectionBSSID("45:34:23:23:ab:ed");
-        assertFalse(mDut.roamToNetwork(roamingConfig));
+        assertFalse(mDut.roamToNetwork(WLAN0_IFACE_NAME, roamingConfig));
     }
 
     /**
@@ -631,7 +675,7 @@ public class SupplicantStaIfaceHalTest {
             }
         }).when(mISupplicantStaIfaceMock).removeNetwork(anyInt());
 
-        assertTrue(mDut.removeAllNetworks());
+        assertTrue(mDut.removeAllNetworks(WLAN0_IFACE_NAME));
         verify(mISupplicantStaIfaceMock, times(NETWORK_ID_TO_SSID.size())).removeNetwork(anyInt());
     }
 
@@ -647,13 +691,13 @@ public class SupplicantStaIfaceHalTest {
 
         // Connect to a network and verify current network is set.
         executeAndValidateConnectSequence(4, false);
-        assertTrue(mDut.setCurrentNetworkBssid(testBssid));
+        assertTrue(mDut.setCurrentNetworkBssid(WLAN0_IFACE_NAME, testBssid));
         verify(mSupplicantStaNetworkMock).setBssid(eq(testBssid));
         reset(mSupplicantStaNetworkMock);
 
         // Remove all networks and verify current network info is resetted.
-        assertTrue(mDut.removeAllNetworks());
-        assertFalse(mDut.setCurrentNetworkBssid(testBssid));
+        assertTrue(mDut.removeAllNetworks(WLAN0_IFACE_NAME));
+        assertFalse(mDut.setCurrentNetworkBssid(WLAN0_IFACE_NAME, testBssid));
         verify(mSupplicantStaNetworkMock, never()).setBssid(eq(testBssid));
     }
 
@@ -676,7 +720,7 @@ public class SupplicantStaIfaceHalTest {
         WifiConfiguration roamingConfig = new WifiConfiguration();
         roamingConfig.networkId = connectedNetworkId;
         roamingConfig.getNetworkSelectionStatus().setNetworkSelectionBSSID("45:34:23:23:ab:ed");
-        assertFalse(mDut.roamToNetwork(roamingConfig));
+        assertFalse(mDut.roamToNetwork(WLAN0_IFACE_NAME, roamingConfig));
     }
 
     /**
@@ -689,10 +733,10 @@ public class SupplicantStaIfaceHalTest {
 
         executeAndValidateInitializationSequence();
         // Return null when not connected to the network.
-        assertTrue(mDut.getCurrentNetworkWpsNfcConfigurationToken() == null);
+        assertTrue(mDut.getCurrentNetworkWpsNfcConfigurationToken(WLAN0_IFACE_NAME) == null);
         verify(mSupplicantStaNetworkMock, never()).getWpsNfcConfigurationToken();
         executeAndValidateConnectSequence(4, false);
-        assertEquals(token, mDut.getCurrentNetworkWpsNfcConfigurationToken());
+        assertEquals(token, mDut.getCurrentNetworkWpsNfcConfigurationToken(WLAN0_IFACE_NAME));
         verify(mSupplicantStaNetworkMock).getWpsNfcConfigurationToken();
     }
 
@@ -706,10 +750,10 @@ public class SupplicantStaIfaceHalTest {
 
         executeAndValidateInitializationSequence();
         // Fail when not connected to a network.
-        assertFalse(mDut.setCurrentNetworkBssid(bssidStr));
+        assertFalse(mDut.setCurrentNetworkBssid(WLAN0_IFACE_NAME, bssidStr));
         verify(mSupplicantStaNetworkMock, never()).setBssid(eq(bssidStr));
         executeAndValidateConnectSequence(4, false);
-        assertTrue(mDut.setCurrentNetworkBssid(bssidStr));
+        assertTrue(mDut.setCurrentNetworkBssid(WLAN0_IFACE_NAME, bssidStr));
         verify(mSupplicantStaNetworkMock).setBssid(eq(bssidStr));
     }
 
@@ -724,10 +768,10 @@ public class SupplicantStaIfaceHalTest {
 
         executeAndValidateInitializationSequence();
         // Fail when not connected to a network.
-        assertFalse(mDut.sendCurrentNetworkEapIdentityResponse(identity));
+        assertFalse(mDut.sendCurrentNetworkEapIdentityResponse(WLAN0_IFACE_NAME, identity));
         verify(mSupplicantStaNetworkMock, never()).sendNetworkEapIdentityResponse(eq(identity));
         executeAndValidateConnectSequence(4, false);
-        assertTrue(mDut.sendCurrentNetworkEapIdentityResponse(identity));
+        assertTrue(mDut.sendCurrentNetworkEapIdentityResponse(WLAN0_IFACE_NAME, identity));
         verify(mSupplicantStaNetworkMock).sendNetworkEapIdentityResponse(eq(identity));
     }
 
@@ -742,10 +786,11 @@ public class SupplicantStaIfaceHalTest {
         executeAndValidateInitializationSequence();
 
         // Return null when not connected to the network.
-        assertEquals(null, mDut.getCurrentNetworkEapAnonymousIdentity());
+        assertEquals(null, mDut.getCurrentNetworkEapAnonymousIdentity(WLAN0_IFACE_NAME));
         executeAndValidateConnectSequence(4, false);
         // Return anonymous identity for the current network.
-        assertEquals(anonymousIdentity, mDut.getCurrentNetworkEapAnonymousIdentity());
+        assertEquals(
+                anonymousIdentity, mDut.getCurrentNetworkEapAnonymousIdentity(WLAN0_IFACE_NAME));
     }
 
     /**
@@ -759,10 +804,10 @@ public class SupplicantStaIfaceHalTest {
 
         executeAndValidateInitializationSequence();
         // Fail when not connected to a network.
-        assertFalse(mDut.sendCurrentNetworkEapSimGsmAuthResponse(params));
+        assertFalse(mDut.sendCurrentNetworkEapSimGsmAuthResponse(WLAN0_IFACE_NAME, params));
         verify(mSupplicantStaNetworkMock, never()).sendNetworkEapSimGsmAuthResponse(eq(params));
         executeAndValidateConnectSequence(4, false);
-        assertTrue(mDut.sendCurrentNetworkEapSimGsmAuthResponse(params));
+        assertTrue(mDut.sendCurrentNetworkEapSimGsmAuthResponse(WLAN0_IFACE_NAME, params));
         verify(mSupplicantStaNetworkMock).sendNetworkEapSimGsmAuthResponse(eq(params));
     }
 
@@ -777,10 +822,10 @@ public class SupplicantStaIfaceHalTest {
 
         executeAndValidateInitializationSequence();
         // Fail when not connected to a network.
-        assertFalse(mDut.sendCurrentNetworkEapSimUmtsAuthResponse(params));
+        assertFalse(mDut.sendCurrentNetworkEapSimUmtsAuthResponse(WLAN0_IFACE_NAME, params));
         verify(mSupplicantStaNetworkMock, never()).sendNetworkEapSimUmtsAuthResponse(eq(params));
         executeAndValidateConnectSequence(4, false);
-        assertTrue(mDut.sendCurrentNetworkEapSimUmtsAuthResponse(params));
+        assertTrue(mDut.sendCurrentNetworkEapSimUmtsAuthResponse(WLAN0_IFACE_NAME, params));
         verify(mSupplicantStaNetworkMock).sendNetworkEapSimUmtsAuthResponse(eq(params));
     }
 
@@ -795,10 +840,10 @@ public class SupplicantStaIfaceHalTest {
 
         executeAndValidateInitializationSequence();
         // Fail when not connected to a network.
-        assertFalse(mDut.sendCurrentNetworkEapSimUmtsAutsResponse(params));
+        assertFalse(mDut.sendCurrentNetworkEapSimUmtsAutsResponse(WLAN0_IFACE_NAME, params));
         verify(mSupplicantStaNetworkMock, never()).sendNetworkEapSimUmtsAutsResponse(eq(params));
         executeAndValidateConnectSequence(4, false);
-        assertTrue(mDut.sendCurrentNetworkEapSimUmtsAutsResponse(params));
+        assertTrue(mDut.sendCurrentNetworkEapSimUmtsAutsResponse(WLAN0_IFACE_NAME, params));
         verify(mSupplicantStaNetworkMock).sendNetworkEapSimUmtsAutsResponse(eq(params));
     }
 
@@ -817,13 +862,13 @@ public class SupplicantStaIfaceHalTest {
         executeAndValidateInitializationSequence();
 
         // This should work.
-        assertTrue(mDut.setWpsDeviceType(validDeviceTypeStr));
+        assertTrue(mDut.setWpsDeviceType(WLAN0_IFACE_NAME, validDeviceTypeStr));
         verify(mISupplicantStaIfaceMock).setWpsDeviceType(eq(expectedDeviceType));
 
         // This should not work
-        assertFalse(mDut.setWpsDeviceType(invalidDeviceType1Str));
+        assertFalse(mDut.setWpsDeviceType(WLAN0_IFACE_NAME, invalidDeviceType1Str));
         // This should not work
-        assertFalse(mDut.setWpsDeviceType(invalidDeviceType2Str));
+        assertFalse(mDut.setWpsDeviceType(WLAN0_IFACE_NAME, invalidDeviceType2Str));
     }
 
     /**
@@ -840,12 +885,12 @@ public class SupplicantStaIfaceHalTest {
         executeAndValidateInitializationSequence();
 
         // This should work.
-        assertTrue(mDut.setWpsConfigMethods(validConfigMethodsStr));
+        assertTrue(mDut.setWpsConfigMethods(WLAN0_IFACE_NAME, validConfigMethodsStr));
         verify(mISupplicantStaIfaceMock).setWpsConfigMethods(eq(expectedConfigMethods));
 
         // This should throw an illegal argument exception.
         try {
-            assertFalse(mDut.setWpsConfigMethods(invalidConfigMethodsStr));
+            assertFalse(mDut.setWpsConfigMethods(WLAN0_IFACE_NAME, invalidConfigMethodsStr));
         } catch (IllegalArgumentException e) {
             return;
         }
@@ -868,7 +913,8 @@ public class SupplicantStaIfaceHalTest {
                 new ISupplicantStaIfaceCallback.Hs20AnqpData());
 
         ArgumentCaptor<AnqpEvent> anqpEventCaptor = ArgumentCaptor.forClass(AnqpEvent.class);
-        verify(mWifiMonitor).broadcastAnqpDoneEvent(eq(WLAN_IFACE_NAME), anqpEventCaptor.capture());
+        verify(mWifiMonitor).broadcastAnqpDoneEvent(
+                eq(WLAN0_IFACE_NAME), anqpEventCaptor.capture());
         assertEquals(
                 ByteBufferReader.readInteger(
                         ByteBuffer.wrap(bssid), ByteOrder.BIG_ENDIAN, bssid.length),
@@ -890,7 +936,8 @@ public class SupplicantStaIfaceHalTest {
                 bssid, ICON_FILE_NAME, NativeUtil.byteArrayToArrayList(iconData));
 
         ArgumentCaptor<IconEvent> iconEventCaptor = ArgumentCaptor.forClass(IconEvent.class);
-        verify(mWifiMonitor).broadcastIconDoneEvent(eq(WLAN_IFACE_NAME), iconEventCaptor.capture());
+        verify(mWifiMonitor).broadcastIconDoneEvent(
+                eq(WLAN0_IFACE_NAME), iconEventCaptor.capture());
         assertEquals(
                 ByteBufferReader.readInteger(
                         ByteBuffer.wrap(bssid), ByteOrder.BIG_ENDIAN, bssid.length),
@@ -913,7 +960,7 @@ public class SupplicantStaIfaceHalTest {
                 bssid, osuMethod, HS20_URL);
 
         ArgumentCaptor<WnmData> wnmDataCaptor = ArgumentCaptor.forClass(WnmData.class);
-        verify(mWifiMonitor).broadcastWnmEvent(eq(WLAN_IFACE_NAME), wnmDataCaptor.capture());
+        verify(mWifiMonitor).broadcastWnmEvent(eq(WLAN0_IFACE_NAME), wnmDataCaptor.capture());
         assertEquals(
                 ByteBufferReader.readInteger(
                         ByteBuffer.wrap(bssid), ByteOrder.BIG_ENDIAN, bssid.length),
@@ -954,7 +1001,7 @@ public class SupplicantStaIfaceHalTest {
 
         // Can't compare WifiSsid instances because they lack an equals.
         verify(mWifiMonitor).broadcastSupplicantStateChangeEvent(
-                eq(WLAN_IFACE_NAME), eq(WifiConfiguration.INVALID_NETWORK_ID),
+                eq(WLAN0_IFACE_NAME), eq(WifiConfiguration.INVALID_NETWORK_ID),
                 any(WifiSsid.class), eq(BSSID), eq(SupplicantState.INACTIVE));
     }
 
@@ -974,7 +1021,7 @@ public class SupplicantStaIfaceHalTest {
                 NativeUtil.decodeSsid(SUPPLICANT_SSID));
 
         verify(mWifiMonitor).broadcastSupplicantStateChangeEvent(
-                eq(WLAN_IFACE_NAME), eq(frameworkNetworkId),
+                eq(WLAN0_IFACE_NAME), eq(frameworkNetworkId),
                 any(WifiSsid.class), eq(BSSID), eq(SupplicantState.ASSOCIATED));
     }
 
@@ -995,9 +1042,9 @@ public class SupplicantStaIfaceHalTest {
                 NativeUtil.decodeSsid(SUPPLICANT_SSID));
 
         wifiMonitorInOrder.verify(mWifiMonitor).broadcastNetworkConnectionEvent(
-                eq(WLAN_IFACE_NAME), eq(frameworkNetworkId), eq(BSSID));
+                eq(WLAN0_IFACE_NAME), eq(frameworkNetworkId), eq(BSSID));
         wifiMonitorInOrder.verify(mWifiMonitor).broadcastSupplicantStateChangeEvent(
-                eq(WLAN_IFACE_NAME), eq(frameworkNetworkId),
+                eq(WLAN0_IFACE_NAME), eq(frameworkNetworkId),
                 any(WifiSsid.class), eq(BSSID), eq(SupplicantState.COMPLETED));
     }
 
@@ -1013,12 +1060,12 @@ public class SupplicantStaIfaceHalTest {
         mISupplicantStaIfaceCallback.onDisconnected(
                 NativeUtil.macAddressToByteArray(BSSID), true, reasonCode);
         verify(mWifiMonitor).broadcastNetworkDisconnectionEvent(
-                eq(WLAN_IFACE_NAME), eq(1), eq(reasonCode), eq(BSSID));
+                eq(WLAN0_IFACE_NAME), eq(1), eq(reasonCode), eq(BSSID));
 
         mISupplicantStaIfaceCallback.onDisconnected(
                 NativeUtil.macAddressToByteArray(BSSID), false, reasonCode);
         verify(mWifiMonitor).broadcastNetworkDisconnectionEvent(
-                eq(WLAN_IFACE_NAME), eq(0), eq(reasonCode), eq(BSSID));
+                eq(WLAN0_IFACE_NAME), eq(0), eq(reasonCode), eq(BSSID));
     }
 
     /**
@@ -1048,7 +1095,7 @@ public class SupplicantStaIfaceHalTest {
         mISupplicantStaIfaceCallback.onDisconnected(
                 NativeUtil.macAddressToByteArray(BSSID), false, reasonCode);
 
-        verify(mWifiMonitor, times(2)).broadcastAuthenticationFailureEvent(eq(WLAN_IFACE_NAME),
+        verify(mWifiMonitor, times(2)).broadcastAuthenticationFailureEvent(eq(WLAN0_IFACE_NAME),
                 eq(WifiManager.ERROR_AUTH_FAILURE_WRONG_PSWD));
 
     }
@@ -1086,7 +1133,7 @@ public class SupplicantStaIfaceHalTest {
         int reasonCode = ISupplicantStaIfaceCallback.ReasonCode.IEEE_802_1X_AUTH_FAILED;
         mISupplicantStaIfaceCallback.onDisconnected(
                 NativeUtil.macAddressToByteArray(BSSID), false, reasonCode);
-        verify(mWifiMonitor).broadcastAuthenticationFailureEvent(eq(WLAN_IFACE_NAME),
+        verify(mWifiMonitor).broadcastAuthenticationFailureEvent(eq(WLAN0_IFACE_NAME),
                 eq(WifiManager.ERROR_AUTH_FAILURE_EAP_FAILURE));
     }
 
@@ -1102,7 +1149,7 @@ public class SupplicantStaIfaceHalTest {
         mISupplicantStaIfaceCallback.onAssociationRejected(
                 NativeUtil.macAddressToByteArray(BSSID), statusCode, false);
         verify(mWifiMonitor).broadcastAssociationRejectionEvent(
-                eq(WLAN_IFACE_NAME), eq(statusCode), eq(false), eq(BSSID));
+                eq(WLAN0_IFACE_NAME), eq(statusCode), eq(false), eq(BSSID));
     }
 
     /**
@@ -1115,7 +1162,7 @@ public class SupplicantStaIfaceHalTest {
 
         mISupplicantStaIfaceCallback.onAuthenticationTimeout(
                 NativeUtil.macAddressToByteArray(BSSID));
-        verify(mWifiMonitor).broadcastAuthenticationFailureEvent(eq(WLAN_IFACE_NAME),
+        verify(mWifiMonitor).broadcastAuthenticationFailureEvent(eq(WLAN0_IFACE_NAME),
                 eq(WifiManager.ERROR_AUTH_FAILURE_TIMEOUT));
     }
 
@@ -1129,20 +1176,22 @@ public class SupplicantStaIfaceHalTest {
 
         mISupplicantStaIfaceCallback.onBssidChanged(
                 BssidChangeReason.ASSOC_START, NativeUtil.macAddressToByteArray(BSSID));
-        verify(mWifiMonitor).broadcastTargetBssidEvent(eq(WLAN_IFACE_NAME), eq(BSSID));
-        verify(mWifiMonitor, never()).broadcastAssociatedBssidEvent(eq(WLAN_IFACE_NAME), eq(BSSID));
+        verify(mWifiMonitor).broadcastTargetBssidEvent(eq(WLAN0_IFACE_NAME), eq(BSSID));
+        verify(mWifiMonitor, never()).broadcastAssociatedBssidEvent(
+                eq(WLAN0_IFACE_NAME), eq(BSSID));
 
         reset(mWifiMonitor);
         mISupplicantStaIfaceCallback.onBssidChanged(
                 BssidChangeReason.ASSOC_COMPLETE, NativeUtil.macAddressToByteArray(BSSID));
-        verify(mWifiMonitor, never()).broadcastTargetBssidEvent(eq(WLAN_IFACE_NAME), eq(BSSID));
-        verify(mWifiMonitor).broadcastAssociatedBssidEvent(eq(WLAN_IFACE_NAME), eq(BSSID));
+        verify(mWifiMonitor, never()).broadcastTargetBssidEvent(eq(WLAN0_IFACE_NAME), eq(BSSID));
+        verify(mWifiMonitor).broadcastAssociatedBssidEvent(eq(WLAN0_IFACE_NAME), eq(BSSID));
 
         reset(mWifiMonitor);
         mISupplicantStaIfaceCallback.onBssidChanged(
                 BssidChangeReason.DISASSOC, NativeUtil.macAddressToByteArray(BSSID));
-        verify(mWifiMonitor, never()).broadcastTargetBssidEvent(eq(WLAN_IFACE_NAME), eq(BSSID));
-        verify(mWifiMonitor, never()).broadcastAssociatedBssidEvent(eq(WLAN_IFACE_NAME), eq(BSSID));
+        verify(mWifiMonitor, never()).broadcastTargetBssidEvent(eq(WLAN0_IFACE_NAME), eq(BSSID));
+        verify(mWifiMonitor, never()).broadcastAssociatedBssidEvent(
+                eq(WLAN0_IFACE_NAME), eq(BSSID));
     }
 
     /**
@@ -1154,7 +1203,7 @@ public class SupplicantStaIfaceHalTest {
         assertNotNull(mISupplicantStaIfaceCallback);
 
         mISupplicantStaIfaceCallback.onEapFailure();
-        verify(mWifiMonitor).broadcastAuthenticationFailureEvent(eq(WLAN_IFACE_NAME),
+        verify(mWifiMonitor).broadcastAuthenticationFailureEvent(eq(WLAN0_IFACE_NAME),
                 eq(WifiManager.ERROR_AUTH_FAILURE_EAP_FAILURE));
     }
 
@@ -1167,7 +1216,7 @@ public class SupplicantStaIfaceHalTest {
         assertNotNull(mISupplicantStaIfaceCallback);
 
         mISupplicantStaIfaceCallback.onWpsEventSuccess();
-        verify(mWifiMonitor).broadcastWpsSuccessEvent(eq(WLAN_IFACE_NAME));
+        verify(mWifiMonitor).broadcastWpsSuccessEvent(eq(WLAN0_IFACE_NAME));
     }
 
     /**
@@ -1182,7 +1231,7 @@ public class SupplicantStaIfaceHalTest {
         short errorInd = ISupplicantStaIfaceCallback.WpsErrorIndication.SECURITY_WEP_PROHIBITED;
         mISupplicantStaIfaceCallback.onWpsEventFail(
                 NativeUtil.macAddressToByteArray(BSSID), cfgError, errorInd);
-        verify(mWifiMonitor).broadcastWpsFailEvent(eq(WLAN_IFACE_NAME),
+        verify(mWifiMonitor).broadcastWpsFailEvent(eq(WLAN0_IFACE_NAME),
                 eq((int) cfgError), eq((int) errorInd));
     }
 
@@ -1198,7 +1247,7 @@ public class SupplicantStaIfaceHalTest {
         short errorInd = ISupplicantStaIfaceCallback.WpsErrorIndication.NO_ERROR;
         mISupplicantStaIfaceCallback.onWpsEventFail(
                 NativeUtil.macAddressToByteArray(BSSID), cfgError, errorInd);
-        verify(mWifiMonitor).broadcastWpsTimeoutEvent(eq(WLAN_IFACE_NAME));
+        verify(mWifiMonitor).broadcastWpsTimeoutEvent(eq(WLAN0_IFACE_NAME));
     }
 
     /**
@@ -1210,7 +1259,7 @@ public class SupplicantStaIfaceHalTest {
         assertNotNull(mISupplicantStaIfaceCallback);
 
         mISupplicantStaIfaceCallback.onWpsEventPbcOverlap();
-        verify(mWifiMonitor).broadcastWpsOverlapEvent(eq(WLAN_IFACE_NAME));
+        verify(mWifiMonitor).broadcastWpsOverlapEvent(eq(WLAN0_IFACE_NAME));
     }
 
     /**
@@ -1221,11 +1270,13 @@ public class SupplicantStaIfaceHalTest {
         executeAndValidateInitializationSequence();
         assertNotNull(mServiceManagerDeathCaptor.getValue());
         assertTrue(mDut.isInitializationComplete());
+        assertTrue(mDut.registerDeathHandler(mSupplicantHalDeathHandler));
 
         mServiceManagerDeathCaptor.getValue().serviceDied(5L);
 
         assertFalse(mDut.isInitializationComplete());
-        verify(mWifiMonitor).broadcastSupplicantDisconnectionEvent(eq(WLAN_IFACE_NAME));
+        verify(mWifiMonitor).broadcastSupplicantDisconnectionEvent(eq(WLAN0_IFACE_NAME));
+        verify(mSupplicantHalDeathHandler).onDeath();
     }
 
     /**
@@ -1236,11 +1287,13 @@ public class SupplicantStaIfaceHalTest {
         executeAndValidateInitializationSequence();
         assertNotNull(mSupplicantDeathCaptor.getValue());
         assertTrue(mDut.isInitializationComplete());
+        assertTrue(mDut.registerDeathHandler(mSupplicantHalDeathHandler));
 
         mSupplicantDeathCaptor.getValue().serviceDied(5L);
 
         assertFalse(mDut.isInitializationComplete());
-        verify(mWifiMonitor).broadcastSupplicantDisconnectionEvent(eq(WLAN_IFACE_NAME));
+        verify(mWifiMonitor).broadcastSupplicantDisconnectionEvent(eq(WLAN0_IFACE_NAME));
+        verify(mSupplicantHalDeathHandler).onDeath();
     }
 
     /**
@@ -1255,7 +1308,7 @@ public class SupplicantStaIfaceHalTest {
         mSupplicantStaIfaceDeathCaptor.getValue().serviceDied(5L);
 
         assertFalse(mDut.isInitializationComplete());
-        verify(mWifiMonitor).broadcastSupplicantDisconnectionEvent(eq(WLAN_IFACE_NAME));
+        verify(mWifiMonitor).broadcastSupplicantDisconnectionEvent(eq(WLAN0_IFACE_NAME));
     }
 
     /**
@@ -1305,17 +1358,17 @@ public class SupplicantStaIfaceHalTest {
                 .thenReturn(mStatusSuccess);
 
         // Fail before initialization is performed.
-        assertFalse(mDut.startWpsRegistrar(null, null));
+        assertFalse(mDut.startWpsRegistrar(WLAN0_IFACE_NAME, null, null));
 
         executeAndValidateInitializationSequence();
 
-        assertFalse(mDut.startWpsRegistrar(null, null));
+        assertFalse(mDut.startWpsRegistrar(WLAN0_IFACE_NAME, null, null));
         verify(mISupplicantStaIfaceMock, never()).startWpsRegistrar(any(byte[].class), anyString());
 
-        assertFalse(mDut.startWpsRegistrar(new String(), "452233"));
+        assertFalse(mDut.startWpsRegistrar(WLAN0_IFACE_NAME, new String(), "452233"));
         verify(mISupplicantStaIfaceMock, never()).startWpsRegistrar(any(byte[].class), anyString());
 
-        assertTrue(mDut.startWpsRegistrar("45:23:12:12:12:98", "562535"));
+        assertTrue(mDut.startWpsRegistrar(WLAN0_IFACE_NAME, "45:23:12:12:12:98", "562535"));
         verify(mISupplicantStaIfaceMock).startWpsRegistrar(any(byte[].class), anyString());
     }
 
@@ -1330,15 +1383,15 @@ public class SupplicantStaIfaceHalTest {
         byte[] anyBssidBytes = {0, 0, 0, 0, 0, 0};
 
         // Fail before initialization is performed.
-        assertFalse(mDut.startWpsPbc(bssid));
+        assertFalse(mDut.startWpsPbc(WLAN0_IFACE_NAME, bssid));
         verify(mISupplicantStaIfaceMock, never()).startWpsPbc(any(byte[].class));
 
         executeAndValidateInitializationSequence();
 
-        assertTrue(mDut.startWpsPbc(bssid));
+        assertTrue(mDut.startWpsPbc(WLAN0_IFACE_NAME, bssid));
         verify(mISupplicantStaIfaceMock).startWpsPbc(eq(bssidBytes));
 
-        assertTrue(mDut.startWpsPbc(null));
+        assertTrue(mDut.startWpsPbc(WLAN0_IFACE_NAME, null));
         verify(mISupplicantStaIfaceMock).startWpsPbc(eq(anyBssidBytes));
     }
 
@@ -1359,7 +1412,7 @@ public class SupplicantStaIfaceHalTest {
                 bssid, reasonCode, reauthDelay, HS20_URL);
 
         ArgumentCaptor<WnmData> wnmDataCaptor = ArgumentCaptor.forClass(WnmData.class);
-        verify(mWifiMonitor).broadcastWnmEvent(eq(WLAN_IFACE_NAME), wnmDataCaptor.capture());
+        verify(mWifiMonitor).broadcastWnmEvent(eq(WLAN0_IFACE_NAME), wnmDataCaptor.capture());
         assertEquals(
                 ByteBufferReader.readInteger(
                         ByteBuffer.wrap(bssid), ByteOrder.BIG_ENDIAN, bssid.length),
@@ -1436,7 +1489,8 @@ public class SupplicantStaIfaceHalTest {
         // act: cause the onRegistration(...) callback to execute
         mServiceNotificationCaptor.getValue().onRegistration(ISupplicant.kInterfaceName, "", true);
 
-        assertTrue(mDut.isInitializationComplete() == shouldSucceed);
+        assertTrue(mDut.isInitializationComplete());
+        assertTrue(mDut.setupIface(WLAN0_IFACE_NAME) == shouldSucceed);
         mInOrder.verify(mISupplicantMock).linkToDeath(mSupplicantDeathCaptor.capture(),
                 anyLong());
         // verify: listInterfaces is called
@@ -1448,7 +1502,8 @@ public class SupplicantStaIfaceHalTest {
                             any(ISupplicant.getInterfaceCallback.class));
         }
         if (causeRemoteException) {
-            mInOrder.verify(mWifiMonitor).broadcastSupplicantDisconnectionEvent(eq(null));
+            mInOrder.verify(mWifiMonitor).broadcastSupplicantDisconnectionEvent(
+                    eq(WLAN0_IFACE_NAME));
         }
         if (!causeRemoteException && !getZeroInterfaces && !getNullInterface) {
             mInOrder.verify(mISupplicantStaIfaceMock).linkToDeath(
@@ -1566,7 +1621,7 @@ public class SupplicantStaIfaceHalTest {
         setupMocksForConnectSequence(haveExistingNetwork);
         WifiConfiguration config = new WifiConfiguration();
         config.networkId = newFrameworkNetworkId;
-        assertTrue(mDut.connectToNetwork(config));
+        assertTrue(mDut.connectToNetwork(WLAN0_IFACE_NAME, config));
         validateConnectSequence(haveExistingNetwork, 1);
         return config;
     }
@@ -1603,7 +1658,7 @@ public class SupplicantStaIfaceHalTest {
         WifiConfiguration roamingConfig = new WifiConfiguration();
         roamingConfig.networkId = roamNetworkId;
         roamingConfig.getNetworkSelectionStatus().setNetworkSelectionBSSID(roamBssid);
-        assertTrue(mDut.roamToNetwork(roamingConfig));
+        assertTrue(mDut.roamToNetwork(WLAN0_IFACE_NAME, roamingConfig));
 
         if (!sameNetwork) {
             validateConnectSequence(false, 2);

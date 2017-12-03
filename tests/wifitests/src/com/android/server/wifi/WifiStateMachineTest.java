@@ -82,7 +82,6 @@ import android.os.Message;
 import android.os.Messenger;
 import android.os.PowerManager;
 import android.os.Process;
-import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.os.test.TestLooper;
@@ -356,8 +355,6 @@ public class WifiStateMachineTest {
     @Mock IWificond mWificond;
     @Mock IApInterface mApInterface;
     @Mock IClientInterface mClientInterface;
-    @Mock IBinder mApInterfaceBinder;
-    @Mock IBinder mClientInterfaceBinder;
     @Mock IBinder mPackageManagerBinder;
     @Mock WifiConfigManager mWifiConfigManager;
     @Mock WifiNative mWifiNative;
@@ -433,6 +430,7 @@ public class WifiStateMachineTest {
         when(mWifiNative.getFrameworkNetworkId(anyInt())).thenReturn(0);
         when(mWifiNative.initializeVendorHal(any(WifiNative.VendorHalDeathEventHandler.class)))
                 .thenReturn(true);
+        when(mWifiNative.registerWificondDeathHandler(any())).thenReturn(true);
 
         mFrameworkFacade = getFrameworkFacade();
         mContext = getContext();
@@ -457,9 +455,6 @@ public class WifiStateMachineTest {
         when(mUserManager.getProfiles(UserHandle.USER_SYSTEM)).thenReturn(Arrays.asList(
                 new UserInfo(UserHandle.USER_SYSTEM, "owner", 0),
                 new UserInfo(11, "managed profile", 0)));
-
-        when(mApInterface.asBinder()).thenReturn(mApInterfaceBinder);
-        when(mClientInterface.asBinder()).thenReturn(mClientInterfaceBinder);
 
         doAnswer(new AnswerWithArguments() {
             public void answer(PhoneStateListener phoneStateListener, int events)
@@ -655,8 +650,8 @@ public class WifiStateMachineTest {
         // We start out with valid default values, break them going backwards so that
         // we test all the bailout cases.
 
-        // ClientInterface dies after creation.
-        doThrow(new RemoteException()).when(mClientInterfaceBinder).linkToDeath(any(), anyInt());
+        // wificond dies after inteface creation.
+        when(mWifiNative.registerWificondDeathHandler(any())).thenReturn(false);
         mWsm.setSupplicantRunning(true);
         mLooper.dispatchAll();
         assertEquals("InitialState", getCurrentState().getName());
@@ -2120,20 +2115,19 @@ public class WifiStateMachineTest {
 
     @Test
     public void handleWificondDeath() throws Exception {
-        ArgumentCaptor<StateMachineDeathRecipient> deathHandlerCapturer =
-                ArgumentCaptor.forClass(StateMachineDeathRecipient.class);
+        ArgumentCaptor<WifiNative.WificondDeathEventHandler> deathHandlerCapturer =
+                ArgumentCaptor.forClass(WifiNative.WificondDeathEventHandler.class);
 
         // Trigger initialize to capture the death handler registration.
         loadComponentsInStaMode();
 
-        verify(mClientInterfaceBinder).linkToDeath(deathHandlerCapturer.capture(), anyInt());
-        StateMachineDeathRecipient deathHandler = deathHandlerCapturer.getValue();
+        verify(mWifiNative).registerWificondDeathHandler(deathHandlerCapturer.capture());
 
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
         mLooper.dispatchAll();
 
         // Now trigger the death notification.
-        deathHandler.binderDied();
+        deathHandlerCapturer.getValue().onDeath();
         mLooper.dispatchAll();
 
         verify(mWifiMetrics).incrementNumWificondCrashes();

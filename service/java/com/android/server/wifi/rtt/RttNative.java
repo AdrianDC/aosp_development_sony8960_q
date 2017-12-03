@@ -27,14 +27,13 @@ import android.hardware.wifi.V1_0.RttType;
 import android.hardware.wifi.V1_0.WifiChannelWidthInMhz;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
-import android.net.wifi.ScanResult;
 import android.net.wifi.rtt.RangingRequest;
 import android.net.wifi.rtt.RangingResult;
+import android.net.wifi.rtt.ResponderConfig;
 import android.os.RemoteException;
 import android.util.Log;
 
 import com.android.server.wifi.HalDeviceManager;
-import com.android.server.wifi.util.NativeUtil;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -204,123 +203,119 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
 
         // Skipping any configurations which have an error (printing out a message).
         // The caller will only get results for valid configurations.
-        for (RangingRequest.RttPeer peer: request.mRttPeers) {
+        for (ResponderConfig responder: request.mRttPeers) {
             RttConfig config = new RttConfig();
 
-            if (peer instanceof RangingRequest.RttPeerAp) {
-                ScanResult scanResult = ((RangingRequest.RttPeerAp) peer).scanResult;
+            if (responder.macAddress.length != config.addr.length) {
+                Log.e(TAG, "Invalid configuration: unexpected BSSID length -- " + responder);
+                continue;
+            }
+            System.arraycopy(responder.macAddress, 0, config.addr, 0, config.addr.length);
 
-                byte[] addr = NativeUtil.macAddressToByteArray(scanResult.BSSID);
-                if (addr.length != config.addr.length) {
-                    Log.e(TAG, "Invalid configuration: unexpected BSSID length -- " + scanResult);
-                    continue;
-                }
-                System.arraycopy(addr, 0, config.addr, 0, config.addr.length);
+            try {
+                config.type = responder.supports80211mc ? RttType.TWO_SIDED : RttType.ONE_SIDED;
+                config.peer = halRttPeerTypeFromResponderType(responder.responderType);
+                config.channel.width = halChannelWidthFromResponderChannelWidth(
+                        responder.channelWidth);
+                config.channel.centerFreq = responder.frequency;
+                config.channel.centerFreq0 = responder.centerFreq0;
+                config.channel.centerFreq1 = responder.centerFreq1;
+                config.bw = halRttChannelBandwidthFromResponderChannelWidth(responder.channelWidth);
+                config.preamble = halRttPreambleFromResponderPreamble(responder.preamble);
 
-                try {
-                    config.type =
-                            scanResult.is80211mcResponder() ? RttType.TWO_SIDED : RttType.ONE_SIDED;
-                    config.peer = RttPeerType.AP;
-                    config.channel.width = halChannelWidthFromScanResult(
-                            scanResult.channelWidth);
-                    config.channel.centerFreq = scanResult.frequency;
-                    if (scanResult.centerFreq0 > 0) {
-                        config.channel.centerFreq0 = scanResult.centerFreq0;
-                    }
-                    if (scanResult.centerFreq1 > 0) {
-                        config.channel.centerFreq1 = scanResult.centerFreq1;
-                    }
+                config.mustRequestLci = false;
+                config.mustRequestLcr = false;
+                if (config.peer == RttPeerType.NAN) {
+                    config.burstPeriod = 0;
+                    config.numBurst = 0;
+                    config.numFramesPerBurst = 5;
+                    config.numRetriesPerRttFrame = 3;
+                    config.numRetriesPerFtmr = 3;
+                    config.burstDuration = 15;
+                } else { // AP + all non-NAN requests
                     config.burstPeriod = 0;
                     config.numBurst = 0;
                     config.numFramesPerBurst = 8;
                     config.numRetriesPerRttFrame = 0;
                     config.numRetriesPerFtmr = 0;
-                    config.mustRequestLci = false;
-                    config.mustRequestLcr = false;
                     config.burstDuration = 15;
-                    config.bw = halChannelBandwidthFromScanResult(scanResult.channelWidth);
-                    if (config.bw == RttBw.BW_80MHZ || config.bw == RttBw.BW_160MHZ) {
-                        config.preamble = RttPreamble.VHT;
-                    } else {
-                        config.preamble = RttPreamble.HT;
-                    }
-                } catch (IllegalArgumentException e) {
-                    Log.e(TAG, "Invalid configuration: " + e.getMessage());
-                    continue;
                 }
-            } else if (peer instanceof RangingRequest.RttPeerAware) {
-                RangingRequest.RttPeerAware rttPeerAware = (RangingRequest.RttPeerAware) peer;
-
-                if (rttPeerAware.peerMacAddress == null
-                        || rttPeerAware.peerMacAddress.length != config.addr.length) {
-                    Log.e(TAG, "Invalid configuration: null MAC or incorrect length");
-                    continue;
-                }
-                System.arraycopy(rttPeerAware.peerMacAddress, 0, config.addr, 0,
-                        config.addr.length);
-
-                config.type = RttType.TWO_SIDED;
-                config.peer = RttPeerType.NAN;
-                config.channel.width = WifiChannelWidthInMhz.WIDTH_80;
-                config.channel.centerFreq = 5200;
-                config.channel.centerFreq0 = 5210;
-                config.channel.centerFreq1 = 0;
-                config.burstPeriod = 0;
-                config.numBurst = 0;
-                config.numFramesPerBurst = 5;
-                config.numRetriesPerRttFrame = 3;
-                config.numRetriesPerFtmr = 3;
-                config.mustRequestLci = false;
-                config.mustRequestLcr = false;
-                config.burstDuration = 15;
-                config.preamble = RttPreamble.VHT;
-                config.bw = RttBw.BW_80MHZ;
-            } else {
-                Log.e(TAG, "convertRangingRequestToRttConfigs: unknown request type -- "
-                        + peer.getClass().getCanonicalName());
-                return null;
+            } catch (IllegalArgumentException e) {
+                Log.e(TAG, "Invalid configuration: " + e.getMessage());
+                continue;
             }
 
             rttConfigs.add(config);
         }
 
-
         return rttConfigs;
     }
 
-    static int halChannelWidthFromScanResult(int scanResultChannelWidth) {
-        switch (scanResultChannelWidth) {
-            case ScanResult.CHANNEL_WIDTH_20MHZ:
-                return WifiChannelWidthInMhz.WIDTH_20;
-            case ScanResult.CHANNEL_WIDTH_40MHZ:
-                return WifiChannelWidthInMhz.WIDTH_40;
-            case ScanResult.CHANNEL_WIDTH_80MHZ:
-                return WifiChannelWidthInMhz.WIDTH_80;
-            case ScanResult.CHANNEL_WIDTH_160MHZ:
-                return WifiChannelWidthInMhz.WIDTH_160;
-            case ScanResult.CHANNEL_WIDTH_80MHZ_PLUS_MHZ:
-                return WifiChannelWidthInMhz.WIDTH_80P80;
+    static int halRttPeerTypeFromResponderType(int responderType) {
+        switch (responderType) {
+            case ResponderConfig.RESPONDER_AP:
+                return RttPeerType.AP;
+            case ResponderConfig.RESPONDER_STA:
+                return RttPeerType.STA;
+            case ResponderConfig.RESPONDER_P2P_GO:
+                return RttPeerType.P2P_GO;
+            case ResponderConfig.RESPONDER_P2P_CLIENT:
+                return RttPeerType.P2P_CLIENT;
+            case ResponderConfig.RESPONDER_AWARE:
+                return RttPeerType.NAN;
             default:
                 throw new IllegalArgumentException(
-                        "halChannelWidthFromScanResult: bad " + scanResultChannelWidth);
+                        "halRttPeerTypeFromResponderType: bad " + responderType);
         }
     }
 
-    static int halChannelBandwidthFromScanResult(int scanResultChannelWidth) {
-        switch (scanResultChannelWidth) {
-            case ScanResult.CHANNEL_WIDTH_20MHZ:
+    static int halChannelWidthFromResponderChannelWidth(int responderChannelWidth) {
+        switch (responderChannelWidth) {
+            case ResponderConfig.CHANNEL_WIDTH_20MHZ:
+                return WifiChannelWidthInMhz.WIDTH_20;
+            case ResponderConfig.CHANNEL_WIDTH_40MHZ:
+                return WifiChannelWidthInMhz.WIDTH_40;
+            case ResponderConfig.CHANNEL_WIDTH_80MHZ:
+                return WifiChannelWidthInMhz.WIDTH_80;
+            case ResponderConfig.CHANNEL_WIDTH_160MHZ:
+                return WifiChannelWidthInMhz.WIDTH_160;
+            case ResponderConfig.CHANNEL_WIDTH_80MHZ_PLUS_MHZ:
+                return WifiChannelWidthInMhz.WIDTH_80P80;
+            default:
+                throw new IllegalArgumentException(
+                        "halChannelWidthFromResponderChannelWidth: bad " + responderChannelWidth);
+        }
+    }
+
+    static int halRttChannelBandwidthFromResponderChannelWidth(int responderChannelWidth) {
+        switch (responderChannelWidth) {
+            case ResponderConfig.CHANNEL_WIDTH_20MHZ:
                 return RttBw.BW_20MHZ;
-            case ScanResult.CHANNEL_WIDTH_40MHZ:
+            case ResponderConfig.CHANNEL_WIDTH_40MHZ:
                 return RttBw.BW_40MHZ;
-            case ScanResult.CHANNEL_WIDTH_80MHZ:
+            case ResponderConfig.CHANNEL_WIDTH_80MHZ:
                 return RttBw.BW_80MHZ;
-            case ScanResult.CHANNEL_WIDTH_160MHZ:
+            case ResponderConfig.CHANNEL_WIDTH_160MHZ:
                 return RttBw.BW_160MHZ;
-            case ScanResult.CHANNEL_WIDTH_80MHZ_PLUS_MHZ:
+            case ResponderConfig.CHANNEL_WIDTH_80MHZ_PLUS_MHZ:
                 return RttBw.BW_160MHZ;
             default:
                 throw new IllegalArgumentException(
-                        "halChannelBandwidthFromScanResult: bad " + scanResultChannelWidth);
+                        "halRttChannelBandwidthFromHalBandwidth: bad " + responderChannelWidth);
+        }
+    }
+
+    static int halRttPreambleFromResponderPreamble(int responderPreamble) {
+        switch (responderPreamble) {
+            case ResponderConfig.PREAMBLE_LEGACY:
+                return RttPreamble.LEGACY;
+            case ResponderConfig.PREAMBLE_HT:
+                return RttPreamble.HT;
+            case ResponderConfig.PREAMBLE_VHT:
+                return RttPreamble.VHT;
+            default:
+                throw new IllegalArgumentException(
+                        "halRttPreambleFromResponderPreamble: bad " + responderPreamble);
         }
     }
 

@@ -53,6 +53,7 @@ import android.net.wifi.rtt.IRttCallback;
 import android.net.wifi.rtt.RangingRequest;
 import android.net.wifi.rtt.RangingResult;
 import android.net.wifi.rtt.RangingResultCallback;
+import android.net.wifi.rtt.ResponderConfig;
 import android.net.wifi.rtt.WifiRttManager;
 import android.os.Handler;
 import android.os.IBinder;
@@ -201,6 +202,9 @@ public class RttServiceImplTest {
 
     @After
     public void tearDown() throws Exception {
+        assertEquals("Binder links != unlinks to death (size)",
+                mBinderLinkToDeathCounter.mUniqueExecs.size(),
+                mBinderUnlinkToDeathCounter.mUniqueExecs.size());
         assertEquals("Binder links != unlinks to death", mBinderLinkToDeathCounter.mUniqueExecs,
                 mBinderUnlinkToDeathCounter.mUniqueExecs);
     }
@@ -253,11 +257,15 @@ public class RttServiceImplTest {
     @Test
     public void testRangingFlowUsingAwarePeerHandles() throws Exception {
         RangingRequest request = RttTestUtils.getDummyRangingRequest((byte) 0xA);
-        PeerHandle peerHandle = new PeerHandle(1022);
-        request.mRttPeers.add(new RangingRequest.RttPeerAware(peerHandle));
+        PeerHandle peerHandle1 = new PeerHandle(1022);
+        PeerHandle peerHandle2 = new PeerHandle(1023);
+        request.mRttPeers.add(ResponderConfig.fromWifiAwarePeerHandleWithDefaults(peerHandle1));
+        request.mRttPeers.add(ResponderConfig.fromWifiAwarePeerHandleWithDefaults(peerHandle2));
         Map<Integer, byte[]> peerHandleToMacMap = new HashMap<>();
-        byte[] macAwarePeer = HexEncoding.decode("AABBCCDDEEFF".toCharArray(), false);
-        peerHandleToMacMap.put(1022, macAwarePeer);
+        byte[] macAwarePeer1 = HexEncoding.decode("AABBCCDDEEFF".toCharArray(), false);
+        byte[] macAwarePeer2 = HexEncoding.decode("BBBBBBEEEEEE".toCharArray(), false);
+        peerHandleToMacMap.put(peerHandle1.peerId, macAwarePeer1);
+        peerHandleToMacMap.put(peerHandle2.peerId, macAwarePeer2);
 
         AwareTranslatePeerHandlesToMac answer = new AwareTranslatePeerHandlesToMac(mDefaultUid,
                 peerHandleToMacMap);
@@ -274,13 +282,18 @@ public class RttServiceImplTest {
         RangingRequest finalRequest = mRequestCaptor.getValue();
         assertNotEquals("Request to native is not null", null, finalRequest);
         assertEquals("Size of request", request.mRttPeers.size(), finalRequest.mRttPeers.size());
-        assertEquals("Aware peer MAC", macAwarePeer,
-                ((RangingRequest.RttPeerAware) finalRequest.mRttPeers.get(
-                        finalRequest.mRttPeers.size() - 1)).peerMacAddress);
+        assertEquals("Aware peer 1 MAC", macAwarePeer1,
+                finalRequest.mRttPeers.get(finalRequest.mRttPeers.size() - 2).macAddress);
+        assertEquals("Aware peer 2 MAC", macAwarePeer2,
+                finalRequest.mRttPeers.get(finalRequest.mRttPeers.size() - 1).macAddress);
 
-        // issue results
+        // issue results - but remove the one for peer #2
         Pair<List<RttResult>, List<RangingResult>> results =
                 RttTestUtils.getDummyRangingResults(mRequestCaptor.getValue());
+        results.first.remove(results.first.size() - 1);
+        RangingResult removed = results.second.remove(results.second.size() - 1);
+        results.second.add(
+                new RangingResult(RangingResult.STATUS_FAIL, removed.getPeerHandle(), 0, 0, 0, 0));
         mDut.onRangingResults(mIntCaptor.getValue(), results.first);
         mMockLooper.dispatchAll();
 
@@ -607,8 +620,12 @@ public class RttServiceImplTest {
         RangingRequest request = RttTestUtils.getDummyRangingRequest((byte) 0);
         Pair<List<RttResult>, List<RangingResult>> results = RttTestUtils.getDummyRangingResults(
                 request);
-        results.first.remove(0);
-        RangingResult removed = results.second.remove(0);
+        results.first.remove(2); // remove a direct AWARE request
+        RangingResult removed = results.second.remove(2);
+        results.second.add(
+                new RangingResult(RangingResult.STATUS_FAIL, removed.getMacAddress(), 0, 0, 0, 0));
+        results.first.remove(0); // remove an AP request
+        removed = results.second.remove(0);
         results.second.add(
                 new RangingResult(RangingResult.STATUS_FAIL, removed.getMacAddress(), 0, 0, 0, 0));
 
@@ -843,6 +860,125 @@ public class RttServiceImplTest {
         mMockLooper.dispatchAll();
 
         cbInorder.verify(mockCallback).onRangingFailure(RangingResultCallback.STATUS_CODE_FAIL);
+
+        verify(mockNative, atLeastOnce()).isReady();
+        verifyNoMoreInteractions(mockNative, mockCallback, mAlarmManager.getAlarmManager());
+    }
+
+    /**
+     * Validate that flooding the service with ranging requests will cause it to start rejecting
+     * rejects from the flooding uid. Single UID.
+     */
+    @Test
+    public void testRejectFloodingRequestsSingleUid() throws Exception {
+        runFloodRequestsTest(true);
+    }
+
+    /**
+     * Validate that flooding the service with ranging requests will cause it to start rejecting
+     * rejects from the flooding uid. WorkSource (all identical).
+     */
+    @Test
+    public void testRejectFloodingRequestsIdenticalWorksources() throws Exception {
+        runFloodRequestsTest(false);
+    }
+
+    /**
+     * Validate that flooding the service with ranging requests will cause it to start rejecting
+     * rejects from the flooding uid. WorkSource (with one constant UID but other varying UIDs -
+     * the varying UIDs should prevent the flood throttle)
+     */
+    @Test
+    public void testDontRejectFloodingRequestsVariousUids() throws Exception {
+        RangingRequest request = RttTestUtils.getDummyRangingRequest((byte) 1);
+        WorkSource ws = new WorkSource(10);
+
+        // 1. issue a request
+        mDut.startRanging(mockIbinder, mPackageName, ws, request, mockCallback);
+        mMockLooper.dispatchAll();
+
+        verify(mockNative).rangeRequest(mIntCaptor.capture(), eq(request));
+        verifyWakeupSet();
+
+        // 2. issue FLOOD LEVEL requests + 10 at various UIDs - no failure expected
+        for (int i = 0; i < RttServiceImpl.MAX_QUEUED_PER_UID + 10; ++i) {
+            WorkSource wsExtra = new WorkSource(ws);
+            wsExtra.add(11 + i);
+            mDut.startRanging(mockIbinder, mPackageName, wsExtra, request, mockCallback);
+        }
+        mMockLooper.dispatchAll();
+
+        // 3. clear queue
+        mDut.disable();
+        mMockLooper.dispatchAll();
+
+        verifyWakeupCancelled();
+        verify(mockNative).rangeCancel(eq(mIntCaptor.getValue()), any());
+        verify(mockCallback, times(RttServiceImpl.MAX_QUEUED_PER_UID + 11)).onRangingFailure(
+                RangingResultCallback.STATUS_CODE_FAIL_RTT_NOT_AVAILABLE);
+
+        verify(mockNative, atLeastOnce()).isReady();
+        verifyNoMoreInteractions(mockNative, mockCallback, mAlarmManager.getAlarmManager());
+    }
+
+    /**
+     * Utility to run configurable tests for flooding range requests.
+     * - Execute a single request
+     * - Flood service with requests: using same ID or same WorkSource
+     * - Provide results (to clear queue) and execute another test: validate succeeds
+     */
+    private void runFloodRequestsTest(boolean useUids) throws Exception {
+        RangingRequest request = RttTestUtils.getDummyRangingRequest((byte) 1);
+        Pair<List<RttResult>, List<RangingResult>> result = RttTestUtils.getDummyRangingResults(
+                request);
+
+        WorkSource ws = new WorkSource();
+        ws.add(10);
+        ws.add(20);
+        ws.add(30);
+
+        InOrder cbInorder = inOrder(mockCallback);
+        InOrder nativeInorder = inOrder(mockNative);
+
+        // 1. issue a request
+        mDut.startRanging(mockIbinder, mPackageName, useUids ? null : ws, request, mockCallback);
+        mMockLooper.dispatchAll();
+
+        nativeInorder.verify(mockNative).rangeRequest(mIntCaptor.capture(), eq(request));
+        verifyWakeupSet();
+
+        // 2. issue FLOOD LEVEL requests + 10: should get 11 failures (10 extra + 1 original)
+        for (int i = 0; i < RttServiceImpl.MAX_QUEUED_PER_UID + 10; ++i) {
+            mDut.startRanging(mockIbinder, mPackageName, useUids ? null : ws, request,
+                    mockCallback);
+        }
+        mMockLooper.dispatchAll();
+
+        cbInorder.verify(mockCallback, times(11)).onRangingFailure(
+                RangingResultCallback.STATUS_CODE_FAIL);
+
+        // 3. provide results
+        mDut.onRangingResults(mIntCaptor.getValue(), result.first);
+        mMockLooper.dispatchAll();
+
+        cbInorder.verify(mockCallback).onRangingResults(result.second);
+        verifyWakeupCancelled();
+
+        nativeInorder.verify(mockNative).rangeRequest(mIntCaptor.capture(), eq(request));
+        verifyWakeupSet();
+
+        // 4. issue a request: don't expect a failure
+        mDut.startRanging(mockIbinder, mPackageName, useUids ? null : ws, request, mockCallback);
+        mMockLooper.dispatchAll();
+
+        // 5. clear queue
+        mDut.disable();
+        mMockLooper.dispatchAll();
+
+        verifyWakeupCancelled();
+        nativeInorder.verify(mockNative).rangeCancel(eq(mIntCaptor.getValue()), any());
+        cbInorder.verify(mockCallback, times(RttServiceImpl.MAX_QUEUED_PER_UID)).onRangingFailure(
+                RangingResultCallback.STATUS_CODE_FAIL_RTT_NOT_AVAILABLE);
 
         verify(mockNative, atLeastOnce()).isReady();
         verifyNoMoreInteractions(mockNative, mockCallback, mAlarmManager.getAlarmManager());

@@ -78,10 +78,6 @@ string GeneratePsk(const vector<uint8_t>& ssid,
 }  // namespace
 
 bool HostapdManager::StartHostapd() {
-  if (!SupplicantManager::EnsureEntropyFileExists()) {
-    LOG(WARNING) << "Wi-Fi entropy file was not created";
-  }
-
   if (property_set("ctl.start", kHostapdServiceName) != 0) {
     LOG(ERROR) << "Failed to start SoftAP";
     return false;

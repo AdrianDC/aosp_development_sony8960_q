@@ -39,8 +39,6 @@ import android.net.InterfaceConfiguration;
 import android.net.wifi.IApInterface;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
-import android.os.IBinder;
-import android.os.IBinder.DeathRecipient;
 import android.os.INetworkManagementService;
 import android.os.UserHandle;
 import android.os.test.TestLooper;
@@ -84,13 +82,12 @@ public class SoftApManagerTest {
     @Mock WifiNative mWifiNative;
     @Mock SoftApManager.Listener mListener;
     @Mock InterfaceConfiguration mInterfaceConfiguration;
-    @Mock IBinder mApInterfaceBinder;
     @Mock IApInterface mApInterface;
     @Mock INetworkManagementService mNmService;
     @Mock WifiApConfigStore mWifiApConfigStore;
     @Mock WifiMetrics mWifiMetrics;
-    final ArgumentCaptor<DeathRecipient> mDeathListenerCaptor =
-            ArgumentCaptor.forClass(DeathRecipient.class);
+    final ArgumentCaptor<WifiNative.WificondDeathEventHandler> mDeathListenerCaptor =
+            ArgumentCaptor.forClass(WifiNative.WificondDeathEventHandler.class);
     final ArgumentCaptor<BaseNetworkObserver> mNetworkObserverCaptor =
             ArgumentCaptor.forClass(BaseNetworkObserver.class);
     final ArgumentCaptor<WifiNative.SoftApListener> mSoftApListenerCaptor =
@@ -104,9 +101,9 @@ public class SoftApManagerTest {
         MockitoAnnotations.initMocks(this);
         mLooper = new TestLooper();
 
-        when(mApInterface.asBinder()).thenReturn(mApInterfaceBinder);
         when(mWifiNative.startSoftAp(any(), any())).thenReturn(true);
         when(mWifiNative.stopSoftAp()).thenReturn(true);
+        when(mWifiNative.registerWificondDeathHandler(any())).thenReturn(true);
     }
 
     private WifiConfiguration createDefaultApConfig() {
@@ -390,7 +387,7 @@ public class SoftApManagerTest {
         // reset to clear verified Intents for ap state change updates
         reset(mContext);
 
-        mDeathListenerCaptor.getValue().binderDied();
+        mDeathListenerCaptor.getValue().onDeath();
         mLooper.dispatchAll();
         InOrder order = inOrder(mListener);
         order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLING, 0);
@@ -480,7 +477,7 @@ public class SoftApManagerTest {
         mSoftApListenerCaptor.getValue().onNumAssociatedStationsChanged(
                 TEST_NUM_CONNECTED_CLIENTS);
         /* Force soft AP to fail */
-        mDeathListenerCaptor.getValue().binderDied();
+        mDeathListenerCaptor.getValue().onDeath();
         mLooper.dispatchAll();
         verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
                 WifiManager.SAP_START_FAILURE_GENERAL);
@@ -494,7 +491,7 @@ public class SoftApManagerTest {
             SoftApModeConfiguration softApConfig) throws Exception {
         WifiConfiguration expectedConfig;
         InOrder order =
-                inOrder(mListener, mApInterfaceBinder, mApInterface, mWifiNative, mNmService);
+                inOrder(mListener, mApInterface, mWifiNative, mNmService);
 
         when(mWifiNative.isHalStarted()).thenReturn(false);
         when(mWifiNative.setCountryCodeHal(TEST_COUNTRY_CODE.toUpperCase(Locale.ROOT)))
@@ -514,7 +511,7 @@ public class SoftApManagerTest {
         mSoftApManager.start();
         mLooper.dispatchAll();
         order.verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_ENABLING, 0);
-        order.verify(mApInterfaceBinder).linkToDeath(mDeathListenerCaptor.capture(), eq(0));
+        order.verify(mWifiNative).registerWificondDeathHandler(mDeathListenerCaptor.capture());
         order.verify(mNmService).registerObserver(mNetworkObserverCaptor.capture());
         ArgumentCaptor<WifiConfiguration> configCaptor =
                 ArgumentCaptor.forClass(WifiConfiguration.class);

@@ -16,13 +16,12 @@
 
 package com.android.server.wifi.rtt;
 
-import static com.android.server.wifi.util.NativeUtil.macAddressToByteArray;
-
 import android.hardware.wifi.V1_0.RttResult;
 import android.hardware.wifi.V1_0.RttStatus;
 import android.net.wifi.ScanResult;
 import android.net.wifi.rtt.RangingRequest;
 import android.net.wifi.rtt.RangingResult;
+import android.net.wifi.rtt.ResponderConfig;
 import android.util.Pair;
 
 import libcore.util.HexEncoding;
@@ -92,29 +91,19 @@ public class RttTestUtils {
         List<RangingResult> results = new ArrayList<>();
 
         if (request != null) {
-            for (RangingRequest.RttPeer peer: request.mRttPeers) {
-                RangingResult rangingResult = null;
-                byte[] overrideMac = null;
-                if (peer instanceof RangingRequest.RttPeerAp) {
+            for (ResponderConfig peer: request.mRttPeers) {
+                RangingResult rangingResult;
+                if (peer.peerHandle == null) {
                     rangingResult = new RangingResult(RangingResult.STATUS_SUCCESS,
-                            macAddressToByteArray(
-                                    ((RangingRequest.RttPeerAp) peer).scanResult.BSSID),
-                            rangeCmBase++, rangeStdDevCmBase++, rssiBase++, rangeTimestampBase++);
-                } else if (peer instanceof RangingRequest.RttPeerAware) {
-                    RangingRequest.RttPeerAware awarePeer = (RangingRequest.RttPeerAware) peer;
-                    if (awarePeer.peerHandle != null) {
-                        rangingResult = new RangingResult(RangingResult.STATUS_SUCCESS,
-                                awarePeer.peerHandle, rangeCmBase++, rangeStdDevCmBase++,
-                                rssiBase++, rangeTimestampBase++);
-                        overrideMac = awarePeer.peerMacAddress;
-                    } else {
-                        rangingResult = new RangingResult(RangingResult.STATUS_SUCCESS,
-                                awarePeer.peerMacAddress, rangeCmBase++, rangeStdDevCmBase++,
-                                rssiBase++, rangeTimestampBase++);
-                    }
+                            peer.macAddress, rangeCmBase++, rangeStdDevCmBase++, rssiBase++,
+                            rangeTimestampBase++);
+                } else {
+                    rangingResult = new RangingResult(RangingResult.STATUS_SUCCESS,
+                            peer.peerHandle, rangeCmBase++, rangeStdDevCmBase++, rssiBase++,
+                            rangeTimestampBase++);
                 }
                 results.add(rangingResult);
-                halResults.add(getMatchingRttResult(rangingResult, overrideMac));
+                halResults.add(getMatchingRttResult(rangingResult, peer.macAddress));
             }
         } else {
             results.add(new RangingResult(RangingResult.STATUS_SUCCESS,

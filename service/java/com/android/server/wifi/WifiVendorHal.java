@@ -67,6 +67,7 @@ import android.net.wifi.WifiWakeReasonAndCounts;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.RemoteException;
+import android.text.TextUtils;
 import android.util.Log;
 import android.util.MutableBoolean;
 import android.util.MutableInt;
@@ -74,10 +75,14 @@ import android.util.MutableInt;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.ArrayUtils;
 import com.android.server.connectivity.KeepalivePacketData;
+import com.android.server.wifi.HalDeviceManager.InterfaceDestroyedListener;
 import com.android.server.wifi.util.BitMask;
 import com.android.server.wifi.util.NativeUtil;
 
+import libcore.util.NonNull;
+
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Set;
 
 /**
@@ -139,11 +144,31 @@ public class WifiVendorHal {
     }
 
     /**
-     * Logs if the argument is false.
+     * Logs the argument along with the method name.
      *
      * Always returns its argument.
      */
     private boolean boolResult(boolean result) {
+        if (mVerboseLog == sNoLog) return result;
+        // Currently only seen if verbose logging is on
+
+        Thread cur = Thread.currentThread();
+        StackTraceElement[] trace = cur.getStackTrace();
+
+        mVerboseLog.err("% returns %")
+                .c(niceMethodName(trace, 3))
+                .c(result)
+                .flush();
+
+        return result;
+    }
+
+    /**
+     * Logs the argument along with the method name.
+     *
+     * Always returns its argument.
+     */
+    private String stringResult(String result) {
         if (mVerboseLog == sNoLog) return result;
         // Currently only seen if verbose logging is on
 
@@ -201,9 +226,9 @@ public class WifiVendorHal {
 
     // Vendor HAL HIDL interface objects.
     private IWifiChip mIWifiChip;
-    private IWifiStaIface mIWifiStaIface;
-    private IWifiApIface mIWifiApIface;
     private IWifiRttController mIWifiRttController;
+    private HashMap<String, IWifiStaIface> mIWifiStaIfaces = new HashMap<>();
+    private HashMap<String, IWifiApIface> mIWifiApIfaces = new HashMap<>();
     private final HalDeviceManager mHalDeviceManager;
     private final HalDeviceManagerStatusListener mHalDeviceManagerStatusCallbacks;
     private final IWifiStaIfaceEventCallback mIWifiStaIfaceEventCallback;
@@ -271,7 +296,16 @@ public class WifiVendorHal {
      * @return true for success
      */
     public boolean startVendorHalAp() {
-        return startVendorHal(AP_MODE);
+        synchronized (sLock) {
+            if (!startVendorHal()) {
+                return false;
+            }
+            if (TextUtils.isEmpty(createApIface(null))) {
+                stopVendorHal();
+                return false;
+            }
+            return true;
+        }
     }
 
     /**
@@ -280,85 +314,182 @@ public class WifiVendorHal {
      * @return true for success
      */
     public boolean startVendorHalSta() {
-        return startVendorHal(STA_MODE);
+        synchronized (sLock) {
+            if (!startVendorHal()) {
+                return false;
+            }
+            if (TextUtils.isEmpty(createStaIface(null))) {
+                stopVendorHal();
+                return false;
+            }
+            return true;
+        }
     }
 
-    public static final boolean STA_MODE = true;
-    public static final boolean AP_MODE = false;
-
     /**
-     * Bring up the HIDL Vendor HAL and configure for STA mode or AP mode.
-     *
-     * @param isStaMode true to start HAL in STA mode, false to start in AP mode.
+     * Bring up the HIDL Vendor HAL.
+     * @return true on success, false otherwise.
      */
-    public boolean startVendorHal(boolean isStaMode) {
+    public boolean startVendorHal() {
         synchronized (sLock) {
-            if (mIWifiStaIface != null) return boolResult(false);
-            if (mIWifiApIface != null) return boolResult(false);
             if (!mHalDeviceManager.start()) {
-                return startFailedTo("start the vendor HAL");
-            }
-            IWifiIface iface;
-            if (isStaMode) {
-                mIWifiStaIface = mHalDeviceManager.createStaIface(null, null);
-                if (mIWifiStaIface == null) {
-                    return startFailedTo("create STA Iface");
-                }
-                iface = (IWifiIface) mIWifiStaIface;
-                if (!registerStaIfaceCallback()) {
-                    return startFailedTo("register sta iface callback");
-                }
-                mIWifiRttController = mHalDeviceManager.createRttController();
-                if (mIWifiRttController == null) {
-                    return startFailedTo("create RTT controller");
-                }
-                if (!registerRttEventCallback()) {
-                    return startFailedTo("register RTT iface callback");
-                }
-                enableLinkLayerStats();
-            } else {
-                mIWifiApIface = mHalDeviceManager.createApIface(null, null);
-                if (mIWifiApIface == null) {
-                    return startFailedTo("create AP Iface");
-                }
-                iface = (IWifiIface) mIWifiApIface;
-            }
-            mIWifiChip = mHalDeviceManager.getChip(iface);
-            if (mIWifiChip == null) {
-                return startFailedTo("get the chip created for the Iface");
-            }
-            if (!registerChipCallback()) {
-                return startFailedTo("register chip callback");
+                mLog.err("Failed to start vendor HAL");
+                return false;
             }
             mLog.i("Vendor Hal started successfully");
             return true;
         }
     }
 
+    /** Helper method to lookup the corresponding STA iface object using iface name. */
+    private IWifiStaIface getStaIface(@NonNull String ifaceName) {
+        synchronized (sLock) {
+            return mIWifiStaIfaces.get(ifaceName);
+        }
+    }
+
     /**
-     * Logs a message and cleans up after a failing start attempt
+     * Create a STA iface using {@link HalDeviceManager}.
      *
-     * The lock should be held.
-     * @param message describes what was being attempted
-     * @return false
+     * @param destroyedListener Listener to be invoked when the interface is destroyed.
+     * @return iface name on success, null otherwise.
      */
-    private boolean startFailedTo(String message) {
-        mVerboseLog.err("Failed to %. Vendor Hal start failed").c(message).flush();
-        mHalDeviceManager.stop();
-        clearState();
-        return false;
+    public String createStaIface(InterfaceDestroyedListener destroyedListener) {
+        synchronized (sLock) {
+            IWifiStaIface iface;
+            iface = mHalDeviceManager.createStaIface(destroyedListener, null);
+            if (iface == null) {
+                mLog.err("Failed to create STA iface");
+                return stringResult(null);
+            }
+            String ifaceName = mHalDeviceManager.getName((IWifiIface) iface);
+            if (TextUtils.isEmpty(ifaceName)) {
+                mLog.err("Failed to get iface name");
+                return stringResult(null);
+            }
+            if (!registerStaIfaceCallback(iface)) {
+                mLog.err("Failed to register STA iface callback");
+                return stringResult(null);
+            }
+            mIWifiRttController = mHalDeviceManager.createRttController();
+            if (mIWifiRttController == null) {
+                mLog.err("Failed to create RTT controller");
+                return stringResult(null);
+            }
+            if (!registerRttEventCallback()) {
+                mLog.err("Failed to register RTT controller callback");
+                return stringResult(null);
+            }
+            if (!retrieveWifiChip((IWifiIface) iface)) {
+                mLog.err("Failed to get wifi chip");
+                return stringResult(null);
+            }
+            enableLinkLayerStats(iface);
+            mIWifiStaIfaces.put(ifaceName, iface);
+            return ifaceName;
+        }
+    }
+
+    /**
+     * Remove a STA iface using {@link HalDeviceManager}.
+     *
+     * @param ifaceName Name of the interface being removed.
+     * @return true on success, false otherwise.
+     */
+    public boolean removeStaIface(@NonNull String ifaceName) {
+        synchronized (sLock) {
+            IWifiStaIface iface = getStaIface(ifaceName);
+            if (iface == null) return boolResult(false);
+
+            if (!mHalDeviceManager.removeIface((IWifiIface) iface)) {
+                mLog.err("Failed to remove STA iface");
+                return boolResult(false);
+            }
+            mIWifiStaIfaces.remove(ifaceName);
+            return true;
+        }
+    }
+
+    /** Helper method to lookup the corresponding AP iface object using iface name. */
+    private IWifiApIface getApIface(@NonNull String ifaceName) {
+        synchronized (sLock) {
+            return mIWifiApIfaces.get(ifaceName);
+        }
+    }
+
+    /**
+     * Create a AP iface using {@link HalDeviceManager}.
+     *
+     * @param destroyedListener Listener to be invoked when the interface is destroyed.
+     * @return iface name on success, null otherwise.
+     */
+    public String createApIface(InterfaceDestroyedListener destroyedListener) {
+        synchronized (sLock) {
+            IWifiApIface iface;
+            iface = mHalDeviceManager.createApIface(destroyedListener, null);
+            if (iface == null) {
+                mLog.err("Failed to create AP iface");
+                return stringResult(null);
+            }
+            String ifaceName = mHalDeviceManager.getName((IWifiIface) iface);
+            if (TextUtils.isEmpty(ifaceName)) {
+                mLog.err("Failed to get iface name");
+                return stringResult(null);
+            }
+            if (!retrieveWifiChip((IWifiIface) iface)) {
+                mLog.err("Failed to get wifi chip");
+                return stringResult(null);
+            }
+            mIWifiApIfaces.put(ifaceName, iface);
+            return ifaceName;
+        }
+    }
+
+    /**
+     * Remove an AP iface using {@link HalDeviceManager}.
+     *
+     * @param ifaceName Name of the interface being removed.
+     * @return true on success, false otherwise.
+     */
+    public boolean removeApIface(@NonNull String ifaceName) {
+        synchronized (sLock) {
+            IWifiApIface iface = getApIface(ifaceName);
+            if (iface == null) return boolResult(false);
+
+            if (!mHalDeviceManager.removeIface((IWifiIface) iface)) {
+                mLog.err("Failed to remove AP iface");
+                return boolResult(false);
+            }
+            mIWifiApIfaces.remove(ifaceName);
+            return true;
+        }
+    }
+
+    private boolean retrieveWifiChip(IWifiIface iface) {
+        synchronized (sLock) {
+            mIWifiChip = mHalDeviceManager.getChip(iface);
+            if (mIWifiChip == null) {
+                mLog.err("Failed to get the chip created for the Iface");
+                return false;
+            }
+            if (!registerChipCallback()) {
+                mLog.err("Failed to register chip callback");
+                return false;
+            }
+            return true;
+        }
     }
 
     /**
      * Registers the sta iface callback.
      */
-    private boolean registerStaIfaceCallback() {
+    private boolean registerStaIfaceCallback(IWifiStaIface iface) {
         synchronized (sLock) {
-            if (mIWifiStaIface == null) return boolResult(false);
+            if (iface == null) return boolResult(false);
             if (mIWifiStaIfaceEventCallback == null) return boolResult(false);
             try {
                 WifiStatus status =
-                        mIWifiStaIface.registerEventCallback(mIWifiStaIfaceEventCallback);
+                        iface.registerEventCallback(mIWifiStaIfaceEventCallback);
                 return ok(status);
             } catch (RemoteException e) {
                 handleRemoteException(e);
@@ -390,6 +521,7 @@ public class WifiVendorHal {
     private boolean registerRttEventCallback() {
         synchronized (sLock) {
             if (mIWifiRttController == null) return boolResult(false);
+            if (mRttEventCallback == null) return boolResult(false);
             try {
                 WifiStatus status = mIWifiRttController.registerEventCallback(mRttEventCallback);
                 return ok(status);
@@ -418,36 +550,39 @@ public class WifiVendorHal {
      */
     private void clearState() {
         mIWifiChip = null;
-        mIWifiStaIface = null;
-        mIWifiApIface = null;
+        mIWifiStaIfaces.clear();
+        mIWifiApIfaces.clear();
         mIWifiRttController = null;
         mDriverDescription = null;
         mFirmwareDescription = null;
     }
 
     /**
-     * Tests whether the HAL is running or not
+     * Tests whether the HAL is started and atleast one iface is up.
      */
     public boolean isHalStarted() {
         // For external use only. Methods in this class should test for null directly.
         synchronized (sLock) {
-            return (mIWifiStaIface != null || mIWifiApIface != null);
+            return (!mIWifiStaIfaces.isEmpty() || !mIWifiApIfaces.isEmpty());
         }
     }
 
     /**
      * Gets the scan capabilities
      *
+     * @param ifaceName Name of the interface.
      * @param capabilities object to be filled in
      * @return true for success, false for failure
      */
-    public boolean getBgScanCapabilities(WifiNative.ScanCapabilities capabilities) {
+    public boolean getBgScanCapabilities(
+            @NonNull String ifaceName, WifiNative.ScanCapabilities capabilities) {
         synchronized (sLock) {
-            if (mIWifiStaIface == null) return boolResult(false);
+            IWifiStaIface iface = getStaIface(ifaceName);
+            if (iface == null) return boolResult(false);
             try {
                 MutableBoolean ans = new MutableBoolean(false);
                 WifiNative.ScanCapabilities out = capabilities;
-                mIWifiStaIface.getBackgroundScanCapabilities((status, cap) -> {
+                iface.getBackgroundScanCapabilities((status, cap) -> {
                             if (!ok(status)) return;
                             mVerboseLog.info("scan capabilities %").c(cap.toString()).flush();
                             out.max_scan_cache_size = cap.maxCacheSize;
@@ -582,24 +717,27 @@ public class WifiVendorHal {
      *
      * Any ongoing scan will be stopped first
      *
+     * @param ifaceName    Name of the interface.
      * @param settings     to control the scan
      * @param eventHandler to call with the results
      * @return true for success
      */
-    public boolean startBgScan(WifiNative.ScanSettings settings,
+    public boolean startBgScan(@NonNull String ifaceName,
+                               WifiNative.ScanSettings settings,
                                WifiNative.ScanEventHandler eventHandler) {
         WifiStatus status;
         if (eventHandler == null) return boolResult(false);
         synchronized (sLock) {
-            if (mIWifiStaIface == null) return boolResult(false);
+            IWifiStaIface iface = getStaIface(ifaceName);
+            if (iface == null) return boolResult(false);
             try {
                 if (mScan != null && !mScan.paused) {
-                    ok(mIWifiStaIface.stopBackgroundScan(mScan.cmdId));
+                    ok(iface.stopBackgroundScan(mScan.cmdId));
                     mScan = null;
                 }
                 mLastScanCmdId = (mLastScanCmdId % 9) + 1; // cycle through non-zero single digits
                 CurrentBackgroundScan scan = new CurrentBackgroundScan(mLastScanCmdId, settings);
-                status = mIWifiStaIface.startBackgroundScan(scan.cmdId, scan.param);
+                status = iface.startBackgroundScan(scan.cmdId, scan.param);
                 if (!ok(status)) return false;
                 scan.eventHandler = eventHandler;
                 mScan = scan;
@@ -614,14 +752,17 @@ public class WifiVendorHal {
 
     /**
      * Stops any ongoing backgound scan
+     *
+     * @param ifaceName Name of the interface.
      */
-    public void stopBgScan() {
+    public void stopBgScan(@NonNull String ifaceName) {
         WifiStatus status;
         synchronized (sLock) {
-            if (mIWifiStaIface == null) return;
+            IWifiStaIface iface = getStaIface(ifaceName);
+            if (iface == null) return;
             try {
                 if (mScan != null) {
-                    ok(mIWifiStaIface.stopBackgroundScan(mScan.cmdId));
+                    ok(iface.stopBackgroundScan(mScan.cmdId));
                     mScan = null;
                 }
             } catch (RemoteException e) {
@@ -632,14 +773,17 @@ public class WifiVendorHal {
 
     /**
      * Pauses an ongoing backgound scan
+     *
+     * @param ifaceName Name of the interface.
      */
-    public void pauseBgScan() {
+    public void pauseBgScan(@NonNull String ifaceName) {
         WifiStatus status;
         synchronized (sLock) {
             try {
-                if (mIWifiStaIface == null) return;
+                IWifiStaIface iface = getStaIface(ifaceName);
+                if (iface == null) return;
                 if (mScan != null && !mScan.paused) {
-                    status = mIWifiStaIface.stopBackgroundScan(mScan.cmdId);
+                    status = iface.stopBackgroundScan(mScan.cmdId);
                     if (!ok(status)) return;
                     mScan.paused = true;
                 }
@@ -651,14 +795,17 @@ public class WifiVendorHal {
 
     /**
      * Restarts a paused background scan
+     *
+     * @param ifaceName Name of the interface.
      */
-    public void restartBgScan() {
+    public void restartBgScan(@NonNull String ifaceName) {
         WifiStatus status;
         synchronized (sLock) {
-            if (mIWifiStaIface == null) return;
+            IWifiStaIface iface = getStaIface(ifaceName);
+            if (iface == null) return;
             try {
                 if (mScan != null && mScan.paused) {
-                    status = mIWifiStaIface.startBackgroundScan(mScan.cmdId, mScan.param);
+                    status = iface.startBackgroundScan(mScan.cmdId, mScan.param);
                     if (!ok(status)) return;
                     mScan.paused = false;
                 }
@@ -672,10 +819,13 @@ public class WifiVendorHal {
      * Gets the latest scan results received from the HIDL interface callback.
      * TODO(b/35754840): This hop to fetch scan results after callback is unnecessary. Refactor
      * WifiScanner to use the scan results from the callback.
+     *
+     * @param ifaceName Name of the interface.
      */
-    public WifiScanner.ScanData[] getBgScanResults() {
+    public WifiScanner.ScanData[] getBgScanResults(@NonNull String ifaceName) {
         synchronized (sLock) {
-            if (mIWifiStaIface == null) return null;
+            IWifiStaIface iface = getStaIface(ifaceName);
+            if (iface == null) return null;
             if (mScan == null) return null;
             return mScan.latestScanResults;
         }
@@ -686,17 +836,19 @@ public class WifiVendorHal {
      *
      * Note - we always enable link layer stats on a STA interface.
      *
+     * @param ifaceName Name of the interface.
      * @return the statistics, or null if unable to do so
      */
-    public WifiLinkLayerStats getWifiLinkLayerStats() {
+    public WifiLinkLayerStats getWifiLinkLayerStats(@NonNull String ifaceName) {
         class AnswerBox {
             public StaLinkLayerStats value = null;
         }
         AnswerBox answer = new AnswerBox();
         synchronized (sLock) {
             try {
-                if (mIWifiStaIface == null) return null;
-                mIWifiStaIface.getLinkLayerStats((status, stats) -> {
+                IWifiStaIface iface = getStaIface(ifaceName);
+                if (iface == null) return null;
+                iface.getLinkLayerStats((status, stats) -> {
                     if (!ok(status)) return;
                     answer.value = stats;
                 });
@@ -763,12 +915,14 @@ public class WifiVendorHal {
      * Enables the linkLayerStats in the Hal.
      *
      * This is called unconditionally whenever we create a STA interface.
+     *
+     * @param iface Iface object.
      */
-    private void enableLinkLayerStats() {
+    private void enableLinkLayerStats(IWifiStaIface iface) {
         synchronized (sLock) {
             try {
                 WifiStatus status;
-                status = mIWifiStaIface.enableLinkLayerStatsCollection(mLinkLayerStatsDebug);
+                status = iface.enableLinkLayerStatsCollection(mLinkLayerStatsDebug);
                 if (!ok(status)) {
                     mLog.e("unable to enable link layer stats collection");
                 }
@@ -877,9 +1031,10 @@ public class WifiVendorHal {
      *
      * The result may differ depending on the mode (STA or AP)
      *
+     * @param ifaceName Name of the interface.
      * @return bitmask defined by WifiManager.WIFI_FEATURE_*
      */
-    public int getSupportedFeatureSet() {
+    public int getSupportedFeatureSet(@NonNull String ifaceName) {
         int featureSet = 0;
         if (!mHalDeviceManager.isStarted()) {
             return featureSet; // TODO: can't get capabilities with Wi-Fi down
@@ -893,8 +1048,9 @@ public class WifiVendorHal {
                         feat.value = wifiFeatureMaskFromChipCapabilities(capabilities);
                     });
                 }
-                if (mIWifiStaIface != null) {
-                    mIWifiStaIface.getCapabilities((status, capabilities) -> {
+                IWifiStaIface iface = getStaIface(ifaceName);
+                if (iface != null) {
+                    iface.getCapabilities((status, capabilities) -> {
                         if (!ok(status)) return;
                         feat.value |= wifiFeatureMaskFromStaCapabilities(capabilities);
                     });
@@ -1433,16 +1589,18 @@ public class WifiVendorHal {
      * An OUI {Organizationally Unique Identifier} is a 24-bit number that
      * uniquely identifies a vendor or manufacturer.
      *
+     * @param ifaceName Name of the interface.
      * @param oui
      * @return true for success
      */
-    public boolean setScanningMacOui(byte[] oui) {
+    public boolean setScanningMacOui(@NonNull String ifaceName, byte[] oui) {
         if (oui == null) return boolResult(false);
         if (oui.length != 3) return boolResult(false);
         synchronized (sLock) {
             try {
-                if (mIWifiStaIface == null) return boolResult(false);
-                WifiStatus status = mIWifiStaIface.setScanningMacOui(oui);
+                IWifiStaIface iface = getStaIface(ifaceName);
+                if (iface == null) return boolResult(false);
+                WifiStatus status = iface.setScanningMacOui(oui);
                 if (!ok(status)) return false;
                 return true;
             } catch (RemoteException e) {
@@ -1454,16 +1612,20 @@ public class WifiVendorHal {
 
     /**
      * Get the APF (Android Packet Filter) capabilities of the device
+     *
+     * @param ifaceName Name of the interface.
+     * @return APF capabilities object.
      */
-    public ApfCapabilities getApfCapabilities() {
+    public ApfCapabilities getApfCapabilities(@NonNull String ifaceName) {
         class AnswerBox {
             public ApfCapabilities value = sNoApfCapabilities;
         }
         synchronized (sLock) {
             try {
-                if (mIWifiStaIface == null) return sNoApfCapabilities;
+                IWifiStaIface iface = getStaIface(ifaceName);
+                if (iface == null) return sNoApfCapabilities;
                 AnswerBox box = new AnswerBox();
-                mIWifiStaIface.getApfPacketFilterCapabilities((status, capabilities) -> {
+                iface.getApfPacketFilterCapabilities((status, capabilities) -> {
                     if (!ok(status)) return;
                     box.value = new ApfCapabilities(
                         /* apfVersionSupported */   capabilities.version,
@@ -1483,10 +1645,11 @@ public class WifiVendorHal {
     /**
      * Installs an APF program on this iface, replacing any existing program.
      *
+     * @param ifaceName Name of the interface.
      * @param filter is the android packet filter program
      * @return true for success
      */
-    public boolean installPacketFilter(byte[] filter) {
+    public boolean installPacketFilter(@NonNull String ifaceName, byte[] filter) {
         int cmdId = 0; // We only aspire to support one program at a time
         if (filter == null) return boolResult(false);
         // Copy the program before taking the lock.
@@ -1494,8 +1657,9 @@ public class WifiVendorHal {
         enter("filter length %").c(filter.length).flush();
         synchronized (sLock) {
             try {
-                if (mIWifiStaIface == null) return boolResult(false);
-                WifiStatus status = mIWifiStaIface.installApfPacketFilter(cmdId, program);
+                IWifiStaIface iface = getStaIface(ifaceName);
+                if (iface == null) return boolResult(false);
+                WifiStatus status = iface.installApfPacketFilter(cmdId, program);
                 if (!ok(status)) return false;
                 return true;
             } catch (RemoteException e) {
@@ -1508,10 +1672,11 @@ public class WifiVendorHal {
     /**
      * Set country code for this AP iface.
      *
+     * @param ifaceName Name of the interface.
      * @param countryCode - two-letter country code (as ISO 3166)
      * @return true for success
      */
-    public boolean setCountryCodeHal(String countryCode) {
+    public boolean setCountryCodeHal(@NonNull String ifaceName, String countryCode) {
         if (countryCode == null) return boolResult(false);
         if (countryCode.length() != 2) return boolResult(false);
         byte[] code;
@@ -1522,8 +1687,9 @@ public class WifiVendorHal {
         }
         synchronized (sLock) {
             try {
-                if (mIWifiApIface == null) return boolResult(false);
-                WifiStatus status = mIWifiApIface.setCountryCode(code);
+                IWifiApIface iface = getApIface(ifaceName);
+                if (iface == null) return boolResult(false);
+                WifiStatus status = iface.setCountryCode(code);
                 if (!ok(status)) return false;
                 return true;
             } catch (RemoteException e) {
@@ -1809,13 +1975,15 @@ public class WifiVendorHal {
      * <p>
      * Once started, monitoring remains active until HAL is unloaded.
      *
+     * @param ifaceName Name of the interface.
      * @return true for success
      */
-    public boolean startPktFateMonitoring() {
+    public boolean startPktFateMonitoring(@NonNull String ifaceName) {
         synchronized (sLock) {
-            if (mIWifiStaIface == null) return boolResult(false);
+            IWifiStaIface iface = getStaIface(ifaceName);
+            if (iface == null) return boolResult(false);
             try {
-                WifiStatus status = mIWifiStaIface.startDebugPacketFateMonitoring();
+                WifiStatus status = iface.startDebugPacketFateMonitoring();
                 return ok(status);
             } catch (RemoteException e) {
                 handleRemoteException(e);
@@ -1898,16 +2066,18 @@ public class WifiVendorHal {
      * <p>
      * Reports the outbound frames for the most recent association (space allowing).
      *
+     * @param ifaceName Name of the interface.
      * @param reportBufs
      * @return true for success
      */
-    public boolean getTxPktFates(WifiNative.TxFateReport[] reportBufs) {
+    public boolean getTxPktFates(@NonNull String ifaceName, WifiNative.TxFateReport[] reportBufs) {
         if (ArrayUtils.isEmpty(reportBufs)) return boolResult(false);
         synchronized (sLock) {
-            if (mIWifiStaIface == null) return boolResult(false);
+            IWifiStaIface iface = getStaIface(ifaceName);
+            if (iface == null) return boolResult(false);
             try {
                 MutableBoolean ok = new MutableBoolean(false);
-                mIWifiStaIface.getDebugTxPacketFates((status, fates) -> {
+                iface.getDebugTxPacketFates((status, fates) -> {
                             if (!ok(status)) return;
                             int i = 0;
                             for (WifiDebugTxPacketFateReport fate : fates) {
@@ -1938,16 +2108,18 @@ public class WifiVendorHal {
      * <p>
      * Reports the inbound frames for the most recent association (space allowing).
      *
+     * @param ifaceName Name of the interface.
      * @param reportBufs
      * @return true for success
      */
-    public boolean getRxPktFates(WifiNative.RxFateReport[] reportBufs) {
+    public boolean getRxPktFates(@NonNull String ifaceName, WifiNative.RxFateReport[] reportBufs) {
         if (ArrayUtils.isEmpty(reportBufs)) return boolResult(false);
         synchronized (sLock) {
-            if (mIWifiStaIface == null) return boolResult(false);
+            IWifiStaIface iface = getStaIface(ifaceName);
+            if (iface == null) return boolResult(false);
             try {
                 MutableBoolean ok = new MutableBoolean(false);
-                mIWifiStaIface.getDebugRxPacketFates((status, fates) -> {
+                iface.getDebugRxPacketFates((status, fates) -> {
                             if (!ok(status)) return;
                             int i = 0;
                             for (WifiDebugRxPacketFateReport fate : fates) {
@@ -1976,6 +2148,7 @@ public class WifiVendorHal {
     /**
      * Start sending the specified keep alive packets periodically.
      *
+     * @param ifaceName Name of the interface.
      * @param slot
      * @param srcMac
      * @param keepAlivePacket
@@ -1983,16 +2156,18 @@ public class WifiVendorHal {
      * @return 0 for success, -1 for error
      */
     public int startSendingOffloadedPacket(
-            int slot, byte[] srcMac, KeepalivePacketData keepAlivePacket, int periodInMs) {
+            @NonNull String ifaceName, int slot, byte[] srcMac,
+            KeepalivePacketData keepAlivePacket, int periodInMs) {
         enter("slot=% periodInMs=%").c(slot).c(periodInMs).flush();
 
         ArrayList<Byte> data = NativeUtil.byteArrayToArrayList(keepAlivePacket.data);
         short protocol = (short) (keepAlivePacket.protocol);
 
         synchronized (sLock) {
-            if (mIWifiStaIface == null) return -1;
+            IWifiStaIface iface = getStaIface(ifaceName);
+            if (iface == null) return -1;
             try {
-                WifiStatus status = mIWifiStaIface.startSendingKeepAlivePackets(
+                WifiStatus status = iface.startSendingKeepAlivePackets(
                         slot,
                         data,
                         protocol,
@@ -2011,16 +2186,18 @@ public class WifiVendorHal {
     /**
      * Stop sending the specified keep alive packets.
      *
+     * @param ifaceName Name of the interface.
      * @param slot id - same as startSendingOffloadedPacket call.
      * @return 0 for success, -1 for error
      */
-    public int stopSendingOffloadedPacket(int slot) {
+    public int stopSendingOffloadedPacket(@NonNull String ifaceName, int slot) {
         enter("slot=%").c(slot).flush();
 
         synchronized (sLock) {
-            if (mIWifiStaIface == null) return -1;
+            IWifiStaIface iface = getStaIface(ifaceName);
+            if (iface == null) return -1;
             try {
-                WifiStatus status = mIWifiStaIface.stopSendingKeepAlivePackets(slot);
+                WifiStatus status = iface.stopSendingKeepAlivePackets(slot);
                 if (!ok(status)) return -1;
                 return 0;
             } catch (RemoteException e) {
@@ -2044,22 +2221,24 @@ public class WifiVendorHal {
     /**
      * Start RSSI monitoring on the currently connected access point.
      *
+     * @param ifaceName        Name of the interface.
      * @param maxRssi          Maximum RSSI threshold.
      * @param minRssi          Minimum RSSI threshold.
      * @param rssiEventHandler Called when RSSI goes above maxRssi or below minRssi
      * @return 0 for success, -1 for failure
      */
-    public int startRssiMonitoring(byte maxRssi, byte minRssi,
+    public int startRssiMonitoring(@NonNull String ifaceName, byte maxRssi, byte minRssi,
                                    WifiNative.WifiRssiEventHandler rssiEventHandler) {
         enter("maxRssi=% minRssi=%").c(maxRssi).c(minRssi).flush();
         if (maxRssi <= minRssi) return -1;
         if (rssiEventHandler == null) return -1;
         synchronized (sLock) {
-            if (mIWifiStaIface == null) return -1;
+            IWifiStaIface iface = getStaIface(ifaceName);
+            if (iface == null) return -1;
             try {
-                mIWifiStaIface.stopRssiMonitoring(sRssiMonCmdId);
+                iface.stopRssiMonitoring(sRssiMonCmdId);
                 WifiStatus status;
-                status = mIWifiStaIface.startRssiMonitoring(sRssiMonCmdId, maxRssi, minRssi);
+                status = iface.startRssiMonitoring(sRssiMonCmdId, maxRssi, minRssi);
                 if (!ok(status)) return -1;
                 mWifiRssiEventHandler = rssiEventHandler;
                 return 0;
@@ -2073,15 +2252,16 @@ public class WifiVendorHal {
     /**
      * Stop RSSI monitoring
      *
+     * @param ifaceName Name of the interface.
      * @return 0 for success, -1 for failure
      */
-    public int stopRssiMonitoring() {
+    public int stopRssiMonitoring(@NonNull String ifaceName) {
         synchronized (sLock) {
             mWifiRssiEventHandler = null;
-            if (mIWifiStaIface == null) return -1;
+            IWifiStaIface iface = getStaIface(ifaceName);
+            if (iface == null) return -1;
             try {
-                mIWifiStaIface.stopRssiMonitoring(sRssiMonCmdId);
-                WifiStatus status = mIWifiStaIface.stopRssiMonitoring(sRssiMonCmdId);
+                WifiStatus status = iface.stopRssiMonitoring(sRssiMonCmdId);
                 if (!ok(status)) return -1;
                 return 0;
             } catch (RemoteException e) {
@@ -2158,14 +2338,17 @@ public class WifiVendorHal {
     /**
      * Enable/Disable Neighbour discovery offload functionality in the firmware.
      *
+     * @param ifaceName Name of the interface.
      * @param enabled true to enable, false to disable.
+     * @return true for success, false for failure
      */
-    public boolean configureNeighborDiscoveryOffload(boolean enabled) {
+    public boolean configureNeighborDiscoveryOffload(@NonNull String ifaceName, boolean enabled) {
         enter("enabled=%").c(enabled).flush();
         synchronized (sLock) {
-            if (mIWifiStaIface == null) return boolResult(false);
+            IWifiStaIface iface = getStaIface(ifaceName);
+            if (iface == null) return boolResult(false);
             try {
-                WifiStatus status = mIWifiStaIface.enableNdOffload(enabled);
+                WifiStatus status = iface.enableNdOffload(enabled);
                 if (!ok(status)) return false;
             } catch (RemoteException e) {
                 handleRemoteException(e);
@@ -2180,16 +2363,19 @@ public class WifiVendorHal {
     /**
      * Query the firmware roaming capabilities.
      *
+     * @param ifaceName Name of the interface.
      * @param capabilities object to be filled in
      * @return true for success; false for failure
      */
-    public boolean getRoamingCapabilities(WifiNative.RoamingCapabilities capabilities) {
+    public boolean getRoamingCapabilities(@NonNull String ifaceName,
+                                          WifiNative.RoamingCapabilities capabilities) {
         synchronized (sLock) {
-            if (mIWifiStaIface == null) return boolResult(false);
+            IWifiStaIface iface = getStaIface(ifaceName);
+            if (iface == null) return boolResult(false);
             try {
                 MutableBoolean ok = new MutableBoolean(false);
                 WifiNative.RoamingCapabilities out = capabilities;
-                mIWifiStaIface.getRoamingCapabilities((status, cap) -> {
+                iface.getRoamingCapabilities((status, cap) -> {
                     if (!ok(status)) return;
                     out.maxBlacklistSize = cap.maxBlacklistSize;
                     out.maxWhitelistSize = cap.maxWhitelistSize;
@@ -2206,12 +2392,14 @@ public class WifiVendorHal {
     /**
      * Enable/disable firmware roaming.
      *
+     * @param ifaceName Name of the interface.
      * @param state the intended roaming state
      * @return SUCCESS, FAILURE, or BUSY
      */
-    public int enableFirmwareRoaming(int state) {
+    public int enableFirmwareRoaming(@NonNull String ifaceName, int state) {
         synchronized (sLock) {
-            if (mIWifiStaIface == null) return WifiStatusCode.ERROR_NOT_STARTED;
+            IWifiStaIface iface = getStaIface(ifaceName);
+            if (iface == null) return WifiStatusCode.ERROR_NOT_STARTED;
             try {
                 byte val;
                 switch (state) {
@@ -2226,7 +2414,7 @@ public class WifiVendorHal {
                         return WifiStatusCode.ERROR_INVALID_ARGS;
                 }
 
-                WifiStatus status = mIWifiStaIface.setRoamingState(val);
+                WifiStatus status = iface.setRoamingState(val);
                 mVerboseLog.d("setRoamingState returned " + status.code);
                 return status.code;
             } catch (RemoteException e) {
@@ -2239,12 +2427,14 @@ public class WifiVendorHal {
     /**
      * Set firmware roaming configurations.
      *
+     * @param ifaceName Name of the interface.
      * @param config new roaming configuration object
      * @return true for success; false for failure
      */
-    public boolean configureRoaming(WifiNative.RoamingConfig config) {
+    public boolean configureRoaming(@NonNull String ifaceName, WifiNative.RoamingConfig config) {
         synchronized (sLock) {
-            if (mIWifiStaIface == null) return boolResult(false);
+            IWifiStaIface iface = getStaIface(ifaceName);
+            if (iface == null) return boolResult(false);
             try {
                 StaRoamingConfig roamingConfig = new StaRoamingConfig();
 
@@ -2275,7 +2465,7 @@ public class WifiVendorHal {
                     }
                 }
 
-                WifiStatus status = mIWifiStaIface.configureRoaming(roamingConfig);
+                WifiStatus status = iface.configureRoaming(roamingConfig);
                 if (!ok(status)) return false;
             } catch (RemoteException e) {
                 handleRemoteException(e);

@@ -29,6 +29,7 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
 import android.os.Binder;
+import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Log;
 
@@ -46,13 +47,15 @@ import com.android.server.wifi.wificond.SingleScanSettings;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 /**
  * This class provides methods for WifiNative to send control commands to wificond.
  * NOTE: This class should only be used from WifiNative.
  */
-public class WificondControl {
+public class WificondControl implements IBinder.DeathRecipient {
     private boolean mVerboseLoggingEnabled = false;
 
     private static final String TAG = "WificondControl";
@@ -69,27 +72,31 @@ public class WificondControl {
 
     // Cached wificond binder handlers.
     private IWificond mWificond;
-    private IClientInterface mClientInterface;
-    private IApInterface mApInterface;
-    private IWifiScannerImpl mWificondScanner;
-    private IScanEvent mScanEventHandler;
-    private IPnoScanEvent mPnoScanEventHandler;
-    private IApInterfaceEventCallback mApInterfaceListener;
-
-    private String mClientInterfaceName;
-
+    private HashMap<String, IClientInterface> mClientInterfaces = new HashMap<>();
+    private HashMap<String, IApInterface> mApInterfaces = new HashMap<>();
+    private HashMap<String, IWifiScannerImpl> mWificondScanners = new HashMap<>();
+    private HashMap<String, IScanEvent> mScanEventHandlers = new HashMap<>();
+    private HashMap<String, IPnoScanEvent> mPnoScanEventHandlers = new HashMap<>();
+    private HashMap<String, IApInterfaceEventCallback> mApInterfaceListeners = new HashMap<>();
+    private WifiNative.WificondDeathEventHandler mDeathEventHandler;
 
     private class ScanEventHandler extends IScanEvent.Stub {
+        private String mIfaceName;
+
+        ScanEventHandler(@NonNull String ifaceName) {
+            mIfaceName = ifaceName;
+        }
+
         @Override
         public void OnScanResultReady() {
             Log.d(TAG, "Scan result ready event");
-            mWifiMonitor.broadcastScanResultEvent(mClientInterfaceName);
+            mWifiMonitor.broadcastScanResultEvent(mIfaceName);
         }
 
         @Override
         public void OnScanFailed() {
             Log.d(TAG, "Scan failed event");
-            mWifiMonitor.broadcastScanFailedEvent(mClientInterfaceName);
+            mWifiMonitor.broadcastScanFailedEvent(mIfaceName);
         }
     }
 
@@ -101,10 +108,16 @@ public class WificondControl {
     }
 
     private class PnoScanEventHandler extends IPnoScanEvent.Stub {
+        private String mIfaceName;
+
+        PnoScanEventHandler(@NonNull String ifaceName) {
+            mIfaceName = ifaceName;
+        }
+
         @Override
         public void OnPnoNetworkFound() {
             Log.d(TAG, "Pno scan result event");
-            mWifiMonitor.broadcastPnoScanResultEvent(mClientInterfaceName);
+            mWifiMonitor.broadcastPnoScanResultEvent(mIfaceName);
             mWifiInjector.getWifiMetrics().incrementPnoFoundNetworkEventCount();
         }
 
@@ -143,6 +156,22 @@ public class WificondControl {
         }
     }
 
+    /**
+     * Called by the binder subsystem upon remote object death.
+     * Invoke all the register death handlers and clear state.
+     */
+    @Override
+    public void binderDied() {
+        Log.e(TAG, "Wificond died!");
+        if (mDeathEventHandler != null) {
+            mDeathEventHandler.onDeath();
+        }
+        clearState();
+        // Invalidate the global wificond handle on death. Will be refereshed
+        // on the next setup call.
+        mWificond = null;
+    }
+
     /** Enable or disable verbose logging of WificondControl.
      *  @param enable True to enable verbose logging. False to disable verbose logging.
      */
@@ -151,15 +180,64 @@ public class WificondControl {
     }
 
     /**
-    * Setup driver for client mode via wificond.
-    * @return An IClientInterface as wificond client interface binder handler.
-    * Returns null on failure.
-    */
-    public IClientInterface setupDriverForClientMode(@NonNull String ifaceName) {
-        Log.d(TAG, "Setting up driver for client mode");
+     * Registers a death notification for wificond.
+     * @return Returns true on success.
+     */
+    public boolean registerDeathHandler(@NonNull WifiNative.WificondDeathEventHandler handler) {
+        if (mDeathEventHandler != null) {
+            Log.e(TAG, "Death handler already present");
+            return false;
+        }
+        mDeathEventHandler = handler;
+        return true;
+    }
+
+    /**
+     * Deregisters a death notification for wificond.
+     * @return Returns true on success.
+     */
+    public boolean deregisterDeathHandler() {
+        if (mDeathEventHandler == null) {
+            Log.e(TAG, "No Death handler present");
+            return false;
+        }
+        mDeathEventHandler = null;
+        return true;
+    }
+
+    /**
+     * Helper method to retrieve the global wificond handle and register for
+     * death notifications.
+     */
+    private boolean retrieveWificondAndRegisterForDeath() {
+        if (mWificond != null) {
+            Log.d(TAG, "Wificond handle already retrieved");
+            // We already have a wificond handle.
+            return true;
+        }
         mWificond = mWifiInjector.makeWificond();
         if (mWificond == null) {
             Log.e(TAG, "Failed to get reference to wificond");
+            return false;
+        }
+        try {
+            mWificond.asBinder().linkToDeath(this, 0);
+        } catch (RemoteException e) {
+            Log.e(TAG, "Failed to register death notification for wificond");
+            // The remote has already died.
+            return false;
+        }
+        return true;
+    }
+
+    /**
+    * Setup interface for client mode via wificond.
+    * @return An IClientInterface as wificond client interface binder handler.
+    * Returns null on failure.
+    */
+    public IClientInterface setupInterfaceForClientMode(@NonNull String ifaceName) {
+        Log.d(TAG, "Setting up interface for client mode");
+        if (!retrieveWificondAndRegisterForDeath()) {
             return null;
         }
 
@@ -178,19 +256,21 @@ public class WificondControl {
         Binder.allowBlocking(clientInterface.asBinder());
 
         // Refresh Handlers
-        mClientInterface = clientInterface;
+        mClientInterfaces.put(ifaceName, clientInterface);
         try {
-            mClientInterfaceName = clientInterface.getInterfaceName();
-            mWificondScanner = mClientInterface.getWifiScannerImpl();
-            if (mWificondScanner == null) {
+            IWifiScannerImpl wificondScanner = clientInterface.getWifiScannerImpl();
+            if (wificondScanner == null) {
                 Log.e(TAG, "Failed to get WificondScannerImpl");
                 return null;
             }
-            Binder.allowBlocking(mWificondScanner.asBinder());
-            mScanEventHandler = new ScanEventHandler();
-            mWificondScanner.subscribeScanEvents(mScanEventHandler);
-            mPnoScanEventHandler = new PnoScanEventHandler();
-            mWificondScanner.subscribePnoScanEvents(mPnoScanEventHandler);
+            mWificondScanners.put(ifaceName, wificondScanner);
+            Binder.allowBlocking(wificondScanner.asBinder());
+            ScanEventHandler scanEventHandler = new ScanEventHandler(ifaceName);
+            mScanEventHandlers.put(ifaceName,  scanEventHandler);
+            wificondScanner.subscribeScanEvents(scanEventHandler);
+            PnoScanEventHandler pnoScanEventHandler = new PnoScanEventHandler(ifaceName);
+            mPnoScanEventHandlers.put(ifaceName,  pnoScanEventHandler);
+            wificondScanner.subscribePnoScanEvents(pnoScanEventHandler);
         } catch (RemoteException e) {
             Log.e(TAG, "Failed to refresh wificond scanner due to remote exception");
         }
@@ -199,15 +279,49 @@ public class WificondControl {
     }
 
     /**
-    * Setup driver for softAp mode via wificond.
+     * Teardown a specific STA interface configured in wificond.
+     *
+     * @return Returns true on success.
+     */
+    public boolean tearDownClientInterface(@NonNull String ifaceName) {
+        boolean success;
+        try {
+            IWifiScannerImpl scannerImpl = mWificondScanners.get(ifaceName);
+            if (scannerImpl != null) {
+                scannerImpl.unsubscribeScanEvents();
+                scannerImpl.unsubscribePnoScanEvents();
+            }
+        } catch (RemoteException e) {
+            Log.e(TAG, "Failed to unsubscribe wificond scanner due to remote exception");
+            return false;
+        }
+
+        try {
+            success = mWificond.tearDownClientInterface(ifaceName);
+        } catch (RemoteException e1) {
+            Log.e(TAG, "Failed to teardown client interface due to remote exception");
+            return false;
+        }
+        if (!success) {
+            Log.e(TAG, "Failed to teardown client interface");
+            return false;
+        }
+
+        mClientInterfaces.remove(ifaceName);
+        mWificondScanners.remove(ifaceName);
+        mScanEventHandlers.remove(ifaceName);
+        mPnoScanEventHandlers.remove(ifaceName);
+        return true;
+    }
+
+    /**
+    * Setup interface for softAp mode via wificond.
     * @return An IApInterface as wificond Ap interface binder handler.
     * Returns null on failure.
     */
-    public IApInterface setupDriverForSoftApMode(@NonNull String ifaceName) {
-        Log.d(TAG, "Setting up driver for soft ap mode");
-        mWificond = mWifiInjector.makeWificond();
-        if (mWificond == null) {
-            Log.e(TAG, "Failed to get reference to wificond");
+    public IApInterface setupInterfaceForSoftApMode(@NonNull String ifaceName) {
+        Log.d(TAG, "Setting up interface for soft ap mode");
+        if (!retrieveWificondAndRegisterForDeath()) {
             return null;
         }
 
@@ -226,9 +340,30 @@ public class WificondControl {
         Binder.allowBlocking(apInterface.asBinder());
 
         // Refresh Handlers
-        mApInterface = apInterface;
-
+        mApInterfaces.put(ifaceName, apInterface);
         return apInterface;
+    }
+
+    /**
+     * Teardown a specific AP interface configured in wificond.
+     *
+     * @return Returns true on success.
+     */
+    public boolean tearDownSoftApInterface(@NonNull String ifaceName) {
+        boolean success;
+        try {
+            success = mWificond.tearDownApInterface(ifaceName);
+        } catch (RemoteException e1) {
+            Log.e(TAG, "Failed to teardown AP interface due to remote exception");
+            return false;
+        }
+        if (!success) {
+            Log.e(TAG, "Failed to teardown AP interface");
+            return false;
+        }
+        mApInterfaces.remove(ifaceName);
+        mApInterfaceListeners.remove(ifaceName);
+        return true;
     }
 
     /**
@@ -239,26 +374,17 @@ public class WificondControl {
         Log.d(TAG, "tearing down interfaces in wificond");
         // Explicitly refresh the wificodn handler because |tearDownInterfaces()|
         // could be used to cleanup before we setup any interfaces.
-        mWificond = mWifiInjector.makeWificond();
-        if (mWificond == null) {
-            Log.e(TAG, "Failed to get reference to wificond");
+        if (!retrieveWificondAndRegisterForDeath()) {
             return false;
         }
 
         try {
-            if (mWificondScanner != null) {
-                mWificondScanner.unsubscribeScanEvents();
-                mWificondScanner.unsubscribePnoScanEvents();
+            for (Map.Entry<String, IWifiScannerImpl> entry : mWificondScanners.entrySet()) {
+                entry.getValue().unsubscribeScanEvents();
+                entry.getValue().unsubscribePnoScanEvents();
             }
             mWificond.tearDownInterfaces();
-
-            // Refresh handlers
-            mClientInterface = null;
-            mWificondScanner = null;
-            mPnoScanEventHandler = null;
-            mScanEventHandler = null;
-            mApInterface = null;
-
+            clearState();
             return true;
         } catch (RemoteException e) {
             Log.e(TAG, "Failed to tear down interfaces due to remote exception");
@@ -267,13 +393,17 @@ public class WificondControl {
         return false;
     }
 
+    /** Helper function to look up the interface handle using name */
+    private IClientInterface getClientInterface(@NonNull String ifaceName) {
+        return mClientInterfaces.get(ifaceName);
+    }
+
     /**
     * Disable wpa_supplicant via wificond.
     * @return Returns true on success.
     */
     public boolean disableSupplicant() {
-        if (mWificond == null) {
-            Log.e(TAG, "No valid handler");
+        if (!retrieveWificondAndRegisterForDeath()) {
             return false;
         }
         try {
@@ -289,11 +419,9 @@ public class WificondControl {
     * @return Returns true on success.
     */
     public boolean enableSupplicant() {
-        if (mWificond == null) {
-            Log.e(TAG, "No valid wificond handler");
+        if (!retrieveWificondAndRegisterForDeath()) {
             return false;
         }
-
         try {
             return mWificond.enableSupplicant();
         } catch (RemoteException e) {
@@ -303,19 +431,21 @@ public class WificondControl {
     }
 
     /**
-    * Request signal polling to wificond.
-    * Returns an SignalPollResult object.
-    * Returns null on failure.
-    */
-    public WifiNative.SignalPollResult signalPoll() {
-        if (mClientInterface == null) {
+     * Request signal polling to wificond.
+     * @param ifaceName Name of the interface.
+     * Returns an SignalPollResult object.
+     * Returns null on failure.
+     */
+    public WifiNative.SignalPollResult signalPoll(@NonNull String ifaceName) {
+        IClientInterface iface = getClientInterface(ifaceName);
+        if (iface == null) {
             Log.e(TAG, "No valid wificond client interface handler");
             return null;
         }
 
         int[] resultArray;
         try {
-            resultArray = mClientInterface.signalPoll();
+            resultArray = iface.signalPoll();
             if (resultArray == null || resultArray.length != 3) {
                 Log.e(TAG, "Invalid signal poll result from wificond");
                 return null;
@@ -332,19 +462,21 @@ public class WificondControl {
     }
 
     /**
-    * Fetch TX packet counters on current connection from wificond.
-    * Returns an TxPacketCounters object.
-    * Returns null on failure.
-    */
-    public WifiNative.TxPacketCounters getTxPacketCounters() {
-        if (mClientInterface == null) {
+     * Fetch TX packet counters on current connection from wificond.
+     * @param ifaceName Name of the interface.
+     * Returns an TxPacketCounters object.
+     * Returns null on failure.
+     */
+    public WifiNative.TxPacketCounters getTxPacketCounters(@NonNull String ifaceName) {
+        IClientInterface iface = getClientInterface(ifaceName);
+        if (iface == null) {
             Log.e(TAG, "No valid wificond client interface handler");
             return null;
         }
 
         int[] resultArray;
         try {
-            resultArray = mClientInterface.getPacketCounters();
+            resultArray = iface.getPacketCounters();
             if (resultArray == null || resultArray.length != 2) {
                 Log.e(TAG, "Invalid signal poll result from wificond");
                 return null;
@@ -359,23 +491,30 @@ public class WificondControl {
         return counters;
     }
 
+    /** Helper function to look up the scanner impl handle using name */
+    private IWifiScannerImpl getScannerImpl(@NonNull String ifaceName) {
+        return mWificondScanners.get(ifaceName);
+    }
+
     /**
     * Fetch the latest scan result from kernel via wificond.
+    * @param ifaceName Name of the interface.
     * @return Returns an ArrayList of ScanDetail.
     * Returns an empty ArrayList on failure.
     */
-    public ArrayList<ScanDetail> getScanResults(int scanType) {
+    public ArrayList<ScanDetail> getScanResults(@NonNull String ifaceName, int scanType) {
         ArrayList<ScanDetail> results = new ArrayList<>();
-        if (mWificondScanner == null) {
+        IWifiScannerImpl scannerImpl = getScannerImpl(ifaceName);
+        if (scannerImpl == null) {
             Log.e(TAG, "No valid wificond scanner interface handler");
             return results;
         }
         try {
             NativeScanResult[] nativeResults;
             if (scanType == SCAN_TYPE_SINGLE_SCAN) {
-                nativeResults = mWificondScanner.getScanResults();
+                nativeResults = scannerImpl.getScanResults();
             } else {
-                nativeResults = mWificondScanner.getPnoScanResults();
+                nativeResults = scannerImpl.getPnoScanResults();
             }
             for (NativeScanResult result : nativeResults) {
                 WifiSsid wifiSsid = WifiSsid.createFromByteArray(result.ssid);
@@ -430,12 +569,16 @@ public class WificondControl {
 
     /**
      * Start a scan using wificond for the given parameters.
+     * @param ifaceName Name of the interface.
      * @param freqs list of frequencies to scan for, if null scan all supported channels.
      * @param hiddenNetworkSSIDs List of hidden networks to be scanned for.
      * @return Returns true on success.
      */
-    public boolean scan(Set<Integer> freqs, Set<String> hiddenNetworkSSIDs) {
-        if (mWificondScanner == null) {
+    public boolean scan(@NonNull String ifaceName,
+                        Set<Integer> freqs,
+                        Set<String> hiddenNetworkSSIDs) {
+        IWifiScannerImpl scannerImpl = getScannerImpl(ifaceName);
+        if (scannerImpl == null) {
             Log.e(TAG, "No valid wificond scanner interface handler");
             return false;
         }
@@ -464,7 +607,7 @@ public class WificondControl {
         }
 
         try {
-            return mWificondScanner.scan(settings);
+            return scannerImpl.scan(settings);
         } catch (RemoteException e1) {
             Log.e(TAG, "Failed to request scan due to remote exception");
         }
@@ -473,11 +616,13 @@ public class WificondControl {
 
     /**
      * Start PNO scan.
+     * @param ifaceName Name of the interface.
      * @param pnoSettings Pno scan configuration.
      * @return true on success.
      */
-    public boolean startPnoScan(WifiNative.PnoSettings pnoSettings) {
-        if (mWificondScanner == null) {
+    public boolean startPnoScan(@NonNull String ifaceName, WifiNative.PnoSettings pnoSettings) {
+        IWifiScannerImpl scannerImpl = getScannerImpl(ifaceName);
+        if (scannerImpl == null) {
             Log.e(TAG, "No valid wificond scanner interface handler");
             return false;
         }
@@ -503,7 +648,7 @@ public class WificondControl {
         }
 
         try {
-            boolean success = mWificondScanner.startPnoScan(settings);
+            boolean success = scannerImpl.startPnoScan(settings);
             mWifiInjector.getWifiMetrics().incrementPnoScanStartAttempCount();
             if (!success) {
                 mWifiInjector.getWifiMetrics().incrementPnoScanFailedCount();
@@ -517,15 +662,17 @@ public class WificondControl {
 
     /**
      * Stop PNO scan.
+     * @param ifaceName Name of the interface.
      * @return true on success.
      */
-    public boolean stopPnoScan() {
-        if (mWificondScanner == null) {
+    public boolean stopPnoScan(@NonNull String ifaceName) {
+        IWifiScannerImpl scannerImpl = getScannerImpl(ifaceName);
+        if (scannerImpl == null) {
             Log.e(TAG, "No valid wificond scanner interface handler");
             return false;
         }
         try {
-            return mWificondScanner.stopPnoScan();
+            return scannerImpl.stopPnoScan();
         } catch (RemoteException e1) {
             Log.e(TAG, "Failed to stop pno scan due to remote exception");
         }
@@ -534,14 +681,16 @@ public class WificondControl {
 
     /**
      * Abort ongoing single scan.
+     * @param ifaceName Name of the interface.
      */
-    public void abortScan() {
-        if (mWificondScanner == null) {
+    public void abortScan(@NonNull String ifaceName) {
+        IWifiScannerImpl scannerImpl = getScannerImpl(ifaceName);
+        if (scannerImpl == null) {
             Log.e(TAG, "No valid wificond scanner interface handler");
             return;
         }
         try {
-            mWificondScanner.abortScan();
+            scannerImpl.abortScan();
         } catch (RemoteException e1) {
             Log.e(TAG, "Failed to request abortScan due to remote exception");
         }
@@ -581,15 +730,24 @@ public class WificondControl {
         return null;
     }
 
+    /** Helper function to look up the interface handle using name */
+    private IApInterface getApInterface(@NonNull String ifaceName) {
+        return mApInterfaces.get(ifaceName);
+    }
+
     /**
      * Start Soft AP operation using the provided configuration.
      *
+     * @param ifaceName Name of the interface.
      * @param config Configuration to use for the soft ap created.
      * @param listener Callback for AP events.
      * @return true on success, false otherwise.
      */
-    public boolean startSoftAp(WifiConfiguration config, SoftApListener listener) {
-        if (mApInterface == null) {
+    public boolean startSoftAp(@NonNull String ifaceName,
+                               WifiConfiguration config,
+                               SoftApListener listener) {
+        IApInterface iface = getApInterface(ifaceName);
+        if (iface == null) {
             Log.e(TAG, "No valid ap interface handler");
             return false;
         }
@@ -599,7 +757,7 @@ public class WificondControl {
             // hex string or "double quoted".
             // However, it seems that whatever is handing us these configurations does not obey
             // this convention.
-            boolean success = mApInterface.writeHostapdConfig(
+            boolean success = iface.writeHostapdConfig(
                     config.SSID.getBytes(StandardCharsets.UTF_8), config.hiddenSSID,
                     config.apChannel, encryptionType,
                     (config.preSharedKey != null)
@@ -609,8 +767,9 @@ public class WificondControl {
                 Log.e(TAG, "Failed to write hostapd configuration");
                 return false;
             }
-            mApInterfaceListener = new ApInterfaceEventCallback(listener);
-            success = mApInterface.startHostapd(mApInterfaceListener);
+            IApInterfaceEventCallback  callback = new ApInterfaceEventCallback(listener);
+            mApInterfaceListeners.put(ifaceName, callback);
+            success = iface.startHostapd(callback);
             if (!success) {
                 Log.e(TAG, "Failed to start hostapd.");
                 return false;
@@ -625,15 +784,17 @@ public class WificondControl {
     /**
      * Stop the ongoing Soft AP operation.
      *
+     * @param ifaceName Name of the interface.
      * @return true on success, false otherwise.
      */
-    public boolean stopSoftAp() {
-        if (mApInterface == null) {
+    public boolean stopSoftAp(@NonNull String ifaceName) {
+        IApInterface iface = getApInterface(ifaceName);
+        if (iface == null) {
             Log.e(TAG, "No valid ap interface handler");
             return false;
         }
         try {
-            boolean success = mApInterface.stopHostapd();
+            boolean success = iface.stopHostapd();
             if (!success) {
                 Log.e(TAG, "Failed to stop hostapd.");
                 return false;
@@ -642,7 +803,7 @@ public class WificondControl {
             Log.e(TAG, "Exception in stopping soft AP: " + e);
             return false;
         }
-        mApInterfaceListener = null;
+        mApInterfaceListeners.remove(ifaceName);
         return true;
     }
 
@@ -665,5 +826,18 @@ public class WificondControl {
                 break;
         }
         return encryptionType;
+    }
+
+    /**
+     * Clear all internal handles.
+     */
+    private void clearState() {
+        // Refresh handlers
+        mClientInterfaces.clear();
+        mWificondScanners.clear();
+        mPnoScanEventHandlers.clear();
+        mScanEventHandlers.clear();
+        mApInterfaces.clear();
+        mApInterfaceListeners.clear();
     }
 }
