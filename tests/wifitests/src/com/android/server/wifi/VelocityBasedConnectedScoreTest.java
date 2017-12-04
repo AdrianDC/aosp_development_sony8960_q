@@ -100,9 +100,9 @@ public class VelocityBasedConnectedScoreTest {
     public void allowLowRssiIfErrorRateIsLowAndSomeDataIsMoving() throws Exception {
         mWifiInfo.setRssi(mRssiExitThreshold2GHz - 2);
         mWifiInfo.setLinkSpeed(6); // Mbps
-        mWifiInfo.txSuccessRate = 10.1; // proportional to pps
+        mWifiInfo.txSuccessRate = 2.1; // proportional to pps
         mWifiInfo.txBadRate = .5;
-        mWifiInfo.rxSuccessRate = 10.1;
+        mWifiInfo.rxSuccessRate = 2.1;
         for (int i = 0; i < 10; i++) {
             mVelocityBasedConnectedScore.updateUsingWifiInfo(mWifiInfo,
                     mClock.getWallClockMillis());

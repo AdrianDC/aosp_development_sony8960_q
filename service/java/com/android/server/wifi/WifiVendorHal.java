@@ -59,7 +59,6 @@ import android.net.wifi.RttManager;
 import android.net.wifi.RttManager.ResponderConfig;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiInfo;
-import android.net.wifi.WifiLinkLayerStats;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
@@ -868,7 +867,6 @@ public class WifiVendorHal {
     static WifiLinkLayerStats frameworkFromHalLinkLayerStats(StaLinkLayerStats stats) {
         if (stats == null) return null;
         WifiLinkLayerStats out = new WifiLinkLayerStats();
-        // unpopulated: out.status, out.SSID, out.BSSID
         out.beacon_rx = stats.iface.beaconRx;
         out.rssi_mgmt = stats.iface.avgRssiMgmt;
         // Statistics are broken out by Wireless Multimedia Extensions categories
@@ -904,7 +902,7 @@ public class WifiVendorHal {
             out.rx_time = radioStats.rxTimeInMs;
             out.on_time_scan = radioStats.onTimeInMsForScan;
         }
-        // unused: stats.timeStampInMs;
+        out.timeStampInMs = stats.timeStampInMs;
         return out;
     }
 
