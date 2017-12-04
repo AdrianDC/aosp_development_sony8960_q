@@ -83,7 +83,7 @@ public class WifiAwareNativeManager {
                             awareIsDown();
                         }
                     }
-                }, null);
+                }, mHandler);
         if (mHalDeviceManager.isStarted()) {
             mHalDeviceManager.registerInterfaceAvailableForRequestListener(
                     IfaceType.NAN, mInterfaceAvailableForRequestListener, mHandler);
