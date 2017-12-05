@@ -18,14 +18,22 @@ package com.android.server.wifi;
 
 import android.content.Context;
 import android.database.ContentObserver;
+import android.net.wifi.ScanResult;
+import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiScanner;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
+import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 
 /**
  * WakeupController is responsible managing Auto Wifi.
@@ -33,6 +41,8 @@ import java.io.PrintWriter;
  * <p>It determines if and when to re-enable wifi after it has been turned off by the user.
  */
 public class WakeupController {
+
+    private static final String TAG = "WakeupController";
 
     // TODO(b/69624403) propagate this to Settings
     private static final boolean USE_PLATFORM_WIFI_WAKE = false;
@@ -43,6 +53,34 @@ public class WakeupController {
     private final ContentObserver mContentObserver;
     private final WakeupLock mWakeupLock;
     private final WifiConfigManager mWifiConfigManager;
+    private final WifiInjector mWifiInjector;
+
+    private final WifiScanner.ScanListener mScanListener = new WifiScanner.ScanListener() {
+        @Override
+        public void onPeriodChanged(int periodInMs) {
+            // no-op
+        }
+
+        @Override
+        public void onResults(WifiScanner.ScanData[] results) {
+            // TODO(easchwar) handle scan results
+        }
+
+        @Override
+        public void onFullResult(ScanResult fullScanResult) {
+            // no-op
+        }
+
+        @Override
+        public void onSuccess() {
+            // no-op
+        }
+
+        @Override
+        public void onFailure(int reason, String description) {
+            Log.e(TAG, "ScanListener onFailure: " + reason + ": " + description);
+        }
+    };
 
     /** Whether this feature is enabled in Settings. */
     private boolean mWifiWakeupEnabled;
@@ -56,12 +94,14 @@ public class WakeupController {
             WakeupLock wakeupLock,
             WifiConfigManager wifiConfigManager,
             WifiConfigStore wifiConfigStore,
+            WifiInjector wifiInjector,
             FrameworkFacade frameworkFacade) {
         mContext = context;
         mHandler = new Handler(looper);
         mWakeupLock = wakeupLock;
         mWifiConfigManager = wifiConfigManager;
         mFrameworkFacade = frameworkFacade;
+        mWifiInjector = wifiInjector;
         mContentObserver = new ContentObserver(mHandler) {
             @Override
             public void onChange(boolean selfChange) {
@@ -85,6 +125,80 @@ public class WakeupController {
             mIsActive = isActive;
             mWifiConfigManager.saveToStore(false /* forceWrite */);
         }
+    }
+
+    /**
+     * Starts listening for incoming scans.
+     *
+     * <p>Should only be called upon entering ScanMode. WakeupController registers its listener with
+     * the WifiScanner. If the WakeupController is already active, then it returns early. Otherwise
+     * it performs its initialization steps and sets {@link #mIsActive} to true.
+     */
+    public void start() {
+        mWifiInjector.getWifiScanner().registerScanListener(mScanListener);
+
+        // If already active, we don't want to re-initialize the lock, so return early.
+        if (mIsActive) {
+            return;
+        }
+        setActive(true);
+
+        if (mWifiWakeupEnabled) {
+            mWakeupLock.initialize(getMostRecentSavedScanResults());
+        }
+    }
+
+    /**
+     * Stops listening for scans.
+     *
+     * <p>Should only be called upon leaving ScanMode. It deregisters the listener from
+     * WifiScanner.
+     */
+    public void stop() {
+        mWifiInjector.getWifiScanner().deregisterScanListener(mScanListener);
+    }
+
+    /** Resets the WakeupController, setting {@link #mIsActive} to false. */
+    public void reset() {
+        setActive(false);
+    }
+
+    /** Returns a list of saved networks from the last full scan. */
+    private Set<ScanResultMatchInfo> getMostRecentSavedScanResults() {
+        Set<ScanResultMatchInfo> goodSavedNetworks = getGoodSavedNetworks();
+
+        List<ScanResult> scanResults = mWifiInjector.getWifiScanner().getSingleScanResults();
+        Set<ScanResultMatchInfo> lastSeenNetworks = new HashSet<>(scanResults.size());
+        for (ScanResult scanResult : scanResults) {
+            lastSeenNetworks.add(ScanResultMatchInfo.fromScanResult(scanResult));
+        }
+
+        lastSeenNetworks.retainAll(goodSavedNetworks);
+        return lastSeenNetworks;
+    }
+
+    /** Returns a filtered list of saved networks from WifiConfigManager. */
+    private Set<ScanResultMatchInfo> getGoodSavedNetworks() {
+        List<WifiConfiguration> savedNetworks = mWifiConfigManager.getSavedNetworks();
+
+        Set<ScanResultMatchInfo> goodSavedNetworks = new HashSet<>(savedNetworks.size());
+        for (WifiConfiguration config : savedNetworks) {
+            if (isWideAreaNetwork(config)
+                    || config.hasNoInternetAccess()
+                    || config.noInternetAccessExpected
+                    || !config.getNetworkSelectionStatus().getHasEverConnected()) {
+                continue;
+            }
+            goodSavedNetworks.add(ScanResultMatchInfo.fromWifiConfiguration(config));
+        }
+
+        Log.d(TAG, "getGoodSavedNetworks: " + goodSavedNetworks.size());
+        return goodSavedNetworks;
+    }
+
+    //TODO(b/69271702) implement WAN filtering
+    private boolean isWideAreaNetwork(WifiConfiguration wifiConfiguration) {
+        return false;
     }
 
     /**

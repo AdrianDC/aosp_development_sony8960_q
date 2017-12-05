@@ -236,7 +236,7 @@ public class WifiInjector {
                 new ConnectToNetworkNotificationBuilder(mContext, mFrameworkFacade));
         mWakeupController = new WakeupController(mContext,
                 mWifiStateMachineHandlerThread.getLooper(), new WakeupLock(mWifiConfigManager),
-                mWifiConfigManager, mWifiConfigStore, mFrameworkFacade);
+                mWifiConfigManager, mWifiConfigStore, this, mFrameworkFacade);
         mLockManager = new WifiLockManager(mContext, BatteryStatsService.getService());
         mWifiController = new WifiController(mContext, mWifiStateMachine, mSettingsStore,
                 mLockManager, mWifiServiceHandlerThread.getLooper(), mFrameworkFacade,
