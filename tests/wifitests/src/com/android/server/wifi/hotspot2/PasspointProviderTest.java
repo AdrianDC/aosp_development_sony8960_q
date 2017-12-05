@@ -650,6 +650,7 @@ public class PasspointProviderTest {
         assertTrue(Arrays.equals(rcOIs, wifiConfig.roamingConsortiumIds));
         assertTrue(wifiConfig.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_EAP));
         assertTrue(wifiConfig.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X));
+        assertFalse(wifiConfig.shared);
         assertEquals(realm, wifiEnterpriseConfig.getRealm());
         assertEquals(fqdn, wifiEnterpriseConfig.getDomainSuffixMatch());
         assertEquals("anonymous@" + realm, wifiEnterpriseConfig.getAnonymousIdentity());
@@ -712,6 +713,7 @@ public class PasspointProviderTest {
         assertTrue(Arrays.equals(rcOIs, wifiConfig.roamingConsortiumIds));
         assertTrue(wifiConfig.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_EAP));
         assertTrue(wifiConfig.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X));
+        assertFalse(wifiConfig.shared);
         assertEquals(realm, wifiEnterpriseConfig.getRealm());
         assertEquals(fqdn, wifiEnterpriseConfig.getDomainSuffixMatch());
         assertEquals("anonymous@" + realm, wifiEnterpriseConfig.getAnonymousIdentity());
@@ -761,6 +763,7 @@ public class PasspointProviderTest {
         assertTrue(Arrays.equals(rcOIs, wifiConfig.roamingConsortiumIds));
         assertTrue(wifiConfig.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.WPA_EAP));
         assertTrue(wifiConfig.allowedKeyManagement.get(WifiConfiguration.KeyMgmt.IEEE8021X));
+        assertFalse(wifiConfig.shared);
         assertEquals(realm, wifiEnterpriseConfig.getRealm());
         assertEquals(fqdn, wifiEnterpriseConfig.getDomainSuffixMatch());
         assertEquals(WifiEnterpriseConfig.Eap.SIM, wifiEnterpriseConfig.getEapMethod());

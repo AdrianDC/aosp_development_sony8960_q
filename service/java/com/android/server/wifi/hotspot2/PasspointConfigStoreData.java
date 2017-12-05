@@ -307,6 +307,7 @@ public class PasspointConfigStoreData implements WifiConfigStore.StoreData {
         String clientCertificateAlias = null;
         String clientPrivateKeyAlias = null;
         boolean hasEverConnected = false;
+        boolean shared = false;
         PasspointConfiguration config = null;
         while (XmlUtils.nextElementWithin(in, outerTagDepth)) {
             if (in.getAttributeValue(null, "name") != null) {
@@ -351,7 +352,7 @@ public class PasspointConfigStoreData implements WifiConfigStore.StoreData {
         }
         return new PasspointProvider(config, mKeyStore, mSimAccessor, providerId, creatorUid,
                 caCertificateAlias, clientCertificateAlias, clientPrivateKeyAlias,
-                hasEverConnected);
+                hasEverConnected, shared);
     }
 
     /**
