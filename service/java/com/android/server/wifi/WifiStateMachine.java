@@ -700,8 +700,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     /* Enable/Disable WifiConnectivityManager */
     static final int CMD_ENABLE_WIFI_CONNECTIVITY_MANAGER               = BASE + 166;
 
-    /* Enable/Disable AutoJoin when associated */
-    static final int CMD_ENABLE_AUTOJOIN_WHEN_ASSOCIATED                = BASE + 167;
 
     /* Get all matching Passpoint configurations */
     static final int CMD_GET_ALL_MATCHING_CONFIGS                       = BASE + 168;
@@ -799,8 +797,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      */
     private long mSupplicantScanIntervalMs;
 
-    private boolean mEnableAutoJoinWhenAssociated;
-    private int mAlwaysEnableScansWhileAssociated;
     private final int mThresholdQualifiedRssi24;
     private final int mThresholdQualifiedRssi5;
     private final int mThresholdSaturatedRssi24;
@@ -1040,8 +1036,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 com.android.internal.R.string.config_wifi_tcp_buffers);
 
         // Load Device configs
-        mEnableAutoJoinWhenAssociated = context.getResources().getBoolean(
-                R.bool.config_wifi_framework_enable_associated_network_selection);
         mThresholdQualifiedRssi24 = context.getResources().getInteger(
                 R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_24GHz);
         mThresholdQualifiedRssi5 = context.getResources().getInteger(
@@ -1278,26 +1272,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     public void clearANQPCache() {
         // TODO(b/31065385)
         // mWifiConfigManager.trimANQPCache(true);
-    }
-
-    public void setAllowScansWithTraffic(int enabled) {
-        mAlwaysEnableScansWhileAssociated = enabled;
-    }
-
-    public int getAllowScansWithTraffic() {
-        return mAlwaysEnableScansWhileAssociated;
-    }
-
-    /*
-     * Dynamically turn on/off if switching networks while connected is allowd.
-     */
-    public boolean setEnableAutoJoinWhenAssociated(boolean enabled) {
-        sendMessage(CMD_ENABLE_AUTOJOIN_WHEN_ASSOCIATED, enabled ? 1 : 0);
-        return true;
-    }
-
-    public boolean getEnableAutoJoinWhenAssociated() {
-        return mEnableAutoJoinWhenAssociated;
     }
 
     private boolean setRandomMacOui() {
@@ -4556,15 +4530,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_ENABLE_WIFI_CONNECTIVITY_MANAGER:
                     mWifiConnectivityManager.enable(message.arg1 == 1 ? true : false);
-                    break;
-                case CMD_ENABLE_AUTOJOIN_WHEN_ASSOCIATED:
-                    final boolean allowed = (message.arg1 > 0);
-                    boolean old_state = mEnableAutoJoinWhenAssociated;
-                    mEnableAutoJoinWhenAssociated = allowed;
-                    if (!old_state && allowed && mScreenOn
-                            && getCurrentState() == mConnectedState) {
-                        mWifiConnectivityManager.forceConnectivityScan(WIFI_WORK_SOURCE);
-                    }
                     break;
                 case CMD_SELECT_TX_POWER_SCENARIO:
                     int txPowerScenario = message.arg1;
