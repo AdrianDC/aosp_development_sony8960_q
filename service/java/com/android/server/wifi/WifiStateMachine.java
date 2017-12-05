@@ -29,9 +29,7 @@ import static android.net.wifi.WifiManager.WIFI_STATE_UNKNOWN;
 import static android.telephony.TelephonyManager.CALL_STATE_IDLE;
 import static android.telephony.TelephonyManager.CALL_STATE_OFFHOOK;
 
-import android.Manifest;
 import android.app.ActivityManager;
-import android.app.AppGlobals;
 import android.app.PendingIntent;
 import android.bluetooth.BluetoothAdapter;
 import android.content.BroadcastReceiver;
@@ -39,7 +37,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
-import android.content.pm.IPackageManager;
 import android.content.pm.PackageManager;
 import android.database.ContentObserver;
 import android.net.ConnectivityManager;
@@ -82,7 +79,6 @@ import android.net.wifi.hotspot2.OsuProvider;
 import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.net.wifi.p2p.IWifiP2pManager;
 import android.os.BatteryStats;
-import android.os.Binder;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -128,6 +124,7 @@ import com.android.server.wifi.util.TelephonyUtil;
 import com.android.server.wifi.util.TelephonyUtil.SimAuthRequestData;
 import com.android.server.wifi.util.TelephonyUtil.SimAuthResponseData;
 import com.android.server.wifi.util.WifiPermissionsUtil;
+import com.android.server.wifi.util.WifiPermissionsWrapper;
 
 import java.io.BufferedReader;
 import java.io.FileDescriptor;
@@ -184,7 +181,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private static final String EXTRA_OSU_PROVIDER = "OsuProvider";
 
     private boolean mVerboseLoggingEnabled = false;
-
+    private final WifiPermissionsWrapper mWifiPermissionsWrapper;
     /* debug flag, indicating if handling of ASSOCIATION_REJECT ended up blacklisting
      * the corresponding BSSID.
      */
@@ -947,6 +944,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         mWifiMonitor = mWifiInjector.getWifiMonitor();
         mWifiDiagnostics = mWifiInjector.makeWifiDiagnostics(mWifiNative);
+        mWifiPermissionsWrapper = mWifiInjector.getWifiPermissionsWrapper();
 
         mWifiInfo = new ExtendedWifiInfo();
         mSupplicantStateTracker =
@@ -1737,20 +1735,18 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     /**
      * Get status information for the current connection, if any.
      *
+     * @param callingPackage string indicating the calling package of the caller
+     * @param uid the calling uid
      * @return a {@link WifiInfo} object containing information about the current connection
      */
-    public WifiInfo syncRequestConnectionInfo(String callingPackage) {
-        int uid = Binder.getCallingUid();
+    public WifiInfo syncRequestConnectionInfo(String callingPackage, int uid) {
         WifiInfo result = new WifiInfo(mWifiInfo);
-        if (uid == Process.myUid()) return result;
         boolean hideBssidAndSsid = true;
         result.setMacAddress(WifiInfo.DEFAULT_MAC_ADDRESS);
 
-        IPackageManager packageManager = AppGlobals.getPackageManager();
-
         try {
-            if (packageManager.checkUidPermission(Manifest.permission.LOCAL_MAC_ADDRESS,
-                    uid) == PackageManager.PERMISSION_GRANTED) {
+            if (mWifiPermissionsWrapper.getLocalMacAddressPermission(uid)
+                    == PackageManager.PERMISSION_GRANTED) {
                 result.setMacAddress(mWifiInfo.getMacAddress());
             }
             if (mWifiPermissionsUtil.canAccessScanResults(
