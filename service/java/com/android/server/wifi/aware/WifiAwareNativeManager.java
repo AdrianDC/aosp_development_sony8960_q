@@ -161,9 +161,11 @@ public class WifiAwareNativeManager {
     private class InterfaceAvailableForRequestListener implements
             HalDeviceManager.InterfaceAvailableForRequestListener {
         @Override
-        public void onAvailableForRequest() {
-            if (mDbg) Log.v(TAG, "Interface is possibly available");
-            tryToGetAware();
+        public void onAvailabilityChanged(boolean isAvailable) {
+            if (mDbg) Log.d(TAG, "Interface availability = " + isAvailable);
+            if (isAvailable) {
+                tryToGetAware();
+            }
         }
     }
 

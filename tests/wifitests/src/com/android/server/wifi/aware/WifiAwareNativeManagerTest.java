@@ -109,7 +109,7 @@ public class WifiAwareNativeManagerTest {
         mManagerStatusListenerCaptor.getValue().onStatusChanged();
         mInOrder.verify(mHalDeviceManager).registerInterfaceAvailableForRequestListener(
                 eq(IfaceType.NAN), mAvailListenerCaptor.capture(), any(Handler.class));
-        mAvailListenerCaptor.getValue().onAvailableForRequest();
+        mAvailListenerCaptor.getValue().onAvailabilityChanged(true);
 
         mInOrder.verify(mHalDeviceManager).createNanIface(
                 mDestroyedListenerCaptor.capture(), any());
@@ -118,7 +118,7 @@ public class WifiAwareNativeManagerTest {
         // 3 & 4 onAvailableForRequest + non-null return value: validate that enables usage
         when(mHalDeviceManager.createNanIface(any(), any())).thenReturn(mWifiNanIfaceMock);
 
-        mAvailListenerCaptor.getValue().onAvailableForRequest();
+        mAvailListenerCaptor.getValue().onAvailabilityChanged(true);
 
         mInOrder.verify(mHalDeviceManager).createNanIface(
                 mDestroyedListenerCaptor.capture(), any());
@@ -140,7 +140,7 @@ public class WifiAwareNativeManagerTest {
         mManagerStatusListenerCaptor.getValue().onStatusChanged();
         mInOrder.verify(mHalDeviceManager).registerInterfaceAvailableForRequestListener(
                 eq(IfaceType.NAN), mAvailListenerCaptor.capture(), any(Handler.class));
-        mAvailListenerCaptor.getValue().onAvailableForRequest();
+        mAvailListenerCaptor.getValue().onAvailabilityChanged(true);
 
         mInOrder.verify(mHalDeviceManager).createNanIface(
                 mDestroyedListenerCaptor.capture(), any());
