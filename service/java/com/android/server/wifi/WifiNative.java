@@ -25,7 +25,6 @@ import android.net.wifi.RttManager;
 import android.net.wifi.RttManager.ResponderConfig;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
-import android.net.wifi.WifiLinkLayerStats;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiWakeReasonAndCounts;
 import android.os.SystemClock;

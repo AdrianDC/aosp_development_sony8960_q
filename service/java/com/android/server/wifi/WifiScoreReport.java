@@ -216,7 +216,7 @@ public class WifiScoreReport {
             history = new LinkedList<>(mLinkMetricsHistory);
         }
         pw.println("time,session,rssi,filtered_rssi,rssi_threshold,"
-                + "freq,linkspeed,tx_good,tx_retry,tx_bad,rx,s0,s1,s2");
+                + "freq,linkspeed,tx_good,tx_retry,tx_bad,rx_pps,s0,s1,s2");
         for (String line : history) {
             pw.println(line);
         }

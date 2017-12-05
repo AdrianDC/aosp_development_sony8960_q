@@ -146,6 +146,8 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
         return mThresholdMinimumRssi + mThresholdAdjustment;
     }
 
+    private double mMinimumPpsForMeasuringSuccess = 2.0;
+
     /**
      * Adjusts the threshold if appropriate
      * <p>
@@ -159,11 +161,12 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
         if (mThresholdAdjustment < -7) return;
         if (mFilteredRssi >= getAdjustedRssiThreshold() + 2.0) return;
         if (Math.abs(mEstimatedRateOfRssiChange) >= 0.2) return;
-        if (wifiInfo.txSuccessRate < 10) return;
-        if (wifiInfo.rxSuccessRate < 10) return;
-        double probabilityOfSuccessfulTx = (
-                wifiInfo.txSuccessRate / (wifiInfo.txSuccessRate + wifiInfo.txBadRate)
-        );
+        double txSuccessPps = wifiInfo.txSuccessRate;
+        double rxSuccessPps = wifiInfo.rxSuccessRate;
+        if (txSuccessPps < mMinimumPpsForMeasuringSuccess) return;
+        if (rxSuccessPps < mMinimumPpsForMeasuringSuccess) return;
+        double txBadPps = wifiInfo.txBadRate;
+        double probabilityOfSuccessfulTx = txSuccessPps / (txSuccessPps + txBadPps);
         if (probabilityOfSuccessfulTx >= 0.2) {
             // May want this amount to vary with how close to threshold we are
             mThresholdAdjustment -= 0.5;
