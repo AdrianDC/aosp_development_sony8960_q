@@ -18,18 +18,22 @@
  *  Manage the listen-mode routing table.
  */
 
-#include "RoutingManager.h"
+#include <android-base/stringprintf.h>
 #include <base/logging.h>
 #include <nativehelper/JNIHelp.h>
 #include <nativehelper/ScopedLocalRef.h>
+
 #include "JavaClassConstants.h"
-#include "_OverrideLog.h"
+#include "RoutingManager.h"
 #include "config.h"
 #include "nfa_ce_api.h"
 #include "nfa_ee_api.h"
 
+using android::base::StringPrintf;
+
 extern bool gActivated;
 extern SyncEvent gDeactivatedEvent;
+extern bool nfc_debug_enabled;
 
 const JNINativeMethod RoutingManager::sMethods[] = {
     {"doGetDefaultRouteDestination", "()I",
