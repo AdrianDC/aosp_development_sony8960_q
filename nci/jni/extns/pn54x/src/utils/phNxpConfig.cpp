@@ -25,6 +25,9 @@
 #include <phNxpLog.h>
 
 using android::base::StringPrintf;
+
+extern bool nfc_debug_enabled;
+
 #if GENERIC_TARGET
 const char alternative_config_path[] = "/data/nfc/";
 #else
