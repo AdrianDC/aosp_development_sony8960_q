@@ -17,14 +17,25 @@
 /*
  *  Import and export general routing data using a XML file.
  */
-#include "RouteDataSet.h"
+
+#include <android-base/stringprintf.h>
 #include <base/logging.h>
 #include <errno.h>
 #include <sys/stat.h>
-#include "_OverrideLog.h"
+
+/* NOTE:
+ * This has to be included AFTER the android-base includes since
+ * android-base/macros.h defines ATTRIBUTE_UNUSED, also used in the
+ * tiny XML library.
+ */
+#include "RouteDataSet.h"
+
 #include "libxml/xmlmemory.h"
 
+using android::base::StringPrintf;
+
 extern char bcm_nfc_location[];
+extern bool nfc_debug_enabled;
 
 /*******************************************************************************
 **
