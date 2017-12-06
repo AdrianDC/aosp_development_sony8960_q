@@ -170,8 +170,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     final WifiSettingsStore mSettingsStore;
     /* Logs connection events and some general router and scan stats */
     private final WifiMetrics mWifiMetrics;
-    /* Manages affiliated certificates for current user */
-    private final WifiCertManager mCertManager;
 
     private final WifiInjector mWifiInjector;
     /* Backup/Restore Module */
@@ -433,7 +431,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mPowerManager = mContext.getSystemService(PowerManager.class);
         mAppOps = (AppOpsManager) mContext.getSystemService(Context.APP_OPS_SERVICE);
         mActivityManager = (ActivityManager) mContext.getSystemService(Context.ACTIVITY_SERVICE);
-        mCertManager = mWifiInjector.getWifiCertManager();
         mWifiLockManager = mWifiInjector.getWifiLockManager();
         mWifiMulticastLockManager = mWifiInjector.getWifiMulticastLockManager();
         HandlerThread wifiServiceHandlerThread = mWifiInjector.getWifiServiceHandlerThread();
@@ -1733,12 +1730,19 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public WifiInfo getConnectionInfo(String callingPackage) {
         enforceAccessPermission();
-        mLog.info("getConnectionInfo uid=%").c(Binder.getCallingUid()).flush();
+        int uid = Binder.getCallingUid();
+        mLog.info("getConnectionInfo uid=%").c(uid).flush();
         /*
          * Make sure we have the latest information, by sending
          * a status request to the supplicant.
          */
-        return mWifiStateMachine.syncRequestConnectionInfo(callingPackage);
+        long ident = Binder.clearCallingIdentity();
+        try {
+            WifiInfo result = mWifiStateMachine.syncRequestConnectionInfo(callingPackage, uid);
+            return result;
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
     }
 
     /**
@@ -2410,38 +2414,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         return mWifiStateMachine.getAggressiveHandover();
     }
 
-    @Override
-    public void setAllowScansWithTraffic(int enabled) {
-        enforceAccessPermission();
-        mLog.info("setAllowScansWithTraffic uid=% enabled=%")
-                .c(Binder.getCallingUid())
-                .c(enabled).flush();
-        mWifiStateMachine.setAllowScansWithTraffic(enabled);
-    }
-
-    @Override
-    public int getAllowScansWithTraffic() {
-        enforceAccessPermission();
-        mLog.info("getAllowScansWithTraffic uid=%").c(Binder.getCallingUid()).flush();
-        return mWifiStateMachine.getAllowScansWithTraffic();
-    }
-
-    @Override
-    public boolean setEnableAutoJoinWhenAssociated(boolean enabled) {
-        enforceChangePermission();
-        mLog.info("setEnableAutoJoinWhenAssociated uid=% enabled=%")
-                .c(Binder.getCallingUid())
-                .c(enabled).flush();
-        return mWifiStateMachine.setEnableAutoJoinWhenAssociated(enabled);
-    }
-
-    @Override
-    public boolean getEnableAutoJoinWhenAssociated() {
-        enforceAccessPermission();
-        mLog.info("getEnableAutoJoinWhenAssociated uid=%").c(Binder.getCallingUid()).flush();
-        return mWifiStateMachine.getEnableAutoJoinWhenAssociated();
-    }
-
     /* Return the Wifi Connection statistics object */
     @Override
     public WifiConnectionStatistics getConnectionStatistics() {
@@ -2547,14 +2519,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             sb.append(String.format(" %02x", s.charAt(n) & 0xffff));
         }
         return sb.toString();
-    }
-
-    public void hideCertFromUnaffiliatedUsers(String alias) {
-        mCertManager.hideCertFromUnaffiliatedUsers(alias);
-    }
-
-    public String[] listClientCertsForCurrentUser() {
-        return mCertManager.listClientCertsForCurrentUser();
     }
 
     /**

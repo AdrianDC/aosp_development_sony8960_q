@@ -1485,7 +1485,7 @@ public class HalDeviceManager {
             for (int type: IFACE_TYPES_BY_PRIORITY) {
                 if (chipInfo.ifaces[type].length != 0) {
                     if (!allowedToDeleteIfaceTypeForRequestedType(type, ifaceType,
-                            chipInfo.ifaces[ifaceType].length != 0)) {
+                            chipInfo.ifaces)) {
                         if (DBG) {
                             Log.d(TAG, "Couldn't delete existing type " + type
                                     + " interfaces for requested type");
@@ -1515,8 +1515,7 @@ public class HalDeviceManager {
             }
 
             if (tooManyInterfaces > 0) { // may need to delete some
-                if (!allowedToDeleteIfaceTypeForRequestedType(type, ifaceType,
-                        chipInfo.ifaces[ifaceType].length != 0)) {
+                if (!allowedToDeleteIfaceTypeForRequestedType(type, ifaceType, chipInfo.ifaces)) {
                     if (DBG) {
                         Log.d(TAG, "Would need to delete some higher priority interfaces");
                     }
@@ -1592,37 +1591,48 @@ public class HalDeviceManager {
      * Returns true if we're allowed to delete the existing interface type for the requested
      * interface type.
      *
-     * Rules:
-     * 1. Request for AP or STA will destroy any other interface (except see #4 and #5)
-     * 2. Request for P2P will destroy NAN-only
-     * 3. Request for NAN will not destroy any interface
-     * --
-     * 4. No interface will be destroyed for a requested interface of the same type
-     * 5. No interface will be destroyed if one of the requested interfaces already exists
+     * Rules - applies in order:
+     *
+     * General rules:
+     * 1. No interface will be destroyed for a requested interface of the same type
+     * 2. No interface will be destroyed if one of the requested interfaces already exists
+     * 3. If there are >1 interface of an existing type, then it is ok to destroy that type
+     *    interface
+     *
+     * Type-specific rules (but note that the general rules are appied first):
+     * 4. Request for AP or STA will destroy any other interface
+     * 5. Request for P2P will destroy NAN-only (but will destroy a second STA per #3)
+     * 6. Request for NAN will not destroy any interface (but will destroy a second STA per #3)
+
      */
     private boolean allowedToDeleteIfaceTypeForRequestedType(int existingIfaceType,
-            int requestedIfaceType, boolean requestedIfaceTypeAlreadyExists) {
-        // rule 5
-        if (requestedIfaceTypeAlreadyExists) {
-            return false;
-        }
-
-        // rule 4
+            int requestedIfaceType, WifiIfaceInfo[][] currentIfaces) {
+        // rule 1
         if (existingIfaceType == requestedIfaceType) {
             return false;
         }
 
+        // rule 2
+        if (currentIfaces[requestedIfaceType].length != 0) {
+            return false;
+        }
+
         // rule 3
+        if (currentIfaces[existingIfaceType].length > 1) {
+            return true;
+        }
+
+        // rule 6
         if (requestedIfaceType == IfaceType.NAN) {
             return false;
         }
 
-        // rule 2
+        // rule 5
         if (requestedIfaceType == IfaceType.P2P) {
             return existingIfaceType == IfaceType.NAN;
         }
 
-        // rule 1, the requestIfaceType is either AP or STA
+        // rule 4, the requestIfaceType is either AP or STA
         return true;
     }
 

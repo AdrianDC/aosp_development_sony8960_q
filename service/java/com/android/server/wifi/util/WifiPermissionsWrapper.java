@@ -108,4 +108,16 @@ public class WifiPermissionsWrapper {
         return AppGlobals.getPackageManager().checkUidPermission(
                 Manifest.permission.CHANGE_WIFI_STATE, uid);
     }
+
+    /**
+     * Determines if the caller has local mac address permission.
+     *
+     * @param uid to check the permission for
+     * @return int representation of success or denied
+     * @throws RemoteException
+     */
+    public int getLocalMacAddressPermission(int uid) throws RemoteException {
+        return AppGlobals.getPackageManager().checkUidPermission(
+                Manifest.permission.LOCAL_MAC_ADDRESS, uid);
+    }
 }
