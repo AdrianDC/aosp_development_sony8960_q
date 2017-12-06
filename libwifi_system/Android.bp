@@ -29,7 +29,7 @@ cc_defaults {
 
 // Device independent wifi system logic.
 // ============================================================
-cc_library_shared {
+cc_library {
     name: "libwifi-system",
     defaults: ["libwifi-system-defaults"],
     export_include_dirs: ["include"],

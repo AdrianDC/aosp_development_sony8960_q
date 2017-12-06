@@ -37,6 +37,8 @@ import com.android.server.wifi.hotspot2.PasspointManager;
 import com.android.server.wifi.hotspot2.PasspointMatch;
 import com.android.server.wifi.hotspot2.PasspointProvider;
 import com.android.server.wifi.nano.WifiMetricsProto;
+import com.android.server.wifi.nano.WifiMetricsProto.ConnectToNetworkNotificationAndActionCount;
+import com.android.server.wifi.nano.WifiMetricsProto.PnoScanMetrics;
 import com.android.server.wifi.nano.WifiMetricsProto.StaEvent;
 import com.android.server.wifi.nano.WifiMetricsProto.StaEvent.ConfigInfo;
 import com.android.server.wifi.util.InformationElementUtil;
@@ -82,10 +84,12 @@ public class WifiMetrics {
     public static final int MAX_CONNECTABLE_BSSID_NETWORK_BUCKET = 50;
     public static final int MAX_TOTAL_SCAN_RESULT_SSIDS_BUCKET = 100;
     public static final int MAX_TOTAL_SCAN_RESULTS_BUCKET = 250;
+    private static final int CONNECT_TO_NETWORK_NOTIFICATION_ACTION_KEY_MULTIPLIER = 1000;
     private Clock mClock;
     private boolean mScreenOn;
     private int mWifiState;
     private WifiAwareMetrics mWifiAwareMetrics;
+    private final PnoScanMetrics mPnoScanMetrics = new PnoScanMetrics();
     private Handler mHandler;
     private WifiConfigManager mWifiConfigManager;
     private WifiNetworkSelector mWifiNetworkSelector;
@@ -147,6 +151,15 @@ public class WifiMetrics {
             new SparseIntArray();
     private final SparseIntArray mAvailableSavedPasspointProviderBssidsInScanHistogram =
             new SparseIntArray();
+
+    /** Mapping of "Connect to Network" notifications to counts. */
+    private final SparseIntArray mConnectToNetworkNotificationCount = new SparseIntArray();
+    /** Mapping of "Connect to Network" notification user actions to counts. */
+    private final SparseIntArray mConnectToNetworkNotificationActionCount = new SparseIntArray();
+    private int mOpenNetworkRecommenderBlacklistSize = 0;
+    private boolean mIsWifiNetworksAvailableNotificationOn = false;
+    private int mNumOpenNetworkConnectMessageFailedToSend = 0;
+    private int mNumOpenNetworkRecommendationUpdates = 0;
 
     class RouterFingerPrint {
         private WifiMetricsProto.RouterFingerPrint mRouterFingerPrintProto;
@@ -405,6 +418,51 @@ public class WifiMetrics {
     /** Sets internal PasspointManager member */
     public void setPasspointManager(PasspointManager passpointManager) {
         mPasspointManager = passpointManager;
+    }
+
+    /**
+     * Increment total number of attempts to start a pno scan
+     */
+    public void incrementPnoScanStartAttempCount() {
+        synchronized (mLock) {
+            mPnoScanMetrics.numPnoScanAttempts++;
+        }
+    }
+
+    /**
+     * Increment total number of attempts with pno scan failed
+     */
+    public void incrementPnoScanFailedCount() {
+        synchronized (mLock) {
+            mPnoScanMetrics.numPnoScanFailed++;
+        }
+    }
+
+    /**
+     * Increment number of pno scans started successfully over offload
+     */
+    public void incrementPnoScanStartedOverOffloadCount() {
+        synchronized (mLock) {
+            mPnoScanMetrics.numPnoScanStartedOverOffload++;
+        }
+    }
+
+    /**
+     * Increment number of pno scans failed over offload
+     */
+    public void incrementPnoScanFailedOverOffloadCount() {
+        synchronized (mLock) {
+            mPnoScanMetrics.numPnoScanFailedOverOffload++;
+        }
+    }
+
+    /**
+     * Increment number of times pno scan found a result
+     */
+    public void incrementPnoFoundNetworkEventCount() {
+        synchronized (mLock) {
+            mPnoScanMetrics.numPnoFoundNetworkEvents++;
+        }
     }
 
     // Values used for indexing SystemStateEntries
@@ -1190,6 +1248,55 @@ public class WifiMetrics {
         }
     }
 
+    /** Increments the occurence of a "Connect to Network" notification. */
+    public void incrementConnectToNetworkNotification(int notificationType) {
+        synchronized (mLock) {
+            int count = mConnectToNetworkNotificationCount.get(notificationType);
+            mConnectToNetworkNotificationCount.put(notificationType, count + 1);
+        }
+    }
+
+    /** Increments the occurence of an "Connect to Network" notification user action. */
+    public void incrementConnectToNetworkNotificationAction(int notificationType, int actionType) {
+        synchronized (mLock) {
+            int key = notificationType * CONNECT_TO_NETWORK_NOTIFICATION_ACTION_KEY_MULTIPLIER
+                    + actionType;
+            int count = mConnectToNetworkNotificationActionCount.get(key);
+            mConnectToNetworkNotificationActionCount.put(key, count + 1);
+        }
+    }
+
+    /**
+     * Sets the number of SSIDs blacklisted from recommendation by the open network notification
+     * recommender.
+     */
+    public void setOpenNetworkRecommenderBlacklistSize(int size) {
+        synchronized (mLock) {
+            mOpenNetworkRecommenderBlacklistSize = size;
+        }
+    }
+
+    /** Sets if the available network notification feature is enabled. */
+    public void setIsWifiNetworksAvailableNotificationEnabled(boolean enabled) {
+        synchronized (mLock) {
+            mIsWifiNetworksAvailableNotificationOn = enabled;
+        }
+    }
+
+    /** Increments the occurence of connection attempts that were initiated unsuccessfully */
+    public void incrementNumOpenNetworkRecommendationUpdates() {
+        synchronized (mLock) {
+            mNumOpenNetworkRecommendationUpdates++;
+        }
+    }
+
+    /** Increments the occurence of connection attempts that were initiated unsuccessfully */
+    public void incrementNumOpenNetworkConnectMessageFailedToSend() {
+        synchronized (mLock) {
+            mNumOpenNetworkConnectMessageFailedToSend++;
+        }
+    }
+
     public static final String PROTO_DUMP_ARG = "wifiMetricsProto";
     public static final String CLEAN_DUMP_ARG = "clean";
 
@@ -1388,8 +1495,8 @@ public class WifiMetrics {
                 pw.println("mWifiLogProto.numWifiOnFailureDueToWificond="
                         + mWifiLogProto.numWifiOnFailureDueToWificond);
                 pw.println("StaEventList:");
-                for (StaEvent event : mStaEventList) {
-                    pw.println(staEventToString(event));
+                for (StaEventWithTime event : mStaEventList) {
+                    pw.println(event);
                 }
 
                 pw.println("mWifiLogProto.numPasspointProviders="
@@ -1430,6 +1537,30 @@ public class WifiMetrics {
                         + mWifiLogProto.fullBandAllSingleScanListenerResults);
                 pw.println("mWifiAwareMetrics:");
                 mWifiAwareMetrics.dump(fd, pw, args);
+
+                pw.println("mPnoScanMetrics.numPnoScanAttempts="
+                        + mPnoScanMetrics.numPnoScanAttempts);
+                pw.println("mPnoScanMetrics.numPnoScanFailed="
+                        + mPnoScanMetrics.numPnoScanFailed);
+                pw.println("mPnoScanMetrics.numPnoScanStartedOverOffload="
+                        + mPnoScanMetrics.numPnoScanStartedOverOffload);
+                pw.println("mPnoScanMetrics.numPnoScanFailedOverOffload="
+                        + mPnoScanMetrics.numPnoScanFailedOverOffload);
+                pw.println("mPnoScanMetrics.numPnoFoundNetworkEvents="
+                        + mPnoScanMetrics.numPnoFoundNetworkEvents);
+
+                pw.println("mWifiLogProto.connectToNetworkNotificationCount="
+                        + mConnectToNetworkNotificationCount.toString());
+                pw.println("mWifiLogProto.connectToNetworkNotificationActionCount="
+                        + mConnectToNetworkNotificationActionCount.toString());
+                pw.println("mWifiLogProto.openNetworkRecommenderBlacklistSize="
+                        + mOpenNetworkRecommenderBlacklistSize);
+                pw.println("mWifiLogProto.isWifiNetworksAvailableNotificationOn="
+                        + mIsWifiNetworksAvailableNotificationOn);
+                pw.println("mWifiLogProto.numOpenNetworkRecommendationUpdates="
+                        + mNumOpenNetworkRecommendationUpdates);
+                pw.println("mWifiLogProto.numOpenNetworkConnectMessageFailedToSend="
+                        + mNumOpenNetworkConnectMessageFailedToSend);
             }
         }
     }
@@ -1605,6 +1736,14 @@ public class WifiMetrics {
                 mWifiLogProto.softApReturnCode[sapCode].count =
                         mSoftApManagerReturnCodeCounts.valueAt(sapCode);
             }
+
+            /**
+             * Convert StaEventList to array of StaEvents
+             */
+            mWifiLogProto.staEventList = new StaEvent[mStaEventList.size()];
+            for (int i = 0; i < mStaEventList.size(); i++) {
+                mWifiLogProto.staEventList[i] = mStaEventList.get(i).staEvent;
+            }
             mWifiLogProto.totalSsidsInScanHistogram =
                     makeNumConnectableNetworksBucketArray(mTotalSsidsInScanHistogram);
             mWifiLogProto.totalBssidsInScanHistogram =
@@ -1629,8 +1768,56 @@ public class WifiMetrics {
             mWifiLogProto.availableSavedPasspointProviderBssidsInScanHistogram =
                     makeNumConnectableNetworksBucketArray(
                     mAvailableSavedPasspointProviderBssidsInScanHistogram);
-            mWifiLogProto.staEventList = mStaEventList.toArray(mWifiLogProto.staEventList);
             mWifiLogProto.wifiAwareLog = mWifiAwareMetrics.consolidateProto();
+
+            mWifiLogProto.pnoScanMetrics = mPnoScanMetrics;
+
+            /**
+             * Convert the SparseIntArray of "Connect to Network" notification types and counts to
+             * proto's repeated IntKeyVal array.
+             */
+            ConnectToNetworkNotificationAndActionCount[] notificationCountArray =
+                    new ConnectToNetworkNotificationAndActionCount[
+                            mConnectToNetworkNotificationCount.size()];
+            for (int i = 0; i < mConnectToNetworkNotificationCount.size(); i++) {
+                ConnectToNetworkNotificationAndActionCount keyVal =
+                        new ConnectToNetworkNotificationAndActionCount();
+                keyVal.notification = mConnectToNetworkNotificationCount.keyAt(i);
+                keyVal.recommender =
+                        ConnectToNetworkNotificationAndActionCount.RECOMMENDER_OPEN;
+                keyVal.count = mConnectToNetworkNotificationCount.valueAt(i);
+                notificationCountArray[i] = keyVal;
+            }
+            mWifiLogProto.connectToNetworkNotificationCount = notificationCountArray;
+
+            /**
+             * Convert the SparseIntArray of "Connect to Network" notification types and counts to
+             * proto's repeated IntKeyVal array.
+             */
+            ConnectToNetworkNotificationAndActionCount[] notificationActionCountArray =
+                    new ConnectToNetworkNotificationAndActionCount[
+                            mConnectToNetworkNotificationActionCount.size()];
+            for (int i = 0; i < mConnectToNetworkNotificationActionCount.size(); i++) {
+                ConnectToNetworkNotificationAndActionCount keyVal =
+                        new ConnectToNetworkNotificationAndActionCount();
+                int key = mConnectToNetworkNotificationActionCount.keyAt(i);
+                keyVal.notification = key / CONNECT_TO_NETWORK_NOTIFICATION_ACTION_KEY_MULTIPLIER;
+                keyVal.action = key % CONNECT_TO_NETWORK_NOTIFICATION_ACTION_KEY_MULTIPLIER;
+                keyVal.recommender =
+                        ConnectToNetworkNotificationAndActionCount.RECOMMENDER_OPEN;
+                keyVal.count = mConnectToNetworkNotificationActionCount.valueAt(i);
+                notificationActionCountArray[i] = keyVal;
+            }
+            mWifiLogProto.connectToNetworkNotificationActionCount = notificationActionCountArray;
+
+            mWifiLogProto.openNetworkRecommenderBlacklistSize =
+                    mOpenNetworkRecommenderBlacklistSize;
+            mWifiLogProto.isWifiNetworksAvailableNotificationOn =
+                    mIsWifiNetworksAvailableNotificationOn;
+            mWifiLogProto.numOpenNetworkRecommendationUpdates =
+                    mNumOpenNetworkRecommendationUpdates;
+            mWifiLogProto.numOpenNetworkConnectMessageFailedToSend =
+                    mNumOpenNetworkConnectMessageFailedToSend;
         }
     }
 
@@ -1649,7 +1836,8 @@ public class WifiMetrics {
     }
 
     /**
-     * Clear all WifiMetrics, except for currentConnectionEvent.
+     * Clear all WifiMetrics, except for currentConnectionEvent and Open Network Notification
+     * feature enabled state, blacklist size.
      */
     private void clear() {
         synchronized (mLock) {
@@ -1679,6 +1867,11 @@ public class WifiMetrics {
             mAvailableOpenOrSavedBssidsInScanHistogram.clear();
             mAvailableSavedPasspointProviderProfilesInScanHistogram.clear();
             mAvailableSavedPasspointProviderBssidsInScanHistogram.clear();
+            mPnoScanMetrics.clear();
+            mConnectToNetworkNotificationCount.clear();
+            mConnectToNetworkNotificationActionCount.clear();
+            mNumOpenNetworkRecommendationUpdates = 0;
+            mNumOpenNetworkConnectMessageFailedToSend = 0;
         }
     }
 
@@ -1826,7 +2019,7 @@ public class WifiMetrics {
         mLastPollRssi = -127;
         mLastPollFreq = -1;
         mLastPollLinkSpeed = -1;
-        mStaEventList.add(staEvent);
+        mStaEventList.add(new StaEventWithTime(staEvent, mClock.getWallClockMillis()));
         // Prune StaEventList if it gets too long
         if (mStaEventList.size() > MAX_STA_EVENTS) mStaEventList.remove();
     }
@@ -1903,7 +2096,7 @@ public class WifiMetrics {
 
     private static String supplicantStateChangesBitmaskToString(int mask) {
         StringBuilder sb = new StringBuilder();
-        sb.append("SUPPLICANT_STATE_CHANGE_EVENTS: {");
+        sb.append("supplicantStateChangeEvents: {");
         if ((mask & (1 << StaEvent.STATE_DISCONNECTED)) > 0) sb.append(" DISCONNECTED");
         if ((mask & (1 << StaEvent.STATE_INTERFACE_DISABLED)) > 0) sb.append(" INTERFACE_DISABLED");
         if ((mask & (1 << StaEvent.STATE_INACTIVE)) > 0) sb.append(" INACTIVE");
@@ -1928,58 +2121,56 @@ public class WifiMetrics {
     public static String staEventToString(StaEvent event) {
         if (event == null) return "<NULL>";
         StringBuilder sb = new StringBuilder();
-        Long time = event.startTimeMillis;
-        sb.append(String.format("%9d ", time.longValue())).append(" ");
         switch (event.type) {
             case StaEvent.TYPE_ASSOCIATION_REJECTION_EVENT:
-                sb.append("ASSOCIATION_REJECTION_EVENT:")
+                sb.append("ASSOCIATION_REJECTION_EVENT")
                         .append(" timedOut=").append(event.associationTimedOut)
                         .append(" status=").append(event.status).append(":")
                         .append(ISupplicantStaIfaceCallback.StatusCode.toString(event.status));
                 break;
             case StaEvent.TYPE_AUTHENTICATION_FAILURE_EVENT:
-                sb.append("AUTHENTICATION_FAILURE_EVENT: reason=").append(event.authFailureReason)
+                sb.append("AUTHENTICATION_FAILURE_EVENT reason=").append(event.authFailureReason)
                         .append(":").append(authFailureReasonToString(event.authFailureReason));
                 break;
             case StaEvent.TYPE_NETWORK_CONNECTION_EVENT:
-                sb.append("NETWORK_CONNECTION_EVENT:");
+                sb.append("NETWORK_CONNECTION_EVENT");
                 break;
             case StaEvent.TYPE_NETWORK_DISCONNECTION_EVENT:
-                sb.append("NETWORK_DISCONNECTION_EVENT:")
+                sb.append("NETWORK_DISCONNECTION_EVENT")
                         .append(" local_gen=").append(event.localGen)
                         .append(" reason=").append(event.reason).append(":")
                         .append(ISupplicantStaIfaceCallback.ReasonCode.toString(
                                 (event.reason >= 0 ? event.reason : -1 * event.reason)));
                 break;
             case StaEvent.TYPE_CMD_ASSOCIATED_BSSID:
-                sb.append("CMD_ASSOCIATED_BSSID:");
+                sb.append("CMD_ASSOCIATED_BSSID");
                 break;
             case StaEvent.TYPE_CMD_IP_CONFIGURATION_SUCCESSFUL:
-                sb.append("CMD_IP_CONFIGURATION_SUCCESSFUL:");
+                sb.append("CMD_IP_CONFIGURATION_SUCCESSFUL");
                 break;
             case StaEvent.TYPE_CMD_IP_CONFIGURATION_LOST:
-                sb.append("CMD_IP_CONFIGURATION_LOST:");
+                sb.append("CMD_IP_CONFIGURATION_LOST");
                 break;
             case StaEvent.TYPE_CMD_IP_REACHABILITY_LOST:
-                sb.append("CMD_IP_REACHABILITY_LOST:");
+                sb.append("CMD_IP_REACHABILITY_LOST");
                 break;
             case StaEvent.TYPE_CMD_TARGET_BSSID:
-                sb.append("CMD_TARGET_BSSID:");
+                sb.append("CMD_TARGET_BSSID");
                 break;
             case StaEvent.TYPE_CMD_START_CONNECT:
-                sb.append("CMD_START_CONNECT:");
+                sb.append("CMD_START_CONNECT");
                 break;
             case StaEvent.TYPE_CMD_START_ROAM:
-                sb.append("CMD_START_ROAM:");
+                sb.append("CMD_START_ROAM");
                 break;
             case StaEvent.TYPE_CONNECT_NETWORK:
-                sb.append("CONNECT_NETWORK:");
+                sb.append("CONNECT_NETWORK");
                 break;
             case StaEvent.TYPE_NETWORK_AGENT_VALID_NETWORK:
-                sb.append("NETWORK_AGENT_VALID_NETWORK:");
+                sb.append("NETWORK_AGENT_VALID_NETWORK");
                 break;
             case StaEvent.TYPE_FRAMEWORK_DISCONNECT:
-                sb.append("FRAMEWORK_DISCONNECT:")
+                sb.append("FRAMEWORK_DISCONNECT")
                         .append(" reason=")
                         .append(frameworkDisconnectReasonToString(event.frameworkDisconnectReason));
                 break;
@@ -1991,11 +2182,11 @@ public class WifiMetrics {
         if (event.lastFreq != -1) sb.append(" lastFreq=").append(event.lastFreq);
         if (event.lastLinkSpeed != -1) sb.append(" lastLinkSpeed=").append(event.lastLinkSpeed);
         if (event.supplicantStateChangesBitmask != 0) {
-            sb.append("\n             ").append(supplicantStateChangesBitmaskToString(
+            sb.append(", ").append(supplicantStateChangesBitmaskToString(
                     event.supplicantStateChangesBitmask));
         }
         if (event.configInfo != null) {
-            sb.append("\n             ").append(configInfoToString(event.configInfo));
+            sb.append(", ").append(configInfoToString(event.configInfo));
         }
 
         return sb.toString();
@@ -2053,7 +2244,7 @@ public class WifiMetrics {
     }
 
     public static final int MAX_STA_EVENTS = 512;
-    private LinkedList<StaEvent> mStaEventList = new LinkedList<StaEvent>();
+    private LinkedList<StaEventWithTime> mStaEventList = new LinkedList<StaEventWithTime>();
     private int mLastPollRssi = -127;
     private int mLastPollLinkSpeed = -1;
     private int mLastPollFreq = -1;
@@ -2084,5 +2275,28 @@ public class WifiMetrics {
     private void increment(SparseIntArray sia, int element) {
         int count = sia.get(element);
         sia.put(element, count + 1);
+    }
+
+    private static class StaEventWithTime {
+        public StaEvent staEvent;
+        public long wallClockMillis;
+
+        StaEventWithTime(StaEvent event, long wallClockMillis) {
+            staEvent = event;
+            this.wallClockMillis = wallClockMillis;
+        }
+
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            Calendar c = Calendar.getInstance();
+            c.setTimeInMillis(wallClockMillis);
+            if (wallClockMillis != 0) {
+                sb.append(String.format("%tm-%td %tH:%tM:%tS.%tL", c, c, c, c, c, c));
+            } else {
+                sb.append("                  ");
+            }
+            sb.append(" ").append(staEventToString(staEvent));
+            return sb.toString();
+        }
     }
 }

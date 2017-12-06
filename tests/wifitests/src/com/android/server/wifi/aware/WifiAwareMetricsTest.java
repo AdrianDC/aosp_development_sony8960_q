@@ -655,8 +655,7 @@ public class WifiAwareMetricsTest {
         WifiAwareDataPathStateManager.AwareNetworkRequestInformation anri =
                 new WifiAwareDataPathStateManager.AwareNetworkRequestInformation();
         anri.networkSpecifier = ns;
-        anri.state = WifiAwareDataPathStateManager.AwareNetworkRequestInformation
-                .STATE_RESPONDER_CONFIRMED;
+        anri.state = WifiAwareDataPathStateManager.AwareNetworkRequestInformation.STATE_CONFIRMED;
         anri.uid = uid;
         anri.interfaceName = interfaceName;
 

@@ -227,7 +227,16 @@ public class WifiNative {
      * Returns an empty ArrayList on failure.
      */
     public ArrayList<ScanDetail> getScanResults() {
-        return mWificondControl.getScanResults();
+        return mWificondControl.getScanResults(WificondControl.SCAN_TYPE_SINGLE_SCAN);
+    }
+
+    /**
+     * Fetch the latest scan result from kernel via wificond.
+     * @return Returns an ArrayList of ScanDetail.
+     * Returns an empty ArrayList on failure.
+     */
+    public ArrayList<ScanDetail> getPnoScanResults() {
+        return mWificondControl.getScanResults(WificondControl.SCAN_TYPE_PNO_SCAN);
     }
 
     /**
@@ -1533,26 +1542,6 @@ public class WifiNative {
      */
     public boolean getRxPktFates(RxFateReport[] reportBufs) {
         return mWifiVendorHal.getRxPktFates(reportBufs);
-    }
-
-    /**
-     * Set the PNO settings & the network list in HAL to start PNO.
-     * @param settings PNO settings and network list.
-     * @param eventHandler Handler to receive notifications back during PNO scan.
-     * @return true if success, false otherwise
-     */
-    public boolean setPnoList(PnoSettings settings, PnoEventHandler eventHandler) {
-        Log.e(mTAG, "setPnoList not supported");
-        return false;
-    }
-
-    /**
-     * Reset the PNO settings in HAL to stop PNO.
-     * @return true if success, false otherwise
-     */
-    public boolean resetPnoList() {
-        Log.e(mTAG, "resetPnoList not supported");
-        return false;
     }
 
     /**

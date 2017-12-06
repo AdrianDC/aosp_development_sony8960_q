@@ -320,10 +320,7 @@ public class WifiAwareMetrics {
                 networkRequestCache.values()) {
             if (anri.state
                     != WifiAwareDataPathStateManager.AwareNetworkRequestInformation
-                    .STATE_INITIATOR_CONFIRMED
-                    && anri.state
-                    != WifiAwareDataPathStateManager.AwareNetworkRequestInformation
-                    .STATE_RESPONDER_CONFIRMED) {
+                    .STATE_CONFIRMED) {
                 continue; // only count completed (up-and-running) NDPs
             }
 

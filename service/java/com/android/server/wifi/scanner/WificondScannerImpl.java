@@ -422,11 +422,22 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
                 mPendingSingleScanEventHandler = null;
             }
 
-            if ((newScanSettings.backgroundScanActive || newScanSettings.singleScanActive)
-                    && !allFreqs.isEmpty()) {
-                pauseHwPnoScan();
-                Set<Integer> freqs = allFreqs.getScanFreqs();
-                boolean success = mWifiNative.scan(freqs, hiddenNetworkSSIDSet);
+            if (newScanSettings.backgroundScanActive || newScanSettings.singleScanActive) {
+                boolean success = false;
+                Set<Integer> freqs;
+                if (!allFreqs.isEmpty()) {
+                    pauseHwPnoScan();
+                    freqs = allFreqs.getScanFreqs();
+                    success = mWifiNative.scan(freqs, hiddenNetworkSSIDSet);
+                    if (!success) {
+                        Log.e(TAG, "Failed to start scan, freqs=" + freqs);
+                    }
+                } else {
+                    // There is a scan request but no available channels could be scanned for.
+                    // We regard it as a scan failure in this case.
+                    Log.e(TAG, "Failed to start scan because there is "
+                            + "no available channel to scan for");
+                }
                 if (success) {
                     // TODO handle scan timeout
                     if (DBG) {
@@ -439,7 +450,6 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
                             mClock.getElapsedSinceBootMillis() + SCAN_TIMEOUT_MS,
                             TIMEOUT_ALARM_TAG, mScanTimeoutListener, mEventHandler);
                 } else {
-                    Log.e(TAG, "Failed to start scan, freqs=" + freqs);
                     // indicate scan failure async
                     mEventHandler.post(new Runnable() {
                             public void run() {
@@ -538,7 +548,7 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
                  // got a scan before we started scanning or after scan was canceled
                 return;
             }
-            mNativeScanResults = mWifiNative.getScanResults();
+            mNativeScanResults = mWifiNative.getPnoScanResults();
             List<ScanResult> hwPnoScanResults = new ArrayList<>();
             int numFilteredScanResults = 0;
             for (int i = 0; i < mNativeScanResults.size(); ++i) {
