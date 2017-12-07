@@ -54,7 +54,6 @@ import android.hardware.wifi.V1_0.WifiDebugTxPacketFateReport;
 import android.hardware.wifi.V1_0.WifiInformationElement;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
-import android.net.KeepalivePacketData;
 import android.net.apf.ApfCapabilities;
 import android.net.wifi.RttManager;
 import android.net.wifi.RttManager.ResponderConfig;
@@ -2186,17 +2185,18 @@ public class WifiVendorHal {
      * @param ifaceName Name of the interface.
      * @param slot
      * @param srcMac
+     * @param dstMac
      * @param keepAlivePacket
+     * @param protocol
      * @param periodInMs
      * @return 0 for success, -1 for error
      */
     public int startSendingOffloadedPacket(
-            @NonNull String ifaceName, int slot, byte[] srcMac,
-            KeepalivePacketData keepAlivePacket, int periodInMs) {
+            @NonNull String ifaceName, int slot, byte[] srcMac, byte[] dstMac,
+            byte[] packet, int protocol, int periodInMs) {
         enter("slot=% periodInMs=%").c(slot).c(periodInMs).flush();
 
-        ArrayList<Byte> data = NativeUtil.byteArrayToArrayList(keepAlivePacket.data);
-        short protocol = (short) (keepAlivePacket.protocol);
+        ArrayList<Byte> data = NativeUtil.byteArrayToArrayList(packet);
 
         synchronized (sLock) {
             IWifiStaIface iface = getStaIface(ifaceName);
@@ -2205,9 +2205,9 @@ public class WifiVendorHal {
                 WifiStatus status = iface.startSendingKeepAlivePackets(
                         slot,
                         data,
-                        protocol,
+                        (short) protocol,
                         srcMac,
-                        keepAlivePacket.dstMac,
+                        dstMac,
                         periodInMs);
                 if (!ok(status)) return -1;
                 return 0;
