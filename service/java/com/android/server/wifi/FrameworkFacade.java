@@ -79,6 +79,17 @@ public class FrameworkFacade {
                 contentObserver);
     }
 
+    /**
+     * Helper method for classes to unregister a ContentObserver
+     * {@see ContentResolver#unregisterContentObserver(ContentObserver)}.
+     *
+     * @param context
+     * @param contentObserver
+     */
+    public void unregisterContentObserver(Context context, ContentObserver contentObserver) {
+        context.getContentResolver().unregisterContentObserver(contentObserver);
+    }
+
     public IBinder getService(String serviceName) {
         return ServiceManager.getService(serviceName);
     }

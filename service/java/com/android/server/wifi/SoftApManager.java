@@ -23,21 +23,27 @@ import static com.android.server.wifi.util.ApConfigUtil.SUCCESS;
 import android.annotation.NonNull;
 import android.content.Context;
 import android.content.Intent;
+import android.database.ContentObserver;
 import android.net.InterfaceConfiguration;
 import android.net.wifi.IApInterface;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
+import android.os.Handler;
 import android.os.INetworkManagementService;
 import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
+import android.os.SystemClock;
 import android.os.UserHandle;
+import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
 
+import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
+import com.android.internal.util.WakeupMessage;
 import com.android.server.net.BaseNetworkObserver;
 import com.android.server.wifi.WifiNative.SoftApListener;
 import com.android.server.wifi.util.ApConfigUtil;
@@ -51,8 +57,15 @@ import java.util.Locale;
 public class SoftApManager implements ActiveModeManager {
     private static final String TAG = "SoftApManager";
 
-    private final Context mContext;
+    // Minimum limit to use for timeout delay if the value from overlay setting is too small.
+    private static final int MIN_SOFT_AP_TIMEOUT_DELAY_MS = 600_000;  // 10 minutes
 
+    @VisibleForTesting
+    public static final String SOFT_AP_SEND_MESSAGE_TIMEOUT_TAG = TAG
+            + " Soft AP Send Message Timeout";
+
+    private final Context mContext;
+    private final FrameworkFacade mFrameworkFacade;
     private final WifiNative mWifiNative;
 
     private final String mCountryCode;
@@ -72,8 +85,9 @@ public class SoftApManager implements ActiveModeManager {
     private final int mMode;
     private WifiConfiguration mApConfig;
 
-    private int mNumAssociatedStations = 0;
-
+    /**
+     * Listener for soft AP events.
+     */
     private final SoftApListener mSoftApListener = new SoftApListener() {
         @Override
         public void onNumAssociatedStationsChanged(int numStations) {
@@ -81,7 +95,6 @@ public class SoftApManager implements ActiveModeManager {
                     SoftApStateMachine.CMD_NUM_ASSOCIATED_STATIONS_CHANGED, numStations);
         }
     };
-
 
     /**
      * Listener for soft AP state changes.
@@ -97,6 +110,7 @@ public class SoftApManager implements ActiveModeManager {
 
     public SoftApManager(Context context,
                          Looper looper,
+                         FrameworkFacade framework,
                          WifiNative wifiNative,
                          String countryCode,
                          Listener listener,
@@ -107,6 +121,7 @@ public class SoftApManager implements ActiveModeManager {
                          @NonNull SoftApModeConfiguration apConfig,
                          WifiMetrics wifiMetrics) {
         mContext = context;
+        mFrameworkFacade = framework;
         mWifiNative = wifiNative;
         mCountryCode = countryCode;
         mListener = listener;
@@ -137,29 +152,6 @@ public class SoftApManager implements ActiveModeManager {
      */
     public void stop() {
         mStateMachine.sendMessage(SoftApStateMachine.CMD_STOP);
-    }
-
-    /**
-     * Get number of stations associated with this soft AP
-     */
-    @VisibleForTesting
-    public int getNumAssociatedStations() {
-        return mNumAssociatedStations;
-    }
-
-    /**
-     * Set number of stations associated with this soft AP
-     * @param numStations Number of connected stations
-     */
-    private void setNumAssociatedStations(int numStations) {
-        if (mNumAssociatedStations == numStations) {
-            return;
-        }
-        mNumAssociatedStations = numStations;
-        Log.d(TAG, "Number of associated stations changed: " + mNumAssociatedStations);
-
-        // TODO:(b/63906412) send it up to settings.
-        mWifiMetrics.addSoftApNumAssociatedStationsChangedEvent(mNumAssociatedStations, mMode);
     }
 
     /**
@@ -252,6 +244,8 @@ public class SoftApManager implements ActiveModeManager {
         public static final int CMD_WIFICOND_BINDER_DEATH = 2;
         public static final int CMD_INTERFACE_STATUS_CHANGED = 3;
         public static final int CMD_NUM_ASSOCIATED_STATIONS_CHANGED = 4;
+        public static final int CMD_NO_ASSOCIATED_STATIONS_TIMEOUT = 5;
+        public static final int CMD_TIMEOUT_TOGGLE_CHANGED = 6;
 
         private final State mIdleState = new IdleState();
         private final State mStartedState = new StartedState();
@@ -312,7 +306,6 @@ public class SoftApManager implements ActiveModeManager {
                         }
                         updateApState(WifiManager.WIFI_AP_STATE_ENABLING,
                                 WifiManager.WIFI_AP_STATE_DISABLED, 0);
-                        setNumAssociatedStations(0);
                         if (!mWifiNative.registerWificondDeathHandler(mWificondDeathRecipient)) {
                             updateApState(WifiManager.WIFI_AP_STATE_FAILED,
                                     WifiManager.WIFI_AP_STATE_ENABLING,
@@ -374,6 +367,92 @@ public class SoftApManager implements ActiveModeManager {
         private class StartedState extends State {
             private boolean mIfaceIsUp;
 
+            private int mNumAssociatedStations;
+
+            private boolean mTimeoutEnabled;
+            private int mTimeoutDelay;
+            private WakeupMessage mSoftApTimeoutMessage;
+            private SoftApTimeoutEnabledSettingObserver mSettingObserver;
+
+            /**
+            * Observer for timeout settings changes.
+            */
+            private class SoftApTimeoutEnabledSettingObserver extends ContentObserver {
+                SoftApTimeoutEnabledSettingObserver(Handler handler) {
+                    super(handler);
+                }
+
+                public void register() {
+                    mFrameworkFacade.registerContentObserver(mContext,
+                            Settings.Global.getUriFor(Settings.Global.SOFT_AP_TIMEOUT_ENABLED),
+                            true, this);
+                    mTimeoutEnabled = getValue();
+                }
+
+                public void unregister() {
+                    mFrameworkFacade.unregisterContentObserver(mContext, this);
+                }
+
+                @Override
+                public void onChange(boolean selfChange) {
+                    super.onChange(selfChange);
+                    mStateMachine.sendMessage(SoftApStateMachine.CMD_TIMEOUT_TOGGLE_CHANGED,
+                            getValue() ? 1 : 0);
+                }
+
+                private boolean getValue() {
+                    boolean enabled = mFrameworkFacade.getIntegerSetting(mContext,
+                            Settings.Global.SOFT_AP_TIMEOUT_ENABLED, 1) == 1;
+                    return enabled;
+                }
+            }
+
+            private int getConfigSoftApTimeoutDelay() {
+                int delay = mContext.getResources().getInteger(
+                        R.integer.config_wifi_framework_soft_ap_timeout_delay);
+                if (delay < MIN_SOFT_AP_TIMEOUT_DELAY_MS) {
+                    delay = MIN_SOFT_AP_TIMEOUT_DELAY_MS;
+                    Log.w(TAG, "Overriding timeout delay with minimum limit value");
+                }
+                Log.d(TAG, "Timeout delay: " + delay);
+                return delay;
+            }
+
+            private void scheduleTimeoutMessage() {
+                if (!mTimeoutEnabled) {
+                    return;
+                }
+                mSoftApTimeoutMessage.schedule(SystemClock.elapsedRealtime() + mTimeoutDelay);
+                Log.d(TAG, "Timeout message scheduled");
+            }
+
+            private void cancelTimeoutMessage() {
+                mSoftApTimeoutMessage.cancel();
+                Log.d(TAG, "Timeout message canceled");
+            }
+
+            /**
+             * Set number of stations associated with this soft AP
+             * @param numStations Number of connected stations
+             */
+            private void setNumAssociatedStations(int numStations) {
+                if (mNumAssociatedStations == numStations) {
+                    return;
+                }
+                mNumAssociatedStations = numStations;
+                Log.d(TAG, "Number of associated stations changed: " + mNumAssociatedStations);
+
+                // TODO:(b/63906412) send it up to settings.
+                mWifiMetrics.addSoftApNumAssociatedStationsChangedEvent(mNumAssociatedStations,
+                        mMode);
+
+                if (mNumAssociatedStations == 0) {
+                    scheduleTimeoutMessage();
+                } else {
+                    cancelTimeoutMessage();
+                }
+            }
+
             private void onUpChanged(boolean isUp) {
                 if (isUp == mIfaceIsUp) {
                     return;  // no change
@@ -387,9 +466,7 @@ public class SoftApManager implements ActiveModeManager {
                 } else {
                     // TODO: handle the case where the interface was up, but goes down
                 }
-
                 mWifiMetrics.addSoftApUpChangedEvent(isUp, mMode);
-                setNumAssociatedStations(0);
             }
 
             @Override
@@ -403,6 +480,30 @@ public class SoftApManager implements ActiveModeManager {
                 if (config != null) {
                     onUpChanged(config.isUp());
                 }
+
+                mTimeoutDelay = getConfigSoftApTimeoutDelay();
+                Handler handler = mStateMachine.getHandler();
+                mSoftApTimeoutMessage = new WakeupMessage(mContext, handler,
+                        SOFT_AP_SEND_MESSAGE_TIMEOUT_TAG,
+                        SoftApStateMachine.CMD_NO_ASSOCIATED_STATIONS_TIMEOUT);
+                mSettingObserver = new SoftApTimeoutEnabledSettingObserver(handler);
+
+                if (mSettingObserver != null) {
+                    mSettingObserver.register();
+                }
+                Log.d(TAG, "Resetting num stations on start");
+                mNumAssociatedStations = 0;
+                scheduleTimeoutMessage();
+            }
+
+            @Override
+            public void exit() {
+                if (mSettingObserver != null) {
+                    mSettingObserver.unregister();
+                }
+                Log.d(TAG, "Resetting num stations on stop");
+                mNumAssociatedStations = 0;
+                cancelTimeoutMessage();
             }
 
             @Override
@@ -413,7 +514,21 @@ public class SoftApManager implements ActiveModeManager {
                             Log.e(TAG, "Invalid number of associated stations: " + message.arg1);
                             break;
                         }
+                        Log.d(TAG, "Setting num stations on CMD_NUM_ASSOCIATED_STATIONS_CHANGED");
                         setNumAssociatedStations(message.arg1);
+                        break;
+                    case CMD_TIMEOUT_TOGGLE_CHANGED:
+                        boolean isEnabled = (message.arg1 == 1);
+                        if (mTimeoutEnabled == isEnabled) {
+                            break;
+                        }
+                        mTimeoutEnabled = isEnabled;
+                        if (!mTimeoutEnabled) {
+                            cancelTimeoutMessage();
+                        }
+                        if (mTimeoutEnabled && mNumAssociatedStations == 0) {
+                            scheduleTimeoutMessage();
+                        }
                         break;
                     case CMD_INTERFACE_STATUS_CHANGED:
                         if (message.obj != mNetworkObserver) {
@@ -426,11 +541,21 @@ public class SoftApManager implements ActiveModeManager {
                     case CMD_START:
                         // Already started, ignore this command.
                         break;
+                    case CMD_NO_ASSOCIATED_STATIONS_TIMEOUT:
+                        if (!mTimeoutEnabled) {
+                            Log.wtf(TAG, "Timeout message received while timeout is disabled."
+                                    + " Dropping.");
+                            break;
+                        }
+                        if (mNumAssociatedStations != 0) {
+                            Log.wtf(TAG, "Timeout message received but has clients. Dropping.");
+                            break;
+                        }
+                        Log.i(TAG, "Timeout message received. Stopping soft AP.");
                     case CMD_WIFICOND_BINDER_DEATH:
                     case CMD_STOP:
                         updateApState(WifiManager.WIFI_AP_STATE_DISABLING,
                                 WifiManager.WIFI_AP_STATE_ENABLED, 0);
-                        setNumAssociatedStations(0);
                         stopSoftAp();
                         if (message.what == CMD_WIFICOND_BINDER_DEATH) {
                             updateApState(WifiManager.WIFI_AP_STATE_FAILED,
