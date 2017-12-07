@@ -380,7 +380,7 @@ public class WifiInjector {
                                            @NonNull IApInterface apInterface,
                                            @NonNull String ifaceName,
                                            @NonNull SoftApModeConfiguration config) {
-        return new SoftApManager(mContext, mWifiServiceHandlerThread.getLooper(),
+        return new SoftApManager(mContext, mWifiStateMachineHandlerThread.getLooper(),
                                  mWifiNative, mCountryCode.getCountryCode(),
                                  listener, apInterface, ifaceName, nmService,
                                  mWifiApConfigStore, config, mWifiMetrics);

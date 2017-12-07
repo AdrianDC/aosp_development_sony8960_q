@@ -106,8 +106,6 @@ public class SoftApManager implements ActiveModeManager {
                          WifiApConfigStore wifiApConfigStore,
                          @NonNull SoftApModeConfiguration apConfig,
                          WifiMetrics wifiMetrics) {
-        mStateMachine = new SoftApStateMachine(looper);
-
         mContext = context;
         mWifiNative = wifiNative;
         mCountryCode = countryCode;
@@ -124,6 +122,7 @@ public class SoftApManager implements ActiveModeManager {
             mApConfig = config;
         }
         mWifiMetrics = wifiMetrics;
+        mStateMachine = new SoftApStateMachine(looper);
     }
 
     /**
