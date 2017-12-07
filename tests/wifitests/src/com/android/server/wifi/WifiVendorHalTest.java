@@ -60,6 +60,7 @@ import android.net.wifi.WifiWakeReasonAndCounts;
 import android.os.Looper;
 import android.os.RemoteException;
 import android.os.test.TestLooper;
+import android.system.OsConstants;
 import android.util.Pair;
 
 import com.android.server.wifi.util.NativeUtil;
@@ -956,6 +957,7 @@ public class WifiVendorHalTest {
     @Test
     public void testStartSendingOffloadedPacket() throws Exception {
         byte[] srcMac = NativeUtil.macAddressToByteArray("4007b2088c81");
+        byte[] dstMac = NativeUtil.macAddressToByteArray("4007b8675309");
         InetAddress src = InetAddress.parseNumericAddress("192.168.13.13");
         InetAddress dst = InetAddress.parseNumericAddress("93.184.216.34");
         int slot = 13;
@@ -968,7 +970,9 @@ public class WifiVendorHalTest {
         )).thenReturn(mWifiStatusSuccess);
 
         assertTrue(mWifiVendorHal.startVendorHalSta());
-        assertTrue(0 == mWifiVendorHal.startSendingOffloadedPacket(slot, srcMac, kap, millis));
+        assertTrue(0 == mWifiVendorHal.startSendingOffloadedPacket(
+                slot, srcMac, dstMac, kap.getPacket(),
+                OsConstants.ETH_P_IPV6, millis));
 
         verify(mIWifiStaIface).startSendingKeepAlivePackets(
                 eq(slot), any(), anyShort(), any(), any(), eq(millis));

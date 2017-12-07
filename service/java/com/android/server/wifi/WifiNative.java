@@ -36,6 +36,7 @@ import android.util.SparseArray;
 import com.android.internal.annotations.Immutable;
 import com.android.internal.util.HexDump;
 import com.android.server.wifi.util.FrameParser;
+import com.android.server.wifi.util.NativeUtil;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -1548,20 +1549,17 @@ public class WifiNative {
      * Start sending the specified keep alive packets periodically.
      *
      * @param slot Integer used to identify each request.
-     * @param keepAlivePacket Raw packet contents to send.
+     * @param dstMac Destination MAC Address
+     * @param packet Raw packet contents to send.
+     * @param protocol The ethernet protocol type
      * @param period Period to use for sending these packets.
      * @return 0 for success, -1 for error
      */
-    public int startSendingOffloadedPacket(int slot, KeepalivePacketData keepAlivePacket,
-                                           int period) {
-        String[] macAddrStr = getMacAddress().split(":");
-        byte[] srcMac = new byte[6];
-        for (int i = 0; i < 6; i++) {
-            Integer hexVal = Integer.parseInt(macAddrStr[i], 16);
-            srcMac[i] = hexVal.byteValue();
-        }
+    public int startSendingOffloadedPacket(int slot, byte[] dstMac,
+                                           byte[] packet, int protocol, int period) {
+        byte[] srcMac = NativeUtil.macAddressToByteArray(getMacAddress());
         return mWifiVendorHal.startSendingOffloadedPacket(
-                slot, srcMac, keepAlivePacket, period);
+                slot, srcMac, dstMac, packet, protocol, period);
     }
 
     /**
