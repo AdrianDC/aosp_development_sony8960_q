@@ -16,13 +16,18 @@
 
 #include "NfcJniUtil.h"
 
+#include <android-base/stringprintf.h>
+#include <base/logging.h>
 #include <errno.h>
-
 #include <log/log.h>
 #include <nativehelper/JNIHelp.h>
 #include <nativehelper/ScopedLocalRef.h>
+
 #include "RoutingManager.h"
-#include "_OverrideLog.h"
+
+using android::base::StringPrintf;
+
+extern bool nfc_debug_enabled;
 
 /*******************************************************************************
 **
