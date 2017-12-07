@@ -28,6 +28,7 @@
 #include <base/logging.h>
 
 using android::base::StringPrintf;
+
 /*******************************************************************************
 **
 ** Function:        CondVar

@@ -24,8 +24,10 @@
 #include <errno.h>
 #include <string.h>
 
+#include <android-base/stringprintf.h>
 #include <base/logging.h>
-#include "_OverrideLog.h"
+
+using android::base::StringPrintf;
 
 /*******************************************************************************
 **
