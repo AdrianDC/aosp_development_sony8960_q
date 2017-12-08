@@ -289,12 +289,42 @@ public class SupplicantStaIfaceHal {
      * @return true on success, false otherwise.
      */
     public boolean setupIface(@NonNull String ifaceName) {
+        ISupplicantIface ifaceHwBinder;
+        if (isV1_1()) {
+            ifaceHwBinder = addIfaceV1_1(ifaceName);
+        } else {
+            ifaceHwBinder = getIfaceV1_0(ifaceName);
+        }
+        if (ifaceHwBinder == null) {
+            Log.e(TAG, "setupIface got null iface");
+            return false;
+        }
+        ISupplicantStaIface iface = getStaIfaceMockable(ifaceHwBinder);
+        if (!linkToSupplicantStaIfaceDeath(iface)) {
+            return false;
+        }
+        ISupplicantStaIfaceCallback callback = new SupplicantStaIfaceHalCallback(ifaceName);
+        if (!registerCallback(iface, callback)) {
+            return false;
+        }
+        mISupplicantStaIfaces.put(ifaceName, iface);
+        mISupplicantStaIfaceCallbacks.put(ifaceName, callback);
+        return true;
+    }
+
+    /**
+     * Get a STA interface for the specified iface name.
+     *
+     * @param ifaceName Name of the interface.
+     * @return true on success, false otherwise.
+     */
+    private ISupplicantIface getIfaceV1_0(@NonNull String ifaceName) {
         synchronized (mLock) {
             /** List all supplicant Ifaces */
             final ArrayList<ISupplicant.IfaceInfo> supplicantIfaces = new ArrayList<>();
             try {
                 mISupplicant.listInterfaces((SupplicantStatus status,
-                        ArrayList<ISupplicant.IfaceInfo> ifaces) -> {
+                                             ArrayList<ISupplicant.IfaceInfo> ifaces) -> {
                     if (status.code != SupplicantStatusCode.SUCCESS) {
                         Log.e(TAG, "Getting Supplicant Interfaces failed: " + status.code);
                         return;
@@ -304,11 +334,11 @@ public class SupplicantStaIfaceHal {
             } catch (RemoteException e) {
                 Log.e(TAG, "ISupplicant.listInterfaces exception: " + e);
                 supplicantServiceDiedHandler(ifaceName);
-                return false;
+                return null;
             }
             if (supplicantIfaces.size() == 0) {
                 Log.e(TAG, "Got zero HIDL supplicant ifaces. Stopping supplicant HIDL startup.");
-                return false;
+                return null;
             }
             Mutable<ISupplicantIface> supplicantIface = new Mutable<>();
             for (ISupplicant.IfaceInfo ifaceInfo : supplicantIfaces) {
@@ -316,34 +346,100 @@ public class SupplicantStaIfaceHal {
                     try {
                         mISupplicant.getInterface(ifaceInfo,
                                 (SupplicantStatus status, ISupplicantIface iface) -> {
-                                if (status.code != SupplicantStatusCode.SUCCESS) {
-                                    Log.e(TAG, "Failed to get ISupplicantIface " + status.code);
-                                    return;
-                                }
-                                supplicantIface.value = iface;
-                            });
+                                    if (status.code != SupplicantStatusCode.SUCCESS) {
+                                        Log.e(TAG, "Failed to get ISupplicantIface " + status.code);
+                                        return;
+                                    }
+                                    supplicantIface.value = iface;
+                                });
                     } catch (RemoteException e) {
                         Log.e(TAG, "ISupplicant.getInterface exception: " + e);
                         supplicantServiceDiedHandler(ifaceName);
-                        return false;
+                        return null;
                     }
                     break;
                 }
             }
-            if (supplicantIface.value == null) {
-                Log.e(TAG, "setupSupplicantStaIface got null iface");
+            return supplicantIface.value;
+        }
+    }
+
+    /**
+     * Create a STA interface for the specified iface name.
+     *
+     * @param ifaceName Name of the interface.
+     * @return true on success, false otherwise.
+     */
+    private ISupplicantIface addIfaceV1_1(@NonNull String ifaceName) {
+        synchronized (mLock) {
+            ISupplicant.IfaceInfo ifaceInfo = new ISupplicant.IfaceInfo();
+            ifaceInfo.name = ifaceName;
+            ifaceInfo.type = IfaceType.STA;
+            Mutable<ISupplicantIface> supplicantIface = new Mutable<>();
+            try {
+                getSupplicantMockableV1_1().addInterface(ifaceInfo,
+                        (SupplicantStatus status, ISupplicantIface iface) -> {
+                            if (status.code != SupplicantStatusCode.SUCCESS
+                                    && status.code != SupplicantStatusCode.FAILURE_IFACE_EXISTS) {
+                                Log.e(TAG, "Failed to create ISupplicantIface " + status.code);
+                                return;
+                            }
+                            supplicantIface.value = iface;
+                        });
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicant.createInterface exception: " + e);
+                supplicantServiceDiedHandler(ifaceName);
+                return null;
+            }
+            return supplicantIface.value;
+        }
+    }
+
+    /**
+     * Teardown a STA interface for the specified iface name.
+     *
+     * @param ifaceName Name of the interface.
+     * @return true on success, false otherwise.
+     */
+    public boolean teardownIface(@NonNull String ifaceName) {
+        synchronized (mLock) {
+            if (isV1_1()) {
+                if (!removeIfaceV1_1(ifaceName)) {
+                    Log.e(TAG, "Failed to remove iface = " + ifaceName);
+                    return false;
+                }
+            }
+            if (mISupplicantStaIfaces.remove(ifaceName) == null) {
+                Log.e(TAG, "Trying to teardown unknown inteface");
                 return false;
             }
-            ISupplicantStaIface iface = getStaIfaceMockable(supplicantIface.value);
-            if (!linkToSupplicantStaIfaceDeath(iface)) {
+            mISupplicantStaIfaceCallbacks.remove(ifaceName);
+            return true;
+        }
+    }
+
+    /**
+     * Remove a STA interface for the specified iface name.
+     *
+     * @param ifaceName Name of the interface.
+     * @return true on success, false otherwise.
+     */
+    private boolean removeIfaceV1_1(@NonNull String ifaceName) {
+        synchronized (mLock) {
+            try {
+                ISupplicant.IfaceInfo ifaceInfo = new ISupplicant.IfaceInfo();
+                ifaceInfo.name = ifaceName;
+                ifaceInfo.type = IfaceType.STA;
+                SupplicantStatus status = getSupplicantMockableV1_1().removeInterface(ifaceInfo);
+                if (status.code != SupplicantStatusCode.SUCCESS) {
+                    Log.e(TAG, "Failed to remove iface " + status.code);
+                    return false;
+                }
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicant.getInterface exception: " + e);
+                supplicantServiceDiedHandler(ifaceName);
                 return false;
             }
-            ISupplicantStaIfaceCallback callback = new SupplicantStaIfaceHalCallback(ifaceName);
-            if (!registerCallback(iface, callback)) {
-                return false;
-            }
-            mISupplicantStaIfaces.put(ifaceName, iface);
-            mISupplicantStaIfaceCallbacks.put(ifaceName, callback);
             return true;
         }
     }
@@ -374,23 +470,6 @@ public class SupplicantStaIfaceHal {
         return true;
     }
 
-    /**
-     * Teardown a STA interface for the specified iface name.
-     *
-     * @param ifaceName Name of the interface.
-     * @return true on success, false otherwise.
-     */
-    public boolean teardownIface(@NonNull String ifaceName) {
-        synchronized (mLock) {
-            if (mISupplicantStaIfaces.remove(ifaceName) == null) {
-                return false;
-            }
-            mISupplicantStaIfaceCallbacks.remove(ifaceName);
-            // TODO(b/69162019): There are no HIDL calls to bring down interfaces
-            // from wpa_supplicant yet!
-            return true;
-        }
-    }
 
     private void clearState() {
         synchronized (mLock) {
@@ -453,9 +532,33 @@ public class SupplicantStaIfaceHal {
         }
     }
 
+    protected android.hardware.wifi.supplicant.V1_1.ISupplicant getSupplicantMockableV1_1()
+            throws RemoteException {
+        synchronized (mLock) {
+            return android.hardware.wifi.supplicant.V1_1.ISupplicant.castFrom(
+                    ISupplicant.getService());
+        }
+    }
+
     protected ISupplicantStaIface getStaIfaceMockable(ISupplicantIface iface) {
         synchronized (mLock) {
             return ISupplicantStaIface.asInterface(iface.asBinder());
+        }
+    }
+
+    /**
+     * Check if the device is running V1_1 supplicant service.
+     * @return
+     */
+    private boolean isV1_1() {
+        synchronized (mLock) {
+            try {
+                return (getSupplicantMockableV1_1() != null);
+            } catch (RemoteException e) {
+                Log.e(TAG, "ISupplicant.getService exception: " + e);
+                supplicantServiceDiedHandler();
+                return false;
+            }
         }
     }
 
