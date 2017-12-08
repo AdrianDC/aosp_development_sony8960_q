@@ -18,6 +18,8 @@ package com.android.server.wifi;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.content.Context;
@@ -29,12 +31,18 @@ import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintWriter;
+
 /**
  * Unit tests for {@link WakeupController}.
  */
 public class WakeupControllerTest {
 
     @Mock private Context mContext;
+    @Mock private WakeupLock mWakeupLock;
+    @Mock private WifiConfigManager mWifiConfigManager;
+    @Mock private WifiConfigStore mWifiConfigStore;
     @Mock private FrameworkFacade mFrameworkFacade;
 
     private TestLooper mLooper;
@@ -47,6 +55,11 @@ public class WakeupControllerTest {
         mLooper = new TestLooper();
     }
 
+    private WakeupController newWakeupController() {
+        return new WakeupController(mContext, mLooper.getLooper(), mWakeupLock, mWifiConfigManager,
+                mWifiConfigStore, mFrameworkFacade);
+    }
+
     /**
      * Verify WakeupController is enabled when the settings toggle is true.
      */
@@ -54,8 +67,7 @@ public class WakeupControllerTest {
     public void verifyEnabledWhenToggledOn() {
         when(mFrameworkFacade.getIntegerSetting(mContext,
                 Settings.Global.WIFI_WAKEUP_ENABLED, 0)).thenReturn(1);
-        mWakeupController = new WakeupController(mContext, mLooper.getLooper(),
-                mFrameworkFacade);
+        mWakeupController = newWakeupController();
 
         assertTrue(mWakeupController.isEnabled());
     }
@@ -67,9 +79,30 @@ public class WakeupControllerTest {
     public void verifyDisabledWhenToggledOff() {
         when(mFrameworkFacade.getIntegerSetting(mContext,
                 Settings.Global.WIFI_WAKEUP_ENABLED, 0)).thenReturn(0);
-        mWakeupController = new WakeupController(mContext, mLooper.getLooper(),
-                mFrameworkFacade);
+        mWakeupController = newWakeupController();
 
         assertFalse(mWakeupController.isEnabled());
+    }
+
+    /**
+     * Verify WakeupController registers its store data with the WifiConfigStore on construction.
+     */
+    @Test
+    public void registersWakeupConfigStoreData() {
+        mWakeupController = newWakeupController();
+        verify(mWifiConfigStore).registerStoreData(any(WakeupConfigStoreData.class));
+    }
+
+    /**
+     * Verify that dump calls also dump the state of the WakeupLock.
+     */
+    @Test
+    public void dumpIncludesWakeupLock() {
+        mWakeupController = newWakeupController();
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        PrintWriter writer = new PrintWriter(stream);
+        mWakeupController.dump(null, writer, null);
+
+        verify(mWakeupLock).dump(null, writer, null);
     }
 }

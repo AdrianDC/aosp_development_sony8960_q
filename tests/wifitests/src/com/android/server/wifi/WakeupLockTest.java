@@ -18,9 +18,13 @@ package com.android.server.wifi;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -35,6 +39,8 @@ public class WakeupLockTest {
     private static final String SSID_1 = "ssid1";
     private static final String SSID_2 = "ssid2";
 
+    @Mock private WifiConfigManager mWifiConfigManager;
+
     private ScanResultMatchInfo mNetwork1;
     private ScanResultMatchInfo mNetwork2;
     private WakeupLock mWakeupLock;
@@ -44,6 +50,8 @@ public class WakeupLockTest {
      */
     @Before
     public void setUp() {
+        MockitoAnnotations.initMocks(this);
+
         mNetwork1 = new ScanResultMatchInfo();
         mNetwork1.networkSsid = SSID_1;
         mNetwork1.networkType = ScanResultMatchInfo.NETWORK_TYPE_OPEN;
@@ -52,7 +60,7 @@ public class WakeupLockTest {
         mNetwork2.networkSsid = SSID_2;
         mNetwork2.networkType = ScanResultMatchInfo.NETWORK_TYPE_EAP;
 
-        mWakeupLock = new WakeupLock();
+        mWakeupLock = new WakeupLock(mWifiConfigManager);
     }
 
     /**
@@ -64,6 +72,18 @@ public class WakeupLockTest {
     private void updateEnoughTimesToEvictWithAsserts(Collection<ScanResultMatchInfo> networks) {
         for (int i = 0; i < WakeupLock.CONSECUTIVE_MISSED_SCANS_REQUIRED_TO_EVICT; i++) {
             assertFalse("Lock empty after " + i + " scans", mWakeupLock.isEmpty());
+            mWakeupLock.update(networks);
+        }
+    }
+
+    /**
+     * Updates the lock enough times to evict any networks not passed in.
+     *
+     * <p>It calls update {@link WakeupLock#CONSECUTIVE_MISSED_SCANS_REQUIRED_TO_EVICT} times with
+     * the given network list. It does not make any assertions about the state of the lock.
+     */
+    private void updateEnoughTimesToEvictWithoutAsserts(Collection<ScanResultMatchInfo> networks) {
+        for (int i = 0; i < WakeupLock.CONSECUTIVE_MISSED_SCANS_REQUIRED_TO_EVICT; i++) {
             mWakeupLock.update(networks);
         }
     }
@@ -160,5 +180,35 @@ public class WakeupLockTest {
 
         updateEnoughTimesToEvictWithAsserts(Collections.singletonList(mNetwork2));
         assertTrue(mWakeupLock.isEmpty());
+    }
+
+    /**
+     * Verify that initializing the lock persists the SSID list to the config store.
+     */
+    @Test
+    public void initializeShouldSaveSsidsToStore() {
+        mWakeupLock.initialize(Collections.singletonList(mNetwork1));
+        verify(mWifiConfigManager).saveToStore(eq(false));
+    }
+
+    /**
+     * Verify that update saves to store if the lock changes.
+     */
+    @Test
+    public void updateShouldOnlySaveIfLockChanges() {
+        mWakeupLock.initialize(Collections.singletonList(mNetwork1));
+        updateEnoughTimesToEvictWithoutAsserts(Collections.emptyList());
+
+        // need exactly 2 invocations: 1 for initialize, 1 for successful update
+        verify(mWifiConfigManager, times(2)).saveToStore(eq(false));
+    }
+
+    /**
+     * Verify that update does not save to store if the lock does not change.
+     */
+    @Test
+    public void updateShouldNotSaveIfLockDoesNotChange() {
+        mWakeupLock.update(Collections.singletonList(mNetwork1));
+        verify(mWifiConfigManager, never()).saveToStore(anyBoolean());
     }
 }

@@ -45,8 +45,10 @@ public class WakeupConfigStoreData implements StoreData {
 
     /**
      * Interface defining a data source for the store data.
+     *
+     * @param <T> Type of data source
      */
-    interface DataSource<T> {
+    public interface DataSource<T> {
         /**
          * Returns the data from the data source.
          */

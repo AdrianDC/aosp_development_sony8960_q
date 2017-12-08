@@ -376,6 +376,7 @@ public class WifiStateMachineTest {
     @Mock IProvisioningCallback mProvisioningCallback;
     @Mock HandlerThread mWifiServiceHandlerThread;
     @Mock WifiPermissionsWrapper mWifiPermissionsWrapper;
+    @Mock WakeupController mWakeupController;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -422,6 +423,7 @@ public class WifiStateMachineTest {
         when(mWifiServiceHandlerThread.getLooper()).thenReturn(mLooper.getLooper());
         when(mWifiInjector.getWifiServiceHandlerThread()).thenReturn(mWifiServiceHandlerThread);
         when(mWifiInjector.getWifiPermissionsWrapper()).thenReturn(mWifiPermissionsWrapper);
+        when(mWifiInjector.getWakeupController()).thenReturn(mWakeupController);
 
         when(mWifiNative.setupForClientMode(WIFI_IFACE_NAME))
                 .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mClientInterface));
@@ -2828,5 +2830,16 @@ public class WifiStateMachineTest {
         WifiConfiguration currentConfig = new WifiConfiguration();
         currentConfig.networkId = lastSelectedNetworkId - 1;
         assertFalse(mWsm.shouldEvaluateWhetherToSendExplicitlySelected(currentConfig));
+    }
+
+    /**
+     * Verify that WSM dump includes WakeupController.
+     */
+    @Test
+    public void testDumpShouldDumpWakeupController() {
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        PrintWriter writer = new PrintWriter(stream);
+        mWsm.dump(null, writer, null);
+        verify(mWakeupController).dump(null, writer, null);
     }
 }
