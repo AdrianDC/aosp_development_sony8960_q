@@ -35,6 +35,7 @@ import com.android.server.wifi.util.ScanResultUtil;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -53,6 +54,7 @@ public class WakeupControllerTest {
 
     @Mock private Context mContext;
     @Mock private WakeupLock mWakeupLock;
+    @Mock private WakeupEvaluator mWakeupEvaluator;
     @Mock private WifiConfigStore mWifiConfigStore;
     @Mock private WifiInjector mWifiInjector;
     @Mock private WifiScanner mWifiScanner;
@@ -79,6 +81,7 @@ public class WakeupControllerTest {
         mWakeupController = new WakeupController(mContext,
                 mLooper.getLooper(),
                 mWakeupLock,
+                mWakeupEvaluator,
                 mWifiConfigManager,
                 mWifiConfigStore,
                 mWifiInjector,
@@ -242,5 +245,69 @@ public class WakeupControllerTest {
         initializeWakeupController(true /* enabled */);
         mWakeupController.start();
         verify(mWakeupLock).initialize(eq(expectedMatchInfos));
+    }
+
+    /**
+     * Verify that onResults updates the WakeupLock.
+     */
+    @Test
+    public void onResultsUpdatesWakeupLock() {
+        ScanResult scanResult = new ScanResult();
+        scanResult.SSID = "open ssid 1";
+        scanResult.capabilities = "";
+        ScanResult[] scanResults = new ScanResult[1];
+        scanResults[0] = scanResult;
+
+        // scanlistener input
+        WifiScanner.ScanData[] scanDatas = new WifiScanner.ScanData[1];
+        scanDatas[0] = new WifiScanner.ScanData(0 /* id */, 0 /* flags */, 0 /* bucketsScanned */,
+                true /* allChannelsScanned */, scanResults);
+
+        initializeWakeupController(true /* enabled */);
+        mWakeupController.start();
+
+        ArgumentCaptor<WifiScanner.ScanListener> scanListenerArgumentCaptor =
+                ArgumentCaptor.forClass(WifiScanner.ScanListener.class);
+
+        verify(mWifiScanner).registerScanListener(scanListenerArgumentCaptor.capture());
+        WifiScanner.ScanListener scanListener = scanListenerArgumentCaptor.getValue();
+
+        scanListener.onResults(scanDatas);
+
+        ScanResultMatchInfo expectedMatchInfo = ScanResultMatchInfo.fromScanResult(scanResult);
+        verify(mWakeupLock).update(eq(Collections.singleton(expectedMatchInfo)));
+    }
+
+    /**
+     * Verify that the controller searches for viable networks during onResults when WakeupLock is
+     * empty.
+     */
+    @Test
+    public void onResultsSearchesForViableNetworkWhenWakeupLockIsEmpty() {
+        ScanResult scanResult = new ScanResult();
+        scanResult.SSID = "open ssid 1";
+        scanResult.capabilities = "";
+        ScanResult[] scanResults = new ScanResult[1];
+        scanResults[0] = scanResult;
+
+        // scanlistener input
+        WifiScanner.ScanData[] scanDatas = new WifiScanner.ScanData[1];
+        scanDatas[0] = new WifiScanner.ScanData(0 /* id */, 0 /* flags */, 0 /* bucketsScanned */,
+                true /* allChannelsScanned */, scanResults);
+
+        // empty wakeup lock
+        when(mWakeupLock.isEmpty()).thenReturn(true);
+
+        initializeWakeupController(true /* enabled */);
+        mWakeupController.start();
+
+        ArgumentCaptor<WifiScanner.ScanListener> scanListenerArgumentCaptor =
+                ArgumentCaptor.forClass(WifiScanner.ScanListener.class);
+
+        verify(mWifiScanner).registerScanListener(scanListenerArgumentCaptor.capture());
+        WifiScanner.ScanListener scanListener = scanListenerArgumentCaptor.getValue();
+
+        scanListener.onResults(scanDatas);
+        verify(mWakeupEvaluator).findViableNetwork(any(), any());
     }
 }
