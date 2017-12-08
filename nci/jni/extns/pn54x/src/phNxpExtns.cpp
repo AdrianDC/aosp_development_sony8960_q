@@ -28,7 +28,7 @@
 
 using android::base::StringPrintf;
 
-static phNxpExtns_Context_t gphNxpExtns_Context;
+extern phNxpExtns_Context_t gphNxpExtns_Context;
 extern phFriNfc_NdefMap_t* NdefMap;
 extern phNci_mfc_auth_cmd_t gAuthCmdBuf;
 
