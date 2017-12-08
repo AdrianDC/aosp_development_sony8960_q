@@ -35,11 +35,10 @@ import android.hardware.wifi.V1_0.RttStatus;
 import android.hardware.wifi.V1_0.RttType;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
+import android.net.MacAddress;
 import android.net.wifi.rtt.RangingRequest;
 
 import com.android.server.wifi.HalDeviceManager;
-
-import libcore.util.HexEncoding;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -118,19 +117,19 @@ public class RttNativeTest {
 
         RttConfig rttConfig = halRequest.get(0);
         collector.checkThat("entry 0: MAC", rttConfig.addr,
-                equalTo(HexEncoding.decode("000102030400".toCharArray(), false)));
+                equalTo(MacAddress.fromString("00:01:02:03:04:00").toByteArray()));
         collector.checkThat("entry 0: MAC", rttConfig.type, equalTo(RttType.TWO_SIDED));
         collector.checkThat("entry 0: MAC", rttConfig.peer, equalTo(RttPeerType.AP));
 
         rttConfig = halRequest.get(1);
         collector.checkThat("entry 1: MAC", rttConfig.addr,
-                equalTo(HexEncoding.decode("0A0B0C0D0E00".toCharArray(), false)));
+                equalTo(MacAddress.fromString("0A:0B:0C:0D:0E:00").toByteArray()));
         collector.checkThat("entry 1: MAC", rttConfig.type, equalTo(RttType.ONE_SIDED));
         collector.checkThat("entry 1: MAC", rttConfig.peer, equalTo(RttPeerType.AP));
 
         rttConfig = halRequest.get(2);
         collector.checkThat("entry 2: MAC", rttConfig.addr,
-                equalTo(HexEncoding.decode("080908070605".toCharArray(), false)));
+                equalTo(MacAddress.fromString("08:09:08:07:06:05").toByteArray()));
         collector.checkThat("entry 2: MAC", rttConfig.type, equalTo(RttType.TWO_SIDED));
         collector.checkThat("entry 2: MAC", rttConfig.peer, equalTo(RttPeerType.NAN));
 
@@ -164,8 +163,8 @@ public class RttNativeTest {
     public void testRangeCancel() throws Exception {
         int cmdId = 66;
         ArrayList<byte[]> macAddresses = new ArrayList<>();
-        byte[] mac1 = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05 };
-        byte[] mac2 = { 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F };
+        byte[] mac1 = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05};
+        byte[] mac2 = {0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
         macAddresses.add(mac1);
         macAddresses.add(mac2);
 
@@ -212,7 +211,7 @@ public class RttNativeTest {
         collector.checkThat("status", rttResult.status,
                 equalTo(RttStatus.SUCCESS));
         collector.checkThat("mac", rttResult.addr,
-                equalTo(HexEncoding.decode("05060708090A".toCharArray(), false)));
+                equalTo(MacAddress.fromString("05:06:07:08:09:0A").toByteArray()));
         collector.checkThat("distanceCm", rttResult.distanceInMm, equalTo(1500));
         collector.checkThat("timestamp", rttResult.timeStampInUs, equalTo(666L));
 

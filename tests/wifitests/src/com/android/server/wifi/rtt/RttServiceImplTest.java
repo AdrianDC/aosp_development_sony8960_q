@@ -46,6 +46,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.hardware.wifi.V1_0.RttResult;
+import android.net.MacAddress;
 import android.net.wifi.aware.IWifiAwareMacAddressProvider;
 import android.net.wifi.aware.IWifiAwareManager;
 import android.net.wifi.aware.PeerHandle;
@@ -67,8 +68,6 @@ import android.util.Pair;
 
 import com.android.server.wifi.Clock;
 import com.android.server.wifi.util.WifiPermissionsUtil;
-
-import libcore.util.HexEncoding;
 
 import org.junit.After;
 import org.junit.Before;
@@ -261,9 +260,9 @@ public class RttServiceImplTest {
         PeerHandle peerHandle2 = new PeerHandle(1023);
         request.mRttPeers.add(ResponderConfig.fromWifiAwarePeerHandleWithDefaults(peerHandle1));
         request.mRttPeers.add(ResponderConfig.fromWifiAwarePeerHandleWithDefaults(peerHandle2));
-        Map<Integer, byte[]> peerHandleToMacMap = new HashMap<>();
-        byte[] macAwarePeer1 = HexEncoding.decode("AABBCCDDEEFF".toCharArray(), false);
-        byte[] macAwarePeer2 = HexEncoding.decode("BBBBBBEEEEEE".toCharArray(), false);
+        Map<Integer, MacAddress> peerHandleToMacMap = new HashMap<>();
+        MacAddress macAwarePeer1 = MacAddress.fromString("AA:BB:CC:DD:EE:FF");
+        MacAddress macAwarePeer2 = MacAddress.fromString("BB:BB:BB:EE:EE:EE");
         peerHandleToMacMap.put(peerHandle1.peerId, macAwarePeer1);
         peerHandleToMacMap.put(peerHandle2.peerId, macAwarePeer2);
 
@@ -431,11 +430,11 @@ public class RttServiceImplTest {
                         (ArrayList) mListCaptor.capture());
                 RangingRequest request0 = requests[0];
                 assertEquals(request0.mRttPeers.size(), mListCaptor.getValue().size());
-                assertArrayEquals(HexEncoding.decode("000102030400".toCharArray(), false),
+                assertArrayEquals(MacAddress.fromString("00:01:02:03:04:00").toByteArray(),
                         (byte[]) mListCaptor.getValue().get(0));
-                assertArrayEquals(HexEncoding.decode("0A0B0C0D0E00".toCharArray(), false),
+                assertArrayEquals(MacAddress.fromString("0A:0B:0C:0D:0E:00").toByteArray(),
                         (byte[]) mListCaptor.getValue().get(1));
-                assertArrayEquals(HexEncoding.decode("080908070605".toCharArray(), false),
+                assertArrayEquals(MacAddress.fromString("08:09:08:07:06:05").toByteArray(),
                         (byte[]) mListCaptor.getValue().get(2));
             }
 
@@ -1103,9 +1102,9 @@ public class RttServiceImplTest {
 
     private class AwareTranslatePeerHandlesToMac extends MockAnswerUtil.AnswerWithArguments {
         private int mExpectedUid;
-        private Map<Integer, byte[]> mPeerIdToMacMap;
+        private Map<Integer, MacAddress> mPeerIdToMacMap;
 
-        AwareTranslatePeerHandlesToMac(int expectedUid, Map<Integer, byte[]> peerIdToMacMap) {
+        AwareTranslatePeerHandlesToMac(int expectedUid, Map<Integer, MacAddress> peerIdToMacMap) {
             mExpectedUid = expectedUid;
             mPeerIdToMacMap = peerIdToMacMap;
         }
@@ -1115,7 +1114,7 @@ public class RttServiceImplTest {
 
             Map<Integer, byte[]> result = new HashMap<>();
             for (Integer peerId: peerIds) {
-                byte[] mac = mPeerIdToMacMap.get(peerId);
+                byte[] mac = mPeerIdToMacMap.get(peerId).toByteArray();
                 if (mac == null) {
                     continue;
                 }

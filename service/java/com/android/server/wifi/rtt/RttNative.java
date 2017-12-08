@@ -206,11 +206,8 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
         for (ResponderConfig responder: request.mRttPeers) {
             RttConfig config = new RttConfig();
 
-            if (responder.macAddress.length != config.addr.length) {
-                Log.e(TAG, "Invalid configuration: unexpected BSSID length -- " + responder);
-                continue;
-            }
-            System.arraycopy(responder.macAddress, 0, config.addr, 0, config.addr.length);
+            System.arraycopy(responder.macAddress.toByteArray(), 0, config.addr, 0,
+                    config.addr.length);
 
             try {
                 config.type = responder.supports80211mc ? RttType.TWO_SIDED : RttType.ONE_SIDED;

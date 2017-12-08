@@ -24,6 +24,7 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.hardware.wifi.V1_0.RttResult;
 import android.hardware.wifi.V1_0.RttStatus;
+import android.net.MacAddress;
 import android.net.wifi.aware.IWifiAwareMacAddressProvider;
 import android.net.wifi.aware.IWifiAwareManager;
 import android.net.wifi.rtt.IRttCallback;
@@ -47,8 +48,6 @@ import android.util.SparseIntArray;
 import com.android.internal.util.WakeupMessage;
 import com.android.server.wifi.Clock;
 import com.android.server.wifi.util.WifiPermissionsUtil;
-
-import libcore.util.HexEncoding;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -350,11 +349,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         private void cancelRanging(RttRequestInfo rri) {
             ArrayList<byte[]> macAddresses = new ArrayList<>();
             for (ResponderConfig peer : rri.request.mRttPeers) {
-                if (peer.macAddress.length != 6) {
-                    Log.e(TAG, "Invalid configuration: unexpected BSSID length -- " + peer);
-                    continue;
-                }
-                macAddresses.add(peer.macAddress);
+                macAddresses.add(peer.macAddress.toByteArray());
             }
 
             mRttNative.rangeCancel(rri.cmdId, macAddresses);
@@ -472,7 +467,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                 try {
                     callback.onRangingFailure(RangingResultCallback.STATUS_CODE_FAIL);
                 } catch (RemoteException e) {
-                    Log.e(TAG,  "RttServiceSynchronized.queueRangingRequest: spamming, callback "
+                    Log.e(TAG, "RttServiceSynchronized.queueRangingRequest: spamming, callback "
                             + "failed -- " + e);
                 }
                 return;
@@ -609,7 +604,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         /**
          * Perform pre-execution throttling checks:
          * - If all uids in ws are in background then check last execution and block if request is
-         *   more frequent than permitted
+         * more frequent than permitted
          * - If executing (i.e. permitted) then update execution time
          *
          * Returns true to permit execution, false to abort it.
@@ -735,9 +730,10 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                         + ", peerIdToMacMap=" + peerIdToMacMap);
             }
 
-            for (ResponderConfig rttPeer: request.request.mRttPeers) {
+            for (ResponderConfig rttPeer : request.request.mRttPeers) {
                 if (rttPeer.peerHandle != null && rttPeer.macAddress == null) {
-                    rttPeer.macAddress = peerIdToMacMap.get(rttPeer.peerHandle.peerId);
+                    rttPeer.macAddress = MacAddress.fromBytes(
+                            peerIdToMacMap.get(rttPeer.peerHandle.peerId));
                 }
             }
 
@@ -799,20 +795,18 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
          */
         private List<RangingResult> postProcessResults(RangingRequest request,
                 List<RttResult> results) {
-            Map<String, RttResult> resultEntries = new HashMap<>();
-            for (RttResult result: results) {
-                resultEntries.put(new String(HexEncoding.encode(result.addr)), result);
+            Map<MacAddress, RttResult> resultEntries = new HashMap<>();
+            for (RttResult result : results) {
+                resultEntries.put(MacAddress.fromBytes(result.addr), result);
             }
 
             List<RangingResult> finalResults = new ArrayList<>(request.mRttPeers.size());
 
-            for (ResponderConfig peer: request.mRttPeers) {
-                RttResult resultForRequest = resultEntries.get(
-                        new String(HexEncoding.encode(peer.macAddress)));
+            for (ResponderConfig peer : request.mRttPeers) {
+                RttResult resultForRequest = resultEntries.get(peer.macAddress);
                 if (resultForRequest == null) {
                     if (VDBG) {
-                        Log.v(TAG, "postProcessResults: missing=" + new String(
-                                HexEncoding.encode(peer.macAddress)));
+                        Log.v(TAG, "postProcessResults: missing=" + peer.macAddress);
                     }
                     if (peer.peerHandle == null) {
                         finalResults.add(
