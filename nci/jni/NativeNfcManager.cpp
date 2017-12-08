@@ -31,7 +31,7 @@
 #include "PowerSwitch.h"
 #include "RoutingManager.h"
 #include "SyncEvent.h"
-#include "config.h"
+#include "nfc_config.h"
 
 #include "ce_api.h"
 #include "nfa_api.h"
@@ -172,13 +172,13 @@ bool nfc_debug_enabled;
 
 namespace {
 void initializeGlobalDebugEnabledFlag() {
-  unsigned trace_level = 1;
-  if (GetNumValue(NAME_APPL_TRACE_LEVEL, &trace_level, sizeof(trace_level)))
-    nfc_debug_enabled = (trace_level == 0) ? false : true;
+  nfc_debug_enabled =
+      (NfcConfig::getUnsigned(NAME_NFC_DEBUG_ENABLED, 1) != 0) ? true : false;
 
   char valueStr[PROPERTY_VALUE_MAX] = {0};
   int len = property_get("nfc.app_log_level", valueStr, "");
   if (len > 0) {
+    unsigned trace_level = 1;
     // let Android property override .conf variable
     sscanf(valueStr, "%u", &trace_level);
     nfc_debug_enabled = (trace_level == 0) ? false : true;
@@ -1046,23 +1046,17 @@ static jboolean nfcManager_doInitialize(JNIEnv* e, jobject o) {
           NFA_SetConfig(NCI_PARAM_ID_NFC_DEP_OP, sizeof(uint8_t), &configData);
         }
 
-        unsigned long num = 0;
-
         struct nfc_jni_native_data* nat = getNative(e, o);
         if (nat) {
-          if (GetNumValue(NAME_POLLING_TECH_MASK, &num, sizeof(num)))
-            nat->tech_mask = num;
-          else
-            nat->tech_mask = DEFAULT_TECH_MASK;
+          nat->tech_mask =
+              NfcConfig::getUnsigned(NAME_POLLING_TECH_MASK, DEFAULT_TECH_MASK);
           DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
               "%s: tag polling tech mask=0x%X", __func__, nat->tech_mask);
         }
 
         // if this value exists, set polling interval.
-        if (GetNumValue(NAME_NFA_DM_DISC_DURATION_POLL, &num, sizeof(num)))
-          nat->discovery_duration = num;
-        else
-          nat->discovery_duration = DEFAULT_DISCOVERY_DURATION;
+        nat->discovery_duration = NfcConfig::getUnsigned(
+            NAME_NFA_DM_DISC_DURATION_POLL, DEFAULT_DISCOVERY_DURATION);
 
         NFA_SetRfDiscoveryDuration(nat->discovery_duration);
 
@@ -1879,15 +1873,12 @@ static void nfcManager_doDisableScreenOffSuspend(JNIEnv* e, jobject o) {
 **
 *******************************************************************************/
 static jint nfcManager_getIsoDepMaxTransceiveLength(JNIEnv*, jobject) {
-  unsigned long maxLength;
   /* Check if extended APDU is supported by the chip.
    * If not, default value is returned.
    * The maximum length of a default IsoDep frame consists of:
    * CLA, INS, P1, P2, LC, LE + 255 payload bytes = 261 bytes
    */
-  if (!GetNumValue(NAME_ISO_DEP_MAX_TRANSCEIVE, &maxLength, sizeof(maxLength)))
-    maxLength = 261;
-  return maxLength;
+  return NfcConfig::getUnsigned(NAME_ISO_DEP_MAX_TRANSCEIVE, 261);
 }
 
 /*****************************************************************************
@@ -2043,7 +2034,6 @@ bool isDiscoveryStarted() { return sRfEnabled; }
 void doStartupConfig() {
   struct nfc_jni_native_data* nat = getNative(0, 0);
   tNFA_STATUS stat = NFA_STATUS_FAILED;
-  int actualLen = 0;
 
   // If polling for Active mode, set the ordering so that we choose Active over
   // Passive mode first.
@@ -2059,9 +2049,10 @@ void doStartupConfig() {
   // configure RF polling frequency for each technology
   static tNFA_DM_DISC_FREQ_CFG nfa_dm_disc_freq_cfg;
   // values in the polling_frequency[] map to members of nfa_dm_disc_freq_cfg
-  uint8_t polling_frequency[8] = {1, 1, 1, 1, 1, 1, 1, 1};
-  actualLen = GetStrValue(NAME_POLL_FREQUENCY, (char*)polling_frequency, 8);
-  if (actualLen == 8) {
+  std::vector<uint8_t> polling_frequency;
+  if (NfcConfig::hasKey(NAME_POLL_FREQUENCY))
+    polling_frequency = NfcConfig::getBytes(NAME_POLL_FREQUENCY);
+  if (polling_frequency.size() == 8) {
     DLOG_IF(INFO, nfc_debug_enabled)
         << StringPrintf("%s: polling frequency", __func__);
     memset(&nfa_dm_disc_freq_cfg, 0, sizeof(nfa_dm_disc_freq_cfg));
@@ -2117,12 +2108,9 @@ static tNFA_STATUS startPolling_rfDiscoveryDisabled(
     tNFA_TECHNOLOGY_MASK tech_mask) {
   tNFA_STATUS stat = NFA_STATUS_FAILED;
 
-  unsigned long num = 0;
-
-  if (tech_mask == 0 && GetNumValue(NAME_POLLING_TECH_MASK, &num, sizeof(num)))
-    tech_mask = num;
-  else if (tech_mask == 0)
-    tech_mask = DEFAULT_TECH_MASK;
+  if (tech_mask == 0)
+    tech_mask =
+        NfcConfig::getUnsigned(NAME_POLLING_TECH_MASK, DEFAULT_TECH_MASK);
 
   nativeNfcTag_acquireRfInterfaceMutexLock();
   SyncEventGuard guard(sNfaEnableDisablePollingEvent);
