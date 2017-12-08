@@ -120,6 +120,8 @@ public class WifiAwareServiceImplTest {
         when(mContextMock.getPackageManager()).thenReturn(mPackageManagerMock);
         when(mPackageManagerMock.hasSystemFeature(PackageManager.FEATURE_WIFI_AWARE))
                 .thenReturn(true);
+        when(mPackageManagerMock.hasSystemFeature(PackageManager.FEATURE_WIFI_RTT))
+                .thenReturn(true);
         when(mAwareStateManagerMock.getCharacteristics()).thenReturn(getCharacteristics());
 
         mDut = new WifiAwareServiceImplSpy(mContextMock);
@@ -238,6 +240,41 @@ public class WifiAwareServiceImplTest {
     }
 
     /**
+     * Validate that the RTT feature support is checked when attempting a Publish with ranging.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testFailOnPublishRangingWithoutRttFeature() throws Exception {
+        when(mPackageManagerMock.hasSystemFeature(PackageManager.FEATURE_WIFI_RTT)).thenReturn(
+                false);
+
+        PublishConfig publishConfig = new PublishConfig.Builder().setServiceName("something.valid")
+                .setRangingEnabled(true).build();
+        int clientId = doConnect();
+        IWifiAwareDiscoverySessionCallback mockCallback = mock(
+                IWifiAwareDiscoverySessionCallback.class);
+
+        mDut.publish(clientId, publishConfig, mockCallback);
+    }
+
+    /**
+     * Validate that the RTT feature support is checked when attempting a Subscribe with ranging.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testFailOnSubscribeRangingWithoutRttFeature() throws Exception {
+        when(mPackageManagerMock.hasSystemFeature(PackageManager.FEATURE_WIFI_RTT)).thenReturn(
+                false);
+
+        SubscribeConfig subscribeConfig = new SubscribeConfig.Builder().setServiceName(
+                "something.valid").setMaxDistanceMm(100).build();
+        int clientId = doConnect();
+        IWifiAwareDiscoverySessionCallback mockCallback = mock(
+                IWifiAwareDiscoverySessionCallback.class);
+
+        mDut.subscribe(clientId, subscribeConfig, mockCallback);
+    }
+
+
+    /**
      * Validates that on binder death we get a disconnect().
      */
     @Test
@@ -295,7 +332,7 @@ public class WifiAwareServiceImplTest {
     @Test
     public void testPublish() {
         PublishConfig publishConfig = new PublishConfig.Builder().setServiceName("something.valid")
-                .build();
+                .setRangingEnabled(true).build();
         int clientId = doConnect();
         IWifiAwareDiscoverySessionCallback mockCallback = mock(
                 IWifiAwareDiscoverySessionCallback.class);
@@ -390,7 +427,7 @@ public class WifiAwareServiceImplTest {
     @Test
     public void testSubscribe() {
         SubscribeConfig subscribeConfig = new SubscribeConfig.Builder()
-                .setServiceName("something.valid").build();
+                .setServiceName("something.valid").setMaxDistanceMm(100).build();
         int clientId = doConnect();
         IWifiAwareDiscoverySessionCallback mockCallback = mock(
                 IWifiAwareDiscoverySessionCallback.class);
