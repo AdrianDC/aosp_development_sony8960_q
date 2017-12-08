@@ -34,7 +34,7 @@
 
 using android::base::StringPrintf;
 
-extern char bcm_nfc_location[];
+extern std::string nfc_storage_path;
 extern bool nfc_debug_enabled;
 
 /*******************************************************************************
@@ -162,7 +162,7 @@ bool RouteDataSet::import() {
   bool retval = false;
   xmlDocPtr doc;
   xmlNodePtr node1;
-  std::string strFilename(bcm_nfc_location);
+  std::string strFilename(nfc_storage_path);
   strFilename += sConfigFile;
 
   deleteDatabase();
@@ -243,7 +243,7 @@ bool RouteDataSet::saveToFile(const char* routesXml) {
   FILE* fh = NULL;
   size_t actualWritten = 0;
   bool retval = false;
-  std::string filename(bcm_nfc_location);
+  std::string filename(nfc_storage_path);
   int stat = 0;
 
   filename.append(sConfigFile);
@@ -281,7 +281,7 @@ bool RouteDataSet::loadFromFile(std::string& routesXml) {
   FILE* fh = NULL;
   size_t actual = 0;
   char buffer[1024];
-  std::string filename(bcm_nfc_location);
+  std::string filename(nfc_storage_path);
 
   filename.append(sConfigFile);
   fh = fopen(filename.c_str(), "r");
@@ -451,7 +451,7 @@ void RouteDataSet::importTechnologyRoute(xmlNodePtr& element,
 *******************************************************************************/
 bool RouteDataSet::deleteFile() {
   static const char fn[] = "RouteDataSet::deleteFile";
-  std::string filename(bcm_nfc_location);
+  std::string filename(nfc_storage_path);
   filename.append(sConfigFile);
   int stat = remove(filename.c_str());
   DLOG_IF(INFO, nfc_debug_enabled)
