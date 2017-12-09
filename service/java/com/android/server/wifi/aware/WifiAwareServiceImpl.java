@@ -329,8 +329,8 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
             enforceConnectivityInternalPermission();
         }
 
-        if (message != null
-                && message.length > mStateManager.getCharacteristics().getMaxServiceNameLength()) {
+        if (message != null && message.length
+                > mStateManager.getCharacteristics().getMaxServiceSpecificInfoLength()) {
             throw new IllegalArgumentException(
                     "Message length longer than supported by device characteristics");
         }
