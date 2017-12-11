@@ -376,6 +376,7 @@ public class WifiStateMachineTest {
     @Mock IProvisioningCallback mProvisioningCallback;
     @Mock HandlerThread mWifiServiceHandlerThread;
     @Mock WifiPermissionsWrapper mWifiPermissionsWrapper;
+    @Mock WakeupController mWakeupController;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -422,6 +423,7 @@ public class WifiStateMachineTest {
         when(mWifiServiceHandlerThread.getLooper()).thenReturn(mLooper.getLooper());
         when(mWifiInjector.getWifiServiceHandlerThread()).thenReturn(mWifiServiceHandlerThread);
         when(mWifiInjector.getWifiPermissionsWrapper()).thenReturn(mWifiPermissionsWrapper);
+        when(mWifiInjector.getWakeupController()).thenReturn(mWakeupController);
 
         when(mWifiNative.setupForClientMode(WIFI_IFACE_NAME))
                 .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mClientInterface));
@@ -2199,6 +2201,16 @@ public class WifiStateMachineTest {
         assertEquals(sBSSID1, wifiInfo.getBSSID());
         assertEquals(sFreq1, wifiInfo.getFrequency());
         assertEquals(SupplicantState.COMPLETED, wifiInfo.getSupplicantState());
+
+        mWsm.sendMessage(WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0, 0,
+                new StateChangeResult(0, sWifiSsid, sBSSID1, SupplicantState.DISCONNECTED));
+        mLooper.dispatchAll();
+
+        wifiInfo = mWsm.getWifiInfo();
+        assertEquals(null, wifiInfo.getBSSID());
+        assertEquals(WifiSsid.NONE, wifiInfo.getSSID());
+        assertEquals(WifiConfiguration.INVALID_NETWORK_ID, wifiInfo.getNetworkId());
+        assertEquals(SupplicantState.DISCONNECTED, wifiInfo.getSupplicantState());
     }
 
     /**
@@ -2818,5 +2830,16 @@ public class WifiStateMachineTest {
         WifiConfiguration currentConfig = new WifiConfiguration();
         currentConfig.networkId = lastSelectedNetworkId - 1;
         assertFalse(mWsm.shouldEvaluateWhetherToSendExplicitlySelected(currentConfig));
+    }
+
+    /**
+     * Verify that WSM dump includes WakeupController.
+     */
+    @Test
+    public void testDumpShouldDumpWakeupController() {
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        PrintWriter writer = new PrintWriter(stream);
+        mWsm.dump(null, writer, null);
+        verify(mWakeupController).dump(null, writer, null);
     }
 }

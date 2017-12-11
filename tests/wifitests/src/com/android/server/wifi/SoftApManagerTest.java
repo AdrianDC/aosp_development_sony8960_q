@@ -33,17 +33,24 @@ import static com.android.server.wifi.LocalOnlyHotspotRequestInfo.HOTSPOT_NO_ERR
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.*;
 
+import android.app.test.TestAlarmManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.Resources;
+import android.database.ContentObserver;
 import android.net.InterfaceConfiguration;
+import android.net.Uri;
 import android.net.wifi.IApInterface;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
 import android.os.INetworkManagementService;
 import android.os.UserHandle;
 import android.os.test.TestLooper;
+import android.provider.Settings;
 import android.test.suitebuilder.annotation.SmallTest;
 
+import com.android.internal.R;
+import com.android.internal.util.WakeupMessage;
 import com.android.server.net.BaseNetworkObserver;
 
 import org.junit.Before;
@@ -77,11 +84,16 @@ public class SoftApManagerTest {
 
     private final WifiConfiguration mDefaultApConfig = createDefaultApConfig();
 
+    private ContentObserver mContentObserver;
+    private TestLooper mLooper;
+    private TestAlarmManager mAlarmManager;
+
     @Mock Context mContext;
-    TestLooper mLooper;
+    @Mock Resources mResources;
     @Mock WifiNative mWifiNative;
     @Mock SoftApManager.Listener mListener;
     @Mock InterfaceConfiguration mInterfaceConfiguration;
+    @Mock FrameworkFacade mFrameworkFacade;
     @Mock IApInterface mApInterface;
     @Mock INetworkManagementService mNmService;
     @Mock WifiApConfigStore mWifiApConfigStore;
@@ -104,6 +116,15 @@ public class SoftApManagerTest {
         when(mWifiNative.startSoftAp(any(), any())).thenReturn(true);
         when(mWifiNative.stopSoftAp()).thenReturn(true);
         when(mWifiNative.registerWificondDeathHandler(any())).thenReturn(true);
+
+        when(mFrameworkFacade.getIntegerSetting(
+                mContext, Settings.Global.SOFT_AP_TIMEOUT_ENABLED, 1)).thenReturn(1);
+        mAlarmManager = new TestAlarmManager();
+        when(mContext.getSystemService(Context.ALARM_SERVICE))
+                .thenReturn(mAlarmManager.getAlarmManager());
+        when(mContext.getResources()).thenReturn(mResources);
+        when(mResources.getInteger(R.integer.config_wifi_framework_soft_ap_timeout_delay))
+                .thenReturn(600000);
     }
 
     private WifiConfiguration createDefaultApConfig() {
@@ -118,6 +139,7 @@ public class SoftApManagerTest {
         }
         SoftApManager newSoftApManager = new SoftApManager(mContext,
                                                            mLooper.getLooper(),
+                                                           mFrameworkFacade,
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
                                                            mListener,
@@ -189,6 +211,7 @@ public class SoftApManagerTest {
                 new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
         SoftApManager newSoftApManager = new SoftApManager(mContext,
                                                            mLooper.getLooper(),
+                                                           mFrameworkFacade,
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
                                                            mListener,
@@ -232,6 +255,7 @@ public class SoftApManagerTest {
 
         SoftApManager newSoftApManager = new SoftApManager(mContext,
                                                            mLooper.getLooper(),
+                                                           mFrameworkFacade,
                                                            mWifiNative,
                                                            null,
                                                            mListener,
@@ -275,6 +299,7 @@ public class SoftApManagerTest {
 
         SoftApManager newSoftApManager = new SoftApManager(mContext,
                                                            mLooper.getLooper(),
+                                                           mFrameworkFacade,
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
                                                            mListener,
@@ -309,8 +334,10 @@ public class SoftApManagerTest {
         when(mWifiNative.startSoftAp(any(), any())).thenReturn(false);
         SoftApModeConfiguration softApModeConfig =
                 new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, mDefaultApConfig);
+
         SoftApManager newSoftApManager = new SoftApManager(mContext,
                                                            mLooper.getLooper(),
+                                                           mFrameworkFacade,
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
                                                            mListener,
@@ -415,27 +442,8 @@ public class SoftApManagerTest {
         mSoftApListenerCaptor.getValue().onNumAssociatedStationsChanged(
                 TEST_NUM_CONNECTED_CLIENTS);
         mLooper.dispatchAll();
-        assertEquals(TEST_NUM_CONNECTED_CLIENTS, mSoftApManager.getNumAssociatedStations());
         verify(mWifiMetrics).addSoftApNumAssociatedStationsChangedEvent(TEST_NUM_CONNECTED_CLIENTS,
                 apConfig.getTargetMode());
-    }
-
-    @Test
-    public void handlesNumAssociatedStationsWhenNotStarted() throws Exception {
-        SoftApModeConfiguration apConfig =
-                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
-        startSoftApAndVerifyEnabled(apConfig);
-        mSoftApManager.stop();
-        mLooper.dispatchAll();
-
-        mSoftApListenerCaptor.getValue().onNumAssociatedStationsChanged(
-                TEST_NUM_CONNECTED_CLIENTS);
-        mLooper.dispatchAll();
-        /* Verify numAssociatedStations is not updated when soft AP is not started */
-        assertEquals(0, mSoftApManager.getNumAssociatedStations());
-        verify(mWifiMetrics).addSoftApUpChangedEvent(false, apConfig.getTargetMode());
-        verify(mWifiMetrics, never()).addSoftApNumAssociatedStationsChangedEvent(
-                TEST_NUM_CONNECTED_CLIENTS, apConfig.getTargetMode());
     }
 
     @Test
@@ -449,41 +457,155 @@ public class SoftApManagerTest {
         /* Invalid values should be ignored */
         mSoftApListenerCaptor.getValue().onNumAssociatedStationsChanged(-1);
         mLooper.dispatchAll();
-        assertEquals(TEST_NUM_CONNECTED_CLIENTS, mSoftApManager.getNumAssociatedStations());
         verify(mWifiMetrics, times(1)).addSoftApNumAssociatedStationsChangedEvent(
                 TEST_NUM_CONNECTED_CLIENTS, apConfig.getTargetMode());
     }
 
     @Test
-    public void resetsNumAssociatedStationsWhenStopped() throws Exception {
+    public void schedulesTimeoutTimerOnStart() throws Exception {
         SoftApModeConfiguration apConfig =
                 new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
         startSoftApAndVerifyEnabled(apConfig);
 
-        mSoftApListenerCaptor.getValue().onNumAssociatedStationsChanged(
-                TEST_NUM_CONNECTED_CLIENTS);
-        mSoftApManager.stop();
-        mLooper.dispatchAll();
-        assertEquals(0, mSoftApManager.getNumAssociatedStations());
-        verify(mWifiMetrics).addSoftApUpChangedEvent(false, apConfig.getTargetMode());
+        // Verify timer is scheduled
+        verify(mAlarmManager.getAlarmManager()).setExact(anyInt(), anyLong(),
+                eq(mSoftApManager.SOFT_AP_SEND_MESSAGE_TIMEOUT_TAG), any(), any());
     }
 
     @Test
-    public void resetsNumAssociatedStationsOnFailure() throws Exception {
+    public void cancelsTimeoutTimerOnStop() throws Exception {
+        SoftApModeConfiguration apConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
+        startSoftApAndVerifyEnabled(apConfig);
+        mSoftApManager.stop();
+        mLooper.dispatchAll();
+
+        // Verify timer is canceled
+        verify(mAlarmManager.getAlarmManager()).cancel(any(WakeupMessage.class));
+    }
+
+    @Test
+    public void cancelsTimeoutTimerOnNewClientsConnect() throws Exception {
+        SoftApModeConfiguration apConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
+        startSoftApAndVerifyEnabled(apConfig);
+        mSoftApListenerCaptor.getValue().onNumAssociatedStationsChanged(
+                TEST_NUM_CONNECTED_CLIENTS);
+        mLooper.dispatchAll();
+
+        // Verify timer is canceled
+        verify(mAlarmManager.getAlarmManager()).cancel(any(WakeupMessage.class));
+    }
+
+    @Test
+    public void schedulesTimeoutTimerWhenAllClientsDisconnect() throws Exception {
         SoftApModeConfiguration apConfig =
                 new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
         startSoftApAndVerifyEnabled(apConfig);
 
         mSoftApListenerCaptor.getValue().onNumAssociatedStationsChanged(
                 TEST_NUM_CONNECTED_CLIENTS);
-        /* Force soft AP to fail */
-        mDeathListenerCaptor.getValue().onDeath();
         mLooper.dispatchAll();
-        verify(mListener).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
-                WifiManager.SAP_START_FAILURE_GENERAL);
+        // Verify timer is canceled at this point
+        verify(mAlarmManager.getAlarmManager()).cancel(any(WakeupMessage.class));
 
-        assertEquals(0, mSoftApManager.getNumAssociatedStations());
-        verify(mWifiMetrics).addSoftApUpChangedEvent(false, apConfig.getTargetMode());
+        mSoftApListenerCaptor.getValue().onNumAssociatedStationsChanged(0);
+        mLooper.dispatchAll();
+        // Verify timer is scheduled again
+        verify(mAlarmManager.getAlarmManager(), times(2)).setExact(anyInt(), anyLong(),
+                eq(mSoftApManager.SOFT_AP_SEND_MESSAGE_TIMEOUT_TAG), any(), any());
+    }
+
+    @Test
+    public void stopsSoftApOnTimeoutMessage() throws Exception {
+        SoftApModeConfiguration apConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
+        startSoftApAndVerifyEnabled(apConfig);
+
+        mAlarmManager.dispatch(mSoftApManager.SOFT_AP_SEND_MESSAGE_TIMEOUT_TAG);
+        mLooper.dispatchAll();
+
+        verify(mWifiNative).stopSoftAp();
+    }
+
+    @Test
+    public void cancelsTimeoutTimerOnTimeoutToggleChangeWhenNoClients() throws Exception {
+        SoftApModeConfiguration apConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
+        startSoftApAndVerifyEnabled(apConfig);
+
+        when(mFrameworkFacade.getIntegerSetting(
+                mContext, Settings.Global.SOFT_AP_TIMEOUT_ENABLED, 1)).thenReturn(0);
+        mContentObserver.onChange(false);
+        mLooper.dispatchAll();
+
+        // Verify timer is canceled
+        verify(mAlarmManager.getAlarmManager()).cancel(any(WakeupMessage.class));
+    }
+
+    @Test
+    public void schedulesTimeoutTimerOnTimeoutToggleChangeWhenNoClients() throws Exception {
+        // start with timeout toggle disabled
+        when(mFrameworkFacade.getIntegerSetting(
+                mContext, Settings.Global.SOFT_AP_TIMEOUT_ENABLED, 1)).thenReturn(0);
+        SoftApModeConfiguration apConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
+        startSoftApAndVerifyEnabled(apConfig);
+
+        when(mFrameworkFacade.getIntegerSetting(
+                mContext, Settings.Global.SOFT_AP_TIMEOUT_ENABLED, 1)).thenReturn(1);
+        mContentObserver.onChange(false);
+        mLooper.dispatchAll();
+
+        // Verify timer is scheduled
+        verify(mAlarmManager.getAlarmManager()).setExact(anyInt(), anyLong(),
+                eq(mSoftApManager.SOFT_AP_SEND_MESSAGE_TIMEOUT_TAG), any(), any());
+    }
+
+    @Test
+    public void doesNotScheduleTimeoutTimerOnStartWhenTimeoutIsDisabled() throws Exception {
+        // start with timeout toggle disabled
+        when(mFrameworkFacade.getIntegerSetting(
+                mContext, Settings.Global.SOFT_AP_TIMEOUT_ENABLED, 1)).thenReturn(0);
+        SoftApModeConfiguration apConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
+        startSoftApAndVerifyEnabled(apConfig);
+
+        // Verify timer is not scheduled
+        verify(mAlarmManager.getAlarmManager(), never()).setExact(anyInt(), anyLong(),
+                eq(mSoftApManager.SOFT_AP_SEND_MESSAGE_TIMEOUT_TAG), any(), any());
+    }
+
+    @Test
+    public void doesNotScheduleTimeoutTimerWhenAllClientsDisconnectButTimeoutIsDisabled()
+            throws Exception {
+        // start with timeout toggle disabled
+        when(mFrameworkFacade.getIntegerSetting(
+                mContext, Settings.Global.SOFT_AP_TIMEOUT_ENABLED, 1)).thenReturn(0);
+        SoftApModeConfiguration apConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
+        startSoftApAndVerifyEnabled(apConfig);
+        // add some clients
+        mSoftApListenerCaptor.getValue().onNumAssociatedStationsChanged(
+                TEST_NUM_CONNECTED_CLIENTS);
+        mLooper.dispatchAll();
+        // remove all clients
+        mSoftApListenerCaptor.getValue().onNumAssociatedStationsChanged(0);
+        mLooper.dispatchAll();
+        // Verify timer is not scheduled
+        verify(mAlarmManager.getAlarmManager(), never()).setExact(anyInt(), anyLong(),
+                eq(mSoftApManager.SOFT_AP_SEND_MESSAGE_TIMEOUT_TAG), any(), any());
+    }
+
+    @Test
+    public void unregistersSettingsObserverOnStop() throws Exception {
+        SoftApModeConfiguration apConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
+        startSoftApAndVerifyEnabled(apConfig);
+        mSoftApManager.stop();
+        mLooper.dispatchAll();
+
+        verify(mFrameworkFacade).unregisterContentObserver(eq(mContext), eq(mContentObserver));
     }
 
     /** Starts soft AP and verifies that it is enabled successfully. */
@@ -506,6 +628,8 @@ public class SoftApManagerTest {
             expectedConfig = new WifiConfiguration(config);
         }
 
+        ArgumentCaptor<ContentObserver> observerCaptor = ArgumentCaptor.forClass(
+                ContentObserver.class);
         ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
 
         mSoftApManager.start();
@@ -530,8 +654,10 @@ public class SoftApManagerTest {
         checkApStateChangedBroadcast(capturedIntents.get(1), WIFI_AP_STATE_ENABLED,
                 WIFI_AP_STATE_ENABLING, HOTSPOT_NO_ERROR, TEST_INTERFACE_NAME,
                 softApConfig.getTargetMode());
-        assertEquals(0, mSoftApManager.getNumAssociatedStations());
         verify(mWifiMetrics).addSoftApUpChangedEvent(true, softApConfig.mTargetMode);
+        verify(mFrameworkFacade).registerContentObserver(eq(mContext), any(Uri.class), eq(true),
+                observerCaptor.capture());
+        mContentObserver = observerCaptor.getValue();
     }
 
     /** Verifies that soft AP was not disabled. */

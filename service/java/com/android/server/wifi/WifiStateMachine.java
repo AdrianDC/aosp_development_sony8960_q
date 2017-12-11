@@ -2281,6 +2281,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         } else {
             pw.println("mWifiConnectivityManager is not initialized");
         }
+        mWifiInjector.getWakeupController().dump(fd, pw, args);
     }
 
     public void handleUserSwitch(int userId) {
@@ -3249,15 +3250,17 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 || stateChangeResult.wifiSsid.toString().isEmpty()) && isLinkDebouncing()) {
             return state;
         }
-        // Network id is only valid when we start connecting
+        // Network id and SSID are only valid when we start connecting
         if (SupplicantState.isConnecting(state)) {
             mWifiInfo.setNetworkId(lookupFrameworkNetworkId(stateChangeResult.networkId));
+            mWifiInfo.setBSSID(stateChangeResult.BSSID);
+            mWifiInfo.setSSID(stateChangeResult.wifiSsid);
         } else {
+            // Reset parameters according to WifiInfo.reset()
             mWifiInfo.setNetworkId(WifiConfiguration.INVALID_NETWORK_ID);
+            mWifiInfo.setBSSID(null);
+            mWifiInfo.setSSID(null);
         }
-
-        mWifiInfo.setBSSID(stateChangeResult.BSSID);
-        mWifiInfo.setSSID(stateChangeResult.wifiSsid);
 
         final WifiConfiguration config = getCurrentWifiConfiguration();
         if (config != null) {

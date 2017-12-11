@@ -152,6 +152,105 @@ public class WifiNative {
         }
     }
 
+    /**
+     * TODO(b/69426063): NEW API Surface for interface management. This will eventually
+     * deprecate the other interface management API's above. But, for now there will be
+     * some duplication to ease transition.
+     */
+    /**
+     * Initialize the native modules.
+     *
+     * @return true on success, false otherwise.
+     */
+    public boolean initialize() {
+        return false;
+    }
+
+    /**
+     * Callback to notify when the status of one of the native daemons
+     * (wificond, wpa_supplicant & vendor HAL) changes.
+     */
+    public interface StatusListener {
+        /**
+         * @param allReady Indicates if all the native daemons are ready for operation or not.
+         */
+        void onStatusChanged(boolean allReady);
+    }
+
+    /**
+     * Register a StatusListener to get notified about any status changes from the native daemons.
+     *
+     * It is safe to re-register the same callback object - duplicates are detected and only a
+     * single copy kept.
+     *
+     * @param listener StatusListener listener object.
+     */
+    public void registerStatusListener(@NonNull StatusListener listener) {
+    }
+
+    /**
+     * Callback to notify when the associated interface is destroyed, up or down.
+     */
+    public interface InterfaceCallback {
+        /**
+         * Interface destroyed by HalDeviceManager.
+         *
+         * @param ifaceName Name of the iface.
+         */
+        void onDestroyed(String ifaceName);
+
+        /**
+         * Interface is up.
+         *
+         * @param ifaceName Name of the iface.
+         */
+        void onUp(String ifaceName);
+
+        /**
+         * Interface is down.
+         *
+         * @param ifaceName Name of the iface.
+         */
+        void onDown(String ifaceName);
+    }
+
+    /**
+     * Setup an interface for Client mode operations.
+     *
+     * This method configures an interface in STA mode in all the native daemons
+     * (wificond, wpa_supplicant & vendor HAL).
+     *
+     * @param interfaceCallback Associated callback for notifying status changes for the iface.
+     * @return Returns the name of the allocated interface, will be null on failure.
+     */
+    public String setupInterfaceForClientMode(@NonNull InterfaceCallback interfaceCallback) {
+        return null;
+    }
+
+    /**
+     * Setup an interface for Soft AP mode operations.
+     *
+     * This method configures an interface in AP mode in all the native daemons
+     * (wificond, wpa_supplicant & vendor HAL).
+     *
+     * @param interfaceCallback Associated callback for notifying status changes for the iface.
+     * @return Returns the name of the allocated interface, will be null on failure.
+     */
+    public String setupInterfaceForSoftApMode(@NonNull InterfaceCallback interfaceCallback) {
+        return null;
+    }
+
+    /**
+     * Teardown an interface in Client/AP mode.
+     *
+     * This method tears down the associated interface from all the native daemons
+     * (wificond, wpa_supplicant & vendor HAL).
+     *
+     * @param ifaceName Name of the interface.
+     */
+    public void teardownInterface(@NonNull String ifaceName) {
+    }
+
     /********************************************************
      * Wificond operations
      ********************************************************/

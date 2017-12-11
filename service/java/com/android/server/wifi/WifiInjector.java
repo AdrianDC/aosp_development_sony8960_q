@@ -230,7 +230,8 @@ public class WifiInjector {
                 new OpenNetworkRecommender(),
                 new ConnectToNetworkNotificationBuilder(mContext, mFrameworkFacade));
         mWakeupController = new WakeupController(mContext,
-                mWifiStateMachineHandlerThread.getLooper(), mFrameworkFacade);
+                mWifiStateMachineHandlerThread.getLooper(), new WakeupLock(mWifiConfigManager),
+                mWifiConfigManager, mWifiConfigStore, mFrameworkFacade);
         mLockManager = new WifiLockManager(mContext, BatteryStatsService.getService());
         mWifiController = new WifiController(mContext, mWifiStateMachine, mSettingsStore,
                 mLockManager, mWifiServiceHandlerThread.getLooper(), mFrameworkFacade);
@@ -381,9 +382,8 @@ public class WifiInjector {
                                            @NonNull String ifaceName,
                                            @NonNull SoftApModeConfiguration config) {
         return new SoftApManager(mContext, mWifiStateMachineHandlerThread.getLooper(),
-                                 mWifiNative, mCountryCode.getCountryCode(),
-                                 listener, apInterface, ifaceName, nmService,
-                                 mWifiApConfigStore, config, mWifiMetrics);
+                mFrameworkFacade, mWifiNative, mCountryCode.getCountryCode(), listener, apInterface,
+                ifaceName, nmService, mWifiApConfigStore, config, mWifiMetrics);
     }
 
     /**

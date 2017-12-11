@@ -43,14 +43,14 @@ public class RttService extends SystemService {
 
     @Override
     public void onStart() {
-        Log.i(TAG, "Registering " + Context.WIFI_RTT2_SERVICE);
-        publishBinderService(Context.WIFI_RTT2_SERVICE, mImpl);
+        Log.i(TAG, "Registering " + Context.WIFI_RTT_RANGING_SERVICE);
+        publishBinderService(Context.WIFI_RTT_RANGING_SERVICE, mImpl);
     }
 
     @Override
     public void onBootPhase(int phase) {
         if (phase == SystemService.PHASE_SYSTEM_SERVICES_READY) {
-            Log.i(TAG, "Starting " + Context.WIFI_RTT2_SERVICE);
+            Log.i(TAG, "Starting " + Context.WIFI_RTT_RANGING_SERVICE);
 
             WifiInjector wifiInjector = WifiInjector.getInstance();
             if (wifiInjector == null) {
