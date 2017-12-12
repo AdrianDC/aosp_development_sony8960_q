@@ -203,6 +203,7 @@ public class WifiAwareDataPathStateManager {
             String name = AWARE_INTERFACE_PREFIX + i;
             mMgr.deleteDataPathInterface(name);
         }
+        mMgr.releaseAwareInterface();
     }
 
     /**

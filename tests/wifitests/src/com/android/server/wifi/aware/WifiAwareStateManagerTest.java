@@ -3069,13 +3069,16 @@ public class WifiAwareStateManagerTest {
 
         mDut.enableUsage();
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNativeManager).tryToGetAware();
         inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
         mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNativeManager).releaseAware();
 
         // (1) connect
         mDut.connect(clientId, uid, pid, callingPackage, mockCallback, configRequest, false);
         mMockLooper.dispatchAll();
+        inOrder.verify(mMockNativeManager).tryToGetAware();
         inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(),
                 eq(configRequest), eq(false), eq(true), eq(true), eq(false));
         mDut.onConfigSuccessResponse(transactionId.getValue());
