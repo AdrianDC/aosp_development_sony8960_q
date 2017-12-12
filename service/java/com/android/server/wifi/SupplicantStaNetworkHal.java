@@ -2384,9 +2384,7 @@ public class SupplicantStaNetworkHal {
     private boolean checkStatusAndLogFailure(SupplicantStatus status, final String methodStr) {
         synchronized (mLock) {
             if (status.code != SupplicantStatusCode.SUCCESS) {
-                Log.e(TAG, "ISupplicantStaNetwork." + methodStr + " failed: "
-                        + SupplicantStaIfaceHal.supplicantStatusCodeToString(status.code) + ", "
-                        + status.debugMessage);
+                Log.e(TAG, "ISupplicantStaNetwork." + methodStr + " failed: " + status);
                 return false;
             } else {
                 if (mVerboseLoggingEnabled) {
