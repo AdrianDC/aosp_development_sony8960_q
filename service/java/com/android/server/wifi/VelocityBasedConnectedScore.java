@@ -91,15 +91,14 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
             double initialVariance = 9.0 * standardDeviation * standardDeviation;
             mFilter.mx = new Matrix(1, new double[]{rssi, 0.0});
             mFilter.mP = new Matrix(2, new double[]{initialVariance, 0.0, 0.0, 0.0});
-            mLastMillis = millis;
-            return;
+        } else {
+            double dt = (millis - mLastMillis) * 0.001;
+            mFilter.mR.put(0, 0, standardDeviation * standardDeviation);
+            setDeltaTimeSeconds(dt);
+            mFilter.predict();
+            mFilter.update(new Matrix(1, new double[]{rssi}));
         }
-        double dt = (millis - mLastMillis) * 0.001;
-        mFilter.mR.put(0, 0, standardDeviation * standardDeviation);
-        setDeltaTimeSeconds(dt);
-        mFilter.predict();
         mLastMillis = millis;
-        mFilter.update(new Matrix(1, new double[]{rssi}));
         mFilteredRssi = mFilter.mx.get(0, 0);
         mEstimatedRateOfRssiChange = mFilter.mx.get(1, 0);
     }
