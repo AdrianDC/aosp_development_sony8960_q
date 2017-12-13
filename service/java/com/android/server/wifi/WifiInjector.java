@@ -268,6 +268,7 @@ public class WifiInjector {
     public void enableVerboseLogging(int verbose) {
         mWifiLastResortWatchdog.enableVerboseLogging(verbose);
         mWifiBackupRestore.enableVerboseLogging(verbose);
+        mHalDeviceManager.enableVerboseLogging(verbose);
         LogcatLog.enableVerboseLogging(verbose);
     }
 
