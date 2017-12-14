@@ -242,7 +242,8 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
         if (publishConfig == null) {
             throw new IllegalArgumentException("PublishConfig must not be null");
         }
-        publishConfig.assertValid(mStateManager.getCharacteristics());
+        publishConfig.assertValid(mStateManager.getCharacteristics(),
+                mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WIFI_RTT));
 
         int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
@@ -262,7 +263,8 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
         if (publishConfig == null) {
             throw new IllegalArgumentException("PublishConfig must not be null");
         }
-        publishConfig.assertValid(mStateManager.getCharacteristics());
+        publishConfig.assertValid(mStateManager.getCharacteristics(),
+                mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WIFI_RTT));
 
         int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
@@ -287,7 +289,8 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
         if (subscribeConfig == null) {
             throw new IllegalArgumentException("SubscribeConfig must not be null");
         }
-        subscribeConfig.assertValid(mStateManager.getCharacteristics());
+        subscribeConfig.assertValid(mStateManager.getCharacteristics(),
+                mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WIFI_RTT));
 
         int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
@@ -307,7 +310,8 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
         if (subscribeConfig == null) {
             throw new IllegalArgumentException("SubscribeConfig must not be null");
         }
-        subscribeConfig.assertValid(mStateManager.getCharacteristics());
+        subscribeConfig.assertValid(mStateManager.getCharacteristics(),
+                mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WIFI_RTT));
 
         int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
