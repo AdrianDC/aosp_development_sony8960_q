@@ -454,6 +454,10 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
             return false;
         }
 
+        if (!isVerboseLoggingEnabled()) {
+            return false;
+        }
+
         for (WifiNative.RingBufferStatus buffer : mRingBuffers){
 
             if ((buffer.flag & RING_BUFFER_FLAG_HAS_PER_PACKET_ENTRIES) != 0) {
