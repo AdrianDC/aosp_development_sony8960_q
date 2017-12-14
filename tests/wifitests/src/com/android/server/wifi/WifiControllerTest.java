@@ -88,6 +88,7 @@ public class WifiControllerTest {
     @Mock FrameworkFacade mFacade;
     @Mock WifiSettingsStore mSettingsStore;
     @Mock WifiStateMachine mWifiStateMachine;
+    @Mock WifiStateMachinePrime mWifiStateMachinePrime;
     @Mock WifiLockManager mWifiLockManager;
     @Mock ContentResolver mContentResolver;
 
@@ -110,7 +111,8 @@ public class WifiControllerTest {
                 ArgumentCaptor.forClass(ContentObserver.class);
 
         mWifiController = new WifiController(mContext, mWifiStateMachine,
-                mSettingsStore, mWifiLockManager, mLooper.getLooper(), mFacade);
+                mSettingsStore, mWifiLockManager, mLooper.getLooper(), mFacade,
+                mWifiStateMachinePrime);
         verify(mFacade, times(3)).registerContentObserver(eq(mContext), any(Uri.class), eq(false),
                 observerCaptor.capture());
 
@@ -367,7 +369,8 @@ public class WifiControllerTest {
         when(mContext.getContentResolver()).thenReturn(mock(ContentResolver.class));
 
         mWifiController = new WifiController(mContext, mWifiStateMachine,
-                mSettingsStore, mWifiLockManager, mLooper.getLooper(), mFacade);
+                mSettingsStore, mWifiLockManager, mLooper.getLooper(), mFacade,
+                mWifiStateMachinePrime);
 
         mWifiController.start();
         mLooper.dispatchAll();
@@ -457,11 +460,13 @@ public class WifiControllerTest {
     public void testRestartWifiStackDoesNotExitAPMode() throws Exception {
         mWifiController.obtainMessage(CMD_SET_AP, 1).sendToTarget();
         mLooper.dispatchAll();
+        verify(mWifiStateMachinePrime).enterSoftAPMode(any());
         assertEquals("ApEnabledState", getCurrentState().getName());
 
         reset(mWifiStateMachine);
         mWifiController.sendMessage(CMD_RESTART_WIFI);
         mLooper.dispatchAll();
         verifyZeroInteractions(mWifiStateMachine);
+        verify(mWifiStateMachinePrime, never()).disableWifi();
     }
 }

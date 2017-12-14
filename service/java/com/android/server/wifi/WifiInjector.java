@@ -21,7 +21,6 @@ import android.app.ActivityManager;
 import android.content.Context;
 import android.net.NetworkKey;
 import android.net.NetworkScoreManager;
-import android.net.wifi.IApInterface;
 import android.net.wifi.IWifiScanner;
 import android.net.wifi.IWificond;
 import android.net.wifi.WifiInfo;
@@ -84,6 +83,7 @@ public class WifiInjector {
     private final SupplicantP2pIfaceHal mSupplicantP2pIfaceHal;
     private final WifiVendorHal mWifiVendorHal;
     private final WifiStateMachine mWifiStateMachine;
+    private final WifiStateMachinePrime mWifiStateMachinePrime;
     private final WifiSettingsStore mSettingsStore;
     private final OpenNetworkNotifier mOpenNetworkNotifier;
     private final WifiLockManager mLockManager;
@@ -224,6 +224,11 @@ public class WifiInjector {
                 wifiStateMachineLooper, UserManager.get(mContext),
                 this, mBackupManagerProxy, mCountryCode, mWifiNative,
                 new WrongPasswordNotifier(mContext, mFrameworkFacade));
+        IBinder b = mFrameworkFacade.getService(Context.NETWORKMANAGEMENT_SERVICE);
+        INetworkManagementService networkManagementService =
+                INetworkManagementService.Stub.asInterface(b);
+        mWifiStateMachinePrime = new WifiStateMachinePrime(this, wifiStateMachineLooper,
+                mWifiNative, networkManagementService);
         mOpenNetworkNotifier = new OpenNetworkNotifier(mContext,
                 mWifiStateMachineHandlerThread.getLooper(), mFrameworkFacade, mClock, mWifiMetrics,
                 mWifiConfigManager, mWifiConfigStore, mWifiStateMachine,
@@ -234,7 +239,8 @@ public class WifiInjector {
                 mWifiConfigManager, mWifiConfigStore, mFrameworkFacade);
         mLockManager = new WifiLockManager(mContext, BatteryStatsService.getService());
         mWifiController = new WifiController(mContext, mWifiStateMachine, mSettingsStore,
-                mLockManager, mWifiServiceHandlerThread.getLooper(), mFrameworkFacade);
+                mLockManager, mWifiServiceHandlerThread.getLooper(), mFrameworkFacade,
+                mWifiStateMachinePrime);
         mSelfRecovery = new SelfRecovery(mWifiController, mClock);
         mWifiLastResortWatchdog = new WifiLastResortWatchdog(mSelfRecovery, mWifiMetrics);
         mWifiMulticastLockManager = new WifiMulticastLockManager(mWifiStateMachine,
@@ -297,6 +303,10 @@ public class WifiInjector {
 
     public WifiStateMachine getWifiStateMachine() {
         return mWifiStateMachine;
+    }
+
+    public WifiStateMachinePrime getWifiStateMachinePrime() {
+        return mWifiStateMachinePrime;
     }
 
     public WifiSettingsStore getWifiSettingsStore() {
@@ -371,19 +381,15 @@ public class WifiInjector {
      * @param nmService NetworkManagementService allowing SoftApManager to listen for interface
      * changes
      * @param listener listener for SoftApManager
-     * @param apInterface network interface to start hostapd against
-     * @param ifaceName name of the ap interface
      * @param config SoftApModeConfiguration object holding the config and mode
      * @return an instance of SoftApManager
      */
     public SoftApManager makeSoftApManager(INetworkManagementService nmService,
                                            SoftApManager.Listener listener,
-                                           @NonNull IApInterface apInterface,
-                                           @NonNull String ifaceName,
                                            @NonNull SoftApModeConfiguration config) {
         return new SoftApManager(mContext, mWifiStateMachineHandlerThread.getLooper(),
-                mFrameworkFacade, mWifiNative, mCountryCode.getCountryCode(), listener, apInterface,
-                ifaceName, nmService, mWifiApConfigStore, config, mWifiMetrics);
+                mFrameworkFacade, mWifiNative, mCountryCode.getCountryCode(), listener,
+                nmService, mWifiApConfigStore, config, mWifiMetrics);
     }
 
     /**

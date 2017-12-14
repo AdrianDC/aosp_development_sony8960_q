@@ -19,14 +19,12 @@ package com.android.server.wifi;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.*;
 
-import android.net.wifi.IApInterface;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
 import android.os.INetworkManagementService;
 import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Log;
-import android.util.Pair;
 
 import org.junit.After;
 import org.junit.Before;
@@ -56,7 +54,6 @@ public class WifiStateMachinePrimeTest {
     @Mock WifiNative mWifiNative;
     @Mock WifiApConfigStore mWifiApConfigStore;
     TestLooper mLooper;
-    @Mock IApInterface mApInterface;
     @Mock INetworkManagementService mNMService;
     @Mock SoftApManager mSoftApManager;
     SoftApManager.Listener mSoftApListener;
@@ -106,24 +103,17 @@ public class WifiStateMachinePrimeTest {
      */
     private void enterSoftApActiveMode(SoftApModeConfiguration softApConfig) throws Exception {
         String fromState = mWifiStateMachinePrime.getCurrentMode();
-        when(mWifiNative.setupForSoftApMode(WIFI_IFACE_NAME))
-                .thenReturn(new Pair(WifiNative.SETUP_SUCCESS, mApInterface));
-        when(mApInterface.getInterfaceName()).thenReturn(WIFI_IFACE_NAME);
         doAnswer(
                 new Answer<Object>() {
                     public SoftApManager answer(InvocationOnMock invocation) {
                         Object[] args = invocation.getArguments();
                         assertEquals(mNMService, (INetworkManagementService) args[0]);
                         mSoftApListener = (SoftApManager.Listener) args[1];
-                        assertEquals(mApInterface, (IApInterface) args[2]);
-                        assertEquals(WIFI_IFACE_NAME, (String) args[3]);
-                        assertEquals(softApConfig, (SoftApModeConfiguration) args[4]);
+                        assertEquals(softApConfig, (SoftApModeConfiguration) args[2]);
                         return mSoftApManager;
                     }
                 }).when(mWifiInjector).makeSoftApManager(any(INetworkManagementService.class),
                                                          any(SoftApManager.Listener.class),
-                                                         any(IApInterface.class),
-                                                         anyString(),
                                                          any());
         mWifiStateMachinePrime.enterSoftAPMode(softApConfig);
         mLooper.dispatchAll();
@@ -138,7 +128,7 @@ public class WifiStateMachinePrimeTest {
     private void verifyCleanupCalled() {
         // for now, this is a single call, but make a helper to avoid adding any additional cleanup
         // checks
-        verify(mWifiNative).tearDown();
+        verify(mWifiNative, atLeastOnce()).tearDown();
     }
 
     /**
@@ -195,12 +185,9 @@ public class WifiStateMachinePrimeTest {
      */
     @Test
     public void testDisableWifiFromSoftApModeState() throws Exception {
-        // Use a failure getting the interface to stay in SoftApMode
-        when(mWifiNative.setupForSoftApMode(WIFI_IFACE_NAME))
-                            .thenReturn(new Pair(WifiNative.SETUP_FAILURE_HAL, null));
-
-        mWifiStateMachinePrime.enterSoftAPMode(
-                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null));
+        enterSoftApActiveMode();
+        // now inject failure through the SoftApManager.Listener
+        mSoftApListener.onStateChanged(WifiManager.WIFI_AP_STATE_FAILED, 0);
         mLooper.dispatchAll();
         assertEquals(SOFT_AP_MODE_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
 
@@ -227,34 +214,19 @@ public class WifiStateMachinePrimeTest {
     }
 
     /**
-     * Test that we do not attempt to enter SoftApModeActiveState when we cannot get an ApInterface
-     * from wificond.
-     * Expectations: After a failed attempt to get an ApInterface from WifiInjector, we should
-     * remain in the SoftApModeState.
-     */
-    @Test
-    public void testAPInterfaceFailedWhenSwitchingToApMode() throws Exception {
-        when(mWifiNative.setupForSoftApMode(WIFI_IFACE_NAME))
-                .thenReturn(new Pair(WifiNative.SETUP_FAILURE_HAL, null));
-        mWifiStateMachinePrime.enterSoftAPMode(
-                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null));
-        mLooper.dispatchAll();
-        assertEquals(SOFT_AP_MODE_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
-    }
-
-    /**
      * Test that we do enter the SoftApModeActiveState if we are already in the SoftApModeState.
      * Expectations: We should exit the current SoftApModeState and re-enter before successfully
      * entering the SoftApModeActiveState.
      */
     @Test
     public void testEnterSoftApModeActiveWhenAlreadyInSoftApMode() throws Exception {
-        when(mWifiNative.setupForSoftApMode(WIFI_IFACE_NAME))
-                .thenReturn(new Pair(WifiNative.SETUP_SUCCESS, null));
-        mWifiStateMachinePrime.enterSoftAPMode(
-                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null));
+        enterSoftApActiveMode();
+        // now inject failure through the SoftApManager.Listener
+        mSoftApListener.onStateChanged(WifiManager.WIFI_AP_STATE_FAILED, 0);
         mLooper.dispatchAll();
         assertEquals(SOFT_AP_MODE_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
+        // clear the first call to start SoftApManager
+        reset(mSoftApManager);
 
         enterSoftApActiveMode();
     }
@@ -318,57 +290,12 @@ public class WifiStateMachinePrimeTest {
     }
 
     /**
-     * Test that the proper config is used if a prior attempt fails without using the config.
-     * Expectations: A call to start softap with a null config fails, but a second call has a set
-     * config - this second call should use the correct config.
-     */
-    @Test
-    public void testNullApModeConfigFails() throws Exception {
-        when(mWifiNative.setupForSoftApMode(WIFI_IFACE_NAME))
-                .thenReturn(new Pair(WifiNative.SETUP_SUCCESS, null));
-        mWifiStateMachinePrime.enterSoftAPMode(
-                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null));
-        mLooper.dispatchAll();
-        assertEquals(SOFT_AP_MODE_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
-        WifiConfiguration config = new WifiConfiguration();
-        config.SSID = "ThisIsAConfig";
-        SoftApModeConfiguration softApConfig =
-                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, config);
-        enterSoftApActiveMode(softApConfig);
-    }
-
-    /**
-     * Test that a failed call to start softap with a valid config does not persist the ap
-     * configuration to the WifiApConfigStore.
-     *
-     * Expectations: A call to start SoftAPMode with a config should not write out the config if we
-     * did not create a SoftApManager.
-     */
-    @Test
-    public void testValidConfigIsSavedOnFailureToStart() throws Exception {
-        when(mWifiNative.setupForSoftApMode(WIFI_IFACE_NAME))
-                .thenReturn(new Pair(WifiNative.SETUP_SUCCESS, null));
-        when(mWifiInjector.getWifiApConfigStore()).thenReturn(mWifiApConfigStore);
-        WifiConfiguration config = new WifiConfiguration();
-        config.SSID = "ThisIsAConfig";
-        SoftApModeConfiguration softApConfig =
-                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, config);
-        mWifiStateMachinePrime.enterSoftAPMode(softApConfig);
-        mLooper.dispatchAll();
-        assertEquals(SOFT_AP_MODE_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
-        verify(mWifiApConfigStore, never()).setApConfiguration(eq(config));
-    }
-
-    /**
      * Test that two calls to switch to SoftAPMode in succession ends up with the correct config.
      *
      * Expectation: we should end up in SoftAPMode state configured with the second config.
      */
     @Test
     public void testStartSoftApModeTwiceWithTwoConfigs() throws Exception {
-        when(mWifiNative.setupForSoftApMode(WIFI_IFACE_NAME))
-                .thenReturn(new Pair(WifiNative.SETUP_SUCCESS, mApInterface));
-        when(mApInterface.getInterfaceName()).thenReturn(WIFI_IFACE_NAME);
         when(mWifiInjector.getWifiApConfigStore()).thenReturn(mWifiApConfigStore);
         WifiConfiguration config1 = new WifiConfiguration();
         config1.SSID = "ThisIsAConfig";
@@ -381,14 +308,10 @@ public class WifiStateMachinePrimeTest {
 
         when(mWifiInjector.makeSoftApManager(any(INetworkManagementService.class),
                                              any(SoftApManager.Listener.class),
-                                             any(IApInterface.class),
-                                             anyString(),
                                              eq(softApConfig1)))
                 .thenReturn(mSoftApManager);
         when(mWifiInjector.makeSoftApManager(any(INetworkManagementService.class),
                                              any(SoftApManager.Listener.class),
-                                             any(IApInterface.class),
-                                             anyString(),
                                              eq(softApConfig2)))
                 .thenReturn(mSoftApManager);
 

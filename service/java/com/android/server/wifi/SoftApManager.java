@@ -38,6 +38,7 @@ import android.os.UserHandle;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
+import android.util.Pair;
 
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
@@ -74,8 +75,8 @@ public class SoftApManager implements ActiveModeManager {
 
     private final Listener mListener;
 
-    private final IApInterface mApInterface;
-    private final String mApInterfaceName;
+    private IApInterface mApInterface;
+    private String mApInterfaceName;
 
     private final INetworkManagementService mNwService;
     private final WifiApConfigStore mWifiApConfigStore;
@@ -114,8 +115,6 @@ public class SoftApManager implements ActiveModeManager {
                          WifiNative wifiNative,
                          String countryCode,
                          Listener listener,
-                         @NonNull IApInterface apInterface,
-                         @NonNull String ifaceName,
                          INetworkManagementService nms,
                          WifiApConfigStore wifiApConfigStore,
                          @NonNull SoftApModeConfiguration apConfig,
@@ -125,8 +124,6 @@ public class SoftApManager implements ActiveModeManager {
         mWifiNative = wifiNative;
         mCountryCode = countryCode;
         mListener = listener;
-        mApInterface = apInterface;
-        mApInterfaceName = ifaceName;
         mNwService = nms;
         mWifiApConfigStore = wifiApConfigStore;
         mMode = apConfig.getTargetMode();
@@ -181,6 +178,17 @@ public class SoftApManager implements ActiveModeManager {
     }
 
     /**
+     * Helper function to increment the appropriate setup failure metrics.
+     */
+    private void incrementMetricsForSetupFailure(int failureReason) {
+        if (failureReason == WifiNative.SETUP_FAILURE_HAL) {
+            mWifiMetrics.incrementNumWifiOnFailureDueToHal();
+        } else if (failureReason == WifiNative.SETUP_FAILURE_WIFICOND) {
+            mWifiMetrics.incrementNumWifiOnFailureDueToWificond();
+        }
+    }
+
+    /**
      * Start a soft AP instance with the given configuration.
      * @param config AP configuration
      * @return integer result code
@@ -227,12 +235,11 @@ public class SoftApManager implements ActiveModeManager {
     }
 
     /**
-     * Teardown soft AP.
+     * Teardown soft AP and teardown the interface.
      */
     private void stopSoftAp() {
         if (!mWifiNative.stopSoftAp()) {
-            Log.d(TAG, "Soft AP stop failed");
-            return;
+            Log.e(TAG, "Soft AP stop failed");
         }
         Log.d(TAG, "Soft AP is stopped");
     }
@@ -293,6 +300,39 @@ public class SoftApManager implements ActiveModeManager {
             public boolean processMessage(Message message) {
                 switch (message.what) {
                     case CMD_START:
+                        // need to create our interface
+                        mApInterface = null;
+                        Pair<Integer, IApInterface> statusAndInterface =
+                                mWifiNative.setupForSoftApMode(mWifiNative.getInterfaceName());
+                        if (statusAndInterface.first == WifiNative.SETUP_SUCCESS) {
+                            mApInterface = statusAndInterface.second;
+                        } else {
+                            Log.e(TAG, "setup failure when creating ap interface.");
+                            incrementMetricsForSetupFailure(statusAndInterface.first);
+                        }
+                        if (mApInterface == null) {
+                            Log.e(TAG, "Not starting softap mode without an interface.");
+                            updateApState(WifiManager.WIFI_AP_STATE_FAILED,
+                                          WifiManager.WIFI_AP_STATE_DISABLED,
+                                          WifiManager.SAP_START_FAILURE_GENERAL);
+                            mWifiMetrics.incrementSoftApStartResult(
+                                    false, WifiManager.SAP_START_FAILURE_GENERAL);
+                            break;
+                        }
+                        try {
+                            mApInterfaceName = mApInterface.getInterfaceName();
+                        } catch (RemoteException e) {
+                            // Failed to get the interface name. This is not a good sign and we
+                            // should report a failure.
+                            Log.e(TAG, "Failed to get the interface name.");
+                            updateApState(WifiManager.WIFI_AP_STATE_FAILED,
+                                          WifiManager.WIFI_AP_STATE_DISABLED,
+                                          WifiManager.SAP_START_FAILURE_GENERAL);
+                            mWifiMetrics.incrementSoftApStartResult(
+                                    false, WifiManager.SAP_START_FAILURE_GENERAL);
+                            break;
+                        }
+
                         // first a sanity check on the interface name.  If we failed to retrieve it,
                         // we are going to have a hard time setting up routing.
                         if (TextUtils.isEmpty(mApInterfaceName)) {
