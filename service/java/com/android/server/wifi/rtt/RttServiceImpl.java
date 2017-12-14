@@ -22,6 +22,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.database.ContentObserver;
 import android.hardware.wifi.V1_0.RttResult;
 import android.hardware.wifi.V1_0.RttStatus;
 import android.net.MacAddress;
@@ -42,11 +43,13 @@ import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.WorkSource;
+import android.provider.Settings;
 import android.util.Log;
 import android.util.SparseIntArray;
 
 import com.android.internal.util.WakeupMessage;
 import com.android.server.wifi.Clock;
+import com.android.server.wifi.FrameworkFacade;
 import com.android.server.wifi.util.WifiPermissionsUtil;
 
 import java.io.FileDescriptor;
@@ -65,6 +68,7 @@ import java.util.Map;
 public class RttServiceImpl extends IWifiRttManager.Stub {
     private static final String TAG = "RttServiceImpl";
     private static final boolean VDBG = false; // STOPSHIP if true
+    private boolean mDbg = false;
 
     private final Context mContext;
     private Clock mClock;
@@ -102,10 +106,11 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
      * @param awareBinder The Wi-Fi Aware service (binder) if supported on the system.
      * @param rttNative The Native interface to the HAL.
      * @param wifiPermissionsUtil Utility for permission checks.
+     * @param frameworkFacade Facade for framework classes, allows mocking.
      */
     public void start(Looper looper, Clock clock, IWifiAwareManager awareBinder,
-            RttNative rttNative,
-            WifiPermissionsUtil wifiPermissionsUtil) {
+            RttNative rttNative, WifiPermissionsUtil wifiPermissionsUtil,
+            FrameworkFacade frameworkFacade) {
         mClock = clock;
         mAwareBinder = awareBinder;
         mRttNative = rttNative;
@@ -120,7 +125,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
             @Override
             public void onReceive(Context context, Intent intent) {
                 String action = intent.getAction();
-                if (VDBG) Log.v(TAG, "BroadcastReceiver: action=" + action);
+                if (mDbg) Log.v(TAG, "BroadcastReceiver: action=" + action);
 
                 if (PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED.equals(action)) {
                     if (mPowerManager.isDeviceIdleMode()) {
@@ -132,9 +137,33 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
             }
         }, intentFilter);
 
+        frameworkFacade.registerContentObserver(mContext,
+                Settings.Global.getUriFor(Settings.Global.WIFI_VERBOSE_LOGGING_ENABLED), true,
+                new ContentObserver(mRttServiceSynchronized.mHandler) {
+                    @Override
+                    public void onChange(boolean selfChange) {
+                        enableVerboseLogging(frameworkFacade.getIntegerSetting(mContext,
+                                Settings.Global.WIFI_VERBOSE_LOGGING_ENABLED, 0));
+                    }
+                });
+        enableVerboseLogging(frameworkFacade.getIntegerSetting(mContext,
+                Settings.Global.WIFI_VERBOSE_LOGGING_ENABLED, 0));
+
         mRttServiceSynchronized.mHandler.post(() -> {
             rttNative.start();
         });
+    }
+
+    private void enableVerboseLogging(int verbose) {
+        if (verbose > 0) {
+            mDbg = true;
+        } else {
+            mDbg = false;
+        }
+        if (VDBG) {
+            mDbg = true; // just override
+        }
+        mRttNative.mDbg = mDbg;
     }
 
     /*
@@ -230,7 +259,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         IBinder.DeathRecipient dr = new IBinder.DeathRecipient() {
             @Override
             public void binderDied() {
-                if (VDBG) Log.v(TAG, "binderDied: uid=" + uid);
+                if (mDbg) Log.v(TAG, "binderDied: uid=" + uid);
                 binder.unlinkToDeath(this, 0);
 
                 mRttServiceSynchronized.mHandler.post(() -> {
@@ -508,7 +537,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                 }
             }
 
-            if (VDBG) {
+            if (mDbg) {
                 Log.v(TAG, "isRequestorSpamming: ws=" + ws + ", someone is spamming: " + counts);
             }
             return true;
@@ -805,7 +834,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
             for (ResponderConfig peer : request.mRttPeers) {
                 RttResult resultForRequest = resultEntries.get(peer.macAddress);
                 if (resultForRequest == null) {
-                    if (VDBG) {
+                    if (mDbg) {
                         Log.v(TAG, "postProcessResults: missing=" + peer.macAddress);
                     }
                     if (peer.peerHandle == null) {
