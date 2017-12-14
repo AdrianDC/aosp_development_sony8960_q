@@ -56,8 +56,8 @@ import java.util.Map;
  */
 public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellCommand {
     private static final String TAG = "WifiAwareNativeApi";
-    private static final boolean DBG = false;
     private static final boolean VDBG = false; // STOPSHIP if true
+    /* package */ boolean mDbg = false;
 
     private static final String SERVICE_NAME_FOR_OOB_DATA_PATH = "Wi-Fi Aware Data Path";
 

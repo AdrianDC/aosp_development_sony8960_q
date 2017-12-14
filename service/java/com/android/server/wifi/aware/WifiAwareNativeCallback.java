@@ -46,8 +46,8 @@ import java.util.Arrays;
 public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub implements
         WifiAwareShellCommand.DelegatedShellCommand {
     private static final String TAG = "WifiAwareNativeCallback";
-    private static final boolean DBG = false;
     private static final boolean VDBG = false;
+    /* package */ boolean mDbg = false;
 
     private final WifiAwareStateManager mWifiAwareStateManager;
 

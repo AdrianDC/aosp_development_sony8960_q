@@ -38,8 +38,8 @@ import java.util.Arrays;
  */
 public class WifiAwareDiscoverySessionState {
     private static final String TAG = "WifiAwareDiscSessState";
-    private static final boolean DBG = false;
     private static final boolean VDBG = false; // STOPSHIP if true
+    /* package */ boolean mDbg = false;
 
     private int mNextPeerIdToBeAllocated = 100; // used to create a unique peer ID
 
@@ -296,8 +296,8 @@ public class WifiAwareDiscoverySessionState {
         PeerInfo newPeerInfo = new PeerInfo(requestorInstanceId, peerMac);
         mPeerInfoByRequestorInstanceId.put(newPeerId, newPeerInfo);
 
-        if (DBG) {
-            Log.d(TAG, "New peer info: peerId=" + newPeerId + ", peerInfo=" + newPeerInfo);
+        if (VDBG) {
+            Log.v(TAG, "New peer info: peerId=" + newPeerId + ", peerInfo=" + newPeerInfo);
         }
 
         return newPeerId;

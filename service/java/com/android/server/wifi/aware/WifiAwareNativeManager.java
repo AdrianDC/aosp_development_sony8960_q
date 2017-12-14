@@ -36,7 +36,8 @@ import java.io.PrintWriter;
  */
 public class WifiAwareNativeManager {
     private static final String TAG = "WifiAwareNativeManager";
-    private static final boolean DBG = false;
+    private static final boolean VDBG = false;
+    /* package */ boolean mDbg = false;
 
     // to be used for synchronizing access to any of the WifiAwareNative objects
     private final Object mLock = new Object();
@@ -71,7 +72,7 @@ public class WifiAwareNativeManager {
                 new HalDeviceManager.ManagerStatusListener() {
                     @Override
                     public void onStatusChanged() {
-                        if (DBG) Log.d(TAG, "onStatusChanged");
+                        if (VDBG) Log.v(TAG, "onStatusChanged");
                         // only care about isStarted (Wi-Fi started) not isReady - since if not
                         // ready then Wi-Fi will also be down.
                         if (mHalDeviceManager.isStarted()) {
@@ -107,7 +108,7 @@ public class WifiAwareNativeManager {
      */
     private void tryToGetAware() {
         synchronized (mLock) {
-            if (DBG) Log.d(TAG, "tryToGetAware: mWifiNanIface=" + mWifiNanIface);
+            if (VDBG) Log.v(TAG, "tryToGetAware: mWifiNanIface=" + mWifiNanIface);
 
             if (mWifiNanIface != null) {
                 return;
@@ -115,9 +116,9 @@ public class WifiAwareNativeManager {
             IWifiNanIface iface = mHalDeviceManager.createNanIface(mInterfaceDestroyedListener,
                     mHandler);
             if (iface == null) {
-                if (DBG) Log.d(TAG, "Was not able to obtain an IWifiNanIface");
+                if (VDBG) Log.v(TAG, "Was not able to obtain an IWifiNanIface");
             } else {
-                if (DBG) Log.d(TAG, "Obtained an IWifiNanIface");
+                if (VDBG) Log.v(TAG, "Obtained an IWifiNanIface");
 
                 try {
                     WifiStatus status = iface.registerEventCallback(mWifiAwareNativeCallback);
@@ -140,7 +141,7 @@ public class WifiAwareNativeManager {
 
     private void awareIsDown() {
         synchronized (mLock) {
-            if (DBG) Log.d(TAG, "awareIsDown: mWifiNanIface=" + mWifiNanIface);
+            if (VDBG) Log.v(TAG, "awareIsDown: mWifiNanIface=" + mWifiNanIface);
             if (mWifiNanIface != null) {
                 mWifiNanIface = null;
                 mWifiAwareStateManager.disableUsage();
@@ -152,7 +153,7 @@ public class WifiAwareNativeManager {
             HalDeviceManager.InterfaceDestroyedListener {
         @Override
         public void onDestroyed(@NonNull String ifaceName) {
-            if (DBG) Log.d(TAG, "Interface was destroyed");
+            if (VDBG) Log.v(TAG, "Interface was destroyed");
             awareIsDown();
         }
     }
@@ -161,7 +162,7 @@ public class WifiAwareNativeManager {
             HalDeviceManager.InterfaceAvailableForRequestListener {
         @Override
         public void onAvailableForRequest() {
-            if (DBG) Log.d(TAG, "Interface is possibly available");
+            if (VDBG) Log.v(TAG, "Interface is possibly available");
             tryToGetAware();
         }
     }
