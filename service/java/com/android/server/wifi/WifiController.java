@@ -93,6 +93,7 @@ public class WifiController extends StateMachine {
 
     /* References to values tracked in WifiService */
     private final WifiStateMachine mWifiStateMachine;
+    private final WifiStateMachinePrime mWifiStateMachinePrime;
     private final WifiSettingsStore mSettingsStore;
     private final WifiLockManager mWifiLockManager;
 
@@ -143,11 +144,13 @@ public class WifiController extends StateMachine {
     private EcmState mEcmState = new EcmState();
 
     WifiController(Context context, WifiStateMachine wsm, WifiSettingsStore wss,
-            WifiLockManager wifiLockManager, Looper looper, FrameworkFacade f) {
+            WifiLockManager wifiLockManager, Looper looper, FrameworkFacade f,
+            WifiStateMachinePrime wsmp) {
         super(TAG, looper);
         mFacade = f;
         mContext = context;
         mWifiStateMachine = wsm;
+        mWifiStateMachinePrime = wsmp;
         mSettingsStore = wss;
         mWifiLockManager = wifiLockManager;
 
@@ -435,7 +438,8 @@ public class WifiController extends StateMachine {
         @Override
         public void enter() {
             mWifiStateMachine.setSupplicantRunning(false);
-            // Supplicant can't restart right away, so not the time we switched off
+            mWifiStateMachinePrime.disableWifi();
+            // Supplicant can't restart right away, so note the time we switched off
             mDisabledTimestamp = SystemClock.elapsedRealtime();
             mDeferredEnableSerialNumber++;
             mHaveDeferredEnable = false;
@@ -481,6 +485,7 @@ public class WifiController extends StateMachine {
                         }
                         mWifiStateMachine.setHostApRunning((SoftApModeConfiguration) msg.obj,
                                 true);
+                        mWifiStateMachinePrime.enterSoftAPMode((SoftApModeConfiguration) msg.obj);
                         transitionTo(mApEnabledState);
                     }
                     break;
@@ -565,8 +570,13 @@ public class WifiController extends StateMachine {
                     if (msg.arg1 == 1) {
                         // remeber that we were enabled
                         mSettingsStore.setWifiSavedState(WifiSettingsStore.WIFI_ENABLED);
-                        deferMessage(obtainMessage(msg.what, msg.arg1, 1, msg.obj));
-                        transitionTo(mApStaDisabledState);
+                        mWifiStateMachine.setHostApRunning((SoftApModeConfiguration) msg.obj, true);
+                        mWifiStateMachinePrime.enterSoftAPMode((SoftApModeConfiguration) msg.obj);
+                        transitionTo(mApEnabledState);
+                        // we should just go directly to ApEnabled since we will kill interfaces
+                        // from WSMP
+                        //deferMessage(obtainMessage(msg.what, msg.arg1, 1, msg.obj));
+                        //transitionTo(mApStaDisabledState);
                     }
                     break;
                 default:
@@ -630,8 +640,14 @@ public class WifiController extends StateMachine {
                     // Before starting tethering, turn off supplicant for scan mode
                     if (msg.arg1 == 1) {
                         mSettingsStore.setWifiSavedState(WifiSettingsStore.WIFI_DISABLED);
-                        deferMessage(obtainMessage(msg.what, msg.arg1, 1, msg.obj));
-                        transitionTo(mApStaDisabledState);
+
+                        mWifiStateMachine.setHostApRunning((SoftApModeConfiguration) msg.obj, true);
+                        mWifiStateMachinePrime.enterSoftAPMode((SoftApModeConfiguration) msg.obj);
+                        transitionTo(mApEnabledState);
+                        // we should just go directly to ApEnabled since we will kill interfaces
+                        // from WSMP
+                        //deferMessage(obtainMessage(msg.what, msg.arg1, 1, msg.obj));
+                        //transitionTo(mApStaDisabledState);
                     }
                     break;
                 case CMD_DEFERRED_TOGGLE:
@@ -701,22 +717,26 @@ public class WifiController extends StateMachine {
                 case CMD_AIRPLANE_TOGGLED:
                     if (mSettingsStore.isAirplaneModeOn()) {
                         mWifiStateMachine.setHostApRunning(null, false);
+                        mWifiStateMachinePrime.disableWifi();
                         mPendingState = mApStaDisabledState;
                     }
                     break;
                 case CMD_WIFI_TOGGLED:
                     if (mSettingsStore.isWifiToggleEnabled()) {
                         mWifiStateMachine.setHostApRunning(null, false);
+                        mWifiStateMachinePrime.disableWifi();
                         mPendingState = mDeviceActiveState;
                     }
                     break;
                 case CMD_SET_AP:
                     if (msg.arg1 == 0) {
                         mWifiStateMachine.setHostApRunning(null, false);
+                        mWifiStateMachinePrime.disableWifi();
                         mPendingState = getNextWifiState();
                     }
                     break;
                 case CMD_AP_STOPPED:
+                    mWifiStateMachine.setHostApRunning(null, false);
                     if (mPendingState == null) {
                         /**
                          * Stop triggered internally, either tether notification
@@ -736,10 +756,12 @@ public class WifiController extends StateMachine {
                 case CMD_EMERGENCY_MODE_CHANGED:
                     if (msg.arg1 == 1) {
                         mWifiStateMachine.setHostApRunning(null, false);
+                        mWifiStateMachinePrime.disableWifi();
                         mPendingState = mEcmState;
                     }
                     break;
                 case CMD_AP_START_FAILURE:
+                    mWifiStateMachine.setHostApRunning(null, false);
                     transitionTo(getNextWifiState());
                     break;
                 default:
