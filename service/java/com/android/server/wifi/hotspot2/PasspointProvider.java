@@ -88,16 +88,17 @@ public class PasspointProvider {
     private final AuthParam mAuthParam;
 
     private boolean mHasEverConnected;
+    private boolean mIsShared;
 
     public PasspointProvider(PasspointConfiguration config, WifiKeyStore keyStore,
             SIMAccessor simAccessor, long providerId, int creatorUid) {
-        this(config, keyStore, simAccessor, providerId, creatorUid, null, null, null, false);
+        this(config, keyStore, simAccessor, providerId, creatorUid, null, null, null, false, false);
     }
 
     public PasspointProvider(PasspointConfiguration config, WifiKeyStore keyStore,
             SIMAccessor simAccessor, long providerId, int creatorUid, String caCertificateAlias,
             String clientCertificateAlias, String clientPrivateKeyAlias,
-            boolean hasEverConnected) {
+            boolean hasEverConnected, boolean isShared) {
         // Maintain a copy of the configuration to avoid it being updated by others.
         mConfig = new PasspointConfiguration(config);
         mKeyStore = keyStore;
@@ -107,6 +108,7 @@ public class PasspointProvider {
         mClientCertificateAlias = clientCertificateAlias;
         mClientPrivateKeyAlias = clientPrivateKeyAlias;
         mHasEverConnected = hasEverConnected;
+        mIsShared = isShared;
 
         // Setup EAP method and authentication parameter based on the credential.
         if (mConfig.getCredential().getUserCredential() != null) {
@@ -311,6 +313,7 @@ public class PasspointProvider {
                     mConfig.getCredential().getSimCredential());
         }
         wifiConfig.enterpriseConfig = enterpriseConfig;
+        wifiConfig.shared = mIsShared;
         return wifiConfig;
     }
 
