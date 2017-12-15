@@ -35,12 +35,15 @@ import java.util.Set;
 public class WakeupConfigStoreData implements StoreData {
     private static final String TAG = "WakeupConfigStoreData";
 
+    private static final String XML_TAG_FEATURE_STATE_SECTION = "FeatureState";
     private static final String XML_TAG_IS_ACTIVE = "IsActive";
+    private static final String XML_TAG_IS_ONBOARDED = "IsOnboarded";
     private static final String XML_TAG_NETWORK_SECTION = "Network";
     private static final String XML_TAG_SSID = "SSID";
     private static final String XML_TAG_SECURITY = "Security";
 
     private final DataSource<Boolean> mIsActiveDataSource;
+    private final DataSource<Boolean> mIsOnboardedDataSource;
     private final DataSource<Set<ScanResultMatchInfo>> mNetworkDataSource;
 
     /**
@@ -70,8 +73,10 @@ public class WakeupConfigStoreData implements StoreData {
      */
     public WakeupConfigStoreData(
             DataSource<Boolean> isActiveDataSource,
+            DataSource<Boolean> isOnboardedDataSource,
             DataSource<Set<ScanResultMatchInfo>> networkDataSource) {
         mIsActiveDataSource = isActiveDataSource;
+        mIsOnboardedDataSource = isOnboardedDataSource;
         mNetworkDataSource = networkDataSource;
     }
 
@@ -82,7 +87,7 @@ public class WakeupConfigStoreData implements StoreData {
             throw new XmlPullParserException("Share data not supported");
         }
 
-        XmlUtil.writeNextValue(out, XML_TAG_IS_ACTIVE, mIsActiveDataSource.getData());
+        writeFeatureState(out);
 
         for (ScanResultMatchInfo scanResultMatchInfo : mNetworkDataSource.getData()) {
             writeNetwork(out, scanResultMatchInfo);
@@ -90,10 +95,27 @@ public class WakeupConfigStoreData implements StoreData {
     }
 
     /**
+     * Writes the current state of Wifi Wake to an XML output stream.
+     *
+     * @param out XML output stream
+     * @throws XmlPullParserException
+     * @throws IOException
+     */
+    private void writeFeatureState(XmlSerializer out)
+            throws IOException, XmlPullParserException {
+        XmlUtil.writeNextSectionStart(out, XML_TAG_FEATURE_STATE_SECTION);
+
+        XmlUtil.writeNextValue(out, XML_TAG_IS_ACTIVE, mIsActiveDataSource.getData());
+        XmlUtil.writeNextValue(out, XML_TAG_IS_ONBOARDED, mIsOnboardedDataSource.getData());
+
+        XmlUtil.writeNextSectionEnd(out, XML_TAG_FEATURE_STATE_SECTION);
+    }
+
+    /**
      * Writes a {@link ScanResultMatchInfo} to an XML output stream.
      *
      * @param out XML output stream
-     * @param scanResultMatchInfo The ScanResultMatchInfo to serizialize
+     * @param scanResultMatchInfo The ScanResultMatchInfo to serialize
      * @throws XmlPullParserException
      * @throws IOException
      */
@@ -118,15 +140,56 @@ public class WakeupConfigStoreData implements StoreData {
             throw new XmlPullParserException("Shared data not supported");
         }
 
-        boolean isActive = (Boolean) XmlUtil.readNextValueWithName(in, XML_TAG_IS_ACTIVE);
-        mIsActiveDataSource.setData(isActive);
-
         Set<ScanResultMatchInfo> networks = new ArraySet<>();
-        while (XmlUtil.gotoNextSectionWithNameOrEnd(in, XML_TAG_NETWORK_SECTION, outerTagDepth)) {
-            networks.add(parseNetwork(in, outerTagDepth + 1));
+
+        String[] headerName = new String[1];
+        while (XmlUtil.gotoNextSectionOrEnd(in, headerName, outerTagDepth)) {
+            switch (headerName[0]) {
+                case XML_TAG_FEATURE_STATE_SECTION:
+                    parseFeatureState(in, outerTagDepth + 1);
+                    break;
+                case XML_TAG_NETWORK_SECTION:
+                    networks.add(parseNetwork(in, outerTagDepth + 1));
+                    break;
+            }
         }
 
         mNetworkDataSource.setData(networks);
+    }
+
+    /**
+     * Parses the state of Wifi Wake from an XML input stream and sets the respective data sources.
+     *
+     * @param in XML input stream
+     * @param outerTagDepth XML tag depth of the containing section
+     * @throws IOException
+     * @throws XmlPullParserException
+     */
+    private void parseFeatureState(XmlPullParser in, int outerTagDepth)
+            throws IOException, XmlPullParserException {
+        boolean isActive = false;
+        boolean isOnboarded = false;
+
+        while (!XmlUtil.isNextSectionEnd(in, outerTagDepth)) {
+            String[] valueName = new String[1];
+            Object value = XmlUtil.readCurrentValue(in, valueName);
+            if (valueName[0] == null) {
+                throw new XmlPullParserException("Missing value name");
+            }
+            switch (valueName[0]) {
+                case XML_TAG_IS_ACTIVE:
+                    isActive = (Boolean) value;
+                    break;
+                case XML_TAG_IS_ONBOARDED:
+                    isOnboarded = (Boolean) value;
+                    break;
+                default:
+                    throw new XmlPullParserException("Unknown value found: " + valueName[0]);
+            }
+        }
+
+        mIsActiveDataSource.setData(isActive);
+        mIsOnboardedDataSource.setData(isOnboarded);
     }
 
     /**
@@ -168,6 +231,7 @@ public class WakeupConfigStoreData implements StoreData {
         if (!shared) {
             mNetworkDataSource.setData(Collections.emptySet());
             mIsActiveDataSource.setData(false);
+            mIsOnboardedDataSource.setData(false);
         }
     }
 
