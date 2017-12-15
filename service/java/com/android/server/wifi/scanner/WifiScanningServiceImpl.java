@@ -16,13 +16,15 @@
 
 package com.android.server.wifi.scanner;
 
+import static android.content.pm.PackageManager.PERMISSION_DENIED;
+import static android.content.pm.PackageManager.PERMISSION_GRANTED;
+
 import android.Manifest;
 import android.app.AlarmManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.pm.PackageManager;
 import android.net.wifi.IWifiScanner;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
@@ -718,6 +720,20 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             if (settings.band == WifiScanner.WIFI_BAND_UNSPECIFIED) {
                 if (settings.channels == null || settings.channels.length == 0) {
                     Log.d(TAG, "Failing single scan because channel list was empty");
+                    return false;
+                }
+            }
+            if (mContext.checkPermission(
+                    Manifest.permission.NETWORK_STACK, UNKNOWN_PID, ci.getUid())
+                    == PERMISSION_DENIED) {
+                if (!ArrayUtils.isEmpty(settings.hiddenNetworks)) {
+                    Log.e(TAG, "Failing single scan because app " + ci.getUid()
+                            + " does not have permission to set hidden networks");
+                    return false;
+                }
+                if (settings.type != WifiScanner.TYPE_LOW_LATENCY) {
+                    Log.e(TAG, "Failing single scan because app " + ci.getUid()
+                            + " does not have permission to set type");
                     return false;
                 }
             }
@@ -1963,7 +1979,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
     @Override
     protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         if (mContext.checkCallingOrSelfPermission(android.Manifest.permission.DUMP)
-                != PackageManager.PERMISSION_GRANTED) {
+                != PERMISSION_GRANTED) {
             pw.println("Permission Denial: can't dump WifiScanner from from pid="
                     + Binder.getCallingPid()
                     + ", uid=" + Binder.getCallingUid()
