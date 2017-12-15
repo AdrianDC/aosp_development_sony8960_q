@@ -19,9 +19,11 @@ package com.android.server.wifi.aware;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -41,10 +43,12 @@ import android.net.wifi.aware.SubscribeConfig;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.RemoteException;
+import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
 
+import com.android.server.wifi.FrameworkFacade;
 import com.android.server.wifi.util.WifiPermissionsWrapper;
 
 import org.junit.Before;
@@ -68,6 +72,7 @@ public class WifiAwareServiceImplTest {
 
     private WifiAwareServiceImplSpy mDut;
     private int mDefaultUid = 1500;
+    private TestLooper mMockLooper;
 
     @Mock
     private Context mContextMock;
@@ -87,6 +92,8 @@ public class WifiAwareServiceImplTest {
     private IWifiAwareDiscoverySessionCallback mSessionCallbackMock;
     @Mock private WifiAwareMetrics mAwareMetricsMock;
     @Mock private WifiPermissionsWrapper mPermissionsWrapperMock;
+    @Mock
+    FrameworkFacade mFrameworkFacade;
 
     /**
      * Using instead of spy to avoid native crash failures - possibly due to
@@ -115,6 +122,11 @@ public class WifiAwareServiceImplTest {
     @Before
     public void setup() throws Exception {
         MockitoAnnotations.initMocks(this);
+        mMockLooper = new TestLooper();
+
+        when(mHandlerThreadMock.getLooper()).thenReturn(mMockLooper.getLooper());
+        doNothing().when(mFrameworkFacade).registerContentObserver(eq(mContextMock), any(),
+                anyBoolean(), any());
 
         when(mContextMock.getApplicationContext()).thenReturn(mContextMock);
         when(mContextMock.getPackageManager()).thenReturn(mPackageManagerMock);
@@ -127,7 +139,9 @@ public class WifiAwareServiceImplTest {
         mDut = new WifiAwareServiceImplSpy(mContextMock);
         mDut.fakeUid = mDefaultUid;
         mDut.start(mHandlerThreadMock, mAwareStateManagerMock, mWifiAwareShellCommandMock,
-                mAwareMetricsMock, mPermissionsWrapperMock);
+                mAwareMetricsMock, mPermissionsWrapperMock, mFrameworkFacade,
+                mock(WifiAwareNativeManager.class), mock(WifiAwareNativeApi.class),
+                mock(WifiAwareNativeCallback.class));
         verify(mAwareStateManagerMock).start(eq(mContextMock), any(), eq(mAwareMetricsMock),
                 eq(mPermissionsWrapperMock));
     }

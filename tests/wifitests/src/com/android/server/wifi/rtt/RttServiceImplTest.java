@@ -25,11 +25,13 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -67,6 +69,7 @@ import android.os.test.TestLooper;
 import android.util.Pair;
 
 import com.android.server.wifi.Clock;
+import com.android.server.wifi.FrameworkFacade;
 import com.android.server.wifi.util.WifiPermissionsUtil;
 
 import org.junit.After;
@@ -133,6 +136,9 @@ public class RttServiceImplTest {
     @Mock
     public IRttCallback mockCallback;
 
+    @Mock
+    FrameworkFacade mFrameworkFacade;
+
     /**
      * Using instead of spy to avoid native crash failures - possibly due to
      * spy's copying of state.
@@ -163,6 +169,8 @@ public class RttServiceImplTest {
         mMockLooper = new TestLooper();
 
         mAlarmManager = new TestAlarmManager();
+        doNothing().when(mFrameworkFacade).registerContentObserver(eq(mockContext), any(),
+                anyBoolean(), any());
         when(mockContext.getSystemService(Context.ALARM_SERVICE))
                 .thenReturn(mAlarmManager.getAlarmManager());
         mInOrder = inOrder(mAlarmManager.getAlarmManager(), mockContext);
@@ -188,7 +196,7 @@ public class RttServiceImplTest {
         doAnswer(mBinderUnlinkToDeathCounter).when(mockIbinder).unlinkToDeath(any(), anyInt());
 
         mDut.start(mMockLooper.getLooper(), mockClock, mockAwareManagerBinder, mockNative,
-                mockPermissionUtil);
+                mockPermissionUtil, mFrameworkFacade);
         mMockLooper.dispatchAll();
         ArgumentCaptor<BroadcastReceiver> bcastRxCaptor = ArgumentCaptor.forClass(
                 BroadcastReceiver.class);

@@ -46,6 +46,7 @@ import java.util.List;
 public class RttNative extends IWifiRttControllerEventCallback.Stub {
     private static final String TAG = "RttNative";
     private static final boolean VDBG = false; // STOPSHIP if true
+    /* package */ boolean mDbg = false;
 
     private final RttServiceImpl mRttService;
     private final HalDeviceManager mHalDeviceManager;
@@ -83,7 +84,7 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
     }
 
     private void updateController() {
-        if (VDBG) Log.v(TAG, "updateController: mIWifiRttController=" + mIWifiRttController);
+        if (mDbg) Log.v(TAG, "updateController: mIWifiRttController=" + mIWifiRttController);
 
         // only care about isStarted (Wi-Fi started) not isReady - since if not
         // ready then Wi-Fi will also be down.
@@ -124,7 +125,11 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
      * @return Success status: true for success, false for failure.
      */
     public boolean rangeRequest(int cmdId, RangingRequest request) {
-        if (VDBG) Log.v(TAG, "rangeRequest: cmdId=" + cmdId + ", request=" + request);
+        if (mDbg) {
+            Log.v(TAG,
+                    "rangeRequest: cmdId=" + cmdId + ", # of requests=" + request.mRttPeers.size());
+        }
+        if (VDBG) Log.v(TAG, "rangeRequest: request=" + request);
         synchronized (mLock) {
             if (!isReady()) {
                 Log.e(TAG, "rangeRequest: RttController is null");
@@ -161,7 +166,7 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
      * @return Success status: true for success, false for failure.
      */
     public boolean rangeCancel(int cmdId, ArrayList<byte[]> macAddresses) {
-        if (VDBG) Log.v(TAG, "rangeCancel: cmdId=" + cmdId);
+        if (mDbg) Log.v(TAG, "rangeCancel: cmdId=" + cmdId);
         synchronized (mLock) {
             if (!isReady()) {
                 Log.e(TAG, "rangeCancel: RttController is null");
@@ -192,7 +197,7 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
      */
     @Override
     public void onResults(int cmdId, ArrayList<RttResult> halResults) {
-        if (VDBG) Log.v(TAG, "onResults: cmdId=" + cmdId + ", # of results=" + halResults.size());
+        if (mDbg) Log.v(TAG, "onResults: cmdId=" + cmdId + ", # of results=" + halResults.size());
         List<RangingResult> results = new ArrayList<>(halResults.size());
 
         mRttService.onRangingResults(cmdId, halResults);

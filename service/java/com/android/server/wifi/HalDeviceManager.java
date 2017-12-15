@@ -60,8 +60,9 @@ import java.util.Set;
  * Handles device management through the HAL (HIDL) interface.
  */
 public class HalDeviceManager {
-    private static final String TAG = "HalDeviceManager";
-    private static final boolean DBG = false;
+    private static final String TAG = "HalDevMgr";
+    private static final boolean VDBG = false;
+    private boolean mDbg = false;
 
     private static final int START_HAL_RETRY_INTERVAL_MS = 20;
     // Number of attempts a start() is re-tried. A value of 0 means no retries after a single
@@ -81,6 +82,17 @@ public class HalDeviceManager {
         mInterfaceAvailableForRequestListeners.put(IfaceType.AP, new HashSet<>());
         mInterfaceAvailableForRequestListeners.put(IfaceType.P2P, new HashSet<>());
         mInterfaceAvailableForRequestListeners.put(IfaceType.NAN, new HashSet<>());
+    }
+
+    /* package */ void enableVerboseLogging(int verbose) {
+        if (verbose > 0) {
+            mDbg = true;
+        } else {
+            mDbg = false;
+        }
+        if (VDBG) {
+            mDbg = true; // just override
+        }
     }
 
     /**
@@ -253,7 +265,7 @@ public class HalDeviceManager {
      */
     public IWifiChip getChip(IWifiIface iface) {
         String name = getName(iface);
-        if (DBG) Log.d(TAG, "getChip: iface(name)=" + name);
+        if (VDBG) Log.d(TAG, "getChip: iface(name)=" + name);
 
         synchronized (mLock) {
             InterfaceCacheEntry cacheEntry = mInterfaceInfoCache.get(name);
@@ -282,7 +294,7 @@ public class HalDeviceManager {
             @NonNull InterfaceDestroyedListener destroyedListener,
             @Nullable Handler handler) {
         String name = getName(iface);
-        if (DBG) Log.d(TAG, "registerDestroyedListener: iface(name)=" + name);
+        if (VDBG) Log.d(TAG, "registerDestroyedListener: iface(name)=" + name);
 
         synchronized (mLock) {
             InterfaceCacheEntry cacheEntry = mInterfaceInfoCache.get(name);
@@ -317,7 +329,9 @@ public class HalDeviceManager {
      */
     public void registerInterfaceAvailableForRequestListener(int ifaceType,
             @NonNull InterfaceAvailableForRequestListener listener, @Nullable Handler handler) {
-        if (DBG) Log.d(TAG, "registerInterfaceAvailableForRequestListener: ifaceType=" + ifaceType);
+        if (VDBG) {
+            Log.d(TAG, "registerInterfaceAvailableForRequestListener: ifaceType=" + ifaceType);
+        }
 
         synchronized (mLock) {
             mInterfaceAvailableForRequestListeners.get(ifaceType).add(
@@ -340,7 +354,7 @@ public class HalDeviceManager {
     public void unregisterInterfaceAvailableForRequestListener(
             int ifaceType,
             InterfaceAvailableForRequestListener listener) {
-        if (DBG) {
+        if (VDBG) {
             Log.d(TAG, "unregisterInterfaceAvailableForRequestListener: ifaceType=" + ifaceType);
         }
 
@@ -415,7 +429,7 @@ public class HalDeviceManager {
      * Returns the created IWifiRttController or a null on error.
      */
     public IWifiRttController createRttController() {
-        if (DBG) Log.d(TAG, "createRttController");
+        if (VDBG) Log.d(TAG, "createRttController");
         synchronized (mLock) {
             if (mWifi == null) {
                 Log.e(TAG, "createRttController: null IWifi");
@@ -595,7 +609,7 @@ public class HalDeviceManager {
      * will be to WTF and continue.
      */
     private void initIServiceManagerIfNecessary() {
-        if (DBG) Log.d(TAG, "initIServiceManagerIfNecessary");
+        if (mDbg) Log.d(TAG, "initIServiceManagerIfNecessary");
 
         synchronized (mLock) {
             if (mServiceManager != null) {
@@ -633,7 +647,7 @@ public class HalDeviceManager {
      * @return true if supported, false otherwise.
      */
     private boolean isSupportedInternal() {
-        if (DBG) Log.d(TAG, "isSupportedInternal");
+        if (VDBG) Log.d(TAG, "isSupportedInternal");
 
         synchronized (mLock) {
             if (mServiceManager == null) {
@@ -670,7 +684,7 @@ public class HalDeviceManager {
      * Here and elsewhere we assume that death listener will do the right thing!
     */
     private void initIWifiIfNecessary() {
-        if (DBG) Log.d(TAG, "initIWifiIfNecessary");
+        if (mDbg) Log.d(TAG, "initIWifiIfNecessary");
 
         synchronized (mLock) {
             if (mWifi != null) {
@@ -712,9 +726,9 @@ public class HalDeviceManager {
      * Relies (to the degree we care) on the service removing all listeners when Wi-Fi is stopped.
      */
     private void initIWifiChipDebugListeners() {
-        if (DBG) Log.d(TAG, "initIWifiChipDebugListeners");
+        if (VDBG) Log.d(TAG, "initIWifiChipDebugListeners");
 
-        if (!DBG) {
+        if (!VDBG) {
             return;
         }
 
@@ -736,7 +750,7 @@ public class HalDeviceManager {
                     return;
                 }
 
-                if (DBG) Log.d(TAG, "getChipIds=" + chipIdsResp.value);
+                Log.d(TAG, "getChipIds=" + chipIdsResp.value);
                 if (chipIdsResp.value.size() == 0) {
                     Log.e(TAG, "Should have at least 1 chip!");
                     return;
@@ -819,7 +833,7 @@ public class HalDeviceManager {
      * reduce the likelihood that we get out-of-sync).
      */
     private WifiChipInfo[] getAllChipInfo() {
-        if (DBG) Log.d(TAG, "getAllChipInfo");
+        if (VDBG) Log.d(TAG, "getAllChipInfo");
 
         synchronized (mLock) {
             if (mWifi == null) {
@@ -844,7 +858,7 @@ public class HalDeviceManager {
                     return null;
                 }
 
-                if (DBG) Log.d(TAG, "getChipIds=" + chipIdsResp.value);
+                if (VDBG) Log.d(TAG, "getChipIds=" + chipIdsResp.value);
                 if (chipIdsResp.value.size() == 0) {
                     Log.e(TAG, "Should have at least 1 chip!");
                     return null;
@@ -1064,7 +1078,7 @@ public class HalDeviceManager {
      * found on the information read from the chip.
      */
     private boolean validateInterfaceCache(WifiChipInfo[] chipInfos) {
-        if (DBG) Log.d(TAG, "validateInterfaceCache");
+        if (VDBG) Log.d(TAG, "validateInterfaceCache");
 
         synchronized (mLock) {
             for (InterfaceCacheEntry entry: mInterfaceInfoCache.values()) {
@@ -1106,7 +1120,7 @@ public class HalDeviceManager {
     }
 
     private boolean isWifiStarted() {
-        if (DBG) Log.d(TAG, "isWifiStart");
+        if (VDBG) Log.d(TAG, "isWifiStart");
 
         synchronized (mLock) {
             try {
@@ -1124,7 +1138,7 @@ public class HalDeviceManager {
     }
 
     private boolean startWifi() {
-        if (DBG) Log.d(TAG, "startWifi");
+        if (VDBG) Log.d(TAG, "startWifi");
 
         synchronized (mLock) {
             try {
@@ -1170,7 +1184,7 @@ public class HalDeviceManager {
     }
 
     private void stopWifi() {
-        if (DBG) Log.d(TAG, "stopWifi");
+        if (VDBG) Log.d(TAG, "stopWifi");
 
         synchronized (mLock) {
             try {
@@ -1194,13 +1208,13 @@ public class HalDeviceManager {
     private class WifiEventCallback extends IWifiEventCallback.Stub {
         @Override
         public void onStart() throws RemoteException {
-            if (DBG) Log.d(TAG, "IWifiEventCallback.onStart");
+            if (VDBG) Log.d(TAG, "IWifiEventCallback.onStart");
             // NOP: only happens in reaction to my calls - will handle directly
         }
 
         @Override
         public void onStop() throws RemoteException {
-            if (DBG) Log.d(TAG, "IWifiEventCallback.onStop");
+            if (VDBG) Log.d(TAG, "IWifiEventCallback.onStop");
             // NOP: only happens in reaction to my calls - will handle directly
         }
 
@@ -1286,7 +1300,7 @@ public class HalDeviceManager {
 
     private IWifiIface createIface(int ifaceType, InterfaceDestroyedListener destroyedListener,
             Handler handler) {
-        if (DBG) Log.d(TAG, "createIface: ifaceType=" + ifaceType);
+        if (mDbg) Log.d(TAG, "createIface: ifaceType=" + ifaceType);
 
         synchronized (mLock) {
             WifiChipInfo[] chipInfos = getAllChipInfo();
@@ -1316,7 +1330,7 @@ public class HalDeviceManager {
 
     private IWifiIface createIfaceIfPossible(WifiChipInfo[] chipInfos, int ifaceType,
             InterfaceDestroyedListener destroyedListener, Handler handler) {
-        if (DBG) {
+        if (VDBG) {
             Log.d(TAG, "createIfaceIfPossible: chipInfos=" + Arrays.deepToString(chipInfos)
                     + ", ifaceType=" + ifaceType);
         }
@@ -1327,7 +1341,7 @@ public class HalDeviceManager {
                     for (IWifiChip.ChipIfaceCombination chipIfaceCombo : chipMode
                             .availableCombinations) {
                         int[][] expandedIfaceCombos = expandIfaceCombos(chipIfaceCombo);
-                        if (DBG) {
+                        if (VDBG) {
                             Log.d(TAG, chipIfaceCombo + " expands to "
                                     + Arrays.deepToString(expandedIfaceCombos));
                         }
@@ -1337,7 +1351,7 @@ public class HalDeviceManager {
                                     chipInfo, chipMode, expandedIfaceCombo, ifaceType);
                             if (compareIfaceCreationData(currentProposal,
                                     bestIfaceCreationProposal)) {
-                                if (DBG) Log.d(TAG, "new proposal accepted");
+                                if (VDBG) Log.d(TAG, "new proposal accepted");
                                 bestIfaceCreationProposal = currentProposal;
                             }
                         }
@@ -1361,7 +1375,7 @@ public class HalDeviceManager {
                     }
                     cacheEntry.creationTime = mClock.getUptimeSinceBootMillis();
 
-                    if (DBG) Log.d(TAG, "createIfaceIfPossible: added cacheEntry=" + cacheEntry);
+                    if (mDbg) Log.d(TAG, "createIfaceIfPossible: added cacheEntry=" + cacheEntry);
                     mInterfaceInfoCache.put(cacheEntry.name, cacheEntry);
                     return iface;
                 }
@@ -1374,7 +1388,7 @@ public class HalDeviceManager {
     // similar to createIfaceIfPossible - but simpler code: not looking for best option just
     // for any option (so terminates on first one).
     private boolean isItPossibleToCreateIface(WifiChipInfo[] chipInfos, int ifaceType) {
-        if (DBG) {
+        if (VDBG) {
             Log.d(TAG, "isItPossibleToCreateIface: chipInfos=" + Arrays.deepToString(chipInfos)
                     + ", ifaceType=" + ifaceType);
         }
@@ -1384,7 +1398,7 @@ public class HalDeviceManager {
                 for (IWifiChip.ChipIfaceCombination chipIfaceCombo : chipMode
                         .availableCombinations) {
                     int[][] expandedIfaceCombos = expandIfaceCombos(chipIfaceCombo);
-                    if (DBG) {
+                    if (VDBG) {
                         Log.d(TAG, chipIfaceCombo + " expands to "
                                 + Arrays.deepToString(expandedIfaceCombos));
                     }
@@ -1465,14 +1479,14 @@ public class HalDeviceManager {
      */
     private IfaceCreationData canIfaceComboSupportRequest(WifiChipInfo chipInfo,
             IWifiChip.ChipMode chipMode, int[] chipIfaceCombo, int ifaceType) {
-        if (DBG) {
+        if (VDBG) {
             Log.d(TAG, "canIfaceComboSupportRequest: chipInfo=" + chipInfo + ", chipMode="
                     + chipMode + ", chipIfaceCombo=" + chipIfaceCombo + ", ifaceType=" + ifaceType);
         }
 
         // short-circuit: does the chipIfaceCombo even support the requested type?
         if (chipIfaceCombo[ifaceType] == 0) {
-            if (DBG) Log.d(TAG, "Requested type not supported by combo");
+            if (VDBG) Log.d(TAG, "Requested type not supported by combo");
             return null;
         }
 
@@ -1486,7 +1500,7 @@ public class HalDeviceManager {
                 if (chipInfo.ifaces[type].length != 0) {
                     if (!allowedToDeleteIfaceTypeForRequestedType(type, ifaceType,
                             chipInfo.ifaces)) {
-                        if (DBG) {
+                        if (VDBG) {
                             Log.d(TAG, "Couldn't delete existing type " + type
                                     + " interfaces for requested type");
                         }
@@ -1516,7 +1530,7 @@ public class HalDeviceManager {
 
             if (tooManyInterfaces > 0) { // may need to delete some
                 if (!allowedToDeleteIfaceTypeForRequestedType(type, ifaceType, chipInfo.ifaces)) {
-                    if (DBG) {
+                    if (VDBG) {
                         Log.d(TAG, "Would need to delete some higher priority interfaces");
                     }
                     return null;
@@ -1546,7 +1560,7 @@ public class HalDeviceManager {
      * - Proposal is better if it means removing fewer high priority interfaces
      */
     private boolean compareIfaceCreationData(IfaceCreationData val1, IfaceCreationData val2) {
-        if (DBG) Log.d(TAG, "compareIfaceCreationData: val1=" + val1 + ", val2=" + val2);
+        if (VDBG) Log.d(TAG, "compareIfaceCreationData: val1=" + val1 + ", val2=" + val2);
 
         // deal with trivial case of one or the other being null
         if (val1 == null) {
@@ -1574,7 +1588,7 @@ public class HalDeviceManager {
             }
 
             if (numIfacesToDelete1 < numIfacesToDelete2) {
-                if (DBG) {
+                if (VDBG) {
                     Log.d(TAG, "decision based on type=" + type + ": " + numIfacesToDelete1
                             + " < " + numIfacesToDelete2);
                 }
@@ -1583,7 +1597,7 @@ public class HalDeviceManager {
         }
 
         // arbitrary - flip a coin
-        if (DBG) Log.d(TAG, "proposals identical - flip a coin");
+        if (VDBG) Log.d(TAG, "proposals identical - flip a coin");
         return false;
     }
 
@@ -1646,7 +1660,7 @@ public class HalDeviceManager {
      */
     private List<WifiIfaceInfo> selectInterfacesToDelete(int excessInterfaces,
             WifiIfaceInfo[] interfaces) {
-        if (DBG) {
+        if (VDBG) {
             Log.d(TAG, "selectInterfacesToDelete: excessInterfaces=" + excessInterfaces
                     + ", interfaces=" + Arrays.toString(interfaces));
         }
@@ -1686,7 +1700,7 @@ public class HalDeviceManager {
      */
     private IWifiIface executeChipReconfiguration(IfaceCreationData ifaceCreationData,
             int ifaceType) {
-        if (DBG) {
+        if (mDbg) {
             Log.d(TAG, "executeChipReconfiguration: ifaceCreationData=" + ifaceCreationData
                     + ", ifaceType=" + ifaceType);
         }
@@ -1695,7 +1709,7 @@ public class HalDeviceManager {
                 // is this a mode change?
                 boolean isModeConfigNeeded = !ifaceCreationData.chipInfo.currentModeIdValid
                         || ifaceCreationData.chipInfo.currentModeId != ifaceCreationData.chipModeId;
-                if (DBG) Log.d(TAG, "isModeConfigNeeded=" + isModeConfigNeeded);
+                if (mDbg) Log.d(TAG, "isModeConfigNeeded=" + isModeConfigNeeded);
 
                 // first delete interfaces/change modes
                 if (isModeConfigNeeded) {
@@ -1773,7 +1787,13 @@ public class HalDeviceManager {
 
     private boolean removeIfaceInternal(IWifiIface iface) {
         String name = getName(iface);
-        if (DBG) Log.d(TAG, "removeIfaceInternal: iface(name)=" + name);
+        int type = getType(iface);
+        if (mDbg) Log.d(TAG, "removeIfaceInternal: iface(name)=" + name + ", type=" + type);
+
+        if (type == -1) {
+            Log.e(TAG, "removeIfaceInternal: can't get type -- iface(name)=" + name);
+            return false;
+        }
 
         synchronized (mLock) {
             if (mWifi == null) {
@@ -1789,12 +1809,6 @@ public class HalDeviceManager {
 
             if (name == null) {
                 Log.e(TAG, "removeIfaceInternal: can't get name");
-                return false;
-            }
-
-            int type = getType(iface);
-            if (type == -1) {
-                Log.e(TAG, "removeIfaceInternal: can't get type -- iface(name)=" + name);
                 return false;
             }
 
@@ -1836,7 +1850,7 @@ public class HalDeviceManager {
     // dispatch all available for request listeners of the specified type AND clean-out the list:
     // listeners are called once at most!
     private boolean dispatchAvailableForRequestListeners() {
-        if (DBG) Log.d(TAG, "dispatchAvailableForRequestListeners");
+        if (VDBG) Log.d(TAG, "dispatchAvailableForRequestListeners");
 
         synchronized (mLock) {
             WifiChipInfo[] chipInfos = getAllChipInfo();
@@ -1845,7 +1859,7 @@ public class HalDeviceManager {
                 stopWifi(); // major error: shutting down
                 return false;
             }
-            if (DBG) {
+            if (VDBG) {
                 Log.d(TAG, "dispatchAvailableForRequestListeners: chipInfos="
                         + Arrays.deepToString(chipInfos));
             }
@@ -1860,7 +1874,7 @@ public class HalDeviceManager {
 
     private void dispatchAvailableForRequestListenersForType(int ifaceType,
             WifiChipInfo[] chipInfos) {
-        if (DBG) Log.d(TAG, "dispatchAvailableForRequestListenersForType: ifaceType=" + ifaceType);
+        if (VDBG) Log.d(TAG, "dispatchAvailableForRequestListenersForType: ifaceType=" + ifaceType);
 
         Set<InterfaceAvailableForRequestListenerProxy> listeners =
                 mInterfaceAvailableForRequestListeners.get(ifaceType);
@@ -1870,11 +1884,11 @@ public class HalDeviceManager {
         }
 
         if (!isItPossibleToCreateIface(chipInfos, ifaceType)) {
-            if (DBG) Log.d(TAG, "Creating interface type isn't possible: ifaceType=" + ifaceType);
+            if (VDBG) Log.d(TAG, "Creating interface type isn't possible: ifaceType=" + ifaceType);
             return;
         }
 
-        if (DBG) Log.d(TAG, "It is possible to create the interface type: ifaceType=" + ifaceType);
+        if (VDBG) Log.d(TAG, "It is possible to create the interface type: ifaceType=" + ifaceType);
         for (InterfaceAvailableForRequestListenerProxy listener : listeners) {
             listener.trigger();
         }
@@ -1883,7 +1897,7 @@ public class HalDeviceManager {
     // dispatch all destroyed listeners registered for the specified interface AND remove the
     // cache entry
     private void dispatchDestroyedListeners(String name) {
-        if (DBG) Log.d(TAG, "dispatchDestroyedListeners: iface(name)=" + name);
+        if (VDBG) Log.d(TAG, "dispatchDestroyedListeners: iface(name)=" + name);
 
         synchronized (mLock) {
             InterfaceCacheEntry entry = mInterfaceInfoCache.get(name);
@@ -1902,7 +1916,7 @@ public class HalDeviceManager {
 
     // dispatch all destroyed listeners registered to all interfaces
     private void dispatchAllDestroyedListeners() {
-        if (DBG) Log.d(TAG, "dispatchAllDestroyedListeners");
+        if (VDBG) Log.d(TAG, "dispatchAllDestroyedListeners");
 
         synchronized (mLock) {
             Iterator<Map.Entry<String, InterfaceCacheEntry>> it =
