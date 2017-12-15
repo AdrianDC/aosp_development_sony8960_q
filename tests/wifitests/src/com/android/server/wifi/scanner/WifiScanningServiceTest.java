@@ -16,12 +16,35 @@
 
 package com.android.server.wifi.scanner;
 
-import static com.android.server.wifi.ScanTestUtil.*;
+import static com.android.server.wifi.ScanTestUtil.NativeScanSettingsBuilder;
+import static com.android.server.wifi.ScanTestUtil.assertNativePnoSettingsEquals;
+import static com.android.server.wifi.ScanTestUtil.assertNativeScanSettingsEquals;
+import static com.android.server.wifi.ScanTestUtil.assertScanDatasEquals;
+import static com.android.server.wifi.ScanTestUtil.assertScanResultsEquals;
+import static com.android.server.wifi.ScanTestUtil.channelsToSpec;
+import static com.android.server.wifi.ScanTestUtil.computeSingleScanNativeSettings;
+import static com.android.server.wifi.ScanTestUtil.createRequest;
+import static com.android.server.wifi.ScanTestUtil.createSingleScanNativeSettingsForChannels;
 import static com.android.server.wifi.scanner.WifiScanningServiceImpl.WifiSingleScanStateMachine
         .CACHED_SCAN_RESULTS_MAX_AGE_IN_MILLIS;
 
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.argThat;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.validateMockitoUsage;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.app.test.TestAlarmManager;
@@ -63,11 +86,11 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatcher;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
-import org.mockito.compat.CapturingMatcher;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -162,14 +185,35 @@ public class WifiScanningServiceTest {
         return messageCaptor.getValue();
     }
 
+    private static class ConditionalMessageCaptor implements ArgumentMatcher<Message> {
+        private Message mLastValue;
+        private final int mWhat;
+
+        private ConditionalMessageCaptor(int what) {
+            mWhat = what;
+        }
+
+        public Message getLastValue() {
+            assertNotNull("Nothing captured yet", mLastValue);
+
+            return mLastValue;
+        }
+
+        public boolean matches(Message message) {
+            boolean isMatch = message.what == mWhat;
+
+            if (isMatch) {
+                mLastValue = message;
+            }
+
+            return isMatch;
+        }
+    }
+
     private static Message verifyHandleMessageAndGetMessage(InOrder order, Handler handler,
             final int what) {
-        CapturingMatcher<Message> messageMatcher = new CapturingMatcher<Message>() {
-            public boolean matchesObject(Object argument) {
-                Message message = (Message) argument;
-                return message.what == what;
-            }
-        };
+        ConditionalMessageCaptor messageMatcher = new ConditionalMessageCaptor(what);
+
         order.verify(handler).handleMessage(argThat(messageMatcher));
         return messageMatcher.getLastValue();
     }
