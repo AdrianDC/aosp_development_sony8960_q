@@ -1027,11 +1027,12 @@ public class WifiConnectivityManagerTest {
      * Verify that we perform partial scan when the currently connected network's tx/rx success
      * rate is high and when the currently connected network is present in scan
      * cache in WifiConfigManager.
+     * WifiConnectivityManager does partial scan only when firmware roaming is not supported.
      *
-     * Expected behavior: WifiConnectivityManager does full band scan.
+     * Expected behavior: WifiConnectivityManager does partial scan.
      */
     @Test
-    public void checkSingleScanSettingsWhenConnectedWithHighDataRate() {
+    public void checkPartialScanRequestedWithHighDataRateWithoutFwRoaming() {
         mWifiInfo.txSuccessRate = mFullScanMaxTxPacketRate * 2;
         mWifiInfo.rxSuccessRate = mFullScanMaxRxPacketRate * 2;
 
@@ -1044,6 +1045,7 @@ public class WifiConnectivityManagerTest {
                 .thenReturn(new WifiConfiguration());
         when(mWifiConfigManager.fetchChannelSetForNetworkForPartialScan(anyInt(), anyLong(),
                 anyInt())).thenReturn(channelList);
+        when(mWifiConnectivityHelper.isFirmwareRoamingSupported()).thenReturn(false);
 
         doAnswer(new AnswerWithArguments() {
             public void answer(ScanSettings settings, ScanListener listener,
@@ -1063,6 +1065,52 @@ public class WifiConnectivityManagerTest {
                 WifiConnectivityManager.WIFI_STATE_CONNECTED);
 
         verify(mWifiScanner).startScan(anyObject(), anyObject(), anyObject());
+    }
+
+    /**
+     * Verify that we skip the partial scan when:
+     * 1. The currently connected network's tx/rx success rate is high.
+     * 2. When the currently connected network is present in scan
+     * cache in WifiConfigManager.
+     * 3. When firmware roaming is supported.
+     * Expected behavior: WifiConnectivityManager does no scan, but periodic scans
+     * are still scheduled.
+     */
+    @Test
+    public void checkPartialScanSkippedWithHighDataRateWithFwRoaming() {
+        mWifiInfo.txSuccessRate = mFullScanMaxTxPacketRate * 2;
+        mWifiInfo.rxSuccessRate = mFullScanMaxRxPacketRate * 2;
+
+        long currentTimeStamp = CURRENT_SYSTEM_TIME_MS;
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(currentTimeStamp);
+
+        final HashSet<Integer> channelList = new HashSet<>();
+        channelList.add(1);
+        channelList.add(2);
+        channelList.add(3);
+
+        when(mWifiStateMachine.getCurrentWifiConfiguration())
+                .thenReturn(new WifiConfiguration());
+        when(mWifiConfigManager.fetchChannelSetForNetworkForPartialScan(anyInt(), anyLong(),
+                anyInt())).thenReturn(channelList);
+        // No scan will be requested when firmware roaming control is not supported.
+        when(mWifiConnectivityHelper.isFirmwareRoamingSupported()).thenReturn(true);
+
+        // Set screen to ON
+        mWifiConnectivityManager.handleScreenStateChanged(true);
+
+        // Set WiFi to connected state to trigger periodic scan
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_CONNECTED);
+
+        verify(mWifiScanner, never()).startScan(anyObject(), anyObject(), anyObject());
+
+        // Get the first periodic scan interval to check that we are still scheduling
+        // periodic scans.
+        long firstIntervalMs = mAlarmManager
+                .getTriggerTimeMillis(WifiConnectivityManager.PERIODIC_SCAN_TIMER_TAG)
+                - currentTimeStamp;
+        assertEquals(firstIntervalMs, WifiConnectivityManager.PERIODIC_SCAN_INTERVAL_MS);
     }
 
     /**
