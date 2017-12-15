@@ -1121,7 +1121,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                         WifiAwareNetworkSpecifier networkSpecifier =
                                 (WifiAwareNetworkSpecifier) msg.obj;
 
-                        if (VDBG) {
+                        if (mDbg) {
                             Log.v(TAG, "MESSAGE_TYPE_DATA_PATH_TIMEOUT: networkSpecifier="
                                     + networkSpecifier);
                         }
@@ -1775,7 +1775,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         }
 
         private void processTimeout(Message msg) {
-            if (VDBG) {
+            if (mDbg) {
                 Log.v(TAG, "processTimeout: msg=" + msg);
             }
 
@@ -1916,7 +1916,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         }
 
         private void processSendMessageTimeout() {
-            if (VDBG) {
+            if (mDbg) {
                 Log.v(TAG, "processSendMessageTimeout: mHostQueuedSendMessages.size()="
                         + mHostQueuedSendMessages.size() + ", mFwQueuedSendMessages.size()="
                         + mFwQueuedSendMessages.size() + ", mSendQueueBlocked="
@@ -1938,7 +1938,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                 long messageEnqueueTime = message.getData().getLong(
                         MESSAGE_BUNDLE_KEY_SEND_MESSAGE_ENQUEUE_TIME);
                 if (first || messageEnqueueTime + AWARE_SEND_MESSAGE_TIMEOUT <= currentTime) {
-                    if (VDBG) {
+                    if (mDbg) {
                         Log.v(TAG, "processSendMessageTimeout: expiring - transactionId="
                                 + transactionId + ", message=" + message
                                 + ", due to messageEnqueueTime=" + messageEnqueueTime

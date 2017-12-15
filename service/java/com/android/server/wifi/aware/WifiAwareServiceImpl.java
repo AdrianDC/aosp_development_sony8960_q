@@ -195,7 +195,7 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
             clientId = mNextClientId++;
         }
 
-        if (VDBG) {
+        if (mDbg) {
             Log.v(TAG, "connect: uid=" + uid + ", clientId=" + clientId + ", configRequest"
                     + configRequest + ", notifyOnIdentityChanged=" + notifyOnIdentityChanged);
         }
@@ -203,7 +203,7 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
         IBinder.DeathRecipient dr = new IBinder.DeathRecipient() {
             @Override
             public void binderDied() {
-                if (VDBG) Log.v(TAG, "binderDied: clientId=" + clientId);
+                if (mDbg) Log.v(TAG, "binderDied: clientId=" + clientId);
                 binder.unlinkToDeath(this, 0);
 
                 synchronized (mLock) {
@@ -243,7 +243,7 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
 
         int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
-        if (VDBG) Log.v(TAG, "disconnect: uid=" + uid + ", clientId=" + clientId);
+        if (mDbg) Log.v(TAG, "disconnect: uid=" + uid + ", clientId=" + clientId);
 
         if (binder == null) {
             throw new IllegalArgumentException("Binder must not be null");

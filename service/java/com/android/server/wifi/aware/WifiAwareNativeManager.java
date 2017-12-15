@@ -108,7 +108,7 @@ public class WifiAwareNativeManager {
      */
     private void tryToGetAware() {
         synchronized (mLock) {
-            if (VDBG) Log.v(TAG, "tryToGetAware: mWifiNanIface=" + mWifiNanIface);
+            if (mDbg) Log.v(TAG, "tryToGetAware: mWifiNanIface=" + mWifiNanIface);
 
             if (mWifiNanIface != null) {
                 return;
@@ -116,9 +116,9 @@ public class WifiAwareNativeManager {
             IWifiNanIface iface = mHalDeviceManager.createNanIface(mInterfaceDestroyedListener,
                     mHandler);
             if (iface == null) {
-                if (VDBG) Log.v(TAG, "Was not able to obtain an IWifiNanIface");
+                Log.e(TAG, "Was not able to obtain an IWifiNanIface");
             } else {
-                if (VDBG) Log.v(TAG, "Obtained an IWifiNanIface");
+                if (mDbg) Log.v(TAG, "Obtained an IWifiNanIface");
 
                 try {
                     WifiStatus status = iface.registerEventCallback(mWifiAwareNativeCallback);
@@ -141,7 +141,7 @@ public class WifiAwareNativeManager {
 
     private void awareIsDown() {
         synchronized (mLock) {
-            if (VDBG) Log.v(TAG, "awareIsDown: mWifiNanIface=" + mWifiNanIface);
+            if (mDbg) Log.v(TAG, "awareIsDown: mWifiNanIface=" + mWifiNanIface);
             if (mWifiNanIface != null) {
                 mWifiNanIface = null;
                 mWifiAwareStateManager.disableUsage();
@@ -153,7 +153,7 @@ public class WifiAwareNativeManager {
             HalDeviceManager.InterfaceDestroyedListener {
         @Override
         public void onDestroyed(@NonNull String ifaceName) {
-            if (VDBG) Log.v(TAG, "Interface was destroyed");
+            if (mDbg) Log.v(TAG, "Interface was destroyed");
             awareIsDown();
         }
     }
@@ -162,7 +162,7 @@ public class WifiAwareNativeManager {
             HalDeviceManager.InterfaceAvailableForRequestListener {
         @Override
         public void onAvailableForRequest() {
-            if (VDBG) Log.v(TAG, "Interface is possibly available");
+            if (mDbg) Log.v(TAG, "Interface is possibly available");
             tryToGetAware();
         }
     }

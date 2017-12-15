@@ -589,11 +589,11 @@ public class WifiAwareDataPathStateManager {
      * - i.e. when we're proceeding with data-path setup).
      */
     public void handleDataPathTimeout(NetworkSpecifier networkSpecifier) {
-        if (VDBG) Log.v(TAG, "handleDataPathTimeout: networkSpecifier=" + networkSpecifier);
+        if (mDbg) Log.v(TAG, "handleDataPathTimeout: networkSpecifier=" + networkSpecifier);
 
         AwareNetworkRequestInformation nnri = mNetworkRequestsCache.remove(networkSpecifier);
         if (nnri == null) {
-            if (VDBG) {
+            if (mDbg) {
                 Log.v(TAG,
                         "handleDataPathTimeout: network request not found for networkSpecifier="
                                 + networkSpecifier);
