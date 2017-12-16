@@ -2880,11 +2880,6 @@ public class WifiConfigManagerTest {
         verifyAddNetworkToWifiConfigManager(network2);
         verifyAddNetworkToWifiConfigManager(network3);
 
-        // Enable all of them.
-        assertTrue(mWifiConfigManager.enableNetwork(network1.networkId, false, TEST_CREATOR_UID));
-        assertTrue(mWifiConfigManager.enableNetwork(network2.networkId, false, TEST_CREATOR_UID));
-        assertTrue(mWifiConfigManager.enableNetwork(network3.networkId, false, TEST_CREATOR_UID));
-
         // Now set scan results in 2 of them to set the corresponding
         // {@link NetworkSelectionStatus#mSeenInLastQualifiedNetworkSelection} field.
         assertTrue(mWifiConfigManager.setNetworkCandidateScanResult(
@@ -2903,15 +2898,6 @@ public class WifiConfigManagerTest {
         assertEquals(network3.SSID, hiddenNetworks.get(0).ssid);
         assertEquals(network1.SSID, hiddenNetworks.get(1).ssid);
         assertEquals(network2.SSID, hiddenNetworks.get(2).ssid);
-
-        // Now permanently disable |network3|. This should remove network 3 from the list.
-        assertTrue(mWifiConfigManager.disableNetwork(network3.networkId, TEST_CREATOR_UID));
-
-        // Retrieve the hidden network list again & verify the order of the networks returned.
-        hiddenNetworks = mWifiConfigManager.retrieveHiddenNetworkList();
-        assertEquals(2, hiddenNetworks.size());
-        assertEquals(network1.SSID, hiddenNetworks.get(0).ssid);
-        assertEquals(network2.SSID, hiddenNetworks.get(1).ssid);
     }
 
     /**

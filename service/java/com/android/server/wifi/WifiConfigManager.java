@@ -2349,8 +2349,7 @@ public class WifiConfigManager {
         Iterator<WifiConfiguration> iter = networks.iterator();
         while (iter.hasNext()) {
             WifiConfiguration config = iter.next();
-            if (!config.hiddenSSID ||
-                    config.getNetworkSelectionStatus().isNetworkPermanentlyDisabled()) {
+            if (!config.hiddenSSID) {
                 iter.remove();
             }
         }
