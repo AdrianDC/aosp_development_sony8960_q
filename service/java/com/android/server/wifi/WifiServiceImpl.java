@@ -1487,7 +1487,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                         stats.rx_time * rxCurrent +
                         rxIdleTime * rxIdleCurrent) * voltage);
                 if (VDBG || rxIdleTime < 0 || stats.on_time < 0 || stats.tx_time < 0 ||
-                        stats.rx_time < 0 || energyUsed < 0) {
+                        stats.rx_time < 0 || stats.on_time_scan < 0 || energyUsed < 0) {
                     StringBuilder sb = new StringBuilder();
                     sb.append(" rxIdleCur=" + rxIdleCurrent);
                     sb.append(" rxCur=" + rxCurrent);
@@ -1498,6 +1498,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                     sb.append(" tx_time_per_level=" + Arrays.toString(txTimePerLevel));
                     sb.append(" rx_time=" + stats.rx_time);
                     sb.append(" rxIdleTime=" + rxIdleTime);
+                    sb.append(" scan_time=" + stats.on_time_scan);
                     sb.append(" energy=" + energyUsed);
                     Log.d(TAG, " reportActivityInfo: " + sb.toString());
                 }
@@ -1505,7 +1506,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 // Convert the LinkLayerStats into EnergyActivity
                 energyInfo = new WifiActivityEnergyInfo(mClock.getElapsedSinceBootMillis(),
                         WifiActivityEnergyInfo.STACK_STATE_STATE_IDLE, stats.tx_time,
-                        txTimePerLevel, stats.rx_time, rxIdleTime, energyUsed);
+                        txTimePerLevel, stats.rx_time, stats.on_time_scan, rxIdleTime, energyUsed);
             }
             if (energyInfo != null && energyInfo.isValid()) {
                 return energyInfo;
