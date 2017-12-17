@@ -67,7 +67,7 @@ public class RttService extends SystemService {
 
             RttNative rttNative = new RttNative(mImpl, halDeviceManager);
             mImpl.start(handlerThread.getLooper(), wifiInjector.getClock(), awareBinder, rttNative,
-                    wifiPermissionsUtil);
+                    wifiPermissionsUtil, wifiInjector.getFrameworkFacade());
         }
     }
 }

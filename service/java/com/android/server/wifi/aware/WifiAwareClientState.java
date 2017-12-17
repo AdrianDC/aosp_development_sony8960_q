@@ -43,8 +43,8 @@ import java.util.Arrays;
  */
 public class WifiAwareClientState {
     private static final String TAG = "WifiAwareClientState";
-    private static final boolean DBG = false;
     private static final boolean VDBG = false; // STOPSHIP if true
+    /* package */ boolean mDbg = false;
 
     /* package */ static final int CLUSTER_CHANGE_EVENT_STARTED = 0;
     /* package */ static final int CLUSTER_CHANGE_EVENT_JOINED = 1;

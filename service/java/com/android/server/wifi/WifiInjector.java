@@ -261,6 +261,17 @@ public class WifiInjector {
         return sWifiInjector;
     }
 
+    /**
+     * Enable verbose logging in Injector objects. Called from the WifiServiceImpl (based on
+     * binder call).
+     */
+    public void enableVerboseLogging(int verbose) {
+        mWifiLastResortWatchdog.enableVerboseLogging(verbose);
+        mWifiBackupRestore.enableVerboseLogging(verbose);
+        mHalDeviceManager.enableVerboseLogging(verbose);
+        LogcatLog.enableVerboseLogging(verbose);
+    }
+
     public UserManager getUserManager() {
         return UserManager.get(mContext);
     }

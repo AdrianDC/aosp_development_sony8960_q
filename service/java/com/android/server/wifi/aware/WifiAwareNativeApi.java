@@ -56,8 +56,8 @@ import java.util.Map;
  */
 public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellCommand {
     private static final String TAG = "WifiAwareNativeApi";
-    private static final boolean DBG = false;
     private static final boolean VDBG = false; // STOPSHIP if true
+    /* package */ boolean mDbg = false;
 
     private static final String SERVICE_NAME_FOR_OOB_DATA_PATH = "Wi-Fi Aware Data Path";
 
@@ -171,7 +171,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
      *                      match with the original request.
      */
     public boolean getCapabilities(short transactionId) {
-        if (VDBG) Log.v(TAG, "getCapabilities: transactionId=" + transactionId);
+        if (mDbg) Log.v(TAG, "getCapabilities: transactionId=" + transactionId);
 
         IWifiNanIface iface = mHal.getWifiNanIface();
         if (iface == null) {
@@ -208,7 +208,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
     public boolean enableAndConfigure(short transactionId, ConfigRequest configRequest,
             boolean notifyIdentityChange, boolean initialConfiguration, boolean isInteractive,
             boolean isIdle) {
-        if (VDBG) {
+        if (mDbg) {
             Log.v(TAG, "enableAndConfigure: transactionId=" + transactionId + ", configRequest="
                     + configRequest + ", notifyIdentityChange=" + notifyIdentityChange
                     + ", initialConfiguration=" + initialConfiguration
@@ -370,7 +370,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
      *            used in the async callback to match with the original request.
      */
     public boolean disable(short transactionId) {
-        if (VDBG) Log.d(TAG, "disable");
+        if (mDbg) Log.d(TAG, "disable");
 
         IWifiNanIface iface = mHal.getWifiNanIface();
         if (iface == null) {
@@ -402,7 +402,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
      * @param publishConfig Configuration of the discovery session.
      */
     public boolean publish(short transactionId, byte publishId, PublishConfig publishConfig) {
-        if (VDBG) {
+        if (mDbg) {
             Log.d(TAG, "publish: transactionId=" + transactionId + ", publishId=" + publishId
                     + ", config=" + publishConfig);
         }
@@ -466,7 +466,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
      */
     public boolean subscribe(short transactionId, byte subscribeId,
             SubscribeConfig subscribeConfig) {
-        if (VDBG) {
+        if (mDbg) {
             Log.d(TAG, "subscribe: transactionId=" + transactionId + ", subscribeId=" + subscribeId
                     + ", config=" + subscribeConfig);
         }
@@ -546,7 +546,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
      */
     public boolean sendMessage(short transactionId, byte pubSubId, int requestorInstanceId,
             byte[] dest, byte[] message, int messageId) {
-        if (VDBG) {
+        if (mDbg) {
             Log.d(TAG,
                     "sendMessage: transactionId=" + transactionId + ", pubSubId=" + pubSubId
                             + ", requestorInstanceId=" + requestorInstanceId + ", dest="
@@ -594,7 +594,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
      *            creating a session.
      */
     public boolean stopPublish(short transactionId, byte pubSubId) {
-        if (VDBG) {
+        if (mDbg) {
             Log.d(TAG, "stopPublish: transactionId=" + transactionId + ", pubSubId=" + pubSubId);
         }
 
@@ -627,7 +627,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
      *            creating a session.
      */
     public boolean stopSubscribe(short transactionId, byte pubSubId) {
-        if (VDBG) {
+        if (mDbg) {
             Log.d(TAG, "stopSubscribe: transactionId=" + transactionId + ", pubSubId=" + pubSubId);
         }
 
@@ -660,7 +660,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
      * @param interfaceName The name of the interface, e.g. "aware0".
      */
     public boolean createAwareNetworkInterface(short transactionId, String interfaceName) {
-        if (VDBG) {
+        if (mDbg) {
             Log.v(TAG, "createAwareNetworkInterface: transactionId=" + transactionId + ", "
                     + "interfaceName=" + interfaceName);
         }
@@ -693,7 +693,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
      * @param interfaceName The name of the interface, e.g. "aware0".
      */
     public boolean deleteAwareNetworkInterface(short transactionId, String interfaceName) {
-        if (VDBG) {
+        if (mDbg) {
             Log.v(TAG, "deleteAwareNetworkInterface: transactionId=" + transactionId + ", "
                     + "interfaceName=" + interfaceName);
         }
@@ -739,7 +739,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
     public boolean initiateDataPath(short transactionId, int peerId, int channelRequestType,
             int channel, byte[] peer, String interfaceName, byte[] pmk, String passphrase,
             boolean isOutOfBand, Capabilities capabilities) {
-        if (VDBG) {
+        if (mDbg) {
             Log.v(TAG, "initiateDataPath: transactionId=" + transactionId + ", peerId=" + peerId
                     + ", channelRequestType=" + channelRequestType + ", channel=" + channel
                     + ", peer=" + String.valueOf(HexEncoding.encode(peer)) + ", interfaceName="
@@ -816,7 +816,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
     public boolean respondToDataPathRequest(short transactionId, boolean accept, int ndpId,
             String interfaceName, byte[] pmk, String passphrase, boolean isOutOfBand,
             Capabilities capabilities) {
-        if (VDBG) {
+        if (mDbg) {
             Log.v(TAG, "respondToDataPathRequest: transactionId=" + transactionId + ", accept="
                     + accept + ", int ndpId=" + ndpId + ", interfaceName=" + interfaceName);
         }
@@ -878,7 +878,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
      * @param ndpId The NDP (Aware data path) ID to be terminated.
      */
     public boolean endDataPath(short transactionId, int ndpId) {
-        if (VDBG) {
+        if (mDbg) {
             Log.v(TAG, "endDataPath: transactionId=" + transactionId + ", ndpId=" + ndpId);
         }
 

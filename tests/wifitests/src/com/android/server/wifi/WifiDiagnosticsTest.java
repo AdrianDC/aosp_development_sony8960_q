@@ -20,6 +20,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.AdditionalMatchers.gt;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.contains;
 import static org.mockito.Mockito.anyInt;
@@ -119,7 +120,7 @@ public class WifiDiagnosticsTest {
     /** Verifies that startLogging() registers a logging event handler. */
     @Test
     public void startLoggingRegistersLogEventHandler() throws Exception {
-        final boolean verbosityToggle = false;  // even default mode wants log events from HAL
+        final boolean verbosityToggle = false;  // even default mode registers handler
         mWifiDiagnostics.startLogging(verbosityToggle);
         verify(mWifiNative).setLoggingEventHandler(anyObject());
     }
@@ -131,7 +132,7 @@ public class WifiDiagnosticsTest {
     @Test
     public void startLoggingRegistersLogEventHandlerIfPriorAttemptFailed()
             throws Exception {
-        final boolean verbosityToggle = false;  // even default mode wants log events from HAL
+        final boolean verbosityToggle = false;  // even default mode registers handler
 
         when(mWifiNative.setLoggingEventHandler(anyObject())).thenReturn(false);
         mWifiDiagnostics.startLogging(verbosityToggle);
@@ -147,7 +148,7 @@ public class WifiDiagnosticsTest {
     @Test
     public void startLoggingDoesNotRegisterLogEventHandlerIfPriorAttemptSucceeded()
             throws Exception {
-        final boolean verbosityToggle = false;  // even default mode wants log events from HAL
+        final boolean verbosityToggle = false;  // even default mode registers handler
 
         when(mWifiNative.setLoggingEventHandler(anyObject())).thenReturn(true);
         mWifiDiagnostics.startLogging(verbosityToggle);
@@ -166,16 +167,29 @@ public class WifiDiagnosticsTest {
      * b) instructs WifiNative to enable ring buffers of the appropriate log level.
      */
     @Test
-    public void startLoggingStopsAndRestartsRingBufferLogging() throws Exception {
-        final boolean verbosityToggle = false;
+    public void startLoggingStopsAndRestartsRingBufferLoggingInVerboseMode() throws Exception {
+        final boolean verbosityToggle = true;
         setBuildPropertiesToEnableRingBuffers();
         mWifiDiagnostics.startLogging(verbosityToggle);
         verify(mWifiNative).startLoggingRingBuffer(
                 eq(WifiDiagnostics.VERBOSE_NO_LOG), anyInt(), anyInt(), anyInt(),
                 eq(FAKE_RING_BUFFER_NAME));
         verify(mWifiNative).startLoggingRingBuffer(
-                eq(WifiDiagnostics.VERBOSE_NORMAL_LOG), anyInt(), anyInt(), anyInt(),
+                eq(WifiDiagnostics.VERBOSE_LOG_WITH_WAKEUP), anyInt(), anyInt(), anyInt(),
                 eq(FAKE_RING_BUFFER_NAME));
+    }
+
+    @Test
+    public void startLoggingStopsButDoesNotStartRingBufferLoggingInNormalMode() throws Exception {
+        final boolean verbosityToggle = false;
+        setBuildPropertiesToEnableRingBuffers();
+        mWifiDiagnostics.startLogging(verbosityToggle);
+        verify(mWifiNative).startLoggingRingBuffer(
+                eq(WifiDiagnostics.VERBOSE_NO_LOG), anyInt(), anyInt(), anyInt(),
+                eq(FAKE_RING_BUFFER_NAME));
+        verify(mWifiNative, never()).startLoggingRingBuffer(
+                gt(WifiDiagnostics.VERBOSE_NO_LOG), anyInt(), anyInt(), anyInt(),
+                anyString());
     }
 
     @Test
@@ -189,7 +203,7 @@ public class WifiDiagnosticsTest {
     /** Verifies that, if a log handler was registered, then stopLogging() resets it. */
     @Test
     public void stopLoggingResetsLogHandlerIfHandlerWasRegistered() throws Exception {
-        final boolean verbosityToggle = false;  // even default mode wants log events from HAL
+        final boolean verbosityToggle = false;  // even default mode registers handler
 
         when(mWifiNative.setLoggingEventHandler(anyObject())).thenReturn(true);
         mWifiDiagnostics.startLogging(verbosityToggle);
@@ -202,7 +216,6 @@ public class WifiDiagnosticsTest {
     /** Verifies that, if a log handler is not registered, stopLogging() skips resetLogHandler(). */
     @Test
     public void stopLoggingOnlyResetsLogHandlerIfHandlerWasRegistered() throws Exception {
-        final boolean verbosityToggle = false;  // even default mode wants log events from HAL
         mWifiDiagnostics.stopLogging();
         verify(mWifiNative, never()).resetLogHandler();
     }
@@ -210,7 +223,7 @@ public class WifiDiagnosticsTest {
     /** Verifies that stopLogging() remembers that we've reset the log handler. */
     @Test
     public void multipleStopLoggingCallsOnlyResetLogHandlerOnce() throws Exception {
-        final boolean verbosityToggle = false;  // even default mode wants log events from HAL
+        final boolean verbosityToggle = false;  // even default mode registers handler
 
         when(mWifiNative.setLoggingEventHandler(anyObject())).thenReturn(true);
         mWifiDiagnostics.startLogging(verbosityToggle);
