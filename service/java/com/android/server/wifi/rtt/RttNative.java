@@ -111,7 +111,7 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
             if (mIWifiRttController == null) {
                 mRttService.disable();
             } else {
-                mRttService.enable();
+                mRttService.enableIfPossible();
             }
         }
     }
