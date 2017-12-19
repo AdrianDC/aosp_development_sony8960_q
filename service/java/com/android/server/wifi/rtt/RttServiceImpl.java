@@ -759,12 +759,19 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                         + ", peerIdToMacMap=" + peerIdToMacMap);
             }
 
+            RangingRequest.Builder newRequestBuilder = new RangingRequest.Builder();
             for (ResponderConfig rttPeer : request.request.mRttPeers) {
                 if (rttPeer.peerHandle != null && rttPeer.macAddress == null) {
-                    rttPeer.macAddress = MacAddress.fromBytes(
-                            peerIdToMacMap.get(rttPeer.peerHandle.peerId));
+                    newRequestBuilder.addResponder(new ResponderConfig(
+                            MacAddress.fromBytes(peerIdToMacMap.get(rttPeer.peerHandle.peerId)),
+                            rttPeer.peerHandle, rttPeer.responderType, rttPeer.supports80211mc,
+                            rttPeer.channelWidth, rttPeer.frequency, rttPeer.centerFreq0,
+                            rttPeer.centerFreq1, rttPeer.preamble));
+                } else {
+                    newRequestBuilder.addResponder(rttPeer);
                 }
             }
+            request.request = newRequestBuilder.build();
 
             // run request again
             startRanging(request);
