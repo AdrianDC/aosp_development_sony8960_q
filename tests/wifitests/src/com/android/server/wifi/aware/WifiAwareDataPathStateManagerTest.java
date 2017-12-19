@@ -1213,12 +1213,12 @@ public class WifiAwareDataPathStateManagerTest {
         if (doPublish) {
             sessionCaptor.getValue().publish(publishConfig, mockSessionCallback,
                     mMockLooperHandler);
-            inOrderS.verify(mockAwareService).publish(eq(clientId), eq(publishConfig),
+            inOrderS.verify(mockAwareService).publish(any(), eq(clientId), eq(publishConfig),
                     sessionProxyCallback.capture());
         } else {
             sessionCaptor.getValue().subscribe(subscribeConfig, mockSessionCallback,
                     mMockLooperHandler);
-            inOrderS.verify(mockAwareService).subscribe(eq(clientId), eq(subscribeConfig),
+            inOrderS.verify(mockAwareService).subscribe(any(), eq(clientId), eq(subscribeConfig),
                     sessionProxyCallback.capture());
         }
         sessionProxyCallback.getValue().onSessionStarted(sessionId);
