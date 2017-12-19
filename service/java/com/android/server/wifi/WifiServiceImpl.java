@@ -63,7 +63,6 @@ import android.net.ip.IpClient;
 import android.net.wifi.ISoftApCallback;
 import android.net.wifi.IWifiManager;
 import android.net.wifi.ScanResult;
-import android.net.wifi.ScanSettings;
 import android.net.wifi.WifiActivityEnergyInfo;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
@@ -605,13 +604,10 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * see {@link android.net.wifi.WifiManager#startScan}
      * and {@link android.net.wifi.WifiManager#startCustomizedScan}
      *
-     * @param settings If null, use default parameter, i.e. full scan.
-     * @param workSource If null, all blame is given to the calling uid.
      * @param packageName Package name of the app that requests wifi scan.
-     * TODO(b/68388459): Remove |settings| & |worksource|
      */
     @Override
-    public void startScan(ScanSettings settings, WorkSource workSource, String packageName) {
+    public void startScan(String packageName) {
         if (enforceChangePermission(packageName) != MODE_ALLOWED) {
             return;
         }
@@ -693,7 +689,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             // Someone requested a scan while we were idle; do a full scan now.
             // A security check of the caller's identity was made when the request arrived via
             // Binder. Now we'll pass the current process's identity to startScan().
-            startScan(null, null, mContext.getOpPackageName());
+            startScan(mContext.getOpPackageName());
         }
     }
 
