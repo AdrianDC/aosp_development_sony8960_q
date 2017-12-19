@@ -41,6 +41,7 @@ import android.util.Log;
 import android.util.LongSparseArray;
 import android.util.MutableBoolean;
 import android.util.MutableInt;
+import android.util.Pair;
 import android.util.SparseArray;
 
 import com.android.internal.annotations.VisibleForTesting;
@@ -265,10 +266,11 @@ public class HalDeviceManager {
      */
     public IWifiChip getChip(IWifiIface iface) {
         String name = getName(iface);
+        int type = getType(iface);
         if (VDBG) Log.d(TAG, "getChip: iface(name)=" + name);
 
         synchronized (mLock) {
-            InterfaceCacheEntry cacheEntry = mInterfaceInfoCache.get(name);
+            InterfaceCacheEntry cacheEntry = mInterfaceInfoCache.get(Pair.create(name, type));
             if (cacheEntry == null) {
                 Log.e(TAG, "getChip: no entry for iface(name)=" + name);
                 return null;
@@ -294,10 +296,11 @@ public class HalDeviceManager {
             @NonNull InterfaceDestroyedListener destroyedListener,
             @Nullable Handler handler) {
         String name = getName(iface);
+        int type = getType(iface);
         if (VDBG) Log.d(TAG, "registerDestroyedListener: iface(name)=" + name);
 
         synchronized (mLock) {
-            InterfaceCacheEntry cacheEntry = mInterfaceInfoCache.get(name);
+            InterfaceCacheEntry cacheEntry = mInterfaceInfoCache.get(Pair.create(name, type));
             if (cacheEntry == null) {
                 Log.e(TAG, "registerDestroyedListener: no entry for iface(name)=" + name);
                 return false;
@@ -494,7 +497,8 @@ public class HalDeviceManager {
      * we need to keep a list of registered destroyed listeners. Will be validated regularly
      * in getAllChipInfoAndValidateCache().
      */
-    private final Map<String, InterfaceCacheEntry> mInterfaceInfoCache = new HashMap<>();
+    private final Map<Pair<String, Integer>, InterfaceCacheEntry> mInterfaceInfoCache =
+            new HashMap<>();
 
     private class InterfaceCacheEntry {
         public IWifiChip chip;
@@ -1376,7 +1380,8 @@ public class HalDeviceManager {
                     cacheEntry.creationTime = mClock.getUptimeSinceBootMillis();
 
                     if (mDbg) Log.d(TAG, "createIfaceIfPossible: added cacheEntry=" + cacheEntry);
-                    mInterfaceInfoCache.put(cacheEntry.name, cacheEntry);
+                    mInterfaceInfoCache.put(
+                            Pair.create(cacheEntry.name, cacheEntry.type), cacheEntry);
                     return iface;
                 }
             }
@@ -1668,7 +1673,8 @@ public class HalDeviceManager {
         boolean lookupError = false;
         LongSparseArray<WifiIfaceInfo> orderedList = new LongSparseArray(interfaces.length);
         for (WifiIfaceInfo info : interfaces) {
-            InterfaceCacheEntry cacheEntry = mInterfaceInfoCache.get(info.name);
+            InterfaceCacheEntry cacheEntry = mInterfaceInfoCache.get(
+                    Pair.create(info.name, getType(info.iface)));
             if (cacheEntry == null) {
                 Log.e(TAG,
                         "selectInterfacesToDelete: can't find cache entry with name=" + info.name);
@@ -1836,7 +1842,7 @@ public class HalDeviceManager {
             }
 
             // dispatch listeners no matter what status
-            dispatchDestroyedListeners(name);
+            dispatchDestroyedListeners(name, type);
 
             if (status != null && status.code == WifiStatusCode.SUCCESS) {
                 return true;
@@ -1896,11 +1902,11 @@ public class HalDeviceManager {
 
     // dispatch all destroyed listeners registered for the specified interface AND remove the
     // cache entry
-    private void dispatchDestroyedListeners(String name) {
+    private void dispatchDestroyedListeners(String name, int type) {
         if (VDBG) Log.d(TAG, "dispatchDestroyedListeners: iface(name)=" + name);
 
         synchronized (mLock) {
-            InterfaceCacheEntry entry = mInterfaceInfoCache.get(name);
+            InterfaceCacheEntry entry = mInterfaceInfoCache.get(Pair.create(name, type));
             if (entry == null) {
                 Log.e(TAG, "dispatchDestroyedListeners: no cache entry for iface(name)=" + name);
                 return;
@@ -1910,7 +1916,7 @@ public class HalDeviceManager {
                 listener.trigger();
             }
             entry.destroyedListeners.clear(); // for insurance (though cache entry is removed)
-            mInterfaceInfoCache.remove(name);
+            mInterfaceInfoCache.remove(Pair.create(name, type));
         }
     }
 
@@ -1919,7 +1925,7 @@ public class HalDeviceManager {
         if (VDBG) Log.d(TAG, "dispatchAllDestroyedListeners");
 
         synchronized (mLock) {
-            Iterator<Map.Entry<String, InterfaceCacheEntry>> it =
+            Iterator<Map.Entry<Pair<String, Integer>, InterfaceCacheEntry>> it =
                     mInterfaceInfoCache.entrySet().iterator();
             while (it.hasNext()) {
                 InterfaceCacheEntry entry = it.next().getValue();

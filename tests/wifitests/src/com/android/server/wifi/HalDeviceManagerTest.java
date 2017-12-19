@@ -318,7 +318,7 @@ public class HalDeviceManagerTest {
                 false, // chipModeValid
                 -1000, // chipModeId (only used if chipModeValid is true)
                 IfaceType.STA, // ifaceTypeToCreate
-                "sta0", // ifaceName
+                "wlan0", // ifaceName
                 TestChipV1.STA_CHIP_MODE_ID, // finalChipMode
                 null, // tearDownList
                 staDestroyedListener, // destroyedListener
@@ -330,7 +330,7 @@ public class HalDeviceManagerTest {
                 true, // chipModeValid
                 TestChipV1.STA_CHIP_MODE_ID, // chipModeId
                 IfaceType.NAN, // ifaceTypeToCreate
-                "nan0", // ifaceName
+                "wlan0", // ifaceName
                 TestChipV1.STA_CHIP_MODE_ID, // finalChipMode
                 null, // tearDownList
                 nanDestroyedListener, // destroyedListener
@@ -338,7 +338,7 @@ public class HalDeviceManagerTest {
         );
 
         // fiddle with the "chip" by removing the STA
-        chipMock.interfaceNames.get(IfaceType.STA).remove("sta0");
+        chipMock.interfaceNames.get(IfaceType.STA).remove("wlan0");
 
         // now try to request another NAN
         IWifiIface nanIface2 = mDut.createNanIface(nanDestroyedListener, mHandler);
@@ -384,7 +384,7 @@ public class HalDeviceManagerTest {
                 false, // chipModeValid
                 -1000, // chipModeId (only used if chipModeValid is true)
                 IfaceType.STA, // ifaceTypeToCreate
-                "sta0", // ifaceName
+                "wlan0", // ifaceName
                 TestChipV1.STA_CHIP_MODE_ID, // finalChipMode
                 null, // tearDownList
                 null, // destroyedListener
@@ -515,7 +515,7 @@ public class HalDeviceManagerTest {
      */
     @Test
     public void testCreateStaInterfaceNoInitModeTestChipV1() throws Exception {
-        runCreateSingleXxxInterfaceNoInitMode(new TestChipV1(), IfaceType.STA, "sta0",
+        runCreateSingleXxxInterfaceNoInitMode(new TestChipV1(), IfaceType.STA, "wlan0",
                 TestChipV1.STA_CHIP_MODE_ID, 1);
     }
 
@@ -524,7 +524,7 @@ public class HalDeviceManagerTest {
      */
     @Test
     public void testCreateApInterfaceNoInitModeTestChipV1() throws Exception {
-        runCreateSingleXxxInterfaceNoInitMode(new TestChipV1(), IfaceType.AP, "ap0",
+        runCreateSingleXxxInterfaceNoInitMode(new TestChipV1(), IfaceType.AP, "wlan0",
                 TestChipV1.AP_CHIP_MODE_ID, 1);
     }
 
@@ -542,7 +542,7 @@ public class HalDeviceManagerTest {
      */
     @Test
     public void testCreateNanInterfaceNoInitModeTestChipV1() throws Exception {
-        runCreateSingleXxxInterfaceNoInitMode(new TestChipV1(), IfaceType.NAN, "nan0",
+        runCreateSingleXxxInterfaceNoInitMode(new TestChipV1(), IfaceType.NAN, "wlan0",
                 TestChipV1.STA_CHIP_MODE_ID, 1);
     }
 
@@ -557,7 +557,7 @@ public class HalDeviceManagerTest {
         // we get callback 1 after creating the first STA (since we can create another STA),
         // and we get callback 2 after destroying the first STA (since we can create another STA -
         // as expected).
-        runCreateSingleXxxInterfaceNoInitMode(new TestChipV2(), IfaceType.STA, "sta0",
+        runCreateSingleXxxInterfaceNoInitMode(new TestChipV2(), IfaceType.STA, "wlan0",
                 TestChipV2.CHIP_MODE_ID, 2);
     }
 
@@ -566,7 +566,7 @@ public class HalDeviceManagerTest {
      */
     @Test
     public void testCreateApInterfaceNoInitModeTestChipV2() throws Exception {
-        runCreateSingleXxxInterfaceNoInitMode(new TestChipV2(), IfaceType.AP, "ap0",
+        runCreateSingleXxxInterfaceNoInitMode(new TestChipV2(), IfaceType.AP, "wlan0",
                 TestChipV2.CHIP_MODE_ID, 1);
     }
 
@@ -584,7 +584,7 @@ public class HalDeviceManagerTest {
      */
     @Test
     public void testCreateNanInterfaceNoInitModeTestChipV2() throws Exception {
-        runCreateSingleXxxInterfaceNoInitMode(new TestChipV2(), IfaceType.NAN, "nan0",
+        runCreateSingleXxxInterfaceNoInitMode(new TestChipV2(), IfaceType.NAN, "wlan0",
                 TestChipV2.CHIP_MODE_ID, 1);
     }
 
@@ -599,7 +599,7 @@ public class HalDeviceManagerTest {
         // we get callback 1 after creating the first STA (since we can create another STA),
         // and we get callback 2 after destroying the first STA (since we can create another STA -
         // as expected).
-        runCreateSingleXxxInterfaceNoInitMode(new TestChipV3(), IfaceType.STA, "sta0",
+        runCreateSingleXxxInterfaceNoInitMode(new TestChipV3(), IfaceType.STA, "wlan0",
                 TestChipV3.CHIP_MODE_ID, 2);
     }
 
@@ -608,7 +608,7 @@ public class HalDeviceManagerTest {
      */
     @Test
     public void testCreateApInterfaceNoInitModeTestChipV3() throws Exception {
-        runCreateSingleXxxInterfaceNoInitMode(new TestChipV3(), IfaceType.AP, "ap0",
+        runCreateSingleXxxInterfaceNoInitMode(new TestChipV3(), IfaceType.AP, "wlan0",
                 TestChipV3.CHIP_MODE_ID, 1);
     }
 
@@ -626,7 +626,7 @@ public class HalDeviceManagerTest {
      */
     @Test
     public void testCreateNanInterfaceNoInitModeTestChipV3() throws Exception {
-        runCreateSingleXxxInterfaceNoInitMode(new TestChipV3(), IfaceType.NAN, "nan0",
+        runCreateSingleXxxInterfaceNoInitMode(new TestChipV3(), IfaceType.NAN, "wlan0",
                 TestChipV3.CHIP_MODE_ID, 1);
     }
 
@@ -640,7 +640,7 @@ public class HalDeviceManagerTest {
      */
     @Test
     public void testCreateApWithStaModeUpTestChipV1() throws Exception {
-        final String name = "ap0";
+        final String name = "wlan0";
 
         TestChipV1 chipMock = new TestChipV1();
         chipMock.initialize();
@@ -754,7 +754,7 @@ public class HalDeviceManagerTest {
      */
     @Test
     public void testCreateApWithApModeUpTestChipV1() throws Exception {
-        final String name = "ap0";
+        final String name = "wlan0";
 
         TestChipV1 chipMock = new TestChipV1();
         chipMock.initialize();
@@ -869,7 +869,7 @@ public class HalDeviceManagerTest {
                 false, // chipModeValid
                 -1000, // chipModeId (only used if chipModeValid is true)
                 IfaceType.STA, // ifaceTypeToCreate
-                "sta0", // ifaceName
+                "wlan0", // ifaceName
                 TestChipV1.STA_CHIP_MODE_ID, // finalChipMode
                 null, // tearDownList
                 staDestroyedListener, // destroyedListener
@@ -910,7 +910,7 @@ public class HalDeviceManagerTest {
                 true, // chipModeValid
                 TestChipV1.STA_CHIP_MODE_ID, // chipModeId
                 IfaceType.AP, // ifaceTypeToCreate
-                "ap0", // ifaceName
+                "wlan0", // ifaceName
                 TestChipV1.AP_CHIP_MODE_ID, // finalChipMode
                 new IWifiIface[]{staIface, p2pIface}, // tearDownList
                 apDestroyedListener, // destroyedListener
@@ -940,7 +940,7 @@ public class HalDeviceManagerTest {
                 true, // chipModeValid
                 TestChipV1.AP_CHIP_MODE_ID, // chipModeId
                 IfaceType.STA, // ifaceTypeToCreate
-                "sta0", // ifaceName
+                "wlan0", // ifaceName
                 TestChipV1.STA_CHIP_MODE_ID, // finalChipMode
                 null, // tearDownList
                 staDestroyedListener, // destroyedListener
@@ -993,7 +993,7 @@ public class HalDeviceManagerTest {
                 true, // chipModeValid
                 TestChipV1.STA_CHIP_MODE_ID, // chipModeId
                 IfaceType.NAN, // ifaceTypeToCreate
-                "nan0", // ifaceName
+                "wlan0", // ifaceName
                 TestChipV1.STA_CHIP_MODE_ID, // finalChipMode
                 null, // tearDownList
                 nanDestroyedListener, // destroyedListener
@@ -1054,7 +1054,7 @@ public class HalDeviceManagerTest {
                 false, // chipModeValid
                 -1000, // chipModeId (only used if chipModeValid is true)
                 IfaceType.STA, // ifaceTypeToCreate
-                "sta0", // ifaceName
+                "wlan0", // ifaceName
                 TestChipV1.STA_CHIP_MODE_ID, // finalChipMode
                 null, // tearDownList
                 staDestroyedListener1, // destroyedListener
@@ -1196,7 +1196,7 @@ public class HalDeviceManagerTest {
                 false, // chipModeValid
                 -1000, // chipModeId (only used if chipModeValid is true)
                 IfaceType.STA, // ifaceTypeToCreate
-                "sta0", // ifaceName
+                "wlan0", // ifaceName
                 TestChipV2.CHIP_MODE_ID, // finalChipMode
                 null, // tearDownList
                 staDestroyedListener, // destroyedListener
@@ -1234,7 +1234,7 @@ public class HalDeviceManagerTest {
                 true, // chipModeValid
                 TestChipV2.CHIP_MODE_ID, // chipModeId
                 IfaceType.AP, // ifaceTypeToCreate
-                "ap0", // ifaceName
+                "wlan1", // ifaceName
                 TestChipV2.CHIP_MODE_ID, // finalChipMode
                 null, // tearDownList
                 apDestroyedListener, // destroyedListener
@@ -1256,7 +1256,7 @@ public class HalDeviceManagerTest {
 
         inOrderStaAvail.verify(staAvailListener).onAvailableForRequest();
         inOrderApAvail.verify(apAvailListener).onAvailableForRequest();
-        verify(chipMock.chip).removeApIface("ap0");
+        verify(chipMock.chip).removeApIface("wlan1");
         verify(apDestroyedListener).onDestroyed(getName(apIface));
 
         // create STA2: using a later clock
@@ -1265,7 +1265,7 @@ public class HalDeviceManagerTest {
                 true, // chipModeValid
                 TestChipV2.CHIP_MODE_ID, // chipModeId
                 IfaceType.STA, // ifaceTypeToCreate
-                "sta1", // ifaceName
+                "wlan1", // ifaceName
                 TestChipV2.CHIP_MODE_ID, // finalChipMode
                 null, // tearDownList
                 staDestroyedListener2, // destroyedListener
@@ -1284,7 +1284,7 @@ public class HalDeviceManagerTest {
                 true, // chipModeValid
                 TestChipV2.CHIP_MODE_ID, // chipModeId
                 IfaceType.AP, // ifaceTypeToCreate
-                "ap0", // ifaceName
+                "wlan1", // ifaceName
                 TestChipV2.CHIP_MODE_ID, // finalChipMode
                 null, // tearDownList
                 apDestroyedListener, // destroyedListener
@@ -1309,7 +1309,7 @@ public class HalDeviceManagerTest {
                 true, // chipModeValid
                 TestChipV2.CHIP_MODE_ID, // chipModeId
                 IfaceType.NAN, // ifaceTypeToCreate
-                "nan0", // ifaceName
+                "wlan0", // ifaceName
                 TestChipV2.CHIP_MODE_ID, // finalChipMode
                 null, // tearDownList
                 nanDestroyedListener, // destroyedListener
@@ -1471,7 +1471,7 @@ public class HalDeviceManagerTest {
                 false, // chipModeValid
                 -1000, // chipModeId (only used if chipModeValid is true)
                 IfaceType.STA, // ifaceTypeToCreate
-                "sta0", // ifaceName
+                "wlan0", // ifaceName
                 TestChipV3.CHIP_MODE_ID, // finalChipMode
                 null, // tearDownList
                 staDestroyedListener, // destroyedListener
@@ -1508,7 +1508,7 @@ public class HalDeviceManagerTest {
                 true, // chipModeValid
                 TestChipV3.CHIP_MODE_ID, // chipModeId
                 IfaceType.AP, // ifaceTypeToCreate
-                "ap0", // ifaceName
+                "wlan1", // ifaceName
                 TestChipV3.CHIP_MODE_ID, // finalChipMode
                 null, // tearDownList
                 apDestroyedListener, // destroyedListener
@@ -1538,7 +1538,7 @@ public class HalDeviceManagerTest {
         inOrderApAvail.verify(apAvailListener).onAvailableForRequest();
         inOrderP2pAvail.verify(p2pAvailListener).onAvailableForRequest();
         inOrderNanAvail.verify(nanAvailListener).onAvailableForRequest();
-        verify(chipMock.chip).removeApIface("ap0");
+        verify(chipMock.chip).removeApIface("wlan1");
         verify(apDestroyedListener).onDestroyed(getName(apIface));
 
         // create STA2: using a later clock
@@ -1547,7 +1547,7 @@ public class HalDeviceManagerTest {
                 true, // chipModeValid
                 TestChipV3.CHIP_MODE_ID, // chipModeId
                 IfaceType.STA, // ifaceTypeToCreate
-                "sta1", // ifaceName
+                "wlan1", // ifaceName
                 TestChipV3.CHIP_MODE_ID, // finalChipMode
                 null, // tearDownList
                 staDestroyedListener2, // destroyedListener
@@ -1568,7 +1568,7 @@ public class HalDeviceManagerTest {
                 true, // chipModeValid
                 TestChipV3.CHIP_MODE_ID, // chipModeId
                 IfaceType.NAN, // ifaceTypeToCreate
-                "nan0", // ifaceName
+                "wlan0", // ifaceName
                 TestChipV3.CHIP_MODE_ID, // finalChipMode
                 null, // tearDownList
                 nanDestroyedListener, // destroyedListener
@@ -1580,7 +1580,7 @@ public class HalDeviceManagerTest {
 
         inOrderApAvail.verify(apAvailListener).onAvailableForRequest();
         inOrderP2pAvail.verify(p2pAvailListener).onAvailableForRequest();
-        verify(chipMock.chip).removeStaIface("sta1");
+        verify(chipMock.chip).removeStaIface("wlan1");
         verify(staDestroyedListener2).onDestroyed(getName(staIface2));
 
         // request STA2: should fail
@@ -1817,7 +1817,7 @@ public class HalDeviceManagerTest {
                 false, // chipModeValid
                 -1000, // chipModeId (only used if chipModeValid is true)
                 IfaceType.STA, // ifaceTypeToCreate
-                "sta0", // ifaceName
+                "wlan0", // ifaceName
                 onlyChipMode, // finalChipMode
                 null, // tearDownList
                 staDestroyedListener, // destroyedListener
@@ -1829,7 +1829,7 @@ public class HalDeviceManagerTest {
                 true, // chipModeValid
                 onlyChipMode, // chipModeId
                 IfaceType.NAN, // ifaceTypeToCreate
-                "nan0", // ifaceName
+                "wlan0", // ifaceName
                 onlyChipMode, // finalChipMode
                 null, // tearDownList
                 nanDestroyedListener, // destroyedListener
@@ -1871,7 +1871,7 @@ public class HalDeviceManagerTest {
                 true, // chipModeValid
                 onlyChipMode, // chipModeId
                 IfaceType.NAN, // ifaceTypeToCreate
-                "nan0", // ifaceName
+                "wlan0", // ifaceName
                 onlyChipMode, // finalChipMode
                 null, // tearDownList
                 nanDestroyedListener, // destroyedListener
