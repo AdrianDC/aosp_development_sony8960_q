@@ -36,7 +36,7 @@
     <string name="default_pay_app_removed" msgid="4108250545457437360">"Vaša preferirana usluga za kucni i plati je uklonjena. Izabrati drugu?"</string>
     <string name="ask_nfc_tap" msgid="2925239870458286340">"Dodirnite još jedan uređaj da završite"</string>
     <string name="wifi_connect" msgid="6250727951843550671">"Poveži se"</string>
-    <string name="status_unable_to_connect" msgid="9183908200295307657">"Ne može se povezati na mrežu"</string>
+    <string name="status_unable_to_connect" msgid="9183908200295307657">"Nije se moguće povezati na mrežu"</string>
     <string name="status_wifi_connected" msgid="5893022897732105739">"Povezano"</string>
     <string name="title_connect_to_network" msgid="2474034615817280146">"Spoji se na mrežu"</string>
     <string name="prompt_connect_to_network" msgid="8511683573657516114">"Povezati se na mrežu <xliff:g id="NETWORK_SSID">%1$s</xliff:g>?"</string>
