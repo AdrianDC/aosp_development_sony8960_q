@@ -79,10 +79,10 @@ public class HalDeviceManager {
     public HalDeviceManager(Clock clock) {
         mClock = clock;
 
-        mInterfaceAvailableForRequestListeners.put(IfaceType.STA, new HashSet<>());
-        mInterfaceAvailableForRequestListeners.put(IfaceType.AP, new HashSet<>());
-        mInterfaceAvailableForRequestListeners.put(IfaceType.P2P, new HashSet<>());
-        mInterfaceAvailableForRequestListeners.put(IfaceType.NAN, new HashSet<>());
+        mInterfaceAvailableForRequestListeners.put(IfaceType.STA, new HashMap<>());
+        mInterfaceAvailableForRequestListeners.put(IfaceType.AP, new HashMap<>());
+        mInterfaceAvailableForRequestListeners.put(IfaceType.P2P, new HashMap<>());
+        mInterfaceAvailableForRequestListeners.put(IfaceType.NAN, new HashMap<>());
     }
 
     /* package */ void enableVerboseLogging(int verbose) {
@@ -333,12 +333,22 @@ public class HalDeviceManager {
     public void registerInterfaceAvailableForRequestListener(int ifaceType,
             @NonNull InterfaceAvailableForRequestListener listener, @Nullable Handler handler) {
         if (VDBG) {
-            Log.d(TAG, "registerInterfaceAvailableForRequestListener: ifaceType=" + ifaceType);
+            Log.d(TAG, "registerInterfaceAvailableForRequestListener: ifaceType=" + ifaceType
+                    + ", listener=" + listener + ", handler=" + handler);
         }
 
         synchronized (mLock) {
-            mInterfaceAvailableForRequestListeners.get(ifaceType).add(
-                    new InterfaceAvailableForRequestListenerProxy(listener, handler));
+            InterfaceAvailableForRequestListenerProxy proxy =
+                    new InterfaceAvailableForRequestListenerProxy(listener, handler);
+            if (mInterfaceAvailableForRequestListeners.get(ifaceType).containsKey(proxy)) {
+                if (VDBG) {
+                    Log.d(TAG,
+                            "registerInterfaceAvailableForRequestListener: dup listener skipped: "
+                                    + listener);
+                }
+                return;
+            }
+            mInterfaceAvailableForRequestListeners.get(ifaceType).put(proxy, null);
         }
 
         WifiChipInfo[] chipInfos = getAllChipInfo();
@@ -362,14 +372,8 @@ public class HalDeviceManager {
         }
 
         synchronized (mLock) {
-            Iterator<InterfaceAvailableForRequestListenerProxy> it =
-                    mInterfaceAvailableForRequestListeners.get(ifaceType).iterator();
-            while (it.hasNext()) {
-                if (it.next().mListener == listener) {
-                    it.remove();
-                    return;
-                }
-            }
+            mInterfaceAvailableForRequestListeners.get(ifaceType).remove(
+                    new InterfaceAvailableForRequestListenerProxy(listener, null));
         }
     }
 
@@ -415,15 +419,15 @@ public class HalDeviceManager {
     }
 
     /**
-     * Called when an interface type is possibly available for creation.
+     * Called when an interface type availability for creation is changed.
      */
     public interface InterfaceAvailableForRequestListener {
         /**
-         * Registered when an interface type could be requested. Registered with
+         * Called when an interface type availability for creation is updated. Registered with
          * registerInterfaceAvailableForRequestListener() and unregistered with
          * unregisterInterfaceAvailableForRequestListener().
          */
-        void onAvailableForRequest();
+        void onAvailabilityChanged(boolean isAvailable);
     }
 
     /**
@@ -488,7 +492,7 @@ public class HalDeviceManager {
     private IWifi mWifi;
     private final WifiEventCallback mWifiEventCallback = new WifiEventCallback();
     private final Set<ManagerStatusListenerProxy> mManagerStatusListeners = new HashSet<>();
-    private final SparseArray<Set<InterfaceAvailableForRequestListenerProxy>>
+    private final SparseArray<Map<InterfaceAvailableForRequestListenerProxy, Boolean>>
             mInterfaceAvailableForRequestListeners = new SparseArray<>();
     private final SparseArray<IWifiChipEventCallback.Stub> mDebugCallbacks = new SparseArray<>();
 
@@ -1882,21 +1886,30 @@ public class HalDeviceManager {
             WifiChipInfo[] chipInfos) {
         if (VDBG) Log.d(TAG, "dispatchAvailableForRequestListenersForType: ifaceType=" + ifaceType);
 
-        Set<InterfaceAvailableForRequestListenerProxy> listeners =
-                mInterfaceAvailableForRequestListeners.get(ifaceType);
+        synchronized (mLock) {
+            Map<InterfaceAvailableForRequestListenerProxy, Boolean> listeners =
+                    mInterfaceAvailableForRequestListeners.get(ifaceType);
 
-        if (listeners.size() == 0) {
-            return;
-        }
+            if (listeners.size() == 0) {
+                return;
+            }
 
-        if (!isItPossibleToCreateIface(chipInfos, ifaceType)) {
-            if (VDBG) Log.d(TAG, "Creating interface type isn't possible: ifaceType=" + ifaceType);
-            return;
-        }
+            boolean isAvailable = isItPossibleToCreateIface(chipInfos, ifaceType);
 
-        if (VDBG) Log.d(TAG, "It is possible to create the interface type: ifaceType=" + ifaceType);
-        for (InterfaceAvailableForRequestListenerProxy listener : listeners) {
-            listener.trigger();
+            if (VDBG) {
+                Log.d(TAG, "Interface available for: ifaceType=" + ifaceType + " = " + isAvailable);
+            }
+            for (Map.Entry<InterfaceAvailableForRequestListenerProxy, Boolean> listenerEntry :
+                    listeners.entrySet()) {
+                if (listenerEntry.getValue() == null || listenerEntry.getValue() != isAvailable) {
+                    if (VDBG) {
+                        Log.d(TAG, "Interface available listener dispatched: ifaceType=" + ifaceType
+                                + ", listener=" + listenerEntry.getKey());
+                    }
+                    listenerEntry.getKey().triggerWithArg(isAvailable);
+                }
+                listenerEntry.setValue(isAvailable);
+            }
         }
     }
 
@@ -1964,7 +1977,18 @@ public class HalDeviceManager {
             }
         }
 
-        protected abstract void action();
+        void triggerWithArg(boolean arg) {
+            if (mHandler != null) {
+                mHandler.post(() -> {
+                    actionWithArg(arg);
+                });
+            } else {
+                actionWithArg(arg);
+            }
+        }
+
+        protected void action() {}
+        protected void actionWithArg(boolean arg) {}
 
         ListenerProxy(LISTENER listener, Handler handler, String tag) {
             mListener = listener;
@@ -1996,8 +2020,8 @@ public class HalDeviceManager {
         }
 
         @Override
-        protected void action() {
-            mListener.onAvailableForRequest();
+        protected void actionWithArg(boolean isAvailable) {
+            mListener.onAvailabilityChanged(isAvailable);
         }
     }
 

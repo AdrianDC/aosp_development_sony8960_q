@@ -119,6 +119,8 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
     private static final int COMMAND_TYPE_TRANSMIT_NEXT_MESSAGE = 119;
     private static final int COMMAND_TYPE_RECONFIGURE = 120;
     private static final int COMMAND_TYPE_DELAYED_INITIALIZATION = 121;
+    private static final int COMMAND_TYPE_GET_AWARE = 122;
+    private static final int COMMAND_TYPE_RELEASE_AWARE = 123;
 
     private static final int RESPONSE_TYPE_ON_CONFIG_SUCCESS = 200;
     private static final int RESPONSE_TYPE_ON_CONFIG_FAIL = 201;
@@ -466,6 +468,26 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
     public void delayedInitialization() {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
         msg.arg1 = COMMAND_TYPE_DELAYED_INITIALIZATION;
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Place a request to get the Wi-Fi Aware interface (before which no HAL command can be
+     * executed).
+     */
+    public void getAwareInterface() {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
+        msg.arg1 = COMMAND_TYPE_GET_AWARE;
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Place a request to release the Wi-Fi Aware interface (after which no HAL command can be
+     * executed).
+     */
+    public void releaseAwareInterface() {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
+        msg.arg1 = COMMAND_TYPE_RELEASE_AWARE;
         mSm.sendMessage(msg);
     }
 
@@ -1634,6 +1656,14 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                     mWifiAwareNativeManager.start(getHandler());
                     waitForResponse = false;
                     break;
+                case COMMAND_TYPE_GET_AWARE:
+                    mWifiAwareNativeManager.tryToGetAware();
+                    waitForResponse = false;
+                    break;
+                case COMMAND_TYPE_RELEASE_AWARE:
+                    mWifiAwareNativeManager.releaseAware();
+                    waitForResponse = false;
+                    break;
                 default:
                     waitForResponse = false;
                     Log.wtf(TAG, "processCommand: this isn't a COMMAND -- msg=" + msg);
@@ -1884,6 +1914,14 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                             "processTimeout: COMMAND_TYPE_DELAYED_INITIALIZATION - shouldn't be "
                                     + "waiting!");
                     break;
+                case COMMAND_TYPE_GET_AWARE:
+                    Log.wtf(TAG,
+                            "processTimeout: COMMAND_TYPE_GET_AWARE - shouldn't be waiting!");
+                    break;
+                case COMMAND_TYPE_RELEASE_AWARE:
+                    Log.wtf(TAG,
+                            "processTimeout: COMMAND_TYPE_RELEASE_AWARE - shouldn't be waiting!");
+                    break;
                 default:
                     Log.wtf(TAG, "processTimeout: this isn't a COMMAND -- msg=" + msg);
                     /* fall-through */
@@ -2059,6 +2097,10 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         }
         boolean notificationRequired =
                 doesAnyClientNeedIdentityChangeNotifications() || notifyIdentityChange;
+
+        if (mCurrentAwareConfiguration == null) {
+            mWifiAwareNativeManager.tryToGetAware();
+        }
 
         boolean success = mWifiAwareNativeApi.enableAndConfigure(transactionId, merged,
                 notificationRequired, mCurrentAwareConfiguration == null,
@@ -2290,12 +2332,16 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
     private void enableUsageLocal() {
         if (VDBG) Log.v(TAG, "enableUsageLocal: mUsageEnabled=" + mUsageEnabled);
 
+        if (mCapabilities == null) {
+            getAwareInterface();
+            queryCapabilities();
+            releaseAwareInterface();
+        }
+
         if (mUsageEnabled) {
             return;
         }
-
         mUsageEnabled = true;
-        queryCapabilities();
         sendAwareStateChangedBroadcast(true);
 
         mAwareMetrics.recordEnableUsage();
@@ -2863,7 +2909,10 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
 
     private void onAwareDownLocal() {
         if (VDBG) {
-            Log.v(TAG, "onAwareDown");
+            Log.v(TAG, "onAwareDown: mCurrentAwareConfiguration=" + mCurrentAwareConfiguration);
+        }
+        if (mCurrentAwareConfiguration == null) {
+            return;
         }
 
         for (int i = 0; i < mClients.size(); ++i) {

@@ -16,11 +16,12 @@
 
 package com.android.server.wifi.aware;
 
-import static org.hamcrest.core.IsEqual.equalTo;
-import static org.hamcrest.core.IsNull.nullValue;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -78,86 +79,165 @@ public class WifiAwareNativeManagerTest {
         mDut.start(mHandlerMock);
 
         mInOrder = inOrder(mWifiAwareStateManagerMock, mHalDeviceManager);
+
+        // validate (and capture) that register manage status callback
+        mInOrder.verify(mHalDeviceManager).initialize();
+        mInOrder.verify(mHalDeviceManager).registerStatusListener(
+                mManagerStatusListenerCaptor.capture(), any());
     }
 
     /**
-     * Test the control flow of the manager:
+     * Test the control flow of the manager when Aware isn't being actively used:
+     *
      * 1. onStatusChange (ready/started)
-     * 2. null NAN iface
-     * 3. onAvailableForRequest
-     * 4. non-null NAN iface -> enableUsage
-     * 5. onStatusChange (!started) -> disableUsage
-     * 6. onStatusChange (ready/started)
-     * 7. non-null NAN iface -> enableUsage
-     * 8. onDestroyed -> disableUsage
-     * 9. onStatusChange (!started)
+     * 2. on available -> enableUsage
+     * 3. onStatusChange (!started) -> disableUsage
+     * 4. onStatusChange (ready/started) + available -> enableUsage
+     * 5. on not available -> disableUsage
+     *
+     * --> no interface creation at any point!
      */
     @Test
-    public void testControlFlow() {
-        // configure HalDeviceManager as ready/wifi started
+    public void testControlFlowWithoutInterface() {
+        // configure HalDeviceManager as ready/wifi started (and to return an interface if
+        // requested)
         when(mHalDeviceManager.isReady()).thenReturn(true);
         when(mHalDeviceManager.isStarted()).thenReturn(true);
+        when(mHalDeviceManager.createNanIface(any(), any())).thenReturn(mWifiNanIfaceMock);
 
-        // validate (and capture) that register manage status callback
-        mInOrder.verify(mHalDeviceManager).registerStatusListener(
-                mManagerStatusListenerCaptor.capture(), any());
-
-        // 1 & 2 onStatusChange (ready/started): validate that trying to get a NAN interface
-        // (make sure gets a NULL)
-        when(mHalDeviceManager.createNanIface(any(), any())).thenReturn(null);
-
+        // 1. onStatusChange (ready/started)
         mManagerStatusListenerCaptor.getValue().onStatusChanged();
         mInOrder.verify(mHalDeviceManager).registerInterfaceAvailableForRequestListener(
                 eq(IfaceType.NAN), mAvailListenerCaptor.capture(), any(Handler.class));
-        mAvailListenerCaptor.getValue().onAvailableForRequest();
 
-        mInOrder.verify(mHalDeviceManager).createNanIface(
-                mDestroyedListenerCaptor.capture(), any());
-        collector.checkThat("null interface", mDut.getWifiNanIface(), nullValue());
-
-        // 3 & 4 onAvailableForRequest + non-null return value: validate that enables usage
-        when(mHalDeviceManager.createNanIface(any(), any())).thenReturn(mWifiNanIfaceMock);
-
-        mAvailListenerCaptor.getValue().onAvailableForRequest();
-
-        mInOrder.verify(mHalDeviceManager).createNanIface(
-                mDestroyedListenerCaptor.capture(), any());
+        // 2. NAN is available -> enableUsage
+        mAvailListenerCaptor.getValue().onAvailabilityChanged(true);
         mInOrder.verify(mWifiAwareStateManagerMock).enableUsage();
-        collector.checkThat("non-null interface", mDut.getWifiNanIface(),
-                equalTo(mWifiNanIfaceMock));
 
-        // 5 onStatusChange (!started): disable usage
+        // 3. onStatusChange (not ready) -> disableUsage
         when(mHalDeviceManager.isStarted()).thenReturn(false);
         mManagerStatusListenerCaptor.getValue().onStatusChanged();
 
         mInOrder.verify(mWifiAwareStateManagerMock).disableUsage();
-        collector.checkThat("null interface", mDut.getWifiNanIface(), nullValue());
 
-        // 6 & 7 onStatusChange (ready/started) + non-null NAN interface: enable usage
+        // 4. onStatusChange (ready/started) + available -> enableUsage
         when(mHalDeviceManager.isStarted()).thenReturn(true);
         mManagerStatusListenerCaptor.getValue().onStatusChanged();
 
         mManagerStatusListenerCaptor.getValue().onStatusChanged();
         mInOrder.verify(mHalDeviceManager).registerInterfaceAvailableForRequestListener(
                 eq(IfaceType.NAN), mAvailListenerCaptor.capture(), any(Handler.class));
-        mAvailListenerCaptor.getValue().onAvailableForRequest();
+        mAvailListenerCaptor.getValue().onAvailabilityChanged(true);
 
-        mInOrder.verify(mHalDeviceManager).createNanIface(
-                mDestroyedListenerCaptor.capture(), any());
         mInOrder.verify(mWifiAwareStateManagerMock).enableUsage();
-        collector.checkThat("non-null interface", mDut.getWifiNanIface(),
-                equalTo(mWifiNanIfaceMock));
 
-        // 8 onDestroyed: disable usage
-        mDestroyedListenerCaptor.getValue().onDestroyed(new String());
+        // 5. not available -> disableUsage
+        mAvailListenerCaptor.getValue().onAvailabilityChanged(false);
 
         mInOrder.verify(mWifiAwareStateManagerMock).disableUsage();
-        collector.checkThat("null interface", mDut.getWifiNanIface(), nullValue());
 
-        // 9 onStatusChange (!started): nothing more happens
-        when(mHalDeviceManager.isStarted()).thenReturn(false);
+        mInOrder.verify(mHalDeviceManager, never()).createNanIface(any(), any());
+        verifyNoMoreInteractions(mWifiAwareStateManagerMock);
+        assertNull("Interface non-null!", mDut.getWifiNanIface());
+    }
+
+    /**
+     * Test the control flow (and reference counting) of the manager when Aware is actively used and
+     * reference counted (i.e. irregular requests/releases).
+     */
+    @Test
+    public void testReferenceCounting() {
+        // configure HalDeviceManager as ready/wifi started (and to return an interface if
+        // requested)
+        when(mHalDeviceManager.isReady()).thenReturn(true);
+        when(mHalDeviceManager.isStarted()).thenReturn(true);
+        when(mHalDeviceManager.createNanIface(any(), any())).thenReturn(mWifiNanIfaceMock);
+
+        // 1. onStatusChange (ready/started)
         mManagerStatusListenerCaptor.getValue().onStatusChanged();
+        mInOrder.verify(mHalDeviceManager).registerInterfaceAvailableForRequestListener(
+                eq(IfaceType.NAN), mAvailListenerCaptor.capture(), any(Handler.class));
+        assertNull("Interface non-null!", mDut.getWifiNanIface());
 
+        mAvailListenerCaptor.getValue().onAvailabilityChanged(true);
+        mInOrder.verify(mWifiAwareStateManagerMock).enableUsage();
+
+        // 2. request (interface obtained)
+        mDut.tryToGetAware();
+        mInOrder.verify(mHalDeviceManager).createNanIface(mDestroyedListenerCaptor.capture(),
+                any());
+        assertEquals("Interface mismatch", mWifiNanIfaceMock, mDut.getWifiNanIface());
+
+        // 3. release (interface released)
+        mDut.releaseAware();
+        mInOrder.verify(mHalDeviceManager).removeIface(mWifiNanIfaceMock);
+        assertNull("Interface non-null!", mDut.getWifiNanIface());
+
+        mDestroyedListenerCaptor.getValue().onDestroyed("nan0");
+
+        // 4. request (interface obtained)
+        mDut.tryToGetAware();
+        mInOrder.verify(mHalDeviceManager).createNanIface(mDestroyedListenerCaptor.capture(),
+                any());
+        assertEquals("Interface mismatch", mWifiNanIfaceMock, mDut.getWifiNanIface());
+
+        // 5. request (nop - already have interface)
+        mDut.tryToGetAware();
+        assertEquals("Interface mismatch", mWifiNanIfaceMock, mDut.getWifiNanIface());
+
+        // 6. release (nop - reference counting requests)
+        mDut.releaseAware();
+        assertEquals("Interface mismatch", mWifiNanIfaceMock, mDut.getWifiNanIface());
+
+        // 7. release (interface released)
+        mDut.releaseAware();
+        mInOrder.verify(mHalDeviceManager).removeIface(mWifiNanIfaceMock);
+        assertNull("Interface non-null!", mDut.getWifiNanIface());
+
+        mDestroyedListenerCaptor.getValue().onDestroyed("nan0");
+
+        mInOrder.verify(mHalDeviceManager, never()).createNanIface(any(), any());
+        mInOrder.verify(mHalDeviceManager, never()).removeIface(any());
+        verifyNoMoreInteractions(mWifiAwareStateManagerMock);
+    }
+
+    /**
+     * Test the control flow when the interface gets deleted due to external
+     */
+    @Test
+    public void testRequestFlowWithAsyncDeletes() {
+        // configure HalDeviceManager as ready/wifi started (and to return an interface if
+        // requested)
+        when(mHalDeviceManager.isReady()).thenReturn(true);
+        when(mHalDeviceManager.isStarted()).thenReturn(true);
+        when(mHalDeviceManager.createNanIface(any(), any())).thenReturn(mWifiNanIfaceMock);
+
+        // 1. onStatusChange (ready/started)
+        mManagerStatusListenerCaptor.getValue().onStatusChanged();
+        mInOrder.verify(mHalDeviceManager).registerInterfaceAvailableForRequestListener(
+                eq(IfaceType.NAN), mAvailListenerCaptor.capture(), any(Handler.class));
+        assertNull("Interface non-null!", mDut.getWifiNanIface());
+
+        mAvailListenerCaptor.getValue().onAvailabilityChanged(true);
+        mInOrder.verify(mWifiAwareStateManagerMock).enableUsage();
+
+        // 2. request (interface obtained)
+        mDut.tryToGetAware();
+        mInOrder.verify(mHalDeviceManager).createNanIface(mDestroyedListenerCaptor.capture(),
+                any());
+        assertEquals("Interface mismatch", mWifiNanIfaceMock, mDut.getWifiNanIface());
+
+        // 3. interface gets destroyed
+        mDestroyedListenerCaptor.getValue().onDestroyed("nan0");
+
+        mInOrder.verify(mWifiAwareStateManagerMock).disableUsage();
+        assertNull("Interface non-null!", mDut.getWifiNanIface());
+
+        // 4. a release doesn't do much
+        mDut.releaseAware();
+
+        mInOrder.verify(mHalDeviceManager, never()).createNanIface(any(), any());
+        mInOrder.verify(mHalDeviceManager, never()).removeIface(any());
         verifyNoMoreInteractions(mWifiAwareStateManagerMock);
     }
 }
