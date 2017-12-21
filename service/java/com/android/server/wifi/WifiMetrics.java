@@ -811,11 +811,29 @@ public class WifiMetrics {
     }
 
     /**
+     * Increment connectivity oneshot scan count.
+     */
+    public void incrementConnectivityOneshotScanCount() {
+        synchronized (mLock) {
+            mWifiLogProto.numConnectivityOneshotScans++;
+        }
+    }
+
+    /**
      * Get oneshot scan count
      */
     public int getOneshotScanCount() {
         synchronized (mLock) {
             return mWifiLogProto.numOneshotScans;
+        }
+    }
+
+    /**
+     * Get connectivity oneshot scan count
+     */
+    public int getConnectivityOneshotScanCount() {
+        synchronized (mLock) {
+            return mWifiLogProto.numConnectivityOneshotScans;
         }
     }
 
@@ -1606,6 +1624,8 @@ public class WifiMetrics {
                         + mWifiLogProto.numNonEmptyScanResults);
                 pw.println("mWifiLogProto.numEmptyScanResults="
                         + mWifiLogProto.numEmptyScanResults);
+                pw.println("mWifiLogProto.numConnecitvityOneshotScans="
+                        + mWifiLogProto.numConnectivityOneshotScans);
                 pw.println("mWifiLogProto.numOneshotScans="
                         + mWifiLogProto.numOneshotScans);
                 pw.println("mWifiLogProto.numBackgroundScans="
