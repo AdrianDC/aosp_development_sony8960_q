@@ -580,6 +580,29 @@ public class WifiNative {
         void onDown(String ifaceName);
     }
 
+    private void initializeNwParamsForClientInterface(@NonNull String ifaceName) {
+        try {
+            // A runtime crash or shutting down AP mode can leave
+            // IP addresses configured, and this affects
+            // connectivity when supplicant starts up.
+            // Ensure we have no IP addresses before a supplicant start.
+            mNwManagementService.clearInterfaceAddresses(ifaceName);
+
+            // Set privacy extensions
+            mNwManagementService.setInterfaceIpv6PrivacyExtensions(ifaceName, true);
+
+            // IPv6 is enabled only as long as access point is connected since:
+            // - IPv6 addresses and routes stick around after disconnection
+            // - kernel is unaware when connected and fails to start IPv6 negotiation
+            // - kernel can start autoconfiguration when 802.1x is not complete
+            mNwManagementService.disableIpv6(ifaceName);
+        } catch (RemoteException re) {
+            Log.e(mTAG, "Unable to change interface settings: " + re);
+        } catch (IllegalStateException ie) {
+            Log.e(mTAG, "Unable to change interface settings: " + ie);
+        }
+    }
+
     /**
      * Setup an interface for Client mode operations.
      *
@@ -628,6 +651,7 @@ public class WifiNative {
                 teardownInterface(iface.name);
                 return null;
             }
+            initializeNwParamsForClientInterface(iface.name);
             Log.i(mTAG, "Successfully setup iface=" + iface.name);
             return iface.name;
         }
