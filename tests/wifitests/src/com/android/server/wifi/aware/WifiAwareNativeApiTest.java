@@ -34,10 +34,12 @@ import android.hardware.wifi.V1_0.NanRangingIndication;
 import android.hardware.wifi.V1_0.NanSubscribeRequest;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
+import android.hardware.wifi.V1_2.NanConfigRequestSupplemental;
 import android.net.wifi.aware.ConfigRequest;
 import android.net.wifi.aware.PublishConfig;
 import android.net.wifi.aware.SubscribeConfig;
 import android.os.RemoteException;
+import android.util.Pair;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -55,10 +57,23 @@ import java.io.PrintWriter;
 public class WifiAwareNativeApiTest {
     @Mock WifiAwareNativeManager mWifiAwareNativeManagerMock;
     @Mock IWifiNanIface mIWifiNanIfaceMock;
+    @Mock android.hardware.wifi.V1_2.IWifiNanIface mIWifiNanIface12Mock;
 
     @Rule public ErrorCollector collector = new ErrorCollector();
 
-    private WifiAwareNativeApi mDut;
+    private class MockableWifiAwareNativeApi extends WifiAwareNativeApi {
+        MockableWifiAwareNativeApi(WifiAwareNativeManager wifiAwareNativeManager) {
+            super(wifiAwareNativeManager);
+        }
+
+        @Override
+        public android.hardware.wifi.V1_2.IWifiNanIface mockableCastTo_1_2(IWifiNanIface iface) {
+            return mIsInterface12 ? mIWifiNanIface12Mock : null;
+        }
+    }
+
+    private MockableWifiAwareNativeApi mDut;
+    private boolean mIsInterface12;
 
     /**
      * Initializes mocks.
@@ -75,8 +90,14 @@ public class WifiAwareNativeApiTest {
         when(mIWifiNanIfaceMock.configRequest(anyShort(), any())).thenReturn(status);
         when(mIWifiNanIfaceMock.startPublishRequest(anyShort(), any())).thenReturn(status);
         when(mIWifiNanIfaceMock.startSubscribeRequest(anyShort(), any())).thenReturn(status);
+        when(mIWifiNanIface12Mock.enableRequest_1_2(anyShort(), any(), any())).thenReturn(status);
+        when(mIWifiNanIface12Mock.configRequest_1_2(anyShort(), any(), any())).thenReturn(status);
+        when(mIWifiNanIface12Mock.startPublishRequest(anyShort(), any())).thenReturn(status);
+        when(mIWifiNanIface12Mock.startSubscribeRequest(anyShort(), any())).thenReturn(status);
 
-        mDut = new WifiAwareNativeApi(mWifiAwareNativeManagerMock);
+        mIsInterface12 = false;
+
+        mDut = new MockableWifiAwareNativeApi(mWifiAwareNativeManagerMock);
     }
 
     /**
@@ -110,14 +131,15 @@ public class WifiAwareNativeApiTest {
      */
     @Test
     public void testEnableAndConfigPowerSettingsDefaults() throws RemoteException {
-        NanConfigRequest config = validateEnableAndConfigure((short) 10,
-                new ConfigRequest.Builder().build(), true, true, true, false);
+        Pair<NanConfigRequest, NanConfigRequestSupplemental> configs =
+                validateEnableAndConfigure((short) 10, new ConfigRequest.Builder().build(), true,
+                        true, true, false, false);
 
         collector.checkThat("validDiscoveryWindowIntervalVal-5", false,
-                equalTo(config.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ]
+                equalTo(configs.first.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ]
                         .validDiscoveryWindowIntervalVal));
         collector.checkThat("validDiscoveryWindowIntervalVal-24", false,
-                equalTo(config.bandSpecificConfig[NanBandIndex.NAN_BAND_24GHZ]
+                equalTo(configs.first.bandSpecificConfig[NanBandIndex.NAN_BAND_24GHZ]
                         .validDiscoveryWindowIntervalVal));
     }
 
@@ -131,20 +153,21 @@ public class WifiAwareNativeApiTest {
         byte interactive24 = 3;
 
         setPowerConfigurationParams(interactive5, interactive24, (byte) -1, (byte) -1);
-        NanConfigRequest config = validateEnableAndConfigure((short) 10,
-                new ConfigRequest.Builder().build(), false, false, false, false);
+        Pair<NanConfigRequest, NanConfigRequestSupplemental> configs =
+                validateEnableAndConfigure((short) 10, new ConfigRequest.Builder().build(), false,
+                        false, false, false, false);
 
         collector.checkThat("validDiscoveryWindowIntervalVal-5", true,
-                equalTo(config.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ]
+                equalTo(configs.first.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ]
                         .validDiscoveryWindowIntervalVal));
         collector.checkThat("discoveryWindowIntervalVal-5", interactive5,
-                equalTo(config.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ]
+                equalTo(configs.first.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ]
                         .discoveryWindowIntervalVal));
         collector.checkThat("validDiscoveryWindowIntervalVal-24", true,
-                equalTo(config.bandSpecificConfig[NanBandIndex.NAN_BAND_24GHZ]
+                equalTo(configs.first.bandSpecificConfig[NanBandIndex.NAN_BAND_24GHZ]
                         .validDiscoveryWindowIntervalVal));
         collector.checkThat("discoveryWindowIntervalVal-24", interactive24,
-                equalTo(config.bandSpecificConfig[NanBandIndex.NAN_BAND_24GHZ]
+                equalTo(configs.first.bandSpecificConfig[NanBandIndex.NAN_BAND_24GHZ]
                         .discoveryWindowIntervalVal));
     }
 
@@ -158,18 +181,119 @@ public class WifiAwareNativeApiTest {
         byte idle24 = -1;
 
         setPowerConfigurationParams((byte) -1, (byte) -1, idle5, idle24);
-        NanConfigRequest config = validateEnableAndConfigure((short) 10,
-                new ConfigRequest.Builder().build(), false, true, false, true);
+        Pair<NanConfigRequest, NanConfigRequestSupplemental> configs =
+                validateEnableAndConfigure((short) 10, new ConfigRequest.Builder().build(), false,
+                        true, false, true, false);
 
         collector.checkThat("validDiscoveryWindowIntervalVal-5", true,
-                equalTo(config.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ]
+                equalTo(configs.first.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ]
                         .validDiscoveryWindowIntervalVal));
         collector.checkThat("discoveryWindowIntervalVal-5", idle5,
-                equalTo(config.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ]
+                equalTo(configs.first.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ]
                         .discoveryWindowIntervalVal));
         collector.checkThat("validDiscoveryWindowIntervalVal-24", false,
-                equalTo(config.bandSpecificConfig[NanBandIndex.NAN_BAND_24GHZ]
+                equalTo(configs.first.bandSpecificConfig[NanBandIndex.NAN_BAND_24GHZ]
                         .validDiscoveryWindowIntervalVal));
+    }
+
+    /**
+     * Validate that the configuration parameters used to manage power state behavior is
+     * using default values at the default power state.
+     *
+     * Using HAL 1.2: additional power configurations.
+     */
+    @Test
+    public void testEnableAndConfigPowerSettingsDefaults_1_2() throws RemoteException {
+        Pair<NanConfigRequest, NanConfigRequestSupplemental> configs =
+                validateEnableAndConfigure((short) 10, new ConfigRequest.Builder().build(), true,
+                        true, true, false, true);
+
+        collector.checkThat("validDiscoveryWindowIntervalVal-5", false,
+                equalTo(configs.first.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ]
+                        .validDiscoveryWindowIntervalVal));
+        collector.checkThat("validDiscoveryWindowIntervalVal-24", false,
+                equalTo(configs.first.bandSpecificConfig[NanBandIndex.NAN_BAND_24GHZ]
+                        .validDiscoveryWindowIntervalVal));
+
+        collector.checkThat("discoveryBeaconIntervalMs", 0,
+                equalTo(configs.second.discoveryBeaconIntervalMs));
+        collector.checkThat("numberOfSpatialStreamsInDiscovery", 0,
+                equalTo(configs.second.numberOfSpatialStreamsInDiscovery));
+        collector.checkThat("enableDiscoveryWindowEarlyTermination", false,
+                equalTo(configs.second.enableDiscoveryWindowEarlyTermination));
+    }
+
+    /**
+     * Validate that the configuration parameters used to manage power state behavior is
+     * using the specified non-interactive values when in that power state.
+     *
+     * Using HAL 1.2: additional power configurations.
+     */
+    @Test
+    public void testEnableAndConfigPowerSettingsNoneInteractive_1_2() throws RemoteException {
+        byte interactive5 = 2;
+        byte interactive24 = 3;
+
+        setPowerConfigurationParams(interactive5, interactive24, (byte) -1, (byte) -1);
+        Pair<NanConfigRequest, NanConfigRequestSupplemental> configs =
+                validateEnableAndConfigure((short) 10, new ConfigRequest.Builder().build(), false,
+                        false, false, false, true);
+
+        collector.checkThat("validDiscoveryWindowIntervalVal-5", true,
+                equalTo(configs.first.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ]
+                        .validDiscoveryWindowIntervalVal));
+        collector.checkThat("discoveryWindowIntervalVal-5", interactive5,
+                equalTo(configs.first.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ]
+                        .discoveryWindowIntervalVal));
+        collector.checkThat("validDiscoveryWindowIntervalVal-24", true,
+                equalTo(configs.first.bandSpecificConfig[NanBandIndex.NAN_BAND_24GHZ]
+                        .validDiscoveryWindowIntervalVal));
+        collector.checkThat("discoveryWindowIntervalVal-24", interactive24,
+                equalTo(configs.first.bandSpecificConfig[NanBandIndex.NAN_BAND_24GHZ]
+                        .discoveryWindowIntervalVal));
+
+        // Note: still defaults (i.e. disabled) - will be tweaked for low power
+        collector.checkThat("discoveryBeaconIntervalMs", 0,
+                equalTo(configs.second.discoveryBeaconIntervalMs));
+        collector.checkThat("numberOfSpatialStreamsInDiscovery", 0,
+                equalTo(configs.second.numberOfSpatialStreamsInDiscovery));
+        collector.checkThat("enableDiscoveryWindowEarlyTermination", false,
+                equalTo(configs.second.enableDiscoveryWindowEarlyTermination));
+    }
+
+    /**
+     * Validate that the configuration parameters used to manage power state behavior is
+     * using the specified idle (doze) values when in that power state.
+     *
+     * Using HAL 1.2: additional power configurations.
+     */
+    @Test
+    public void testEnableAndConfigPowerSettingsIdle_1_2() throws RemoteException {
+        byte idle5 = 2;
+        byte idle24 = -1;
+
+        setPowerConfigurationParams((byte) -1, (byte) -1, idle5, idle24);
+        Pair<NanConfigRequest, NanConfigRequestSupplemental> configs =
+                validateEnableAndConfigure((short) 10, new ConfigRequest.Builder().build(), false,
+                        true, false, true, true);
+
+        collector.checkThat("validDiscoveryWindowIntervalVal-5", true,
+                equalTo(configs.first.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ]
+                        .validDiscoveryWindowIntervalVal));
+        collector.checkThat("discoveryWindowIntervalVal-5", idle5,
+                equalTo(configs.first.bandSpecificConfig[NanBandIndex.NAN_BAND_5GHZ]
+                        .discoveryWindowIntervalVal));
+        collector.checkThat("validDiscoveryWindowIntervalVal-24", false,
+                equalTo(configs.first.bandSpecificConfig[NanBandIndex.NAN_BAND_24GHZ]
+                        .validDiscoveryWindowIntervalVal));
+
+        // Note: still defaults (i.e. disabled) - will be tweaked for low power
+        collector.checkThat("discoveryBeaconIntervalMs", 0,
+                equalTo(configs.second.discoveryBeaconIntervalMs));
+        collector.checkThat("numberOfSpatialStreamsInDiscovery", 0,
+                equalTo(configs.second.numberOfSpatialStreamsInDiscovery));
+        collector.checkThat("enableDiscoveryWindowEarlyTermination", false,
+                equalTo(configs.second.enableDiscoveryWindowEarlyTermination));
     }
 
     @Test
@@ -293,9 +417,12 @@ public class WifiAwareNativeApiTest {
         collector.checkThat(mDut.onCommand(parentShellMock), equalTo(expectSuccess ? 0 : -1));
     }
 
-    private NanConfigRequest validateEnableAndConfigure(short transactionId,
-            ConfigRequest configRequest, boolean notifyIdentityChange, boolean initialConfiguration,
-            boolean isInteractive, boolean isIdle) throws RemoteException {
+    private Pair<NanConfigRequest, NanConfigRequestSupplemental> validateEnableAndConfigure(
+            short transactionId, ConfigRequest configRequest, boolean notifyIdentityChange,
+            boolean initialConfiguration, boolean isInteractive, boolean isIdle, boolean isHal12)
+            throws RemoteException {
+        mIsInterface12 = isHal12;
+
         mDut.enableAndConfigure(transactionId, configRequest, notifyIdentityChange,
                 initialConfiguration, isInteractive, isIdle);
 
@@ -303,13 +430,30 @@ public class WifiAwareNativeApiTest {
                 NanEnableRequest.class);
         ArgumentCaptor<NanConfigRequest> configReqCaptor = ArgumentCaptor.forClass(
                 NanConfigRequest.class);
+        ArgumentCaptor<NanConfigRequestSupplemental> configSuppCaptor = ArgumentCaptor.forClass(
+                NanConfigRequestSupplemental.class);
         NanConfigRequest config;
+        NanConfigRequestSupplemental configSupp = null;
 
         if (initialConfiguration) {
-            verify(mIWifiNanIfaceMock).enableRequest(eq(transactionId), enableReqCaptor.capture());
+            if (isHal12) {
+                verify(mIWifiNanIface12Mock).enableRequest_1_2(eq(transactionId),
+                        enableReqCaptor.capture(), configSuppCaptor.capture());
+                configSupp = configSuppCaptor.getValue();
+            } else {
+                verify(mIWifiNanIfaceMock).enableRequest(eq(transactionId),
+                        enableReqCaptor.capture());
+            }
             config = enableReqCaptor.getValue().configParams;
         } else {
-            verify(mIWifiNanIfaceMock).configRequest(eq(transactionId), configReqCaptor.capture());
+            if (isHal12) {
+                verify(mIWifiNanIface12Mock).configRequest_1_2(eq(transactionId),
+                        configReqCaptor.capture(), configSuppCaptor.capture());
+                configSupp = configSuppCaptor.getValue();
+            } else {
+                verify(mIWifiNanIfaceMock).configRequest(eq(transactionId),
+                        configReqCaptor.capture());
+            }
             config = configReqCaptor.getValue();
         }
 
@@ -320,6 +464,6 @@ public class WifiAwareNativeApiTest {
         collector.checkThat("disableJoinedClusterIndication", !notifyIdentityChange,
                 equalTo(config.disableJoinedClusterIndication));
 
-        return config;
+        return new Pair<>(config, configSupp);
     }
 }

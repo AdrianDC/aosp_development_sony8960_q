@@ -33,6 +33,7 @@ import android.hardware.wifi.V1_0.NanTransmitFollowupRequest;
 import android.hardware.wifi.V1_0.NanTxType;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
+import android.hardware.wifi.V1_2.NanConfigRequestSupplemental;
 import android.net.wifi.aware.ConfigRequest;
 import android.net.wifi.aware.PublishConfig;
 import android.net.wifi.aware.SubscribeConfig;
@@ -66,6 +67,15 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
     public WifiAwareNativeApi(WifiAwareNativeManager wifiAwareNativeManager) {
         mHal = wifiAwareNativeManager;
         onReset();
+    }
+
+    /**
+     * (HIDL) Cast the input to a 1.2 NAN interface (possibly resulting in a null).
+     *
+     * Separate function so can be mocked in unit tests.
+     */
+    public android.hardware.wifi.V1_2.IWifiNanIface mockableCastTo_1_2(IWifiNanIface iface) {
+        return android.hardware.wifi.V1_2.IWifiNanIface.castFrom(iface);
     }
 
     /*
@@ -220,6 +230,14 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
             Log.e(TAG, "enableAndConfigure: null interface");
             return false;
         }
+        android.hardware.wifi.V1_2.IWifiNanIface iface12 = mockableCastTo_1_2(iface);
+        NanConfigRequestSupplemental configSupplemental12 = new NanConfigRequestSupplemental();
+        if (iface12 != null) {
+            if (VDBG) Log.v(TAG, "HAL 1.2 detected");
+            configSupplemental12.discoveryBeaconIntervalMs = 0;
+            configSupplemental12.numberOfSpatialStreamsInDiscovery = 0;
+            configSupplemental12.enableDiscoveryWindowEarlyTermination = false;
+        }
 
         try {
             WifiStatus status;
@@ -298,7 +316,11 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
 
                 updateConfigForPowerSettings(req.configParams, isInteractive, isIdle);
 
-                status = iface.enableRequest(transactionId, req);
+                if (iface12 != null) {
+                    status = iface12.enableRequest_1_2(transactionId, req, configSupplemental12);
+                } else {
+                    status = iface.enableRequest(transactionId, req);
+                }
             } else {
                 NanConfigRequest req = new NanConfigRequest();
                 req.masterPref = (byte) configRequest.mMasterPreference;
@@ -349,7 +371,11 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
 
                 updateConfigForPowerSettings(req, isInteractive, isIdle);
 
-                status = iface.configRequest(transactionId, req);
+                if (iface12 != null) {
+                    status = iface12.configRequest_1_2(transactionId, req, configSupplemental12);
+                } else {
+                    status = iface.configRequest(transactionId, req);
+                }
             }
             if (status.code == WifiStatusCode.SUCCESS) {
                 return true;
