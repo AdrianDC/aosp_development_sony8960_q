@@ -4657,7 +4657,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         public void enter() {
             mLastOperationMode = mOperationalMode;
             mWifiStateTracker.updateState(WifiStateTracker.SCAN_MODE);
+            mWifiInjector.getWakeupController().start();
         }
+
+        @Override
+        public void exit() {
+            mWifiInjector.getWakeupController().stop();
+        }
+
         @Override
         public boolean processMessage(Message message) {
             logStateAndMessage(message, this);
@@ -4884,6 +4891,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             mWifiInfo.setSupplicantState(SupplicantState.DISCONNECTED);
             // Let the system know that wifi is available in client mode.
             setWifiState(WIFI_STATE_ENABLED);
+
+            mWifiInjector.getWakeupController().reset();
 
             mNetworkInfo.setIsAvailable(true);
             if (mNetworkAgent != null) mNetworkAgent.sendNetworkInfo(mNetworkInfo);

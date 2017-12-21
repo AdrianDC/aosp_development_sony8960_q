@@ -2766,4 +2766,38 @@ public class WifiStateMachineTest {
         mWsm.dump(null, writer, null);
         verify(mWakeupController).dump(null, writer, null);
     }
+
+    /**
+     * Verify that entering and exiting scan mode state correctly triggers Wakeup lifecycle events.
+     */
+    @Test
+    public void verifyScanModeStateTransitionsTriggerWakeupLifecycleEvents() throws Exception {
+        loadComponentsInStaMode();
+
+        // enter scan mode
+        mWsm.setOperationalMode(WifiStateMachine.SCAN_ONLY_MODE);
+        mLooper.dispatchAll();
+
+        // exit scan mode
+        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE);
+        mLooper.dispatchAll();
+
+        InOrder inOrder = inOrder(mWakeupController);
+        inOrder.verify(mWakeupController).start();
+        inOrder.verify(mWakeupController).stop();
+    }
+
+    /**
+     * Verify that entering connect mode state resets WakeupController events.
+     */
+    @Test
+    public void verifyConnectModeStateTransitionsTriggerWakeupLifecycleEvents() throws Exception {
+        loadComponentsInStaMode();
+
+        //  enter connect mode
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        mLooper.dispatchAll();
+
+        verify(mWakeupController).reset();
+    }
 }
