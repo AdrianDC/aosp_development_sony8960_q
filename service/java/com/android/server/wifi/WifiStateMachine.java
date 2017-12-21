@@ -64,7 +64,6 @@ import android.net.wifi.ScanSettings;
 import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiChannel;
 import android.net.wifi.WifiConfiguration;
-import android.net.wifi.WifiConnectionStatistics;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
@@ -466,11 +465,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     private byte[] mRssiRanges;
 
-    // Keep track of various statistics, for retrieval by System Apps, i.e. under @SystemApi
-    // We should really persist that into the networkHistory.txt file, and read it back when
-    // WifiStateMachine starts up
-    private WifiConnectionStatistics mWifiConnectionStatistics = new WifiConnectionStatistics();
-
     // Used to filter out requests we couldn't possibly satisfy.
     private final NetworkCapabilities mNetworkCapabilitiesFilter = new NetworkCapabilities();
 
@@ -529,8 +523,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     static final int CMD_RECONNECT                                      = BASE + 74;
     /* Reassociate to a network */
     static final int CMD_REASSOCIATE                                    = BASE + 75;
-    /* Get Connection Statistis */
-    static final int CMD_GET_CONNECTION_STATISTICS                      = BASE + 76;
 
     /* Controls suspend mode optimizations
      *
@@ -2003,19 +1995,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         resultMsg.recycle();
         return result;
     }
-    /**
-     * Get connection statistics synchronously
-     *
-     * @param channel
-     * @return
-     */
-
-    public WifiConnectionStatistics syncGetConnectionStatistics(AsyncChannel channel) {
-        Message resultMsg = channel.sendMessageSynchronously(CMD_GET_CONNECTION_STATISTICS);
-        WifiConnectionStatistics result = (WifiConnectionStatistics) resultMsg.obj;
-        resultMsg.recycle();
-        return result;
-    }
 
     /**
      * Get adaptors synchronously
@@ -3014,12 +2993,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             mWifiInfo.setLinkSpeed(newLinkSpeed);
         }
         if (newFrequency != null && newFrequency > 0) {
-            if (ScanResult.is5GHz(newFrequency)) {
-                mWifiConnectionStatistics.num5GhzConnected++;
-            }
-            if (ScanResult.is24GHz(newFrequency)) {
-                mWifiConnectionStatistics.num24GhzConnected++;
-            }
             mWifiInfo.setFrequency(newFrequency);
         }
         mWifiConfigManager.updateScanDetailCacheFromWifiInfo(mWifiInfo);
@@ -4034,9 +4007,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_IP_CONFIGURATION_LOST:
                 case CMD_IP_REACHABILITY_LOST:
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
-                    break;
-                case CMD_GET_CONNECTION_STATISTICS:
-                    replyToMessage(message, message.what, mWifiConnectionStatistics);
                     break;
                 case CMD_REMOVE_APP_CONFIGURATIONS:
                     deferMessage(message);
@@ -5267,7 +5237,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                      */
                     netId = message.arg1;
                     config = (WifiConfiguration) message.obj;
-                    mWifiConnectionStatistics.numWifiManagerJoinAttempt++;
                     boolean hasCredentialChanged = false;
                     // New network addition.
                     if (config != null) {
@@ -5297,7 +5266,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     result = saveNetworkConfigAndSendReply(message);
                     netId = result.getNetworkId();
                     if (result.isSuccess() && mWifiInfo.getNetworkId() == netId) {
-                        mWifiConnectionStatistics.numWifiManagerJoinAttempt++;
                         if (result.hasCredentialChanged()) {
                             config = (WifiConfiguration) message.obj;
                             // The network credentials changed and we're connected to this network,

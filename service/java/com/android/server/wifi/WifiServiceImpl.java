@@ -67,7 +67,6 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.ScanSettings;
 import android.net.wifi.WifiActivityEnergyInfo;
 import android.net.wifi.WifiConfiguration;
-import android.net.wifi.WifiConnectionStatistics;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiManager.LocalOnlyHotspotCallback;
@@ -2433,20 +2432,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         enforceAccessPermission();
         mLog.info("getAggressiveHandover uid=%").c(Binder.getCallingUid()).flush();
         return mWifiStateMachine.getAggressiveHandover();
-    }
-
-    /* Return the Wifi Connection statistics object */
-    @Override
-    public WifiConnectionStatistics getConnectionStatistics() {
-        enforceAccessPermission();
-        enforceReadCredentialPermission();
-        mLog.info("getConnectionStatistics uid=%").c(Binder.getCallingUid()).flush();
-        if (mWifiStateMachineChannel != null) {
-            return mWifiStateMachine.syncGetConnectionStatistics(mWifiStateMachineChannel);
-        } else {
-            Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
-            return null;
-        }
     }
 
     @Override
