@@ -44,6 +44,7 @@ import android.util.SparseIntArray;
 
 import com.android.server.wifi.FrameworkFacade;
 import com.android.server.wifi.WifiInjector;
+import com.android.server.wifi.util.WifiPermissionsUtil;
 import com.android.server.wifi.util.WifiPermissionsWrapper;
 
 import java.io.FileDescriptor;
@@ -62,6 +63,7 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
     /* package */ boolean mDbg = false;
 
     private Context mContext;
+    private WifiPermissionsUtil mWifiPermissionsUtil;
     private WifiAwareStateManager mStateManager;
     private WifiAwareShellCommand mShellCommand;
 
@@ -89,11 +91,13 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
      */
     public void start(HandlerThread handlerThread, WifiAwareStateManager awareStateManager,
             WifiAwareShellCommand awareShellCommand, WifiAwareMetrics awareMetrics,
-            WifiPermissionsWrapper permissionsWrapper, FrameworkFacade frameworkFacade,
-            WifiAwareNativeManager wifiAwareNativeManager, WifiAwareNativeApi wifiAwareNativeApi,
+            WifiPermissionsUtil wifiPermissionsUtil, WifiPermissionsWrapper permissionsWrapper,
+            FrameworkFacade frameworkFacade, WifiAwareNativeManager wifiAwareNativeManager,
+            WifiAwareNativeApi wifiAwareNativeApi,
             WifiAwareNativeCallback wifiAwareNativeCallback) {
         Log.i(TAG, "Starting Wi-Fi Aware service");
 
+        mWifiPermissionsUtil = wifiPermissionsUtil;
         mStateManager = awareStateManager;
         mShellCommand = awareShellCommand;
         mStateManager.start(mContext, handlerThread.getLooper(), awareMetrics, permissionsWrapper);
@@ -177,7 +181,7 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
         }
 
         if (notifyOnIdentityChanged) {
-            enforceLocationPermission();
+            enforceLocationPermission(callingPackage, getMockableCallingUid());
         }
 
         if (configRequest != null) {
@@ -277,11 +281,11 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
     }
 
     @Override
-    public void publish(int clientId, PublishConfig publishConfig,
+    public void publish(String callingPackage, int clientId, PublishConfig publishConfig,
             IWifiAwareDiscoverySessionCallback callback) {
         enforceAccessPermission();
         enforceChangePermission();
-        enforceLocationPermission();
+        enforceLocationPermission(callingPackage, getMockableCallingUid());
 
         if (callback == null) {
             throw new IllegalArgumentException("Callback must not be null");
@@ -324,11 +328,11 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
     }
 
     @Override
-    public void subscribe(int clientId, SubscribeConfig subscribeConfig,
+    public void subscribe(String callingPackage, int clientId, SubscribeConfig subscribeConfig,
             IWifiAwareDiscoverySessionCallback callback) {
         enforceAccessPermission();
         enforceChangePermission();
-        enforceLocationPermission();
+        enforceLocationPermission(callingPackage, getMockableCallingUid());
 
         if (callback == null) {
             throw new IllegalArgumentException("Callback must not be null");
@@ -450,9 +454,8 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
         mContext.enforceCallingOrSelfPermission(android.Manifest.permission.CHANGE_WIFI_STATE, TAG);
     }
 
-    private void enforceLocationPermission() {
-        mContext.enforceCallingOrSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION,
-                TAG);
+    private void enforceLocationPermission(String callingPackage, int uid) {
+        mWifiPermissionsUtil.enforceLocationPermission(callingPackage, uid);
     }
 
     private void enforceNetworkStackPermission() {

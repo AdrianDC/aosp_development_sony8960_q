@@ -49,6 +49,7 @@ import android.util.SparseArray;
 import android.util.SparseIntArray;
 
 import com.android.server.wifi.FrameworkFacade;
+import com.android.server.wifi.util.WifiPermissionsUtil;
 import com.android.server.wifi.util.WifiPermissionsWrapper;
 
 import org.junit.Before;
@@ -72,6 +73,7 @@ public class WifiAwareServiceImplTest {
 
     private WifiAwareServiceImplSpy mDut;
     private int mDefaultUid = 1500;
+    private String mPackageName = "some.package";
     private TestLooper mMockLooper;
 
     @Mock
@@ -91,6 +93,7 @@ public class WifiAwareServiceImplTest {
     @Mock
     private IWifiAwareDiscoverySessionCallback mSessionCallbackMock;
     @Mock private WifiAwareMetrics mAwareMetricsMock;
+    @Mock private WifiPermissionsUtil mWifiPermissionsUtil;
     @Mock private WifiPermissionsWrapper mPermissionsWrapperMock;
     @Mock
     FrameworkFacade mFrameworkFacade;
@@ -139,7 +142,7 @@ public class WifiAwareServiceImplTest {
         mDut = new WifiAwareServiceImplSpy(mContextMock);
         mDut.fakeUid = mDefaultUid;
         mDut.start(mHandlerThreadMock, mAwareStateManagerMock, mWifiAwareShellCommandMock,
-                mAwareMetricsMock, mPermissionsWrapperMock, mFrameworkFacade,
+                mAwareMetricsMock, mWifiPermissionsUtil, mPermissionsWrapperMock, mFrameworkFacade,
                 mock(WifiAwareNativeManager.class), mock(WifiAwareNativeApi.class),
                 mock(WifiAwareNativeCallback.class));
         verify(mAwareStateManagerMock).start(eq(mContextMock), any(), eq(mAwareMetricsMock),
@@ -247,7 +250,7 @@ public class WifiAwareServiceImplTest {
 
         PublishConfig publishConfig = new PublishConfig.Builder().setServiceName("valid.value")
                 .build();
-        mDut.publish(clientId, publishConfig, mSessionCallbackMock);
+        mDut.publish(mPackageName, clientId, publishConfig, mSessionCallbackMock);
 
         verify(mAwareStateManagerMock).publish(clientId, publishConfig, mSessionCallbackMock);
         assertTrue("SecurityException for invalid access from wrong UID thrown", failsAsExpected);
@@ -267,7 +270,7 @@ public class WifiAwareServiceImplTest {
         IWifiAwareDiscoverySessionCallback mockCallback = mock(
                 IWifiAwareDiscoverySessionCallback.class);
 
-        mDut.publish(clientId, publishConfig, mockCallback);
+        mDut.publish(mPackageName, clientId, publishConfig, mockCallback);
     }
 
     /**
@@ -284,7 +287,7 @@ public class WifiAwareServiceImplTest {
         IWifiAwareDiscoverySessionCallback mockCallback = mock(
                 IWifiAwareDiscoverySessionCallback.class);
 
-        mDut.subscribe(clientId, subscribeConfig, mockCallback);
+        mDut.subscribe(mPackageName, clientId, subscribeConfig, mockCallback);
     }
 
 
@@ -351,7 +354,7 @@ public class WifiAwareServiceImplTest {
         IWifiAwareDiscoverySessionCallback mockCallback = mock(
                 IWifiAwareDiscoverySessionCallback.class);
 
-        mDut.publish(clientId, publishConfig, mockCallback);
+        mDut.publish(mPackageName, clientId, publishConfig, mockCallback);
 
         verify(mAwareStateManagerMock).publish(clientId, publishConfig, mockCallback);
     }
@@ -446,7 +449,7 @@ public class WifiAwareServiceImplTest {
         IWifiAwareDiscoverySessionCallback mockCallback = mock(
                 IWifiAwareDiscoverySessionCallback.class);
 
-        mDut.subscribe(clientId, subscribeConfig, mockCallback);
+        mDut.subscribe(mPackageName, clientId, subscribeConfig, mockCallback);
 
         verify(mAwareStateManagerMock).subscribe(clientId, subscribeConfig, mockCallback);
     }
@@ -632,7 +635,7 @@ public class WifiAwareServiceImplTest {
         IWifiAwareDiscoverySessionCallback mockCallback = mock(
                 IWifiAwareDiscoverySessionCallback.class);
 
-        mDut.publish(clientId, publishConfig, mockCallback);
+        mDut.publish(mPackageName, clientId, publishConfig, mockCallback);
 
         verify(mAwareStateManagerMock).publish(clientId, publishConfig, mockCallback);
     }
@@ -648,7 +651,7 @@ public class WifiAwareServiceImplTest {
         IWifiAwareDiscoverySessionCallback mockCallback = mock(
                 IWifiAwareDiscoverySessionCallback.class);
 
-        mDut.subscribe(clientId, subscribeConfig, mockCallback);
+        mDut.subscribe(mPackageName, clientId, subscribeConfig, mockCallback);
 
         verify(mAwareStateManagerMock).subscribe(clientId, subscribeConfig, mockCallback);
     }
