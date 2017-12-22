@@ -58,6 +58,7 @@ import java.util.Set;
  * {@link com.android.server.wifi.scanner.WifiScannerImpl}.
  */
 public abstract class BaseWifiScannerImplTest {
+    private static final String IFACE_NAME = "a_test_interface_name";
     @Mock Context mContext;
     TestAlarmManager mAlarmManager;
     MockWifiMonitor mWifiMonitor;
@@ -80,7 +81,7 @@ public abstract class BaseWifiScannerImplTest {
         mWifiMonitor = new MockWifiMonitor();
         mResources = new MockResources();
 
-        when(mWifiNative.getInterfaceName()).thenReturn("a_test_interface_name");
+        when(mWifiNative.getClientInterfaceName()).thenReturn(IFACE_NAME);
 
         when(mContext.getSystemService(Context.ALARM_SERVICE))
                 .thenReturn(mAlarmManager.getAlarmManager());
@@ -225,7 +226,7 @@ public abstract class BaseWifiScannerImplTest {
         WifiNative.ScanEventHandler eventHandler2 = mock(WifiNative.ScanEventHandler.class);
 
         // scan start succeeds
-        when(mWifiNative.scan(any(), any(Set.class))).thenReturn(true);
+        when(mWifiNative.scan(eq(IFACE_NAME), any(), any(Set.class))).thenReturn(true);
 
         assertTrue(mScanner.startSingleScan(settings, eventHandler));
         assertFalse("second scan while first scan running should fail immediately",
@@ -248,7 +249,7 @@ public abstract class BaseWifiScannerImplTest {
         InOrder order = inOrder(eventHandler, mWifiNative);
 
         // scan fails
-        when(mWifiNative.scan(any(), any(Set.class))).thenReturn(false);
+        when(mWifiNative.scan(eq(IFACE_NAME), any(), any(Set.class))).thenReturn(false);
 
         // start scan
         assertTrue(mScanner.startSingleScan(settings, eventHandler));
@@ -278,7 +279,7 @@ public abstract class BaseWifiScannerImplTest {
         InOrder order = inOrder(eventHandler, mWifiNative);
 
         // scan succeeds
-        when(mWifiNative.scan(any(), any(Set.class))).thenReturn(true);
+        when(mWifiNative.scan(eq(IFACE_NAME), any(), any(Set.class))).thenReturn(true);
 
         // start scan
         assertTrue(mScanner.startSingleScan(settings, eventHandler));
@@ -312,14 +313,14 @@ public abstract class BaseWifiScannerImplTest {
         InOrder order = inOrder(eventHandler, mWifiNative);
 
         // scan succeeds
-        when(mWifiNative.scan(any(), any(Set.class))).thenReturn(true);
+        when(mWifiNative.scan(eq(IFACE_NAME), any(), any(Set.class))).thenReturn(true);
 
         // start scan
         assertTrue(mScanner.startSingleScan(settings, eventHandler));
         mLooper.dispatchAll();
 
         // Fire failed event
-        mWifiMonitor.sendMessage(mWifiNative.getInterfaceName(), WifiMonitor.SCAN_FAILED_EVENT);
+        mWifiMonitor.sendMessage(eq(IFACE_NAME), WifiMonitor.SCAN_FAILED_EVENT);
         mLooper.dispatchAll();
 
         order.verify(eventHandler).onScanStatus(WifiNative.WIFI_SCAN_FAILED);
@@ -366,7 +367,7 @@ public abstract class BaseWifiScannerImplTest {
         InOrder order = inOrder(eventHandler, mWifiNative);
 
         // scans succeed
-        when(mWifiNative.scan(any(), any(Set.class))).thenReturn(true);
+        when(mWifiNative.scan(eq(IFACE_NAME), any(), any(Set.class))).thenReturn(true);
 
         // start first scan
         assertTrue(mScanner.startSingleScan(settings, eventHandler));
@@ -439,17 +440,17 @@ public abstract class BaseWifiScannerImplTest {
         InOrder order = inOrder(eventHandler, mWifiNative);
 
         // scan succeeds
-        when(mWifiNative.scan(any(), any(Set.class))).thenReturn(true);
+        when(mWifiNative.scan(eq(IFACE_NAME), any(), any(Set.class))).thenReturn(true);
 
         // start scan
         assertTrue(mScanner.startSingleScan(settings, eventHandler));
 
-        order.verify(mWifiNative).scan(eq(expectedScan), any(Set.class));
+        order.verify(mWifiNative).scan(eq(IFACE_NAME), eq(expectedScan), any(Set.class));
 
-        when(mWifiNative.getScanResults()).thenReturn(rawResults);
+        when(mWifiNative.getScanResults(eq(IFACE_NAME))).thenReturn(rawResults);
 
         // Notify scan has finished
-        mWifiMonitor.sendMessage(mWifiNative.getInterfaceName(), WifiMonitor.SCAN_RESULTS_EVENT);
+        mWifiMonitor.sendMessage(eq(IFACE_NAME), WifiMonitor.SCAN_RESULTS_EVENT);
 
         mLooper.dispatchAll();
 
@@ -491,7 +492,7 @@ public abstract class BaseWifiScannerImplTest {
         InOrder order = inOrder(eventHandler, mWifiNative);
 
         // scan succeeds
-        when(mWifiNative.scan(any(), any(Set.class))).thenReturn(true);
+        when(mWifiNative.scan(eq(IFACE_NAME), any(), any(Set.class))).thenReturn(true);
 
         // start scan
         assertTrue(mScanner.startSingleScan(settings, eventHandler));
@@ -505,12 +506,14 @@ public abstract class BaseWifiScannerImplTest {
     protected void expectSuccessfulSingleScan(InOrder order,
             WifiNative.ScanEventHandler eventHandler, Set<Integer> expectedScan,
             Set<String> expectedHiddenNetSSIDs, ScanResults results, boolean expectFullResults) {
-        order.verify(mWifiNative).scan(eq(expectedScan), eq(expectedHiddenNetSSIDs));
+        order.verify(mWifiNative).scan(
+                eq(IFACE_NAME), eq(expectedScan), eq(expectedHiddenNetSSIDs));
 
-        when(mWifiNative.getScanResults()).thenReturn(results.getScanDetailArrayList());
+        when(mWifiNative.getScanResults(
+                eq(IFACE_NAME))).thenReturn(results.getScanDetailArrayList());
 
         // Notify scan has finished
-        mWifiMonitor.sendMessage(mWifiNative.getInterfaceName(), WifiMonitor.SCAN_RESULTS_EVENT);
+        mWifiMonitor.sendMessage(eq(IFACE_NAME), WifiMonitor.SCAN_RESULTS_EVENT);
 
         mLooper.dispatchAll();
 

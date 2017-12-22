@@ -179,7 +179,7 @@ public class WifiInjector {
                 new CarrierNetworkConfig(mContext));
         mNwManagementService = INetworkManagementService.Stub.asInterface(
                 ServiceManager.getService(Context.NETWORKMANAGEMENT_SERVICE));
-        mWifiNative = new WifiNative(SystemProperties.get("wifi.interface", "wlan0"),
+        mWifiNative = new WifiNative(
                 mWifiVendorHal, mSupplicantStaIfaceHal, mHostapdHal, mWificondControl,
                 mNwManagementService, mPropertyService, mWifiMetrics);
         mWifiP2pMonitor = new WifiP2pMonitor(this);
@@ -188,8 +188,8 @@ public class WifiInjector {
                 mSupplicantP2pIfaceHal);
 
         // Now get instances of all the objects that depend on the HandlerThreads
-        mTrafficPoller =  new WifiTrafficPoller(mContext, mWifiServiceHandlerThread.getLooper(),
-                mWifiNative.getInterfaceName());
+        mTrafficPoller = new WifiTrafficPoller(mContext, mWifiServiceHandlerThread.getLooper(),
+                mWifiNative);
         mCountryCode = new WifiCountryCode(mWifiNative,
                 SystemProperties.get(BOOT_DEFAULT_WIFI_COUNTRY_CODE),
                 mContext.getResources()

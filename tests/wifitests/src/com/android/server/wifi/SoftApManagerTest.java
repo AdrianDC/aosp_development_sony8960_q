@@ -106,7 +106,7 @@ public class SoftApManagerTest {
         MockitoAnnotations.initMocks(this);
         mLooper = new TestLooper();
 
-        when(mWifiNative.startSoftAp(any(), any())).thenReturn(true);
+        when(mWifiNative.startSoftAp(eq(TEST_INTERFACE_NAME), any(), any())).thenReturn(true);
 
         when(mFrameworkFacade.getIntegerSetting(
                 mContext, Settings.Global.SOFT_AP_TIMEOUT_ENABLED, 1)).thenReturn(1);
@@ -321,7 +321,7 @@ public class SoftApManagerTest {
                 new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, config);
 
         when(mWifiNative.setupInterfaceForSoftApMode(any())).thenReturn(TEST_INTERFACE_NAME);
-        when(mWifiNative.setCountryCodeHal(any())).thenReturn(false);
+        when(mWifiNative.setCountryCodeHal(eq(TEST_INTERFACE_NAME), any())).thenReturn(false);
 
         SoftApManager newSoftApManager = new SoftApManager(mContext,
                                                            mLooper.getLooper(),
@@ -397,7 +397,7 @@ public class SoftApManagerTest {
     @Test
     public void startSoftApApInterfaceFailedToStart() throws Exception {
         when(mWifiNative.setupInterfaceForSoftApMode(any())).thenReturn(TEST_INTERFACE_NAME);
-        when(mWifiNative.startSoftAp(any(), any())).thenReturn(false);
+        when(mWifiNative.startSoftAp(eq(TEST_INTERFACE_NAME), any(), any())).thenReturn(false);
 
         SoftApModeConfiguration softApModeConfig =
                 new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, mDefaultApConfig);
@@ -677,7 +677,8 @@ public class SoftApManagerTest {
         WifiConfiguration expectedConfig;
         InOrder order = inOrder(mCallback, mWifiNative);
 
-        when(mWifiNative.setCountryCodeHal(TEST_COUNTRY_CODE.toUpperCase(Locale.ROOT)))
+        when(mWifiNative.setCountryCodeHal(
+                TEST_INTERFACE_NAME, TEST_COUNTRY_CODE.toUpperCase(Locale.ROOT)))
                 .thenReturn(true);
 
         mSoftApManager = createSoftApManager(softApConfig);
@@ -704,7 +705,7 @@ public class SoftApManagerTest {
         ArgumentCaptor<WifiConfiguration> configCaptor =
                 ArgumentCaptor.forClass(WifiConfiguration.class);
         order.verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_ENABLING, 0);
-        order.verify(mWifiNative).startSoftAp(
+        order.verify(mWifiNative).startSoftAp(eq(TEST_INTERFACE_NAME),
                 configCaptor.capture(), mSoftApListenerCaptor.capture());
         WifiConfigurationTestUtil.assertConfigurationEqual(expectedConfig, configCaptor.getValue());
         mWifiNativeInterfaceCallbackCaptor.getValue().onUp(TEST_INTERFACE_NAME);

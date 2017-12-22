@@ -94,8 +94,8 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
         };
 
     public WificondScannerImpl(Context context, WifiNative wifiNative,
-                                     WifiMonitor wifiMonitor, ChannelHelper channelHelper,
-                                     Looper looper, Clock clock) {
+                               WifiMonitor wifiMonitor, ChannelHelper channelHelper,
+                               Looper looper, Clock clock) {
         mContext = context;
         mWifiNative = wifiNative;
         mChannelHelper = channelHelper;
@@ -107,11 +107,11 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
         mHwPnoScanSupported = mContext.getResources().getBoolean(
                 R.bool.config_wifi_background_scan_support);
 
-        wifiMonitor.registerHandler(mWifiNative.getInterfaceName(),
+        wifiMonitor.registerHandler(mWifiNative.getClientInterfaceName(),
                 WifiMonitor.SCAN_FAILED_EVENT, mEventHandler);
-        wifiMonitor.registerHandler(mWifiNative.getInterfaceName(),
+        wifiMonitor.registerHandler(mWifiNative.getClientInterfaceName(),
                 WifiMonitor.PNO_SCAN_RESULTS_EVENT, mEventHandler);
-        wifiMonitor.registerHandler(mWifiNative.getInterfaceName(),
+        wifiMonitor.registerHandler(mWifiNative.getClientInterfaceName(),
                 WifiMonitor.SCAN_RESULTS_EVENT, mEventHandler);
     }
 
@@ -181,7 +181,8 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
             Set<Integer> freqs;
             if (!allFreqs.isEmpty()) {
                 freqs = allFreqs.getScanFreqs();
-                success = mWifiNative.scan(freqs, hiddenNetworkSSIDSet);
+                success = mWifiNative.scan(
+                        mWifiNative.getClientInterfaceName(), freqs, hiddenNetworkSSIDSet);
                 if (!success) {
                     Log.e(TAG, "Failed to start scan, freqs=" + freqs);
                 }
@@ -294,7 +295,8 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
                  // got a scan before we started scanning or after scan was canceled
                 return;
             }
-            mNativePnoScanResults = mWifiNative.getPnoScanResults();
+            mNativePnoScanResults =
+                    mWifiNative.getPnoScanResults(mWifiNative.getClientInterfaceName());
             List<ScanResult> hwPnoScanResults = new ArrayList<>();
             int numFilteredScanResults = 0;
             for (int i = 0; i < mNativePnoScanResults.size(); ++i) {
@@ -337,7 +339,7 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
                 return;
             }
 
-            mNativeScanResults = mWifiNative.getScanResults();
+            mNativeScanResults = mWifiNative.getScanResults(mWifiNative.getClientInterfaceName());
             List<ScanResult> singleScanResults = new ArrayList<>();
             int numFilteredScanResults = 0;
             for (int i = 0; i < mNativeScanResults.size(); ++i) {
@@ -383,11 +385,11 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
     }
 
     private boolean startHwPnoScan(WifiNative.PnoSettings pnoSettings) {
-        return mWifiNative.startPnoScan(pnoSettings);
+        return mWifiNative.startPnoScan(mWifiNative.getClientInterfaceName(), pnoSettings);
     }
 
     private void stopHwPnoScan() {
-        mWifiNative.stopPnoScan();
+        mWifiNative.stopPnoScan(mWifiNative.getClientInterfaceName());
     }
 
     /**

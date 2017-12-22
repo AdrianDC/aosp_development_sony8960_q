@@ -186,7 +186,8 @@ public class SoftApManager implements ActiveModeManager {
         if (mCountryCode != null) {
             // Country code is mandatory for 5GHz band, return an error if failed to set
             // country code when AP is configured for 5GHz band.
-            if (!mWifiNative.setCountryCodeHal(mCountryCode.toUpperCase(Locale.ROOT))
+            if (!mWifiNative.setCountryCodeHal(
+                    mApInterfaceName, mCountryCode.toUpperCase(Locale.ROOT))
                     && config.apBand == WifiConfiguration.AP_BAND_5GHZ) {
                 Log.e(TAG, "Failed to set country code, required for setting up "
                         + "soft ap in 5GHz");
@@ -196,7 +197,7 @@ public class SoftApManager implements ActiveModeManager {
         if (localConfig.hiddenSSID) {
             Log.d(TAG, "SoftAP is a hidden network");
         }
-        if (!mWifiNative.startSoftAp(localConfig, mSoftApListener)) {
+        if (!mWifiNative.startSoftAp(mApInterfaceName, localConfig, mSoftApListener)) {
             Log.e(TAG, "Soft AP start failed");
             return ERROR_GENERIC;
         }

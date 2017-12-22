@@ -170,7 +170,8 @@ public class WifiConfigStoreLegacy {
     private void loadFromWpaSupplicant(
             Map<String, WifiConfiguration> configurationMap,
             SparseArray<Map<String, String>> networkExtras) {
-        if (!mWifiNative.migrateNetworksFromSupplicant(configurationMap, networkExtras)) {
+        if (!mWifiNative.migrateNetworksFromSupplicant(mWifiNative.getClientInterfaceName(),
+                configurationMap, networkExtras)) {
             Log.wtf(TAG, "Failed to load wifi configurations from wpa_supplicant");
             return;
         }
@@ -299,7 +300,7 @@ public class WifiConfigStoreLegacy {
     public boolean removeStores() {
         // TODO(b/29352330): Delete wpa_supplicant.conf file instead.
         // First remove all networks from wpa_supplicant and save configuration.
-        if (!mWifiNative.removeAllNetworks()) {
+        if (!mWifiNative.removeAllNetworks(mWifiNative.getClientInterfaceName())) {
             Log.e(TAG, "Removing networks from wpa_supplicant failed");
         }
 

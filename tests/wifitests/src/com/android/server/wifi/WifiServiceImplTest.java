@@ -179,6 +179,8 @@ public class WifiServiceImplTest {
     @Mock ISoftApCallback mClientSoftApCallback;
     @Mock ISoftApCallback mAnotherSoftApCallback;
     @Mock PowerProfile mPowerProfile;
+    @Mock WifiTrafficPoller mWifiTrafficPolller;
+
     @Spy FakeWifiLog mLog;
 
     private class WifiAsyncChannelTester {
@@ -289,9 +291,7 @@ public class WifiServiceImplTest {
         when(mWifiInjector.getWifiLastResortWatchdog()).thenReturn(mWifiLastResortWatchdog);
         when(mWifiInjector.getWifiBackupRestore()).thenReturn(mWifiBackupRestore);
         when(mWifiInjector.makeLog(anyString())).thenReturn(mLog);
-        WifiTrafficPoller wifiTrafficPoller = new WifiTrafficPoller(mContext,
-                mLooper.getLooper(), "mockWlan");
-        when(mWifiInjector.getWifiTrafficPoller()).thenReturn(wifiTrafficPoller);
+        when(mWifiInjector.getWifiTrafficPoller()).thenReturn(mWifiTrafficPoller);
         when(mWifiInjector.getWifiPermissionsUtil()).thenReturn(mWifiPermissionsUtil);
         when(mWifiInjector.getWifiSettingsStore()).thenReturn(mSettingsStore);
         when(mWifiInjector.getClock()).thenReturn(mClock);

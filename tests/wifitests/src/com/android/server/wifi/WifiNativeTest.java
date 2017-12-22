@@ -158,7 +158,7 @@ public class WifiNativeTest {
         when(mWifiVendorHal.startVendorHalSta()).thenReturn(true);
         when(mWifiVendorHal.startVendorHalAp()).thenReturn(true);
         mWifiNative = new WifiNative(
-                WIFI_IFACE_NAME, mWifiVendorHal, mStaIfaceHal, mHostapdHal, mWificondControl,
+                mWifiVendorHal, mStaIfaceHal, mHostapdHal, mWificondControl,
                 mNwService, mPropertyService, mWifiMetrics);
     }
 
@@ -443,7 +443,7 @@ public class WifiNativeTest {
     @Test
     public void testStartPktFateMonitoringReturnsFalseWhenHalIsNotStarted() {
         assertFalse(mWifiNative.isHalStarted());
-        assertFalse(mWifiNative.startPktFateMonitoring());
+        assertFalse(mWifiNative.startPktFateMonitoring(WIFI_IFACE_NAME));
     }
 
     /**
@@ -453,7 +453,7 @@ public class WifiNativeTest {
     public void testGetTxPktFatesReturnsErrorWhenHalIsNotStarted() {
         WifiNative.TxFateReport[] fateReports = null;
         assertFalse(mWifiNative.isHalStarted());
-        assertFalse(mWifiNative.getTxPktFates(fateReports));
+        assertFalse(mWifiNative.getTxPktFates(WIFI_IFACE_NAME, fateReports));
     }
 
     /**
@@ -463,7 +463,7 @@ public class WifiNativeTest {
     public void testGetRxPktFatesReturnsErrorWhenHalIsNotStarted() {
         WifiNative.RxFateReport[] fateReports = null;
         assertFalse(mWifiNative.isHalStarted());
-        assertFalse(mWifiNative.getRxPktFates(fateReports));
+        assertFalse(mWifiNative.getRxPktFates(WIFI_IFACE_NAME, fateReports));
     }
 
     // TODO(quiche): Add tests for the success cases (when HAL has been started). Specifically:
@@ -491,7 +491,7 @@ public class WifiNativeTest {
         when(mWificondControl.signalPoll(WIFI_IFACE_NAME))
                 .thenReturn(SIGNAL_POLL_RESULT);
 
-        assertEquals(SIGNAL_POLL_RESULT, mWifiNative.signalPoll());
+        assertEquals(SIGNAL_POLL_RESULT, mWifiNative.signalPoll(WIFI_IFACE_NAME));
         verify(mWificondControl).signalPoll(WIFI_IFACE_NAME);
     }
 
@@ -503,7 +503,7 @@ public class WifiNativeTest {
         when(mWificondControl.getTxPacketCounters(WIFI_IFACE_NAME))
                 .thenReturn(PACKET_COUNTERS_RESULT);
 
-        assertEquals(PACKET_COUNTERS_RESULT, mWifiNative.getTxPacketCounters());
+        assertEquals(PACKET_COUNTERS_RESULT, mWifiNative.getTxPacketCounters(WIFI_IFACE_NAME));
         verify(mWificondControl).getTxPacketCounters(WIFI_IFACE_NAME);
     }
 
@@ -512,7 +512,7 @@ public class WifiNativeTest {
      */
     @Test
     public void testScan() throws Exception {
-        mWifiNative.scan(SCAN_FREQ_SET, SCAN_HIDDEN_NETWORK_SSID_SET);
+        mWifiNative.scan(WIFI_IFACE_NAME, SCAN_FREQ_SET, SCAN_HIDDEN_NETWORK_SSID_SET);
         verify(mWificondControl).scan(
                 WIFI_IFACE_NAME, SCAN_FREQ_SET, SCAN_HIDDEN_NETWORK_SSID_SET);
     }
@@ -522,7 +522,7 @@ public class WifiNativeTest {
      */
     @Test
     public void testStartPnoScan() throws Exception {
-        mWifiNative.startPnoScan(TEST_PNO_SETTINGS);
+        mWifiNative.startPnoScan(WIFI_IFACE_NAME, TEST_PNO_SETTINGS);
         verify(mWificondControl).startPnoScan(
                 WIFI_IFACE_NAME, TEST_PNO_SETTINGS);
     }
@@ -532,7 +532,7 @@ public class WifiNativeTest {
      */
     @Test
     public void testStopPnoScan() throws Exception {
-        mWifiNative.stopPnoScan();
+        mWifiNative.stopPnoScan(WIFI_IFACE_NAME);
         verify(mWificondControl).stopPnoScan(WIFI_IFACE_NAME);
     }
 
@@ -542,7 +542,7 @@ public class WifiNativeTest {
     @Test
     public void testConnectToNetwork() throws Exception {
         WifiConfiguration config = mock(WifiConfiguration.class);
-        mWifiNative.connectToNetwork(config);
+        mWifiNative.connectToNetwork(WIFI_IFACE_NAME, config);
         // connectToNetwork() should abort ongoing scan before connection.
         verify(mWificondControl).abortScan(WIFI_IFACE_NAME);
         verify(mStaIfaceHal).connectToNetwork(WIFI_IFACE_NAME, config);
@@ -554,7 +554,7 @@ public class WifiNativeTest {
     @Test
     public void testRoamToNetwork() throws Exception {
         WifiConfiguration config = mock(WifiConfiguration.class);
-        mWifiNative.roamToNetwork(config);
+        mWifiNative.roamToNetwork(WIFI_IFACE_NAME, config);
         // roamToNetwork() should abort ongoing scan before connection.
         verify(mWificondControl).abortScan(WIFI_IFACE_NAME);
         verify(mStaIfaceHal).roamToNetwork(WIFI_IFACE_NAME, config);

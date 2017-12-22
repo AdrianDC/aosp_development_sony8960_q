@@ -566,8 +566,8 @@ public class WifiStateMachineTest {
         WpsInfo wpsInfo = new WpsInfo();
         wpsInfo.setup = WpsInfo.PBC;
         wpsInfo.BSSID = sBSSID;
-        when(mWifiNative.removeAllNetworks()).thenReturn(true);
-        when(mWifiNative.startWpsPbc(anyString())).thenReturn(true);
+        when(mWifiNative.removeAllNetworks(WIFI_IFACE_NAME)).thenReturn(true);
+        when(mWifiNative.startWpsPbc(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
         mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
         mLooper.dispatchAll();
         assertEquals("WpsRunningState", getCurrentState().getName());
@@ -848,15 +848,16 @@ public class WifiStateMachineTest {
 
         assertEquals("SupplicantStartingState", getCurrentState().getName());
 
-        when(mWifiNative.setDeviceName(anyString())).thenReturn(true);
-        when(mWifiNative.setManufacturer(anyString())).thenReturn(true);
-        when(mWifiNative.setModelName(anyString())).thenReturn(true);
-        when(mWifiNative.setModelNumber(anyString())).thenReturn(true);
-        when(mWifiNative.setSerialNumber(anyString())).thenReturn(true);
-        when(mWifiNative.setConfigMethods(anyString())).thenReturn(true);
-        when(mWifiNative.setDeviceType(anyString())).thenReturn(true);
-        when(mWifiNative.setSerialNumber(anyString())).thenReturn(true);
-        when(mWifiNative.setScanningMacOui(any(byte[].class))).thenReturn(true);
+        when(mWifiNative.setDeviceName(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
+        when(mWifiNative.setManufacturer(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
+        when(mWifiNative.setModelName(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
+        when(mWifiNative.setModelNumber(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
+        when(mWifiNative.setSerialNumber(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
+        when(mWifiNative.setConfigMethods(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
+        when(mWifiNative.setDeviceType(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
+        when(mWifiNative.setSerialNumber(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
+        when(mWifiNative.setScanningMacOui(eq(WIFI_IFACE_NAME), any(byte[].class)))
+                .thenReturn(true);
 
         mWsm.sendMessage(WifiMonitor.SUP_CONNECTION_EVENT);
         mLooper.dispatchAll();
@@ -943,7 +944,7 @@ public class WifiStateMachineTest {
         }
         assertEquals("hidden networks", hiddenNetworkSSIDSet, actualHiddenNetworkSSIDSet);
 
-        when(mWifiNative.getScanResults()).thenReturn(getMockScanResults());
+        when(mWifiNative.getScanResults(WIFI_IFACE_NAME)).thenReturn(getMockScanResults());
         mWsm.sendMessage(WifiMonitor.SCAN_RESULTS_EVENT);
 
         mLooper.dispatchAll();
@@ -993,7 +994,7 @@ public class WifiStateMachineTest {
         when(mWifiConfigManager.getConfiguredNetworkWithPassword(eq(config.networkId)))
                 .thenReturn(config);
 
-        verify(mWifiNative).removeAllNetworks();
+        verify(mWifiNative).removeAllNetworks(WIFI_IFACE_NAME);
 
         mLooper.startAutoDispatch();
         assertTrue(mWsm.syncEnableNetwork(mWsmAsyncChannel, config.networkId, true));
@@ -1005,7 +1006,7 @@ public class WifiStateMachineTest {
         verify(mWifiConnectivityManager).setUserConnectChoice(eq(config.networkId));
         verify(mWifiConnectivityManager).prepareForForcedConnection(eq(config.networkId));
         verify(mWifiConfigManager).getConfiguredNetworkWithPassword(eq(config.networkId));
-        verify(mWifiNative).connectToNetwork(eq(config));
+        verify(mWifiNative).connectToNetwork(eq(WIFI_IFACE_NAME), eq(config));
     }
 
     private void validateFailureConnectSequence(WifiConfiguration config) {
@@ -1013,7 +1014,7 @@ public class WifiStateMachineTest {
         verify(mWifiConnectivityManager).setUserConnectChoice(eq(config.networkId));
         verify(mWifiConnectivityManager).prepareForForcedConnection(eq(config.networkId));
         verify(mWifiConfigManager, never()).getConfiguredNetworkWithPassword(eq(config.networkId));
-        verify(mWifiNative, never()).connectToNetwork(eq(config));
+        verify(mWifiNative, never()).connectToNetwork(eq(WIFI_IFACE_NAME), eq(config));
     }
 
     /**
@@ -1144,7 +1145,7 @@ public class WifiStateMachineTest {
         initializeAndAddNetworkAndVerifySuccess();
         when(mWifiConfigManager.getConfiguredNetwork(eq(0))).thenReturn(null);
 
-        verify(mWifiNative).removeAllNetworks();
+        verify(mWifiNative).removeAllNetworks(WIFI_IFACE_NAME);
 
         mLooper.startAutoDispatch();
         assertFalse(mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true));
@@ -1165,7 +1166,7 @@ public class WifiStateMachineTest {
     public void reconnectToConnectedNetwork() throws Exception {
         initializeAndAddNetworkAndVerifySuccess();
 
-        verify(mWifiNative).removeAllNetworks();
+        verify(mWifiNative).removeAllNetworks(WIFI_IFACE_NAME);
 
         mLooper.startAutoDispatch();
         mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true);
@@ -1713,7 +1714,7 @@ public class WifiStateMachineTest {
         when(mWifiConfigManager.enableNetwork(eq(0), eq(true), anyInt())).thenReturn(true);
         when(mWifiConfigManager.updateLastConnectUid(eq(0), anyInt())).thenReturn(true);
 
-        verify(mWifiNative).removeAllNetworks();
+        verify(mWifiNative).removeAllNetworks(WIFI_IFACE_NAME);
 
         mLooper.startAutoDispatch();
         assertTrue(mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true));
@@ -1784,14 +1785,14 @@ public class WifiStateMachineTest {
     public void wpsPbcConnectFailure() throws Exception {
         loadComponentsInStaMode();
 
-        when(mWifiNative.startWpsPbc(eq(sBSSID))).thenReturn(false);
+        when(mWifiNative.startWpsPbc(eq(WIFI_IFACE_NAME), eq(sBSSID))).thenReturn(false);
         WpsInfo wpsInfo = new WpsInfo();
         wpsInfo.setup = WpsInfo.PBC;
         wpsInfo.BSSID = sBSSID;
 
         mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
         mLooper.dispatchAll();
-        verify(mWifiNative).startWpsPbc(eq(sBSSID));
+        verify(mWifiNative).startWpsPbc(eq(WIFI_IFACE_NAME), eq(sBSSID));
         verify(mWifiMetrics).incrementWpsAttemptCount();
         verify(mWifiMetrics, never()).incrementWpsSuccessCount();
         verify(mWifiMetrics).incrementWpsStartFailureCount();
@@ -1807,13 +1808,14 @@ public class WifiStateMachineTest {
         setupMockWpsPbc();
         setupMocksForWpsNetworkMigration();
         doAnswer(new AnswerWithArguments() {
-            public boolean answer(Map<String, WifiConfiguration> configs,
+            public boolean answer(String ifaceName, Map<String, WifiConfiguration> configs,
                                   SparseArray<Map<String, String>> networkExtras) throws Exception {
                 configs.put("dummy1", new WifiConfiguration());
                 configs.put("dummy2", new WifiConfiguration());
                 return true;
             }
-        }).when(mWifiNative).migrateNetworksFromSupplicant(any(Map.class), any(SparseArray.class));
+        }).when(mWifiNative).migrateNetworksFromSupplicant(
+                eq(WIFI_IFACE_NAME), any(Map.class), any(SparseArray.class));
         mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, null);
         mLooper.dispatchAll();
         verify(mWifiMetrics).incrementWpsAttemptCount();
@@ -1832,7 +1834,8 @@ public class WifiStateMachineTest {
     public void wpsPbcConnectFailure_migrateNetworksFailure() throws Exception {
         setupMockWpsPbc();
         setupMocksForWpsNetworkMigration();
-        when(mWifiNative.migrateNetworksFromSupplicant(any(Map.class), any(SparseArray.class)))
+        when(mWifiNative.migrateNetworksFromSupplicant(
+                eq(WIFI_IFACE_NAME), any(Map.class), any(SparseArray.class)))
                 .thenReturn(false);
         mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, null);
         mLooper.dispatchAll();
@@ -1904,14 +1907,15 @@ public class WifiStateMachineTest {
     public void wpsPinDisplayConnectSuccess() throws Exception {
         loadComponentsInStaMode();
 
-        when(mWifiNative.startWpsPinDisplay(eq(sBSSID))).thenReturn("34545434");
+        when(mWifiNative.startWpsPinDisplay(eq(WIFI_IFACE_NAME), eq(sBSSID)))
+                .thenReturn("34545434");
         WpsInfo wpsInfo = new WpsInfo();
         wpsInfo.setup = WpsInfo.DISPLAY;
         wpsInfo.BSSID = sBSSID;
 
         mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
         mLooper.dispatchAll();
-        verify(mWifiNative).startWpsPinDisplay(eq(sBSSID));
+        verify(mWifiNative).startWpsPinDisplay(eq(WIFI_IFACE_NAME), eq(sBSSID));
 
         assertEquals("WpsRunningState", getCurrentState().getName());
 
@@ -1932,14 +1936,14 @@ public class WifiStateMachineTest {
     public void wpsPinDisplayConnectFailure() throws Exception {
         loadComponentsInStaMode();
 
-        when(mWifiNative.startWpsPinDisplay(eq(sBSSID))).thenReturn(null);
+        when(mWifiNative.startWpsPinDisplay(eq(WIFI_IFACE_NAME), eq(sBSSID))).thenReturn(null);
         WpsInfo wpsInfo = new WpsInfo();
         wpsInfo.setup = WpsInfo.DISPLAY;
         wpsInfo.BSSID = sBSSID;
 
         mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
         mLooper.dispatchAll();
-        verify(mWifiNative).startWpsPinDisplay(eq(sBSSID));
+        verify(mWifiNative).startWpsPinDisplay(eq(WIFI_IFACE_NAME), eq(sBSSID));
         verify(mWifiMetrics).incrementWpsAttemptCount();
         verify(mWifiMetrics).incrementWpsStartFailureCount();
 
@@ -1968,12 +1972,13 @@ public class WifiStateMachineTest {
         config.networkId = WPS_SUPPLICANT_NETWORK_ID;
         config.SSID = DEFAULT_TEST_SSID;
         doAnswer(new AnswerWithArguments() {
-            public boolean answer(Map<String, WifiConfiguration> configs,
+            public boolean answer(String ifaceName, Map<String, WifiConfiguration> configs,
                                   SparseArray<Map<String, String>> networkExtras) throws Exception {
                 configs.put("dummy", config);
                 return true;
             }
-        }).when(mWifiNative).migrateNetworksFromSupplicant(any(Map.class), any(SparseArray.class));
+        }).when(mWifiNative).migrateNetworksFromSupplicant(
+                eq(WIFI_IFACE_NAME), any(Map.class), any(SparseArray.class));
         when(mWifiConfigManager.addOrUpdateNetwork(any(WifiConfiguration.class), anyInt()))
                 .thenReturn(new NetworkUpdateResult(WPS_FRAMEWORK_NETWORK_ID));
         when(mWifiConfigManager.enableNetwork(eq(WPS_FRAMEWORK_NETWORK_ID), anyBoolean(), anyInt()))
