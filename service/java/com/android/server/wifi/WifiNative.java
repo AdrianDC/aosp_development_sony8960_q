@@ -258,6 +258,16 @@ public class WifiNative {
             return false;
         }
 
+        /** Checks if there are any iface of the given type active. */
+        private Iface findAnyIfaceOfType(@Iface.IfaceType int type) {
+            for (Iface iface : mIfaces.values()) {
+                if (iface.type == type) {
+                    return iface;
+                }
+            }
+            return null;
+        }
+
         /** Checks if there are any STA iface active. */
         private boolean hasAnyStaIface() {
             return hasAnyIfaceOfType(Iface.IFACE_TYPE_STA);
@@ -266,6 +276,14 @@ public class WifiNative {
         /** Checks if there are any AP iface active. */
         private boolean hasAnyApIface() {
             return hasAnyIfaceOfType(Iface.IFACE_TYPE_AP);
+        }
+
+        private String findAnyStaIfaceName() {
+            Iface iface = findAnyIfaceOfType(Iface.IFACE_TYPE_STA);
+            if (iface == null) {
+                return null;
+            }
+            return iface.name;
         }
     }
 
@@ -757,6 +775,25 @@ public class WifiNative {
             }
             Log.i(mTAG, "Successfully initiated teardown for iface=" + ifaceName);
         }
+    }
+
+    /**
+     * Get name of the client interface.
+     *
+     * This is mainly used by external modules that needs to perform some
+     * client operations on the STA interface.
+     *
+     * TODO(b/70932231): This may need to be reworked once we start supporting STA + STA.
+     *
+     * @return Interface name of any active client interface, null if no active client interface
+     * exist.
+     * Return Values for the different scenarios are listed below:
+     * a) When there are no client interfaces, returns null.
+     * b) when there is 1 client interface, returns the name of that interface.
+     * c) When there are 2 or more client interface, returns the name of any client interface.
+     */
+    public String getClientInterfaceName() {
+        return mIfaceMgr.findAnyStaIfaceName();
     }
 
     /********************************************************

@@ -18,6 +18,7 @@ package com.android.server.wifi;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -131,6 +132,7 @@ public class WifiNativeInterfaceManagementTest {
         executeAndValidateSetupClientInterface(
                 false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
                 mNetworkObserverCaptor0);
+        assertEquals(IFACE_NAME_0, mWifiNative.getClientInterfaceName());
         verifyNoMoreInteractions(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal,
                 mNwManagementService, mIfaceCallback0, mIfaceCallback1);
     }
@@ -143,6 +145,7 @@ public class WifiNativeInterfaceManagementTest {
         executeAndValidateSetupSoftApInterface(
                 false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
                 mNetworkObserverCaptor0);
+        assertNull(mWifiNative.getClientInterfaceName());
         verifyNoMoreInteractions(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal,
                 mNwManagementService, mIfaceCallback0, mIfaceCallback1);
     }
@@ -155,6 +158,7 @@ public class WifiNativeInterfaceManagementTest {
         executeAndValidateSetupClientInterface(
                 false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
                 mNetworkObserverCaptor0);
+        assertEquals(IFACE_NAME_0, mWifiNative.getClientInterfaceName());
         executeAndValidateTeardownClientInterface(false, false, IFACE_NAME_0, mIfaceCallback0,
                 mIfaceDestroyedListenerCaptor0.getValue(), mNetworkObserverCaptor0.getValue());
         verifyNoMoreInteractions(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal,
@@ -162,13 +166,14 @@ public class WifiNativeInterfaceManagementTest {
     }
 
     /**
-     * Verifies the setup & teardown of a single client interface.
+     * Verifies the setup & teardown of a single softAp interface.
      */
     @Test
     public void testSetupAndTeardownSoftApInterface() throws Exception {
         executeAndValidateSetupSoftApInterface(
                 false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
                 mNetworkObserverCaptor0);
+        assertNull(mWifiNative.getClientInterfaceName());
         executeAndValidateTeardownSoftApInterface(false, false, IFACE_NAME_0, mIfaceCallback0,
                 mIfaceDestroyedListenerCaptor0.getValue(), mNetworkObserverCaptor0.getValue());
         verifyNoMoreInteractions(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal,
@@ -177,6 +182,12 @@ public class WifiNativeInterfaceManagementTest {
 
     /**
      * Verifies the setup & teardown of a client & softAp interface.
+     *
+     * Sequence tested:
+     * a) Setup client interface.
+     * b) Setup softAp interface.
+     * c) Teardown client interface.
+     * d) Teardown softAp interface.
      */
     @Test
     public void testSetupAndTeardownClientAndSoftApInterface_Seq1() throws Exception {
@@ -186,6 +197,7 @@ public class WifiNativeInterfaceManagementTest {
         executeAndValidateSetupSoftApInterface(
                 true, false, IFACE_NAME_1, mIfaceCallback1, mIfaceDestroyedListenerCaptor1,
                 mNetworkObserverCaptor1);
+        assertEquals(IFACE_NAME_0, mWifiNative.getClientInterfaceName());
         executeAndValidateTeardownClientInterface(false, true, IFACE_NAME_0, mIfaceCallback0,
                 mIfaceDestroyedListenerCaptor0.getValue(), mNetworkObserverCaptor0.getValue());
         executeAndValidateTeardownSoftApInterface(false, false, IFACE_NAME_1, mIfaceCallback1,
@@ -196,6 +208,12 @@ public class WifiNativeInterfaceManagementTest {
 
     /**
      * Verifies the setup & teardown of a client & softAp interface.
+     *
+     * Sequence tested:
+     * a) Setup client interface.
+     * b) Setup softAp interface.
+     * c) Teardown softAp interface.
+     * d) Teardown client interface.
      */
     @Test
     public void testSetupAndTeardownClientAndSoftApInterface_Seq2() throws Exception {
@@ -205,6 +223,7 @@ public class WifiNativeInterfaceManagementTest {
         executeAndValidateSetupSoftApInterface(
                 true, false, IFACE_NAME_1, mIfaceCallback1, mIfaceDestroyedListenerCaptor1,
                 mNetworkObserverCaptor1);
+        assertEquals(IFACE_NAME_0, mWifiNative.getClientInterfaceName());
         executeAndValidateTeardownSoftApInterface(true, false, IFACE_NAME_1, mIfaceCallback1,
                 mIfaceDestroyedListenerCaptor1.getValue(), mNetworkObserverCaptor1.getValue());
         executeAndValidateTeardownClientInterface(false, false, IFACE_NAME_0, mIfaceCallback0,
@@ -215,6 +234,12 @@ public class WifiNativeInterfaceManagementTest {
 
     /**
      * Verifies the setup & teardown of a client & softAp interface.
+     *
+     * Sequence tested:
+     * a) Setup softAp interface.
+     * b) Setup client interface.
+     * c) Teardown softAp interface.
+     * d) Teardown client interface.
      */
     @Test
     public void testSetupAndTeardownClientAndSoftApInterface_Seq3() throws Exception {
@@ -224,6 +249,7 @@ public class WifiNativeInterfaceManagementTest {
         executeAndValidateSetupClientInterface(
                 false, true, IFACE_NAME_1, mIfaceCallback1, mIfaceDestroyedListenerCaptor1,
                 mNetworkObserverCaptor1);
+        assertEquals(IFACE_NAME_1, mWifiNative.getClientInterfaceName());
         executeAndValidateTeardownSoftApInterface(true, false, IFACE_NAME_0, mIfaceCallback0,
                 mIfaceDestroyedListenerCaptor0.getValue(), mNetworkObserverCaptor0.getValue());
         executeAndValidateTeardownClientInterface(false, false, IFACE_NAME_1, mIfaceCallback1,
@@ -234,6 +260,12 @@ public class WifiNativeInterfaceManagementTest {
 
     /**
      * Verifies the setup & teardown of a client & softAp interface.
+     *
+     * Sequence tested:
+     * a) Setup softAp interface.
+     * b) Setup client interface.
+     * c) Teardown client interface.
+     * d) Teardown softAp interface.
      */
     @Test
     public void testSetupAndTeardownClientAndSoftApInterface_Seq4() throws Exception {
@@ -243,6 +275,7 @@ public class WifiNativeInterfaceManagementTest {
         executeAndValidateSetupClientInterface(
                 false, true, IFACE_NAME_1, mIfaceCallback1, mIfaceDestroyedListenerCaptor1,
                 mNetworkObserverCaptor1);
+        assertEquals(IFACE_NAME_1, mWifiNative.getClientInterfaceName());
         executeAndValidateTeardownClientInterface(false, true, IFACE_NAME_1, mIfaceCallback1,
                 mIfaceDestroyedListenerCaptor1.getValue(), mNetworkObserverCaptor1.getValue());
         executeAndValidateTeardownSoftApInterface(false, false, IFACE_NAME_0, mIfaceCallback0,
@@ -616,6 +649,53 @@ public class WifiNativeInterfaceManagementTest {
 
         verifyNoMoreInteractions(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal,
                 mNwManagementService, mIfaceCallback0, mIfaceCallback1);
+    }
+
+    /**
+     * Verifies that the interface name is null when there are no interfaces setup.
+     */
+    @Test
+    public void testGetClientInterfaceNameWithNoInterfacesSetup() throws Exception {
+        assertNull(mWifiNative.getClientInterfaceName());
+    }
+
+    /**
+     * Verifies that the interface name is null when there are no client interfaces setup.
+     */
+    @Test
+    public void testGetClientInterfaceNameWithNoClientInterfaceSetup() throws Exception {
+        executeAndValidateSetupSoftApInterface(
+                false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
+                mNetworkObserverCaptor0);
+        assertNull(mWifiNative.getClientInterfaceName());
+    }
+
+    /**
+     * Verifies that the interface name is not null when there is one client interface setup.
+     */
+    @Test
+    public void testGetClientInterfaceNameWithOneClientInterfaceSetup() throws Exception {
+        executeAndValidateSetupClientInterface(
+                false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
+                mNetworkObserverCaptor0);
+        assertEquals(IFACE_NAME_0, mWifiNative.getClientInterfaceName());
+    }
+
+    /**
+     * Verifies that the interface name is not null when there are more than one client interfaces
+     * setup.
+     */
+    @Test
+    public void testGetClientInterfaceNameWithMoreThanOneClientInterfaceSetup() throws Exception {
+        executeAndValidateSetupClientInterface(
+                false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
+                mNetworkObserverCaptor0);
+        executeAndValidateSetupClientInterface(
+                true, false, IFACE_NAME_1, mIfaceCallback1, mIfaceDestroyedListenerCaptor1,
+                mNetworkObserverCaptor1);
+        String interfaceName = mWifiNative.getClientInterfaceName();
+        assertNotNull(interfaceName);
+        assertTrue(interfaceName.equals(IFACE_NAME_0) || interfaceName.equals(IFACE_NAME_1));
     }
 
     private void executeAndValidateSetupClientInterface(
