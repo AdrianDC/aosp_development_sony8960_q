@@ -20,7 +20,8 @@
     package="com.android.server.wifi.test">
 
     <application
-        android:debuggable="true">
+        android:debuggable="true"
+        android:largeHeap="true">
         <uses-library android:name="android.test.runner" />
         <activity android:label="WifiTestDummyLabel"
                   android:name="WifiTestDummyName">
