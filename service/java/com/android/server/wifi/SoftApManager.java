@@ -148,6 +148,8 @@ public class SoftApManager implements ActiveModeManager {
     private void updateApState(int newState, int currentState, int reason) {
         if (mCallback != null) {
             mCallback.onStateChanged(newState, reason);
+        } else {
+            Log.wtf(TAG, "SoftApCallback is null. Dropping StateChanged event.");
         }
 
         //send the AP state change broadcast
@@ -472,6 +474,8 @@ public class SoftApManager implements ActiveModeManager {
 
                 if (mCallback != null) {
                     mCallback.onNumClientsChanged(mNumAssociatedStations);
+                } else {
+                    Log.e(TAG, "SoftApCallback is null. Dropping NumClientsChanged event.");
                 }
                 mWifiMetrics.addSoftApNumAssociatedStationsChangedEvent(mNumAssociatedStations,
                         mMode);

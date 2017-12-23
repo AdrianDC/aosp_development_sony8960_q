@@ -58,7 +58,8 @@ public class WifiStateMachinePrimeTest {
     @Mock ScanOnlyModeManager mScanOnlyModeManager;
     @Mock SoftApManager mSoftApManager;
     ScanOnlyModeManager.Listener mScanOnlyListener;
-    WifiManager.SoftApCallback mSoftApCallback;
+    WifiManager.SoftApCallback mSoftApManagerCallback;
+    @Mock WifiManager.SoftApCallback mSoftApStateMachineCallback;
     WifiStateMachinePrime mWifiStateMachinePrime;
 
     /**
@@ -78,6 +79,8 @@ public class WifiStateMachinePrimeTest {
         // creating a new WSMP cleans up any existing interfaces, check and reset expectations
         verifyCleanupCalled();
         reset(mWifiNative);
+
+        mWifiStateMachinePrime.registerSoftApCallback(mSoftApStateMachineCallback);
     }
 
     private WifiStateMachinePrime createWifiStateMachinePrime() {
@@ -136,7 +139,7 @@ public class WifiStateMachinePrimeTest {
                     public SoftApManager answer(InvocationOnMock invocation) {
                         Object[] args = invocation.getArguments();
                         assertEquals(mNMService, (INetworkManagementService) args[0]);
-                        mSoftApCallback = (WifiManager.SoftApCallback) args[1];
+                        mSoftApManagerCallback = (WifiManager.SoftApCallback) args[1];
                         assertEquals(softApConfig, (SoftApModeConfiguration) args[2]);
                         return mSoftApManager;
                     }
@@ -238,7 +241,7 @@ public class WifiStateMachinePrimeTest {
     public void testDisableWifiFromSoftApModeState() throws Exception {
         enterSoftApActiveMode();
         // now inject failure through the SoftApManager.Listener
-        mSoftApCallback.onStateChanged(WifiManager.WIFI_AP_STATE_FAILED, 0);
+        mSoftApManagerCallback.onStateChanged(WifiManager.WIFI_AP_STATE_FAILED, 0);
         mLooper.dispatchAll();
         assertEquals(SOFT_AP_MODE_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
 
@@ -287,7 +290,7 @@ public class WifiStateMachinePrimeTest {
     public void testEnterSoftApModeActiveWhenAlreadyInSoftApMode() throws Exception {
         enterSoftApActiveMode();
         // now inject failure through the SoftApManager.Listener
-        mSoftApCallback.onStateChanged(WifiManager.WIFI_AP_STATE_FAILED, 0);
+        mSoftApManagerCallback.onStateChanged(WifiManager.WIFI_AP_STATE_FAILED, 0);
         mLooper.dispatchAll();
         assertEquals(SOFT_AP_MODE_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
         // clear the first call to start SoftApManager
@@ -320,7 +323,7 @@ public class WifiStateMachinePrimeTest {
     public void testSoftApFailureWhenActive() throws Exception {
         enterSoftApActiveMode();
         // now inject failure through the SoftApManager.Listener
-        mSoftApCallback.onStateChanged(WifiManager.WIFI_AP_STATE_FAILED, 0);
+        mSoftApManagerCallback.onStateChanged(WifiManager.WIFI_AP_STATE_FAILED, 0);
         mLooper.dispatchAll();
         assertEquals(SOFT_AP_MODE_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
         verify(mSoftApManager).stop();
@@ -350,10 +353,35 @@ public class WifiStateMachinePrimeTest {
     public void testSoftApDisabledWhenActive() throws Exception {
         enterSoftApActiveMode();
         // now inject failure through the SoftApManager.Listener
-        mSoftApCallback.onStateChanged(WifiManager.WIFI_AP_STATE_FAILED, 0);
+        mSoftApManagerCallback.onStateChanged(WifiManager.WIFI_AP_STATE_FAILED, 0);
         mLooper.dispatchAll();
         assertEquals(SOFT_AP_MODE_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
         verify(mSoftApManager).stop();
+    }
+
+    /*
+     * Verifies that SoftApStateChanged event is being passed from SoftApManager to WifiServiceImpl
+     */
+    @Test
+    public void callsWifiServiceCallbackOnSoftApStateChanged() throws Exception {
+        enterSoftApActiveMode();
+        mSoftApManagerCallback.onStateChanged(WifiManager.WIFI_AP_STATE_ENABLED, 0);
+        mLooper.dispatchAll();
+
+        verify(mSoftApStateMachineCallback).onStateChanged(WifiManager.WIFI_AP_STATE_ENABLED, 0);
+    }
+
+    /*
+     * Verifies that NumClientsChanged event is being passed from SoftApManager to WifiServiceImpl
+     */
+    @Test
+    public void callsWifiServiceCallbackOnSoftApNumClientsChanged() throws Exception {
+        final int testNumClients = 3;
+        enterSoftApActiveMode();
+        mSoftApManagerCallback.onNumClientsChanged(testNumClients);
+        mLooper.dispatchAll();
+
+        verify(mSoftApStateMachineCallback).onNumClientsChanged(testNumClients);
     }
 
     /**

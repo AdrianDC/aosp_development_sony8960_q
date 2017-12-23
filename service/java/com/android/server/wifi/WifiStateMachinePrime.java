@@ -441,6 +441,8 @@ public class WifiStateMachinePrime {
 
                     if (mSoftApCallback != null) {
                         mSoftApCallback.onStateChanged(state, reason);
+                    } else {
+                        Log.wtf(TAG, "SoftApCallback is null. Dropping StateChanged event.");
                     }
                 }
 
@@ -448,6 +450,8 @@ public class WifiStateMachinePrime {
                 public void onNumClientsChanged(int numClients) {
                     if (mSoftApCallback != null) {
                         mSoftApCallback.onNumClientsChanged(numClients);
+                    } else {
+                        Log.d(TAG, "SoftApCallback is null. Dropping NumClientsChanged event.");
                     }
                 }
             }

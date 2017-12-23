@@ -773,6 +773,8 @@ public class SoftApManagerTest {
         mSoftApListenerCaptor.getValue().onNumAssociatedStationsChanged(
                 TEST_NUM_CONNECTED_CLIENTS);
         mLooper.dispatchAll();
+
+        verify(mCallback).onNumClientsChanged(TEST_NUM_CONNECTED_CLIENTS);
         verify(mWifiMetrics).addSoftApNumAssociatedStationsChangedEvent(TEST_NUM_CONNECTED_CLIENTS,
                 apConfig.getTargetMode());
     }
@@ -783,13 +785,12 @@ public class SoftApManagerTest {
                 new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
         startSoftApAndVerifyEnabled(apConfig);
 
-        mSoftApListenerCaptor.getValue().onNumAssociatedStationsChanged(
-                TEST_NUM_CONNECTED_CLIENTS);
         /* Invalid values should be ignored */
         mSoftApListenerCaptor.getValue().onNumAssociatedStationsChanged(-1);
         mLooper.dispatchAll();
-        verify(mWifiMetrics, times(1)).addSoftApNumAssociatedStationsChangedEvent(
-                TEST_NUM_CONNECTED_CLIENTS, apConfig.getTargetMode());
+        verify(mCallback, never()).onNumClientsChanged(anyInt());
+        verify(mWifiMetrics, never()).addSoftApNumAssociatedStationsChangedEvent(anyInt(),
+                anyInt());
     }
 
     @Test
@@ -837,11 +838,13 @@ public class SoftApManagerTest {
         mSoftApListenerCaptor.getValue().onNumAssociatedStationsChanged(
                 TEST_NUM_CONNECTED_CLIENTS);
         mLooper.dispatchAll();
+        verify(mCallback).onNumClientsChanged(TEST_NUM_CONNECTED_CLIENTS);
         // Verify timer is canceled at this point
         verify(mAlarmManager.getAlarmManager()).cancel(any(WakeupMessage.class));
 
         mSoftApListenerCaptor.getValue().onNumAssociatedStationsChanged(0);
         mLooper.dispatchAll();
+        verify(mCallback).onNumClientsChanged(0);
         // Verify timer is scheduled again
         verify(mAlarmManager.getAlarmManager(), times(2)).setExact(anyInt(), anyLong(),
                 eq(mSoftApManager.SOFT_AP_SEND_MESSAGE_TIMEOUT_TAG), any(), any());

@@ -207,7 +207,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      *
      * Access/maintenance MUST be done on the wifi service thread
      */
-    // TODO: (b/71714381) Remove mWifiApState and keep mSoftApState as the only field for SAP state
+    // TODO: (b/71714381) Remove mWifiApState and broadcast mechanism, keep mSoftApState as the only
+    //       field to store soft AP state. Then rename mSoftApState and mSoftApNumClients to
+    //       mWifiApState and mWifiApNumClients, to match the constants (i.e. WIFI_AP_STATE_*)
     private int mWifiApState = WifiManager.WIFI_AP_STATE_DISABLED;
     private int mSoftApState = WifiManager.WIFI_AP_STATE_DISABLED;
     private int mSoftApNumClients = 0;
@@ -1150,6 +1152,17 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 Log.e(TAG, "registerSoftApCallback: remote exception -- " + e);
             }
 
+        });
+    }
+
+    /**
+     * Method used for testing registerSoftApCallback. This method allows unit tests to register
+     * callbacks directly for testing mechanisms triggered by soft AP events.
+     */
+    @VisibleForTesting
+    public void registerSAPForTest(int pid, ISoftApCallback callback) {
+        mClientHandler.post(() -> {
+            mRegisteredSoftApCallbacks.put(pid, callback);
         });
     }
 
