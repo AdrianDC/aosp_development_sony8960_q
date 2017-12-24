@@ -347,6 +347,24 @@ public class WifiVendorHal {
         }
     }
 
+    private class StaInterfaceDestroyedListenerInternal implements InterfaceDestroyedListener {
+        private final InterfaceDestroyedListener mExternalListener;
+
+        StaInterfaceDestroyedListenerInternal(InterfaceDestroyedListener externalListener) {
+            mExternalListener = externalListener;
+        }
+
+        @Override
+        public void onDestroyed(@NonNull String ifaceName) {
+            synchronized (sLock) {
+                mIWifiStaIfaces.remove(ifaceName);
+            }
+            if (mExternalListener != null) {
+                mExternalListener.onDestroyed(ifaceName);
+            }
+        }
+    }
+
     /**
      * Create a STA iface using {@link HalDeviceManager}.
      *
@@ -355,8 +373,8 @@ public class WifiVendorHal {
      */
     public String createStaIface(InterfaceDestroyedListener destroyedListener) {
         synchronized (sLock) {
-            IWifiStaIface iface;
-            iface = mHalDeviceManager.createStaIface(destroyedListener, null);
+            IWifiStaIface iface = mHalDeviceManager.createStaIface(
+                    new StaInterfaceDestroyedListenerInternal(destroyedListener), null);
             if (iface == null) {
                 mLog.err("Failed to create STA iface");
                 return stringResult(null);
@@ -416,6 +434,25 @@ public class WifiVendorHal {
         }
     }
 
+    private class ApInterfaceDestroyedListenerInternal implements InterfaceDestroyedListener {
+        private final InterfaceDestroyedListener mExternalListener;
+
+        ApInterfaceDestroyedListenerInternal(InterfaceDestroyedListener externalListener) {
+            mExternalListener = externalListener;
+        }
+
+        @Override
+        public void onDestroyed(@NonNull String ifaceName) {
+            synchronized (sLock) {
+                mIWifiApIfaces.remove(ifaceName);
+            }
+            if (mExternalListener != null) {
+                mExternalListener.onDestroyed(ifaceName);
+            }
+        }
+    }
+
+
     /**
      * Create a AP iface using {@link HalDeviceManager}.
      *
@@ -424,8 +461,8 @@ public class WifiVendorHal {
      */
     public String createApIface(InterfaceDestroyedListener destroyedListener) {
         synchronized (sLock) {
-            IWifiApIface iface;
-            iface = mHalDeviceManager.createApIface(destroyedListener, null);
+            IWifiApIface iface = mHalDeviceManager.createApIface(
+                    new ApInterfaceDestroyedListenerInternal(destroyedListener), null);
             if (iface == null) {
                 mLog.err("Failed to create AP iface");
                 return stringResult(null);

@@ -2244,16 +2244,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         pw.println("mOperationalMode " + mOperationalMode);
         pw.println("mUserWantsSuspendOpt " + mUserWantsSuspendOpt);
         pw.println("mSuspendOptNeedsDisabled " + mSuspendOptNeedsDisabled);
-        if (mCountryCode.getCountryCodeSentToDriver() != null) {
-            pw.println("CountryCode sent to driver " + mCountryCode.getCountryCodeSentToDriver());
-        } else {
-            if (mCountryCode.getCountryCode() != null) {
-                pw.println("CountryCode: " +
-                        mCountryCode.getCountryCode() + " was not sent to driver");
-            } else {
-                pw.println("CountryCode was not initialized");
-            }
-        }
+        mCountryCode.dump(fd, pw, args);
+
         if (mNetworkFactory != null) {
             mNetworkFactory.dump(fd, pw, args);
         } else {
@@ -4657,7 +4649,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         public void enter() {
             mLastOperationMode = mOperationalMode;
             mWifiStateTracker.updateState(WifiStateTracker.SCAN_MODE);
+            mWifiInjector.getWakeupController().start();
         }
+
+        @Override
+        public void exit() {
+            mWifiInjector.getWakeupController().stop();
+        }
+
         @Override
         public boolean processMessage(Message message) {
             logStateAndMessage(message, this);
@@ -4884,6 +4883,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             mWifiInfo.setSupplicantState(SupplicantState.DISCONNECTED);
             // Let the system know that wifi is available in client mode.
             setWifiState(WIFI_STATE_ENABLED);
+
+            mWifiInjector.getWakeupController().reset();
 
             mNetworkInfo.setIsAvailable(true);
             if (mNetworkAgent != null) mNetworkAgent.sendNetworkInfo(mNetworkInfo);

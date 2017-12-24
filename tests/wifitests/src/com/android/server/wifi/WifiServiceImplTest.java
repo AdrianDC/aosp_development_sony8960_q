@@ -1177,7 +1177,7 @@ public class WifiServiceImplTest {
                 IFACE_IP_MODE_LOCAL_ONLY);
 
         mLooper.dispatchAll();
-        verifyNoMoreInteractions(mHandler);
+        verify(mHandler, never()).handleMessage(any(Message.class));
     }
 
     /**

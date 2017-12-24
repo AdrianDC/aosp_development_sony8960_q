@@ -19,6 +19,9 @@ package com.android.server.wifi;
 import android.text.TextUtils;
 import android.util.Log;
 
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
+
 /**
  * Provide functions for making changes to WiFi country code.
  * This Country Code is from MCC or phone default setting. This class sends Country Code
@@ -165,6 +168,21 @@ public class WifiCountryCode {
      */
     public synchronized String getCountryCode() {
         return pickCountryCode();
+    }
+
+    /**
+     * Method to dump the current state of this WifiCounrtyCode object.
+     */
+    public synchronized void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+        if (mCurrentCountryCode != null) {
+            pw.println("CountryCode sent to driver: " + mCurrentCountryCode);
+        } else {
+            if (pickCountryCode() != null) {
+                pw.println("CountryCode: " + pickCountryCode() + " was not sent to driver");
+            } else {
+                pw.println("CountryCode was not initialized");
+            }
+        }
     }
 
     private void updateCountryCode() {
