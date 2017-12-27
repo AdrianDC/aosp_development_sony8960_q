@@ -1086,6 +1086,20 @@ public class WifiNative {
     }
 
     /********************************************************
+     * Hostapd operations
+     ********************************************************/
+
+    /**
+     * Callback to notify hostapd death.
+     */
+    public interface HostapdDeathEventHandler {
+        /**
+         * Invoked when the supplicant dies.
+         */
+        void onDeath();
+    }
+
+    /********************************************************
      * Supplicant operations
      ********************************************************/
 
