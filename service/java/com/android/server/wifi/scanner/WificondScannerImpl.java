@@ -66,6 +66,7 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
     private final Object mSettingsLock = new Object();
 
     private ArrayList<ScanDetail> mNativeScanResults;
+    private ArrayList<ScanDetail> mNativePnoScanResults;
     private WifiScanner.ScanData mLatestSingleScanResult =
             new WifiScanner.ScanData(0, 0, new ScanResult[0]);
 
@@ -293,11 +294,11 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
                  // got a scan before we started scanning or after scan was canceled
                 return;
             }
-            mNativeScanResults = mWifiNative.getPnoScanResults();
+            mNativePnoScanResults = mWifiNative.getPnoScanResults();
             List<ScanResult> hwPnoScanResults = new ArrayList<>();
             int numFilteredScanResults = 0;
-            for (int i = 0; i < mNativeScanResults.size(); ++i) {
-                ScanResult result = mNativeScanResults.get(i).getScanResult();
+            for (int i = 0; i < mNativePnoScanResults.size(); ++i) {
+                ScanResult result = mNativePnoScanResults.get(i).getScanResult();
                 long timestamp_ms = result.timestamp / 1000; // convert us -> ms
                 if (timestamp_ms > mLastPnoScanSettings.startTime) {
                     hwPnoScanResults.add(result);
@@ -447,11 +448,19 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
     protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         synchronized (mSettingsLock) {
             pw.println("Latest native scan results:");
-            if (mNativeScanResults != null && mNativeScanResults.size() != 0) {
+            dumpCachedScanResult(pw, mNativeScanResults);
+            pw.println("Latest native pno scan results:");
+            dumpCachedScanResult(pw, mNativePnoScanResults);
+        }
+    }
+
+    private void dumpCachedScanResult(PrintWriter pw, ArrayList<ScanDetail> scanResults) {
+        synchronized (mSettingsLock) {
+            if (scanResults != null && scanResults.size() != 0) {
                 long nowMs = mClock.getElapsedSinceBootMillis();
                 pw.println("    BSSID              Frequency  RSSI  Age(sec)   SSID "
                         + "                                Flags");
-                for (ScanDetail scanDetail : mNativeScanResults) {
+                for (ScanDetail scanDetail : scanResults) {
                     ScanResult r = scanDetail.getScanResult();
                     long timeStampMs = r.timestamp / 1000;
                     String age;
