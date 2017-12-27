@@ -16,11 +16,7 @@
 
 package com.android.server.wifi;
 
-import static android.net.wifi.WifiConfiguration.KeyMgmt.NONE;
-import static android.net.wifi.WifiConfiguration.KeyMgmt.WPA_PSK;
-
 import static org.junit.Assert.*;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Matchers.argThat;
@@ -356,10 +352,8 @@ public class WificondControlTest {
     public void testTeardownSoftApInterfaceClearsHandles() throws Exception {
         testTeardownSoftApInterface();
 
-        assertFalse(mWificondControl.startSoftAp(
-                TEST_INTERFACE_NAME, new WifiConfiguration(), mSoftApListener));
-        verify(mApInterface, never()).writeHostapdConfig(
-                any(byte[].class), anyBoolean(), anyInt(), anyInt(), any(byte[].class));
+        assertFalse(mWificondControl.startHostapd(
+                TEST_INTERFACE_NAME, mSoftApListener));
         verify(mApInterface, never()).startHostapd(any());
     }
 
@@ -823,50 +817,12 @@ public class WificondControlTest {
      * Verifies successful soft ap start.
      */
     @Test
-    public void testStartSoftApWithPskConfig() throws Exception {
+    public void testStartHostapdWithPskConfig() throws Exception {
         testSetupInterfaceForSoftApMode();
-        WifiConfiguration config = new WifiConfiguration();
-        config.SSID = new String(TEST_SSID, StandardCharsets.UTF_8);
-        config.allowedKeyManagement.set(WPA_PSK);
-        config.preSharedKey = new String(TEST_PSK, StandardCharsets.UTF_8);
-        config.hiddenSSID = false;
-        config.apChannel = TEST_FREQUENCY;
-
-        when(mApInterface.writeHostapdConfig(
-                any(byte[].class), anyBoolean(), anyInt(), anyInt(), any(byte[].class)))
-                .thenReturn(true);
         when(mApInterface.startHostapd(any())).thenReturn(true);
 
-        assertTrue(mWificondControl.startSoftAp(
-                TEST_INTERFACE_NAME, config, mSoftApListener));
-        verify(mApInterface).writeHostapdConfig(
-                eq(TEST_SSID), eq(false), eq(TEST_FREQUENCY),
-                eq(IApInterface.ENCRYPTION_TYPE_WPA), eq(TEST_PSK));
-        verify(mApInterface).startHostapd(any());
-    }
-
-    /**
-     * Verifies successful soft ap start.
-     */
-    @Test
-    public void testStartSoftApWithOpenHiddenConfig() throws Exception {
-        testSetupInterfaceForSoftApMode();
-        WifiConfiguration config = new WifiConfiguration();
-        config.SSID = new String(TEST_SSID, StandardCharsets.UTF_8);
-        config.allowedKeyManagement.set(NONE);
-        config.hiddenSSID = true;
-        config.apChannel = TEST_FREQUENCY;
-
-        when(mApInterface.writeHostapdConfig(
-                any(byte[].class), anyBoolean(), anyInt(), anyInt(), any(byte[].class)))
-                .thenReturn(true);
-        when(mApInterface.startHostapd(any())).thenReturn(true);
-
-        assertTrue(mWificondControl.startSoftAp(
-                TEST_INTERFACE_NAME, config, mSoftApListener));
-        verify(mApInterface).writeHostapdConfig(
-                eq(TEST_SSID), eq(true), eq(TEST_FREQUENCY),
-                eq(IApInterface.ENCRYPTION_TYPE_NONE), eq(new byte[0]));
+        assertTrue(mWificondControl.startHostapd(
+                TEST_INTERFACE_NAME, mSoftApListener));
         verify(mApInterface).startHostapd(any());
     }
 
@@ -881,19 +837,13 @@ public class WificondControlTest {
         WifiConfiguration config = new WifiConfiguration();
         config.SSID = new String(TEST_SSID, StandardCharsets.UTF_8);
 
-        when(mApInterface.writeHostapdConfig(
-                any(byte[].class), anyBoolean(), anyInt(), anyInt(), any(byte[].class)))
-                .thenReturn(true);
         when(mApInterface.startHostapd(any())).thenReturn(true);
 
         final ArgumentCaptor<IApInterfaceEventCallback> apInterfaceCallbackCaptor =
                 ArgumentCaptor.forClass(IApInterfaceEventCallback.class);
 
-        assertTrue(mWificondControl.startSoftAp(
-                TEST_INTERFACE_NAME, config, mSoftApListener));
-        verify(mApInterface).writeHostapdConfig(
-                eq(TEST_SSID), anyBoolean(), anyInt(),
-                anyInt(), any(byte[].class));
+        assertTrue(mWificondControl.startHostapd(
+                TEST_INTERFACE_NAME, mSoftApListener));
         verify(mApInterface).startHostapd(apInterfaceCallbackCaptor.capture());
 
         int numStations = 5;
@@ -906,11 +856,9 @@ public class WificondControlTest {
      * Ensure that soft ap start fails when the interface is not setup.
      */
     @Test
-    public void testStartSoftApWithoutSetupInterface() throws Exception {
-        assertFalse(mWificondControl.startSoftAp(
-                TEST_INTERFACE_NAME, new WifiConfiguration(), mSoftApListener));
-        verify(mApInterface, never()).writeHostapdConfig(
-                any(byte[].class), anyBoolean(), anyInt(), anyInt(), any(byte[].class));
+    public void testStartHostapdWithoutSetupInterface() throws Exception {
+        assertFalse(mWificondControl.startHostapd(
+                TEST_INTERFACE_NAME, mSoftApListener));
         verify(mApInterface, never()).startHostapd(any());
     }
 
@@ -918,43 +866,15 @@ public class WificondControlTest {
      * Verifies soft ap start failure.
      */
     @Test
-    public void testStartSoftApFailDueToWriteConfigError() throws Exception {
+    public void testStartHostapdFailDueToStartError() throws Exception {
         testSetupInterfaceForSoftApMode();
         WifiConfiguration config = new WifiConfiguration();
         config.SSID = new String(TEST_SSID, StandardCharsets.UTF_8);
 
-        when(mApInterface.writeHostapdConfig(
-                any(byte[].class), anyBoolean(), anyInt(), anyInt(), any(byte[].class)))
-                .thenReturn(false);
-        when(mApInterface.startHostapd(any())).thenReturn(true);
-
-        assertFalse(mWificondControl.startSoftAp(
-                TEST_INTERFACE_NAME, config, mSoftApListener));
-        verify(mApInterface).writeHostapdConfig(
-                eq(TEST_SSID), anyBoolean(), anyInt(),
-                anyInt(), any(byte[].class));
-        verify(mApInterface, never()).startHostapd(any());
-    }
-
-    /**
-     * Verifies soft ap start failure.
-     */
-    @Test
-    public void testStartSoftApFailDueToStartError() throws Exception {
-        testSetupInterfaceForSoftApMode();
-        WifiConfiguration config = new WifiConfiguration();
-        config.SSID = new String(TEST_SSID, StandardCharsets.UTF_8);
-
-        when(mApInterface.writeHostapdConfig(
-                any(byte[].class), anyBoolean(), anyInt(), anyInt(), any(byte[].class)))
-                .thenReturn(true);
         when(mApInterface.startHostapd(any())).thenReturn(false);
 
-        assertFalse(mWificondControl.startSoftAp(
-                TEST_INTERFACE_NAME, config, mSoftApListener));
-        verify(mApInterface).writeHostapdConfig(
-                eq(TEST_SSID), anyBoolean(), anyInt(),
-                anyInt(), any(byte[].class));
+        assertFalse(mWificondControl.startHostapd(
+                TEST_INTERFACE_NAME, mSoftApListener));
         verify(mApInterface).startHostapd(any());
     }
 
@@ -962,21 +882,15 @@ public class WificondControlTest {
      * Verifies soft ap start failure.
      */
     @Test
-    public void testStartSoftApFailDueToExceptionInStart() throws Exception {
+    public void testStartHostapdFailDueToExceptionInStart() throws Exception {
         testSetupInterfaceForSoftApMode();
         WifiConfiguration config = new WifiConfiguration();
         config.SSID = new String(TEST_SSID, StandardCharsets.UTF_8);
 
-        when(mApInterface.writeHostapdConfig(
-                any(byte[].class), anyBoolean(), anyInt(), anyInt(), any(byte[].class)))
-                .thenReturn(true);
         doThrow(new RemoteException()).when(mApInterface).startHostapd(any());
 
-        assertFalse(mWificondControl.startSoftAp(
-                TEST_INTERFACE_NAME, config, mSoftApListener));
-        verify(mApInterface).writeHostapdConfig(
-                eq(TEST_SSID), anyBoolean(), anyInt(),
-                anyInt(), any(byte[].class));
+        assertFalse(mWificondControl.startHostapd(
+                TEST_INTERFACE_NAME, mSoftApListener));
         verify(mApInterface).startHostapd(any());
     }
 
@@ -989,7 +903,7 @@ public class WificondControlTest {
 
         when(mApInterface.stopHostapd()).thenReturn(true);
 
-        assertTrue(mWificondControl.stopSoftAp(TEST_INTERFACE_NAME));
+        assertTrue(mWificondControl.stopHostapd(TEST_INTERFACE_NAME));
         verify(mApInterface).stopHostapd();
     }
 
@@ -999,7 +913,7 @@ public class WificondControlTest {
     @Test
     public void testStopSoftApWithOutSetupInterface() throws Exception {
         when(mApInterface.stopHostapd()).thenReturn(true);
-        assertFalse(mWificondControl.stopSoftAp(TEST_INTERFACE_NAME));
+        assertFalse(mWificondControl.stopHostapd(TEST_INTERFACE_NAME));
         verify(mApInterface, never()).stopHostapd();
     }
 
@@ -1012,7 +926,7 @@ public class WificondControlTest {
 
         when(mApInterface.stopHostapd()).thenReturn(false);
 
-        assertFalse(mWificondControl.stopSoftAp(TEST_INTERFACE_NAME));
+        assertFalse(mWificondControl.stopHostapd(TEST_INTERFACE_NAME));
         verify(mApInterface).stopHostapd();
     }
 
@@ -1025,7 +939,7 @@ public class WificondControlTest {
 
         doThrow(new RemoteException()).when(mApInterface).stopHostapd();
 
-        assertFalse(mWificondControl.stopSoftAp(TEST_INTERFACE_NAME));
+        assertFalse(mWificondControl.stopHostapd(TEST_INTERFACE_NAME));
         verify(mApInterface).stopHostapd();
     }
 

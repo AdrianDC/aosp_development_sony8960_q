@@ -57,6 +57,7 @@ public class WifiNativeInterfaceManagementTest {
     @Mock private WifiVendorHal mWifiVendorHal;
     @Mock private WificondControl mWificondControl;
     @Mock private SupplicantStaIfaceHal mSupplicantStaIfaceHal;
+    @Mock private HostapdHal mHostapdHal;
     @Mock private INetworkManagementService mNwManagementService;
     @Mock private PropertyService mPropertyService;
 
@@ -117,12 +118,12 @@ public class WifiNativeInterfaceManagementTest {
         when(mSupplicantStaIfaceHal.setupIface(any())).thenReturn(true);
         when(mSupplicantStaIfaceHal.teardownIface(any())).thenReturn(true);
 
-        mInOrder = inOrder(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal,
+        mInOrder = inOrder(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal, mHostapdHal,
                 mNwManagementService, mIfaceCallback0, mIfaceCallback1);
 
         mWifiNative = new WifiNative(
-                IFACE_NAME_0, mWifiVendorHal, mSupplicantStaIfaceHal, mWificondControl,
-                mNwManagementService, mPropertyService);
+                IFACE_NAME_0, mWifiVendorHal, mSupplicantStaIfaceHal, mHostapdHal,
+                mWificondControl, mNwManagementService, mPropertyService);
         mWifiNative.initialize();
         mWifiNative.registerStatusListener(mStatusListener);
 
@@ -800,7 +801,7 @@ public class WifiNativeInterfaceManagementTest {
         // Creation of STA interface should trigger the AP interface destroy.
         mInOrder.verify(mNwManagementService).unregisterObserver(
                 mNetworkObserverCaptor0.getValue());
-        mInOrder.verify(mWificondControl).stopSoftAp(IFACE_NAME_0);
+        mInOrder.verify(mWificondControl).stopHostapd(IFACE_NAME_0);
         mInOrder.verify(mWificondControl).tearDownSoftApInterface(IFACE_NAME_0);
         mInOrder.verify(mIfaceCallback0).onDestroyed(IFACE_NAME_0);
         // Now continue with rest of STA interface setup.
@@ -939,7 +940,8 @@ public class WifiNativeInterfaceManagementTest {
             String ifaceName, @Mock WifiNative.InterfaceCallback callback,
             BaseNetworkObserver networkObserver) throws Exception {
         mInOrder.verify(mNwManagementService).unregisterObserver(networkObserver);
-        mInOrder.verify(mWificondControl).stopSoftAp(ifaceName);
+        mInOrder.verify(mHostapdHal).removeAccessPoint(ifaceName);
+        mInOrder.verify(mWificondControl).stopHostapd(ifaceName);
         mInOrder.verify(mWificondControl).tearDownSoftApInterface(ifaceName);
 
         if (!anyOtherStaIface && !anyOtherApIface) {
