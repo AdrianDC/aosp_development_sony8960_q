@@ -22,12 +22,14 @@ import android.hardware.wifi.hostapd.V1_0.HostapdStatusCode;
 import android.hardware.wifi.hostapd.V1_0.IHostapd;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.hidl.manager.V1_0.IServiceNotification;
+import android.net.wifi.WifiConfiguration;
 import android.os.HwRemoteBinder;
 import android.os.RemoteException;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.wifi.WifiNative.HostapdDeathEventHandler;
+import com.android.server.wifi.util.NativeUtil;
 
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -208,6 +210,68 @@ public class HostapdHal {
     }
 
     /**
+     * Add and start a new access point.
+     *
+     * @param ifaceName Name of the interface.
+     * @param config Configuration to use for the AP.
+     * @return true on success, false otherwise.
+     */
+    public boolean addAccessPoint(@NonNull String ifaceName, @NonNull WifiConfiguration config) {
+        synchronized (mLock) {
+            final String methodStr = "addAccessPoint";
+            IHostapd.IfaceParams ifaceParams = new IHostapd.IfaceParams();
+            ifaceParams.ifaceName = ifaceName;
+            ifaceParams.hwModeParams.enable80211N = true;
+            ifaceParams.hwModeParams.enable80211AC = false;
+            if (config.apChannel <= 14) {
+                ifaceParams.channelParams.band = IHostapd.Band.BAND_2_4_GHZ;
+            } else {
+                ifaceParams.channelParams.band = IHostapd.Band.BAND_5_GHZ;
+            }
+            ifaceParams.channelParams.enableAcs = false;
+            ifaceParams.channelParams.channel = config.apChannel;
+
+            IHostapd.NetworkParams nwParams = new IHostapd.NetworkParams();
+            // TODO(b/67745880) Note that config.SSID is intended to be either a
+            // hex string or "double quoted".
+            // However, it seems that whatever is handing us these configurations does not obey
+            // this convention.
+            nwParams.ssid.addAll(NativeUtil.stringToByteArrayList(config.SSID));
+            nwParams.isHidden = config.hiddenSSID;
+            nwParams.encryptionType = getEncryptionType(config);
+            nwParams.pskPassphrase = config.preSharedKey;
+            if (!checkHostapdAndLogFailure(methodStr)) return false;
+            try {
+                HostapdStatus status = mIHostapd.addAccessPoint(ifaceParams, nwParams);
+                return checkStatusAndLogFailure(status, methodStr);
+            } catch (RemoteException e) {
+                handleRemoteException(e, methodStr);
+                return false;
+            }
+        }
+    }
+
+    /**
+     * Remove a previously started access point.
+     *
+     * @param ifaceName Name of the interface.
+     * @return true on success, false otherwise.
+     */
+    public boolean removeAccessPoint(@NonNull String ifaceName) {
+        synchronized (mLock) {
+            final String methodStr = "removeAccessPoint";
+            if (!checkHostapdAndLogFailure(methodStr)) return false;
+            try {
+                HostapdStatus status = mIHostapd.removeAccessPoint(ifaceName);
+                return checkStatusAndLogFailure(status, methodStr);
+            } catch (RemoteException e) {
+                handleRemoteException(e, methodStr);
+                return false;
+            }
+        }
+    }
+
+    /**
      * Registers a death notification for hostapd.
      * @return Returns true on success.
      */
@@ -287,6 +351,27 @@ public class HostapdHal {
         synchronized (mLock) {
             return IHostapd.getService();
         }
+    }
+
+    private static int getEncryptionType(WifiConfiguration localConfig) {
+        int encryptionType;
+        switch (localConfig.getAuthType()) {
+            case WifiConfiguration.KeyMgmt.NONE:
+                encryptionType = IHostapd.EncryptionType.NONE;
+                break;
+            case WifiConfiguration.KeyMgmt.WPA_PSK:
+                encryptionType = IHostapd.EncryptionType.WPA;
+                break;
+            case WifiConfiguration.KeyMgmt.WPA2_PSK:
+                encryptionType = IHostapd.EncryptionType.WPA2;
+                break;
+            default:
+                // We really shouldn't default to None, but this was how NetworkManagementService
+                // used to do this.
+                encryptionType = IHostapd.EncryptionType.NONE;
+                break;
+        }
+        return encryptionType;
     }
 
     /**

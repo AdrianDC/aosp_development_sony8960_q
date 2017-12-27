@@ -27,8 +27,11 @@ import android.hardware.wifi.hostapd.V1_0.HostapdStatusCode;
 import android.hardware.wifi.hostapd.V1_0.IHostapd;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.hidl.manager.V1_0.IServiceNotification;
+import android.net.wifi.WifiConfiguration;
 import android.os.IHwBinder;
 import android.os.RemoteException;
+
+import com.android.server.wifi.util.NativeUtil;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -41,6 +44,10 @@ import org.mockito.MockitoAnnotations;
  * Unit tests for HostapdHal
  */
 public class HostapdHalTest {
+    private static final String IFACE_NAME = "mock-wlan0";
+    private static final String NETWORK_SSID = "test-ssid";
+    private static final String NETWORK_PSK = "test-psk";
+
     private @Mock IServiceManager mServiceManagerMock;
     private @Mock IHostapd mIHostapdMock;
     private @Mock WifiNative.HostapdDeathEventHandler mHostapdHalDeathHandler;
@@ -53,6 +60,10 @@ public class HostapdHalTest {
             ArgumentCaptor.forClass(IHwBinder.DeathRecipient.class);
     private ArgumentCaptor<IServiceNotification.Stub> mServiceNotificationCaptor =
             ArgumentCaptor.forClass(IServiceNotification.Stub.class);
+    private ArgumentCaptor<IHostapd.IfaceParams> mIfaceParamsCaptor =
+            ArgumentCaptor.forClass(IHostapd.IfaceParams.class);
+    private ArgumentCaptor<IHostapd.NetworkParams> mNetworkParamsCaptor =
+            ArgumentCaptor.forClass(IHostapd.NetworkParams.class);
     private InOrder mInOrder;
 
     private class HostapdHalSpy extends HostapdHal {
@@ -85,6 +96,10 @@ public class HostapdHalTest {
                 anyLong())).thenReturn(true);
         when(mIHostapdMock.linkToDeath(any(IHwBinder.DeathRecipient.class),
                 anyLong())).thenReturn(true);
+        when(mIHostapdMock.addAccessPoint(
+                mIfaceParamsCaptor.capture(), mNetworkParamsCaptor.capture()))
+                .thenReturn(mStatusSuccess);
+        when(mIHostapdMock.removeAccessPoint(any())).thenReturn(mStatusSuccess);
         mHostapdHal = new HostapdHalSpy();
     }
 
@@ -123,6 +138,175 @@ public class HostapdHalTest {
         mHostapdHal.registerDeathHandler(mHostapdHalDeathHandler);
         mHostapdDeathCaptor.getValue().serviceDied(0);
         verify(mHostapdHalDeathHandler).onDeath();
+    }
+
+    /**
+     * Verifies the successful addition of access point.
+     */
+    @Test
+    public void testAddAccessPointSuccess_Psk_80211G() throws Exception {
+        executeAndValidateInitializationSequence();
+        final int apChannel = 6;
+
+        WifiConfiguration configuration = new WifiConfiguration();
+        configuration.SSID = NETWORK_SSID;
+        configuration.hiddenSSID = false;
+        configuration.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA2_PSK);
+        configuration.preSharedKey = NETWORK_PSK;
+        configuration.apChannel = apChannel;
+
+        assertTrue(mHostapdHal.addAccessPoint(IFACE_NAME, configuration));
+        verify(mIHostapdMock).addAccessPoint(any(), any());
+
+        assertEquals(IFACE_NAME, mIfaceParamsCaptor.getValue().ifaceName);
+        assertTrue(mIfaceParamsCaptor.getValue().hwModeParams.enable80211N);
+        assertFalse(mIfaceParamsCaptor.getValue().hwModeParams.enable80211AC);
+        assertEquals(IHostapd.Band.BAND_2_4_GHZ, mIfaceParamsCaptor.getValue().channelParams.band);
+        assertFalse(mIfaceParamsCaptor.getValue().channelParams.enableAcs);
+        assertFalse(mIfaceParamsCaptor.getValue().channelParams.acsShouldExcludeDfs);
+        assertEquals(apChannel, mIfaceParamsCaptor.getValue().channelParams.channel);
+
+        assertEquals(NativeUtil.stringToByteArrayList(NETWORK_SSID),
+                mNetworkParamsCaptor.getValue().ssid);
+        assertFalse(mNetworkParamsCaptor.getValue().isHidden);
+        assertEquals(IHostapd.EncryptionType.WPA2, mNetworkParamsCaptor.getValue().encryptionType);
+        assertEquals(NETWORK_PSK, mNetworkParamsCaptor.getValue().pskPassphrase);
+    }
+
+    /**
+     * Verifies the successful addition of access point.
+     */
+    @Test
+    public void testAddAccessPointSuccess_Open_80211A() throws Exception {
+        executeAndValidateInitializationSequence();
+        final int apChannel = 18;
+
+        WifiConfiguration configuration = new WifiConfiguration();
+        configuration.SSID = NETWORK_SSID;
+        configuration.hiddenSSID = true;
+        configuration.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+        configuration.apChannel = apChannel;
+
+        assertTrue(mHostapdHal.addAccessPoint(IFACE_NAME, configuration));
+        verify(mIHostapdMock).addAccessPoint(any(), any());
+
+        assertEquals(IFACE_NAME, mIfaceParamsCaptor.getValue().ifaceName);
+        assertTrue(mIfaceParamsCaptor.getValue().hwModeParams.enable80211N);
+        assertFalse(mIfaceParamsCaptor.getValue().hwModeParams.enable80211AC);
+        assertEquals(IHostapd.Band.BAND_5_GHZ, mIfaceParamsCaptor.getValue().channelParams.band);
+        assertFalse(mIfaceParamsCaptor.getValue().channelParams.enableAcs);
+        assertFalse(mIfaceParamsCaptor.getValue().channelParams.acsShouldExcludeDfs);
+        assertEquals(apChannel, mIfaceParamsCaptor.getValue().channelParams.channel);
+
+        assertEquals(NativeUtil.stringToByteArrayList(NETWORK_SSID),
+                mNetworkParamsCaptor.getValue().ssid);
+        assertTrue(mNetworkParamsCaptor.getValue().isHidden);
+        assertEquals(IHostapd.EncryptionType.NONE, mNetworkParamsCaptor.getValue().encryptionType);
+        assertNull(mNetworkParamsCaptor.getValue().pskPassphrase);
+    }
+
+    /**
+     * Verifies the successful addition of access point.
+     */
+    @Test
+    public void testAddAccessPointSuccess_Psk_80211A_Hidden() throws Exception {
+        executeAndValidateInitializationSequence();
+        final int apChannel = 18;
+
+        WifiConfiguration configuration = new WifiConfiguration();
+        configuration.SSID = NETWORK_SSID;
+        configuration.hiddenSSID = true;
+        configuration.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA2_PSK);
+        configuration.preSharedKey = NETWORK_PSK;
+        configuration.apChannel = apChannel;
+
+        assertTrue(mHostapdHal.addAccessPoint(IFACE_NAME, configuration));
+        verify(mIHostapdMock).addAccessPoint(any(), any());
+
+        assertEquals(IFACE_NAME, mIfaceParamsCaptor.getValue().ifaceName);
+        assertTrue(mIfaceParamsCaptor.getValue().hwModeParams.enable80211N);
+        assertFalse(mIfaceParamsCaptor.getValue().hwModeParams.enable80211AC);
+        assertEquals(IHostapd.Band.BAND_5_GHZ, mIfaceParamsCaptor.getValue().channelParams.band);
+        assertFalse(mIfaceParamsCaptor.getValue().channelParams.enableAcs);
+        assertFalse(mIfaceParamsCaptor.getValue().channelParams.acsShouldExcludeDfs);
+        assertEquals(apChannel, mIfaceParamsCaptor.getValue().channelParams.channel);
+
+        assertEquals(NativeUtil.stringToByteArrayList(NETWORK_SSID),
+                mNetworkParamsCaptor.getValue().ssid);
+        assertTrue(mNetworkParamsCaptor.getValue().isHidden);
+        assertEquals(IHostapd.EncryptionType.WPA2, mNetworkParamsCaptor.getValue().encryptionType);
+        assertEquals(NETWORK_PSK, mNetworkParamsCaptor.getValue().pskPassphrase);
+    }
+
+    /**
+     * Verifies the failure handling in addition of access point.
+     */
+    @Test
+    public void testAddAccessPointFailure() throws Exception {
+        executeAndValidateInitializationSequence();
+        when(mIHostapdMock.addAccessPoint(any(), any())).thenReturn(mStatusFailure);
+
+        WifiConfiguration configuration = new WifiConfiguration();
+        configuration.SSID = NETWORK_SSID;
+        configuration.hiddenSSID = true;
+        configuration.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+        configuration.apChannel = 6;
+
+        assertFalse(mHostapdHal.addAccessPoint(IFACE_NAME, configuration));
+        verify(mIHostapdMock).addAccessPoint(any(), any());
+    }
+
+    /**
+     * Verifies the failure handling in addition of access point.
+     */
+    @Test
+    public void testAddAccessPointRemoteException() throws Exception {
+        executeAndValidateInitializationSequence();
+        doThrow(new RemoteException()).when(mIHostapdMock).addAccessPoint(any(), any());
+
+        WifiConfiguration configuration = new WifiConfiguration();
+        configuration.SSID = NETWORK_SSID;
+        configuration.hiddenSSID = true;
+        configuration.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+        configuration.apChannel = 6;
+
+        assertFalse(mHostapdHal.addAccessPoint(IFACE_NAME, configuration));
+        verify(mIHostapdMock).addAccessPoint(any(), any());
+    }
+
+    /**
+     * Verifies the successful removal of access point.
+     */
+    @Test
+    public void testRemoveAccessPointSuccess() throws Exception {
+        executeAndValidateInitializationSequence();
+
+        assertTrue(mHostapdHal.removeAccessPoint(IFACE_NAME));
+        verify(mIHostapdMock).removeAccessPoint(any());
+    }
+
+    /**
+     * Verifies the failure handling in removal of access point.
+     */
+    @Test
+    public void testRemoveAccessPointFailure() throws Exception {
+        executeAndValidateInitializationSequence();
+        when(mIHostapdMock.removeAccessPoint(any())).thenReturn(mStatusFailure);
+
+        assertFalse(mHostapdHal.removeAccessPoint(IFACE_NAME));
+        verify(mIHostapdMock).removeAccessPoint(any());
+    }
+
+    /**
+     * Verifies the failure handling in addition of access point.
+     */
+    @Test
+    public void testRemoveAccessPointRemoteException() throws Exception {
+        executeAndValidateInitializationSequence();
+        doThrow(new RemoteException()).when(mIHostapdMock).removeAccessPoint(any());
+
+        assertFalse(mHostapdHal.removeAccessPoint(IFACE_NAME));
+        verify(mIHostapdMock).removeAccessPoint(any());
     }
 
     private void executeAndValidateInitializationSequence() throws Exception {
