@@ -959,8 +959,6 @@ public class WifiNative {
      * Close supplicant connection.
      */
     public void closeSupplicantConnection() {
-        // Setup the STA iface once connection is established.
-        mSupplicantStaIfaceHal.teardownIface(mInterfaceName);
     }
 
     /**
