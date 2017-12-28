@@ -237,6 +237,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
             configSupplemental12.discoveryBeaconIntervalMs = 0;
             configSupplemental12.numberOfSpatialStreamsInDiscovery = 0;
             configSupplemental12.enableDiscoveryWindowEarlyTermination = false;
+            configSupplemental12.enableRanging = true;
         }
 
         try {
