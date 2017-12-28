@@ -94,7 +94,7 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub imp
         switch (subCmd) {
             case "get_cb_count": {
                 String option = parentShell.getNextOption();
-                Log.v(TAG, "option='" + option + "'");
+                if (VDBG) Log.v(TAG, "option='" + option + "'");
                 boolean reset = false;
                 if (option != null) {
                     if ("--reset".equals(option)) {

@@ -105,7 +105,8 @@ public class WifiAwareNativeApiTest {
      */
     @Test
     public void testSetParameterShellCommandSuccess() {
-        setSettableParam(WifiAwareNativeApi.PARAM_DW_ON_IDLE_5GHZ, Integer.toString(1), true);
+        setSettableParam(WifiAwareNativeApi.PARAM_MAC_RANDOM_INTERVAL_SEC, Integer.toString(1),
+                true);
     }
 
     /**
@@ -122,7 +123,7 @@ public class WifiAwareNativeApiTest {
      */
     @Test
     public void testSetParameterShellCommandInvalidValue() {
-        setSettableParam(WifiAwareNativeApi.PARAM_DW_ON_IDLE_5GHZ, "garbage", false);
+        setSettableParam(WifiAwareNativeApi.PARAM_MAC_RANDOM_INTERVAL_SEC, "garbage", false);
     }
 
     /**
@@ -399,12 +400,25 @@ public class WifiAwareNativeApiTest {
 
     private void setPowerConfigurationParams(byte interactive5, byte interactive24, byte idle5,
             byte idle24) {
-        setSettableParam(WifiAwareNativeApi.PARAM_DW_ON_INACTIVE_5GHZ,
-                Integer.toString(interactive5), true);
-        setSettableParam(WifiAwareNativeApi.PARAM_DW_ON_INACTIVE_24GHZ,
-                Integer.toString(interactive24), true);
-        setSettableParam(WifiAwareNativeApi.PARAM_DW_ON_IDLE_5GHZ, Integer.toString(idle5), true);
-        setSettableParam(WifiAwareNativeApi.PARAM_DW_ON_IDLE_24GHZ, Integer.toString(idle24), true);
+        setSettablePowerParam(WifiAwareNativeApi.POWER_PARAM_INACTIVE_KEY,
+                WifiAwareNativeApi.PARAM_DW_5GHZ, Integer.toString(interactive5), true);
+        setSettablePowerParam(WifiAwareNativeApi.POWER_PARAM_INACTIVE_KEY,
+                WifiAwareNativeApi.PARAM_DW_24GHZ, Integer.toString(interactive24), true);
+        setSettablePowerParam(WifiAwareNativeApi.POWER_PARAM_IDLE_KEY,
+                WifiAwareNativeApi.PARAM_DW_5GHZ, Integer.toString(idle5), true);
+        setSettablePowerParam(WifiAwareNativeApi.POWER_PARAM_IDLE_KEY,
+                WifiAwareNativeApi.PARAM_DW_24GHZ, Integer.toString(idle24), true);
+    }
+
+    private void setSettablePowerParam(String mode, String name, String value,
+            boolean expectSuccess) {
+        PrintWriter pwMock = mock(PrintWriter.class);
+        WifiAwareShellCommand parentShellMock = mock(WifiAwareShellCommand.class);
+        when(parentShellMock.getNextArgRequired()).thenReturn("set-power").thenReturn(
+                mode).thenReturn(name).thenReturn(value);
+        when(parentShellMock.getErrPrintWriter()).thenReturn(pwMock);
+
+        collector.checkThat(mDut.onCommand(parentShellMock), equalTo(expectSuccess ? 0 : -1));
     }
 
     private void setSettableParam(String name, String value, boolean expectSuccess) {
