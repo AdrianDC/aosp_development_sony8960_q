@@ -72,6 +72,7 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub imp
     private static final int CB_EV_DATA_PATH_REQUEST = 8;
     private static final int CB_EV_DATA_PATH_CONFIRM = 9;
     private static final int CB_EV_DATA_PATH_TERMINATED = 10;
+    private static final int CB_EV_DATA_PATH_SCHED_UPDATE = 11;
 
     private SparseIntArray mCallbackCounter = new SparseIntArray();
 
@@ -490,7 +491,7 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub imp
 
         mWifiAwareStateManager.onDataPathConfirmNotification(event.ndpInstanceId,
                 event.peerNdiMacAddr, event.dataPathSetupSuccess, event.status.status,
-                convertArrayListToNativeByteArray(event.appInfo));
+                convertArrayListToNativeByteArray(event.appInfo), null);
     }
 
     @Override
@@ -507,10 +508,10 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub imp
         }
         incrementCbCount(CB_EV_DATA_PATH_CONFIRM);
 
-        // TODO: update to pass-through the channel information
         mWifiAwareStateManager.onDataPathConfirmNotification(event.V1_0.ndpInstanceId,
                 event.V1_0.peerNdiMacAddr, event.V1_0.dataPathSetupSuccess,
-                event.V1_0.status.status, convertArrayListToNativeByteArray(event.V1_0.appInfo));
+                event.V1_0.status.status, convertArrayListToNativeByteArray(event.V1_0.appInfo),
+                event.channelInfo);
     }
 
     @Override
@@ -522,8 +523,10 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub imp
             Log.wtf(TAG, "eventDataPathScheduleUpdate should not be called by a <1.2 HAL!");
             return;
         }
+        incrementCbCount(CB_EV_DATA_PATH_SCHED_UPDATE);
 
-        // TODO: pass-through the channel information
+        mWifiAwareStateManager.onDataPathScheduleUpdateNotification(event.peerDiscoveryAddress,
+                event.ndpInstanceIds, event.channelInfo);
     }
 
     @Override

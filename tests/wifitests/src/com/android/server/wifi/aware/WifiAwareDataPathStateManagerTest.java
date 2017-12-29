@@ -412,7 +412,7 @@ public class WifiAwareDataPathStateManagerTest {
             mMockLooper.dispatchAll();
 
             // (2) get confirmation
-            mDut.onDataPathConfirmNotification(ndpId + i, peerDataPathMac, true, 0, null);
+            mDut.onDataPathConfirmNotification(ndpId + i, peerDataPathMac, true, 0, null, null);
             mMockLooper.dispatchAll();
             if (first) {
                 inOrder.verify(mMockNwMgt).setInterfaceUp(anyString());
@@ -521,7 +521,7 @@ public class WifiAwareDataPathStateManagerTest {
         mMockLooper.dispatchAll();
 
         // (7) confirm the NDP creation
-        mDut.onDataPathConfirmNotification(ndpId, peerDataPathMac, true, 0, null);
+        mDut.onDataPathConfirmNotification(ndpId, peerDataPathMac, true, 0, null, null);
         mMockLooper.dispatchAll();
 
         inOrder.verify(mMockNwMgt).setInterfaceUp(anyString());
@@ -622,7 +622,7 @@ public class WifiAwareDataPathStateManagerTest {
                 interfaces.add(ifNameCaptor.getValue());
 
                 mDut.onInitiateDataPathResponseSuccess(transactionId.getValue(), ndpId + i);
-                mDut.onDataPathConfirmNotification(ndpId + i, peerDataPathMac, true, 0, null);
+                mDut.onDataPathConfirmNotification(ndpId + i, peerDataPathMac, true, 0, null, null);
                 mMockLooper.dispatchAll();
 
                 inOrder.verify(mMockNwMgt).setInterfaceUp(anyString());
@@ -1033,7 +1033,7 @@ public class WifiAwareDataPathStateManagerTest {
         // (2) get confirmation OR timeout
         if (getConfirmation) {
             mDut.onDataPathConfirmNotification(ndpId, peerDataPathMac, true, 0,
-                    peerToken.getBytes());
+                    peerToken.getBytes(), null);
             mMockLooper.dispatchAll();
             inOrder.verify(mMockNwMgt).setInterfaceUp(anyString());
             inOrder.verify(mMockNwMgt).enableIpv6(anyString());
@@ -1136,7 +1136,7 @@ public class WifiAwareDataPathStateManagerTest {
         // (3) get confirmation OR timeout
         if (getConfirmation) {
             mDut.onDataPathConfirmNotification(ndpId, peerDataPathMac, true, 0,
-                    peerToken.getBytes());
+                    peerToken.getBytes(), null);
             mMockLooper.dispatchAll();
             inOrder.verify(mMockNwMgt).setInterfaceUp(anyString());
             inOrder.verify(mMockNwMgt).enableIpv6(anyString());
