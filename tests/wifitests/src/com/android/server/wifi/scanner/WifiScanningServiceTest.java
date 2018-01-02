@@ -16,6 +16,8 @@
 
 package com.android.server.wifi.scanner;
 
+import static android.content.pm.PackageManager.PERMISSION_DENIED;
+
 import static com.android.server.wifi.ScanTestUtil.NativeScanSettingsBuilder;
 import static com.android.server.wifi.ScanTestUtil.assertNativePnoSettingsEquals;
 import static com.android.server.wifi.ScanTestUtil.assertNativeScanSettingsEquals;
@@ -46,6 +48,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import android.Manifest;
 import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.app.test.TestAlarmManager;
 import android.content.BroadcastReceiver;
@@ -645,6 +648,122 @@ public class WifiScanningServiceTest {
                 ScanResults.generateNativeResults(0, 5150, 5171));
         doSuccessfulSingleScan(requestSettings, computeSingleScanNativeSettings(requestSettings),
                 results);
+    }
+
+    /**
+     * Do a single scan from a non-privileged app with some privileged params set.
+     * Expect a scan failure.
+     */
+    @Test
+    public void sendSingleScanRequestWithPrivilegedTypeParamsSetFromNonPrivilegedApp()
+            throws Exception {
+        WifiScanner.ScanSettings requestSettings = createRequest(WifiScanner.WIFI_BAND_BOTH, 0,
+                0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+        int requestId = 33;
+        requestSettings.type = WifiScanner.TYPE_HIGH_ACCURACY;
+        WorkSource workSource = new WorkSource(Binder.getCallingUid()); // don't explicitly set
+
+        when(mContext.checkPermission(
+                Manifest.permission.NETWORK_STACK, -1, Binder.getCallingUid()))
+                .thenReturn(PERMISSION_DENIED);
+
+        startServiceAndLoadDriver();
+        mWifiScanningServiceImpl.setWifiHandlerLogForTest(mLog);
+
+        Handler handler = mock(Handler.class);
+        BidirectionalAsyncChannel controlChannel = connectChannel(handler);
+        InOrder order = inOrder(handler, mWifiScannerImpl);
+
+        // successful start
+        when(mWifiScannerImpl.startSingleScan(any(WifiNative.ScanSettings.class),
+                any(WifiNative.ScanEventHandler.class))).thenReturn(true);
+
+        sendSingleScanRequest(controlChannel, requestId, requestSettings, null);
+
+        // Scan is successfully queued
+        mLooper.dispatchAll();
+
+        // but then fails to execute
+        verifyFailedResponse(order, handler, requestId,
+                WifiScanner.REASON_INVALID_REQUEST, "bad request");
+        assertDumpContainsCallbackLog("singleScanInvalidRequest", requestId,
+                "bad request");
+
+        assertEquals(mWifiMetrics.getOneshotScanCount(), 1);
+        assertEquals(mWifiMetrics.getScanReturnEntry(
+                WifiMetricsProto.WifiLog.SCAN_FAILURE_INVALID_CONFIGURATION), 1);
+
+        // Ensure that no scan was triggered to the lower layers.
+        verify(mBatteryStats, never()).noteWifiScanStoppedFromSource(eq(workSource));
+        verify(mWifiScannerImpl, never()).startSingleScan(any(WifiNative.ScanSettings.class),
+                any(WifiNative.ScanEventHandler.class));
+    }
+
+    /**
+     * Do a single scan from a non-privileged app with some privileged params set.
+     * Expect a scan failure.
+     */
+    @Test
+    public void sendSingleScanRequestWithPrivilegedHiddenNetworkParamsSetFromNonPrivilegedApp()
+            throws Exception {
+        WifiScanner.ScanSettings requestSettings = createRequest(WifiScanner.WIFI_BAND_BOTH, 0,
+                0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+        int requestId = 33;
+        requestSettings.hiddenNetworks = new WifiScanner.ScanSettings.HiddenNetwork[] {
+                new WifiScanner.ScanSettings.HiddenNetwork("Test1"),
+                new WifiScanner.ScanSettings.HiddenNetwork("Test2")
+        };
+        WorkSource workSource = new WorkSource(Binder.getCallingUid()); // don't explicitly set
+
+        when(mContext.checkPermission(
+                Manifest.permission.NETWORK_STACK, -1, Binder.getCallingUid()))
+                .thenReturn(PERMISSION_DENIED);
+
+        startServiceAndLoadDriver();
+        mWifiScanningServiceImpl.setWifiHandlerLogForTest(mLog);
+
+        Handler handler = mock(Handler.class);
+        BidirectionalAsyncChannel controlChannel = connectChannel(handler);
+        InOrder order = inOrder(handler, mWifiScannerImpl);
+
+        // successful start
+        when(mWifiScannerImpl.startSingleScan(any(WifiNative.ScanSettings.class),
+                any(WifiNative.ScanEventHandler.class))).thenReturn(true);
+
+        sendSingleScanRequest(controlChannel, requestId, requestSettings, null);
+
+        // Scan is successfully queued
+        mLooper.dispatchAll();
+
+        // but then fails to execute
+        verifyFailedResponse(order, handler, requestId,
+                WifiScanner.REASON_INVALID_REQUEST, "bad request");
+        assertDumpContainsCallbackLog("singleScanInvalidRequest", requestId,
+                "bad request");
+
+        assertEquals(mWifiMetrics.getOneshotScanCount(), 1);
+        assertEquals(mWifiMetrics.getScanReturnEntry(
+                WifiMetricsProto.WifiLog.SCAN_FAILURE_INVALID_CONFIGURATION), 1);
+
+        // Ensure that no scan was triggered to the lower layers.
+        verify(mBatteryStats, never()).noteWifiScanStoppedFromSource(eq(workSource));
+        verify(mWifiScannerImpl, never()).startSingleScan(any(WifiNative.ScanSettings.class),
+                any(WifiNative.ScanEventHandler.class));
+    }
+
+    /**
+     * Do a single scan from a non-privileged app with no privileged params set.
+     */
+    @Test
+    public void sendSingleScanRequestWithNoPrivilegedParamsSetFromNonPrivilegedApp()
+            throws Exception {
+        when(mContext.checkPermission(
+                Manifest.permission.NETWORK_STACK, -1, Binder.getCallingUid()))
+                .thenReturn(PERMISSION_DENIED);
+        WifiScanner.ScanSettings requestSettings = createRequest(channelsToSpec(2400, 5150, 5175),
+                0, 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+        doSuccessfulSingleScan(requestSettings, computeSingleScanNativeSettings(requestSettings),
+                ScanResults.create(0, 2400, 5150, 5175));
     }
 
     /**
