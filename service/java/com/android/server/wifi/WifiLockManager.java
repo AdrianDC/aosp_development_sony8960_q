@@ -71,7 +71,7 @@ public class WifiLockManager {
         if (!isValidLockMode(lockMode)) {
             throw new IllegalArgumentException("lockMode =" + lockMode);
         }
-        if (ws == null || ws.size() == 0) {
+        if (ws == null || ws.isEmpty()) {
             ws = new WorkSource(Binder.getCallingUid());
         } else {
             mContext.enforceCallingOrSelfPermission(
@@ -144,15 +144,23 @@ public class WifiLockManager {
         }
 
         WorkSource newWorkSource;
-        if (ws == null || ws.size() == 0) {
+        if (ws == null || ws.isEmpty()) {
             newWorkSource = new WorkSource(Binder.getCallingUid());
         } else {
             // Make a copy of the WorkSource before adding it to the WakeLock
             newWorkSource = new WorkSource(ws);
         }
 
+        if (mVerboseLoggingEnabled) {
+            Slog.d(TAG, "updateWifiLockWakeSource: " + wl + ", newWorkSource=" + newWorkSource);
+        }
+
         long ident = Binder.clearCallingIdentity();
         try {
+            // TODO: Introduce a noteFullWifiLockChangedFromSource() so that this logic can be
+            // handled properly in BatteryStats rather than here. This would ensure there are no
+            // "holes" in the reported data due to a "release" event occurring before an
+            // "acquire" event.
             mBatteryStats.noteFullWifiLockReleasedFromSource(wl.mWorkSource);
             wl.mWorkSource = newWorkSource;
             mBatteryStats.noteFullWifiLockAcquiredFromSource(wl.mWorkSource);
@@ -323,7 +331,8 @@ public class WifiLockManager {
         }
 
         public String toString() {
-            return "WifiLock{" + this.mTag + " type=" + this.mMode + " uid=" + mUid + "}";
+            return "WifiLock{" + this.mTag + " type=" + this.mMode + " uid=" + mUid
+                    + " workSource=" + mWorkSource + "}";
         }
     }
 }
