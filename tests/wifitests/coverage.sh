@@ -40,6 +40,7 @@ make \
   -f build/core/main.mk \
   MODULES-IN-frameworks-opt-net-wifi-tests \
   MODULES-IN-system-core \
+  MODULES-IN-external-jacoco \
   FrameworksWifiTests
 
 adb root
