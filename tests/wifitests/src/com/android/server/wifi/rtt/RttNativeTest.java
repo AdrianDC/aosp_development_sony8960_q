@@ -91,7 +91,7 @@ public class RttNativeTest {
         mDut.start();
         verify(mockHalDeviceManager).registerStatusListener(mHdmStatusListener.capture(), any());
         verify(mockRttController).registerEventCallback(any());
-        verify(mockRttServiceImpl).enable();
+        verify(mockRttServiceImpl).enableIfPossible();
         assertTrue(mDut.isReady());
     }
 

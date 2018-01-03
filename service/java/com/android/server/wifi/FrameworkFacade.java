@@ -65,6 +65,13 @@ public class FrameworkFacade {
     }
 
     /**
+     * Mockable facade to Settings.Secure.getInt(.).
+     */
+    public int getSecureIntegerSetting(Context context, String name, int def) {
+        return Settings.Secure.getInt(context.getContentResolver(), name, def);
+    }
+
+    /**
      * Helper method for classes to register a ContentObserver
      * {@see ContentResolver#registerContentObserver(Uri,boolean,ContentObserver)}.
      *
