@@ -48,6 +48,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.hardware.wifi.V1_0.RttResult;
+import android.location.LocationManager;
 import android.net.MacAddress;
 import android.net.wifi.aware.IWifiAwareMacAddressProvider;
 import android.net.wifi.aware.IWifiAwareManager;
@@ -66,6 +67,7 @@ import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.WorkSource;
 import android.os.test.TestLooper;
+import android.provider.Settings;
 import android.util.Pair;
 
 import com.android.server.wifi.Clock;
@@ -96,6 +98,7 @@ public class RttServiceImplTest {
     private TestAlarmManager mAlarmManager;
     private PowerManager mMockPowerManager;
     private BroadcastReceiver mPowerBcastReceiver;
+    private BroadcastReceiver mLocationModeReceiver;
 
     private final String mPackageName = "some.package.name.for.rtt.app";
     private int mDefaultUid = 1500;
@@ -171,6 +174,8 @@ public class RttServiceImplTest {
         mAlarmManager = new TestAlarmManager();
         doNothing().when(mFrameworkFacade).registerContentObserver(eq(mockContext), any(),
                 anyBoolean(), any());
+        when(mFrameworkFacade.getSecureIntegerSetting(any(), eq(Settings.Secure.LOCATION_MODE),
+                anyInt())).thenReturn(Settings.Secure.LOCATION_MODE_HIGH_ACCURACY);
         when(mockContext.getSystemService(Context.ALARM_SERVICE))
                 .thenReturn(mAlarmManager.getAlarmManager());
         mInOrder = inOrder(mAlarmManager.getAlarmManager(), mockContext);
@@ -200,9 +205,11 @@ public class RttServiceImplTest {
         mMockLooper.dispatchAll();
         ArgumentCaptor<BroadcastReceiver> bcastRxCaptor = ArgumentCaptor.forClass(
                 BroadcastReceiver.class);
-        verify(mockContext).registerReceiver(bcastRxCaptor.capture(), any(IntentFilter.class));
+        verify(mockContext, times(2)).registerReceiver(bcastRxCaptor.capture(),
+                any(IntentFilter.class));
         verify(mockNative).start();
-        mPowerBcastReceiver = bcastRxCaptor.getValue();
+        mPowerBcastReceiver = bcastRxCaptor.getAllValues().get(0);
+        mLocationModeReceiver = bcastRxCaptor.getAllValues().get(1);
 
         assertTrue(mDut.isAvailable());
     }
@@ -996,7 +1003,7 @@ public class RttServiceImplTest {
      */
     @Test
     public void testDisableWifiFlow() throws Exception {
-        runDisableRttFlow(true);
+        runDisableRttFlow(FAILURE_MODE_DISABLE_WIFI);
     }
 
     /**
@@ -1004,15 +1011,30 @@ public class RttServiceImplTest {
      */
     @Test
     public void testDozeModeFlow() throws Exception {
-        runDisableRttFlow(false);
+        runDisableRttFlow(FAILURE_MODE_ENABLE_DOZE);
     }
+
+    /**
+     * Validate that when locationing is disabled, RTT gets disabled and the ranging queue gets
+     * cleared.
+     */
+    @Test
+    public void testLocationingOffFlow() throws Exception {
+        runDisableRttFlow(FAILURE_MODE_DISABLE_LOCATIONING);
+    }
+
+
+    private static final int FAILURE_MODE_DISABLE_WIFI = 0;
+    private static final int FAILURE_MODE_ENABLE_DOZE = 1;
+    private static final int FAILURE_MODE_DISABLE_LOCATIONING = 2;
 
     /**
      * Actually execute the disable RTT flow: either by disabling Wi-Fi or enabling doze.
      *
-     * @param disableWifi true to disable Wi-Fi, false to enable doze
+     * @param failureMode The mechanism by which RTT is to be disabled. One of the FAILURE_MODE_*
+     *                    constants above.
      */
-    private void runDisableRttFlow(boolean disableWifi) throws Exception {
+    private void runDisableRttFlow(int failureMode) throws Exception {
         RangingRequest request1 = RttTestUtils.getDummyRangingRequest((byte) 1);
         RangingRequest request2 = RttTestUtils.getDummyRangingRequest((byte) 2);
         RangingRequest request3 = RttTestUtils.getDummyRangingRequest((byte) 3);
@@ -1029,11 +1051,15 @@ public class RttServiceImplTest {
         verifyWakeupSet();
 
         // (2) disable RTT: all requests should "fail"
-        if (disableWifi) {
+        if (failureMode == FAILURE_MODE_DISABLE_WIFI) {
             when(mockNative.isReady()).thenReturn(false);
             mDut.disable();
-        } else {
+        } else if (failureMode == FAILURE_MODE_ENABLE_DOZE) {
             simulatePowerStateChangeDoze(true);
+        } else if (failureMode == FAILURE_MODE_DISABLE_LOCATIONING) {
+            when(mFrameworkFacade.getSecureIntegerSetting(any(), eq(Settings.Secure.LOCATION_MODE),
+                    anyInt())).thenReturn(Settings.Secure.LOCATION_MODE_OFF);
+            simulateLocationModeChange();
         }
         mMockLooper.dispatchAll();
 
@@ -1054,16 +1080,21 @@ public class RttServiceImplTest {
                 RangingResultCallback.STATUS_CODE_FAIL_RTT_NOT_AVAILABLE);
 
         // (4) enable RTT: nothing should happen (no requests in queue!)
-        if (disableWifi) {
+        if (failureMode == FAILURE_MODE_DISABLE_WIFI) {
             when(mockNative.isReady()).thenReturn(true);
-            mDut.enable();
-        } else {
+            mDut.enableIfPossible();
+        } else if (failureMode == FAILURE_MODE_ENABLE_DOZE) {
             simulatePowerStateChangeDoze(false);
+        } else if (failureMode == FAILURE_MODE_DISABLE_LOCATIONING) {
+            when(mFrameworkFacade.getSecureIntegerSetting(any(), eq(Settings.Secure.LOCATION_MODE),
+                    anyInt())).thenReturn(Settings.Secure.LOCATION_MODE_HIGH_ACCURACY);
+            simulateLocationModeChange();
         }
         mMockLooper.dispatchAll();
 
         assertTrue(mDut.isAvailable());
         validateCorrectRttStatusChangeBroadcast(true);
+
         verify(mockNative, atLeastOnce()).isReady();
         verifyNoMoreInteractions(mockNative, mockCallback, mockCallback2, mockCallback3,
                 mAlarmManager.getAlarmManager());
@@ -1082,6 +1113,14 @@ public class RttServiceImplTest {
 
         Intent intent = new Intent(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED);
         mPowerBcastReceiver.onReceive(mockContext, intent);
+    }
+
+    /**
+     * Simulate the broadcast which is dispatched when a LOCATION_MODE is modified.
+     */
+    private void simulateLocationModeChange() {
+        Intent intent = new Intent(LocationManager.MODE_CHANGED_ACTION);
+        mLocationModeReceiver.onReceive(mockContext, intent);
     }
 
     private void verifyWakeupSet() {

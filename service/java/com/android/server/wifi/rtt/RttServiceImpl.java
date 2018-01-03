@@ -25,6 +25,7 @@ import android.content.pm.PackageManager;
 import android.database.ContentObserver;
 import android.hardware.wifi.V1_0.RttResult;
 import android.hardware.wifi.V1_0.RttStatus;
+import android.location.LocationManager;
 import android.net.MacAddress;
 import android.net.wifi.aware.IWifiAwareMacAddressProvider;
 import android.net.wifi.aware.IWifiAwareManager;
@@ -77,6 +78,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
     private WifiPermissionsUtil mWifiPermissionsUtil;
     private ActivityManager mActivityManager;
     private PowerManager mPowerManager;
+    private FrameworkFacade mFrameworkFacade;
 
     private RttServiceSynchronized mRttServiceSynchronized;
 
@@ -115,6 +117,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         mAwareBinder = awareBinder;
         mRttNative = rttNative;
         mWifiPermissionsUtil = wifiPermissionsUtil;
+        mFrameworkFacade = frameworkFacade;
         mRttServiceSynchronized = new RttServiceSynchronized(looper, rttNative);
 
         mActivityManager = (ActivityManager) mContext.getSystemService(Context.ACTIVITY_SERVICE);
@@ -131,7 +134,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                     if (mPowerManager.isDeviceIdleMode()) {
                         disable();
                     } else {
-                        enable();
+                        enableIfPossible();
                     }
                 }
             }
@@ -148,6 +151,23 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                 });
         enableVerboseLogging(frameworkFacade.getIntegerSetting(mContext,
                 Settings.Global.WIFI_VERBOSE_LOGGING_ENABLED, 0));
+
+        intentFilter = new IntentFilter();
+        intentFilter.addAction(LocationManager.MODE_CHANGED_ACTION);
+        mContext.registerReceiver(new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (mDbg) Log.v(TAG, "onReceive: MODE_CHANGED_ACTION: intent=" + intent);
+                int locationMode = mFrameworkFacade.getSecureIntegerSetting(mContext,
+                        Settings.Secure.LOCATION_MODE, Settings.Secure.LOCATION_MODE_OFF);
+                if (locationMode == Settings.Secure.LOCATION_MODE_HIGH_ACCURACY
+                        || locationMode == Settings.Secure.LOCATION_MODE_BATTERY_SAVING) {
+                    enableIfPossible();
+                } else {
+                    disable();
+                }
+            }
+        }, intentFilter);
 
         mRttServiceSynchronized.mHandler.post(() -> {
             rttNative.start();
@@ -179,10 +199,19 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
     }
 
     /**
-     * Enable the API: broadcast notification
+     * Enable the API if possible: broadcast notification & start launching any queued requests
+     *
+     * If possible:
+     * - RTT HAL is available
+     * - Not in Idle mode
+     * - Location Mode allows Wi-Fi based locationing
      */
-    public void enable() {
-        if (VDBG) Log.v(TAG, "enable");
+    public void enableIfPossible() {
+        boolean isAvailable = isAvailable();
+        if (VDBG) Log.v(TAG, "enableIfPossible: isAvailable=" + isAvailable);
+        if (!isAvailable) {
+            return;
+        }
         sendRttStateChangedBroadcast(true);
         mRttServiceSynchronized.mHandler.post(() -> {
             // queue should be empty at this point (but this call allows validation)
@@ -209,7 +238,11 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
      */
     @Override
     public boolean isAvailable() {
-        return mRttNative.isReady() && !mPowerManager.isDeviceIdleMode();
+        int locationMode = mFrameworkFacade.getSecureIntegerSetting(mContext,
+                Settings.Secure.LOCATION_MODE, Settings.Secure.LOCATION_MODE_OFF);
+        return mRttNative.isReady() && !mPowerManager.isDeviceIdleMode() && (
+                locationMode == Settings.Secure.LOCATION_MODE_HIGH_ACCURACY
+                        || locationMode == Settings.Secure.LOCATION_MODE_BATTERY_SAVING);
     }
 
     /**
@@ -250,7 +283,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         // permission checks
         enforceAccessPermission();
         enforceChangePermission();
-        enforceLocationPermission(callingPackage, uid);
+        mWifiPermissionsUtil.enforceLocationPermission(callingPackage, uid);
         if (workSource != null) {
             enforceLocationHardware();
         }
@@ -317,11 +350,6 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
 
     private void enforceChangePermission() {
         mContext.enforceCallingOrSelfPermission(android.Manifest.permission.CHANGE_WIFI_STATE, TAG);
-    }
-
-    private void enforceLocationPermission(String callingPackage, int uid) {
-        mContext.enforceCallingOrSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION,
-                TAG);
     }
 
     private void enforceLocationHardware() {
@@ -759,12 +787,19 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                         + ", peerIdToMacMap=" + peerIdToMacMap);
             }
 
+            RangingRequest.Builder newRequestBuilder = new RangingRequest.Builder();
             for (ResponderConfig rttPeer : request.request.mRttPeers) {
                 if (rttPeer.peerHandle != null && rttPeer.macAddress == null) {
-                    rttPeer.macAddress = MacAddress.fromBytes(
-                            peerIdToMacMap.get(rttPeer.peerHandle.peerId));
+                    newRequestBuilder.addResponder(new ResponderConfig(
+                            MacAddress.fromBytes(peerIdToMacMap.get(rttPeer.peerHandle.peerId)),
+                            rttPeer.peerHandle, rttPeer.responderType, rttPeer.supports80211mc,
+                            rttPeer.channelWidth, rttPeer.frequency, rttPeer.centerFreq0,
+                            rttPeer.centerFreq1, rttPeer.preamble));
+                } else {
+                    newRequestBuilder.addResponder(rttPeer);
                 }
             }
+            request.request = newRequestBuilder.build();
 
             // run request again
             startRanging(request);
@@ -793,6 +828,12 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
 
             boolean permissionGranted = mWifiPermissionsUtil.checkCallersLocationPermission(
                     topOfQueueRequest.callingPackage, topOfQueueRequest.uid);
+            int locationMode = mFrameworkFacade.getSecureIntegerSetting(mContext,
+                    Settings.Secure.LOCATION_MODE, Settings.Secure.LOCATION_MODE_OFF);
+            if (locationMode != Settings.Secure.LOCATION_MODE_HIGH_ACCURACY
+                            && locationMode != Settings.Secure.LOCATION_MODE_BATTERY_SAVING) {
+                permissionGranted = false;
+            }
             try {
                 if (permissionGranted) {
                     List<RangingResult> finalResults = postProcessResults(topOfQueueRequest.request,

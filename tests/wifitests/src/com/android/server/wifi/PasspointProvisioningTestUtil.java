@@ -37,6 +37,7 @@ public class PasspointProvisioningTestUtil {
     public static final String TEST_FRIENDLY_NAME = "Friendly Name";
     public static final String TEST_SERVICE_DESCRIPTION = "Dummy Service";
     public static final Uri TEST_SERVER_URI = Uri.parse("https://test.com");
+    public static final Uri INVALID_SERVER_URI = Uri.parse("abcd");
     public static final String TEST_NAI = "test.access.com";
     public static final List<Integer> TEST_METHOD_LIST =
             Arrays.asList(OsuProvider.METHOD_SOAP_XML_SPP);
@@ -55,5 +56,14 @@ public class PasspointProvisioningTestUtil {
             return new OsuProvider(TEST_SSID, TEST_FRIENDLY_NAME, TEST_SERVICE_DESCRIPTION,
                     TEST_SERVER_URI, TEST_NAI, TEST_METHOD_LIST, TEST_ICON);
         }
+    }
+
+    /**
+     * Construct a {@link android.net.wifi.hotspot2.OsuProvider} with invalid server URL
+     * @return the constructed {@link android.net.wifi.hotspot2.OsuProvider}
+     */
+    public static OsuProvider generateInvalidServerUrlOsuProvider() {
+        return new OsuProvider(TEST_SSID, TEST_FRIENDLY_NAME, TEST_SERVICE_DESCRIPTION,
+                INVALID_SERVER_URI, null, TEST_METHOD_LIST, TEST_ICON);
     }
 }

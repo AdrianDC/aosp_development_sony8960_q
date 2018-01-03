@@ -104,8 +104,10 @@ public class PasspointObjectFactory{
      * @return {@link PasspointProvisioner}
      */
     public PasspointProvisioner makePasspointProvisioner(Context context,
-            OsuNetworkConnection osuNetworkConnection) {
-        return new PasspointProvisioner(context, osuNetworkConnection);
+            OsuNetworkConnection osuNetworkConnection,
+            OsuServerConnection osuServerConnection) {
+        return new PasspointProvisioner(context, osuNetworkConnection,
+                osuServerConnection);
     }
 
     /**
@@ -116,5 +118,14 @@ public class PasspointObjectFactory{
      */
     public OsuNetworkConnection makeOsuNetworkConnection(Context context) {
         return new OsuNetworkConnection(context);
+    }
+
+    /**
+     * Create an instance of {@link OsuServerConnection}.
+     *
+     * @return {@link OsuServerConnection}
+     */
+    public OsuServerConnection makeOsuServerConnection() {
+        return new OsuServerConnection();
     }
 }
