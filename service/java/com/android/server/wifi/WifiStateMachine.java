@@ -5867,7 +5867,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_DISCONNECT:
                     mWifiMetrics.logStaEvent(StaEvent.TYPE_FRAMEWORK_DISCONNECT,
-                                StaEvent.DISCONNECT_UNKNOWN);
+                                StaEvent.DISCONNECT_GENERIC);
                     mWifiNative.disconnect();
                     transitionTo(mDisconnectingState);
                     break;
@@ -6711,7 +6711,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_DISCONNECT:
                     mWifiMetrics.logStaEvent(StaEvent.TYPE_FRAMEWORK_DISCONNECT,
-                            StaEvent.DISCONNECT_UNKNOWN);
+                            StaEvent.DISCONNECT_GENERIC);
                     mWifiNative.disconnect();
                     break;
                 /* Ignore network disconnect */
