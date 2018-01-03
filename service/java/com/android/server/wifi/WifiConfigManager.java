@@ -2776,6 +2776,10 @@ public class WifiConfigManager {
      * @return Whether the write was successful or not, this is applicable only for force writes.
      */
     public boolean saveToStore(boolean forceWrite) {
+        if (mPendingStoreRead) {
+            Log.e(TAG, "Cannot save to store before store is read!");
+            return false;
+        }
         ArrayList<WifiConfiguration> sharedConfigurations = new ArrayList<>();
         ArrayList<WifiConfiguration> userConfigurations = new ArrayList<>();
         // List of network IDs for legacy Passpoint configuration to be removed.

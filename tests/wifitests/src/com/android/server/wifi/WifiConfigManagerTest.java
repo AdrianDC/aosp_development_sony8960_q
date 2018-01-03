@@ -207,10 +207,26 @@ public class WifiConfigManagerTest {
      * yet loaded data from store.
      */
     @Test
-    public void testAddNetworkBeforeLoadFromStore() {
+    public void testAddNetworkIsRejectedBeforeLoadFromStore() {
         WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
         assertFalse(
                 mWifiConfigManager.addOrUpdateNetwork(openNetwork, TEST_CREATOR_UID).isSuccess());
+    }
+
+    /**
+     * Verifies the {@link WifiConfigManager#saveToStore(boolean)} is rejected until the store has
+     * been read first using {@link WifiConfigManager#loadFromStore()}.
+     */
+    @Test
+    public void testSaveToStoreIsRejectedBeforeLoadFromStore() throws Exception {
+        assertFalse(mWifiConfigManager.saveToStore(true));
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore, never()).write(anyBoolean());
+
+        assertTrue(mWifiConfigManager.loadFromStore());
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore).read();
+
+        assertTrue(mWifiConfigManager.saveToStore(true));
+        mContextConfigStoreMockOrder.verify(mWifiConfigStore).write(anyBoolean());
     }
 
     /**
@@ -2377,6 +2393,7 @@ public class WifiConfigManagerTest {
      * and {@link WifiConfigManager#handleUserUnlock(int)} and ensures that the new store is not
      * read until the user is unlocked.
      */
+    @Test
     public void testHandleUserSwitchWhenLocked() throws Exception {
         int user1 = TEST_DEFAULT_USER;
         int user2 = TEST_DEFAULT_USER + 1;
@@ -2414,6 +2431,9 @@ public class WifiConfigManagerTest {
         int user1 = TEST_DEFAULT_USER;
         int user2 = TEST_DEFAULT_USER + 1;
         setupUserProfiles(user2);
+
+        // Set up the internal data first.
+        assertTrue(mWifiConfigManager.loadFromStore());
 
         // Try stopping background user2 first, this should not do anything.
         when(mUserManager.isUserUnlockingOrUnlocked(user2)).thenReturn(false);
