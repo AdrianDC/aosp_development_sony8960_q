@@ -149,7 +149,7 @@ public class WifiInjector {
         mNetworkScoreManager.registerNetworkScoreCache(NetworkKey.TYPE_WIFI,
                 mWifiNetworkScoreCache, NetworkScoreManager.CACHE_FILTER_NONE);
         mWifiPermissionsUtil = new WifiPermissionsUtil(mWifiPermissionsWrapper, mContext,
-                mSettingsStore, UserManager.get(mContext), mNetworkScoreManager, this);
+                mSettingsStore, UserManager.get(mContext), this);
         mWifiBackupRestore = new WifiBackupRestore(mWifiPermissionsUtil);
         mBatteryStats = IBatteryStats.Stub.asInterface(mFrameworkFacade.getService(
                 BatteryStats.SERVICE_NAME));
