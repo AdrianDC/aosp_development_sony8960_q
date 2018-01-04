@@ -199,6 +199,10 @@ public class WifiConfigurationUtil {
                                          newEnterpriseConfig.getAnonymousIdentity())) {
                 return true;
             }
+            if (!TextUtils.equals(existingEnterpriseConfig.getPassword(),
+                                    newEnterpriseConfig.getPassword())) {
+                return true;
+            }
             X509Certificate[] existingCaCerts = existingEnterpriseConfig.getCaCertificates();
             X509Certificate[] newCaCerts = newEnterpriseConfig.getCaCertificates();
             if (!Arrays.equals(existingCaCerts, newCaCerts)) {
