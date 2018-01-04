@@ -19,6 +19,7 @@ package com.android.server.wifi;
 import android.annotation.NonNull;
 import android.content.Context;
 import android.content.Intent;
+import android.net.InterfaceConfiguration;
 import android.net.wifi.IClientInterface;
 import android.net.wifi.WifiManager;
 import android.os.INetworkManagementService;
@@ -48,6 +49,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
 
     private final INetworkManagementService mNwService;
     private final WifiMetrics mWifiMetrics;
+    private final WifiMonitor mWifiMonitor;
     private final Listener mListener;
 
     private IClientInterface mClientInterface;
@@ -56,12 +58,13 @@ public class ScanOnlyModeManager implements ActiveModeManager {
 
     ScanOnlyModeManager(Context context, @NonNull Looper looper, WifiNative wifiNative,
             Listener listener, INetworkManagementService networkManagementService,
-            WifiMetrics wifiMetrics) {
+            WifiMetrics wifiMetrics, WifiMonitor wifiMonitor) {
         mContext = context;
         mWifiNative = wifiNative;
         mListener = listener;
         mNwService = networkManagementService;
         mWifiMetrics = wifiMetrics;
+        mWifiMonitor = wifiMonitor;
         mStateMachine = new ScanOnlyModeStateMachine(looper);
     }
 
@@ -206,11 +209,20 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                             break;
                         }
 
+                        if (!mWifiNative.enableSupplicant()) {
+                            sendScanAvailableBroadcast(false);
+                            updateWifiState(WifiManager.WIFI_STATE_UNKNOWN);
+                            break;
+                        }
+                        mWifiMonitor.startMonitoring(mClientInterfaceName, true);
+
+
                         try {
                             mNetworkObserver =
                                     new NetworkObserver(mClientInterface.getInterfaceName());
                             mNwService.registerObserver(mNetworkObserver);
                         } catch (RemoteException e) {
+                            mWifiNative.disableSupplicant();
                             unregisterObserver();
                             sendScanAvailableBroadcast(false);
                             updateWifiState(WifiManager.WIFI_STATE_UNKNOWN);
@@ -244,6 +256,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                     updateWifiState(WifiManager.WIFI_STATE_ENABLED);
                 } else {
                     // if the interface goes down we should exit and go back to idle state.
+                    Log.d(TAG, "interface down - stop scan mode");
                     mStateMachine.sendMessage(CMD_STOP);
                 }
             }
@@ -251,6 +264,16 @@ public class ScanOnlyModeManager implements ActiveModeManager {
             @Override
             public void enter() {
                 Log.d(TAG, "entering StartedState");
+                mIfaceIsUp = false;
+                InterfaceConfiguration config = null;
+                try {
+                    config = mNwService.getInterfaceConfig(mClientInterfaceName);
+                } catch (RemoteException e) {
+                }
+                if (config != null) {
+                    onUpChanged(config.isUp());
+                }
+
                 if (mIfaceIsUp) {
                     // we already received the interface up notification when we were setting up
                     sendScanAvailableBroadcast(true);

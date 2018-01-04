@@ -299,9 +299,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     * In SCAN_ONLY_MODE, the STA can only scan for access points
     * In SCAN_ONLY_WIFI_OFF_MODE, the STA can only scan for access points with wifi toggle being off
     */
-    private int mOperationalMode = CONNECT_MODE;
+    private int mOperationalMode = DISABLED_MODE;
     private boolean mIsScanOngoing = false;
     private boolean mIsFullScanOngoing = false;
+
+    // variable indicating we are expecting a mode switch - do not attempt recovery for failures
+    private boolean mModeChange = false;
 
     private final Queue<Message> mBufferedScanMsg = new LinkedList<>();
     private static final int UNKNOWN_SCAN_SOURCE = -1;
@@ -806,13 +809,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private State mSupplicantStartingState = new SupplicantStartingState();
     /* Driver loaded and supplicant ready */
     private State mSupplicantStartedState = new SupplicantStartedState();
-    /* Waiting for supplicant to stop and monitor to exit */
-    private State mSupplicantStoppingState = new SupplicantStoppingState();
-    /* Wait until p2p is disabled
-     * This is a special state which is entered right after we exit out of DriverStartedState
-     * before transitioning to another state.
-     */
-    private State mWaitForP2pDisableState = new WaitForP2pDisableState();
     /* Scan for networks, no connection will be established */
     private State mScanModeState = new ScanModeState();
     /* Connecting to an access point */
@@ -1049,7 +1045,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             addState(mInitialState, mDefaultState);
             addState(mSupplicantStartingState, mDefaultState);
             addState(mSupplicantStartedState, mDefaultState);
-                    addState(mScanModeState, mSupplicantStartedState);
                     addState(mConnectModeState, mSupplicantStartedState);
                         addState(mL2ConnectedState, mConnectModeState);
                             addState(mObtainingIpState, mL2ConnectedState);
@@ -1058,12 +1053,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         addState(mDisconnectingState, mConnectModeState);
                         addState(mDisconnectedState, mConnectModeState);
                         addState(mWpsRunningState, mConnectModeState);
-                addState(mWaitForP2pDisableState, mSupplicantStartedState);
-            addState(mSupplicantStoppingState, mDefaultState);
+            addState(mScanModeState, mDefaultState);
             addState(mSoftApState, mDefaultState);
         // CHECKSTYLE:ON IndentationCheck
 
-        setInitialState(mInitialState);
+        setInitialState(mDefaultState);
 
         setLogRecSize(NUM_LOG_RECS_NORMAL);
         setLogOnlyTransitions(false);
@@ -1122,10 +1116,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWifiMonitor.registerHandler(mInterfaceName, CMD_TARGET_BSSID,
                 mWifiMetrics.getHandler());
 
-        final Intent intent = new Intent(WifiManager.WIFI_SCAN_AVAILABLE);
-        intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
-        intent.putExtra(WifiManager.EXTRA_SCAN_AVAILABLE, WIFI_STATE_DISABLED);
-        mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
+        sendWifiScanAvailable(false);
     }
 
     class IpClientCallback extends IpClient.Callback {
@@ -1773,6 +1764,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      */
     public void setOperationalMode(int mode) {
         if (mVerboseLoggingEnabled) log("setting operational mode to " + String.valueOf(mode));
+        mModeChange = true;
         sendMessage(CMD_SET_OPERATIONAL_MODE, mode, 0);
     }
 
@@ -2850,6 +2842,17 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         if (mVerboseLoggingEnabled) log("mSuspendOptNeedsDisabled " + mSuspendOptNeedsDisabled);
     }
 
+    private void sendWifiScanAvailable(boolean available) {
+        int state = WIFI_STATE_DISABLED;
+        if (available) {
+            state = WIFI_STATE_ENABLED;
+        }
+        final Intent intent = new Intent(WifiManager.WIFI_SCAN_AVAILABLE);
+        intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
+        intent.putExtra(WifiManager.EXTRA_SCAN_AVAILABLE, state);
+        mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
+    }
+
     private void setWifiState(int wifiState) {
         final int previousWifiState = mWifiState.get();
 
@@ -3872,7 +3875,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_START_SUPPLICANT:
                 case CMD_STOP_SUPPLICANT:
                 case CMD_DRIVER_START_TIMED_OUT:
-                case CMD_START_AP:
                 case CMD_START_AP_FAILURE:
                 case CMD_STOP_AP:
                 case CMD_AP_STOPPED:
@@ -3890,7 +3892,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case WifiMonitor.AUTHENTICATION_FAILURE_EVENT:
                 case WifiMonitor.ASSOCIATION_REJECTION_EVENT:
                 case WifiMonitor.WPS_OVERLAP_EVENT:
-                case CMD_SET_OPERATIONAL_MODE:
                 case CMD_RSSI_POLL:
                 case DhcpClient.CMD_PRE_DHCP_ACTION:
                 case DhcpClient.CMD_PRE_DHCP_ACTION_COMPLETE:
@@ -3912,6 +3913,28 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_DISABLE_EPHEMERAL_NETWORK:
                 case CMD_SELECT_TX_POWER_SCENARIO:
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
+                    break;
+                case CMD_START_AP:
+                    transitionTo(mSoftApState);
+                    break;
+                case CMD_SET_OPERATIONAL_MODE:
+                    mOperationalMode = message.arg1;
+                    // now processing the mode change - we will start setting up new state and want
+                    // to know about failures
+                    mModeChange = false;
+                    if (mOperationalMode == DISABLED_MODE) {
+                        Log.d(TAG, "set operational mode - disabled.  stay in default");
+                        transitionTo(mDefaultState);
+                        break;
+                    } else if (mOperationalMode == CONNECT_MODE) {
+                        transitionTo(mInitialState);
+                    } else if (mOperationalMode == SCAN_ONLY_MODE
+                            || mOperationalMode == SCAN_ONLY_WITH_WIFI_OFF_MODE) {
+                        transitionTo(mScanModeState);
+                    } else {
+                        Log.e(TAG, "set operational mode with invalid mode: " + mOperationalMode);
+                        mOperationalMode = DISABLED_MODE;
+                    }
                     break;
                 case CMD_SET_SUSPEND_OPT_ENABLED:
                     if (message.arg1 == 1) {
@@ -4100,11 +4123,16 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     class InitialState extends State {
 
         private void cleanup() {
+            // tell scanning service that scans are not available - about to kill the interface and
+            // supplicant
+            sendWifiScanAvailable(false);
+
             // Tearing down the client interfaces below is going to stop our supplicant.
             mWifiMonitor.stopAllMonitoring();
 
             // stop hostapd in case it was running from SoftApMode
             mWifiNative.stopSoftAp();
+            mWifiNative.disableSupplicant();
 
             mWifiNative.deregisterWificondDeathHandler();
             mWifiNative.tearDown();
@@ -4114,6 +4142,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         public void enter() {
             mWifiStateTracker.updateState(WifiStateTracker.INVALID);
             cleanup();
+            sendMessage(CMD_START_SUPPLICANT);
+            setWifiState(WIFI_STATE_ENABLING);
         }
 
         @Override
@@ -4168,15 +4198,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     setSupplicantLogLevel();
                     transitionTo(mSupplicantStartingState);
                     break;
-                case CMD_START_AP:
-                    transitionTo(mSoftApState);
-                    break;
                 case CMD_SET_OPERATIONAL_MODE:
-                    mOperationalMode = message.arg1;
-                    if (mOperationalMode != DISABLED_MODE) {
-                        sendMessage(CMD_START_SUPPLICANT);
+                    if (message.arg1 == CONNECT_MODE) {
+                        break;
+                    } else {
+                        return NOT_HANDLED;
                     }
-                    break;
                 default:
                     return NOT_HANDLED;
             }
@@ -4242,31 +4269,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     transitionTo(mSupplicantStartedState);
                     break;
                 case WifiMonitor.SUP_DISCONNECTION_EVENT:
-                    if (++mSupplicantRestartCount <= SUPPLICANT_RESTART_TRIES) {
-                        loge("Failed to setup control channel, restart supplicant");
-                        mWifiMonitor.stopAllMonitoring();
-                        mWifiNative.disableSupplicant();
-                        transitionTo(mInitialState);
-                        sendMessageDelayed(CMD_START_SUPPLICANT, SUPPLICANT_RESTART_INTERVAL_MSECS);
-                    } else {
-                        loge("Failed " + mSupplicantRestartCount +
-                                " times to start supplicant, unload driver");
-                        mSupplicantRestartCount = 0;
-                        setWifiState(WIFI_STATE_UNKNOWN);
-                        transitionTo(mInitialState);
-                    }
-                    break;
-                case CMD_START_AP:
-                    // now go directly to softap mode since we handle teardown in WSMP
-                    transitionTo(mSoftApState);
+                    // since control is split between WSM and WSMP - do not worry about supplicant
+                    // dying if we haven't seen it up yet
                     break;
                 case CMD_START_SUPPLICANT:
                 case CMD_STOP_SUPPLICANT:
                 case CMD_STOP_AP:
-                case CMD_SET_OPERATIONAL_MODE:
-                    messageHandlingStatus = MESSAGE_HANDLING_STATUS_DEFERRED;
-                    deferMessage(message);
-                    break;
                 default:
                     return NOT_HANDLED;
             }
@@ -4290,7 +4298,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             // wifi scanning service is initialized
             if (mWifiScanner == null) {
                 mWifiScanner = mWifiInjector.getWifiScanner();
+            }
 
+            if (mWifiConnectivityManager == null) {
                 synchronized (mWifiReqCountLock) {
                     mWifiConnectivityManager =
                             mWifiInjector.makeWifiConnectivityManager(mWifiInfo,
@@ -4331,18 +4341,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             mWifiNative.stopFilteringMulticastV4Packets();
             mWifiNative.stopFilteringMulticastV6Packets();
 
-            if (mOperationalMode == SCAN_ONLY_MODE ||
-                    mOperationalMode == SCAN_ONLY_WITH_WIFI_OFF_MODE) {
-                mWifiNative.disconnect();
-                setWifiState(WIFI_STATE_DISABLED);
-                transitionTo(mScanModeState);
-            } else if (mOperationalMode == CONNECT_MODE) {
-                setWifiState(WIFI_STATE_ENABLING);
-                // Transitioning to Disconnected state will trigger a scan and subsequently AutoJoin
-                transitionTo(mDisconnectedState);
-            } else if (mOperationalMode == DISABLED_MODE) {
-                transitionTo(mSupplicantStoppingState);
-            }
+            // Transitioning to Disconnected state will trigger a scan and subsequently AutoJoin
+            transitionTo(mDisconnectedState);
 
             // Set the right suspend mode settings
             mWifiNative.setSuspendOptimizations(mSuspendOptNeedsDisabled == 0
@@ -4351,19 +4351,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             mWifiNative.setPowerSave(true);
 
             if (mP2pSupported) {
-                if (mOperationalMode == CONNECT_MODE) {
-                    p2pSendMessage(WifiStateMachine.CMD_ENABLE_P2P);
-                } else {
-                    // P2P state machine starts in disabled state, and is not enabled until
-                    // CMD_ENABLE_P2P is sent from here; so, nothing needs to be done to
-                    // keep it disabled.
-                }
+                p2pSendMessage(WifiStateMachine.CMD_ENABLE_P2P);
             }
-
-            final Intent intent = new Intent(WifiManager.WIFI_SCAN_AVAILABLE);
-            intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
-            intent.putExtra(WifiManager.EXTRA_SCAN_AVAILABLE, WIFI_STATE_ENABLED);
-            mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
 
             // Disable wpa_supplicant from auto reconnecting.
             mWifiNative.enableStaAutoReconnect(false);
@@ -4376,24 +4365,18 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             logStateAndMessage(message, this);
 
             switch(message.what) {
-                case CMD_STOP_SUPPLICANT:   /* Supplicant stopped by user */
-                    if (mP2pSupported) {
-                        transitionTo(mWaitForP2pDisableState);
-                    } else {
-                        transitionTo(mSupplicantStoppingState);
-                    }
-                    break;
                 case WifiMonitor.SUP_DISCONNECTION_EVENT:  /* Supplicant connection lost */
+                    // first check if we are expecting a mode switch
+                    if (mModeChange) {
+                        logd("expecting a mode change, do not restart supplicant");
+                        return HANDLED;
+                    }
                     loge("Connection lost, restart supplicant");
                     handleSupplicantConnectionLoss(true);
                     handleNetworkDisconnect();
                     mSupplicantStateTracker.sendMessage(CMD_RESET_SUPPLICANT_STATE);
-                    if (mP2pSupported) {
-                        transitionTo(mWaitForP2pDisableState);
-                    } else {
-                        transitionTo(mInitialState);
-                    }
-                    sendMessageDelayed(CMD_START_SUPPLICANT, SUPPLICANT_RESTART_INTERVAL_MSECS);
+                    sendMessage(CMD_START_SUPPLICANT);
+                    transitionTo(mInitialState);
                     break;
                 case CMD_START_SCAN:
                     // TODO: remove scan request path (b/31445200)
@@ -4409,20 +4392,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mIsFullScanOngoing = false;
                     if (mBufferedScanMsg.size() > 0)
                         sendMessage(mBufferedScanMsg.remove());
-                    break;
-                case CMD_START_AP:
-                //    /* Cannot start soft AP while in client mode */
-                //    loge("Failed to start soft AP with a running supplicant");
-                //    setWifiApState(WIFI_AP_STATE_FAILED, WifiManager.SAP_START_FAILURE_GENERAL,
-                //            null, WifiManager.IFACE_IP_MODE_UNSPECIFIED);
-                    // now go directly to softap mode since we handle teardown in WSMP
-                    transitionTo(mSoftApState);
-                    break;
-                case CMD_SET_OPERATIONAL_MODE:
-                    mOperationalMode = message.arg1;
-                    if (mOperationalMode == DISABLED_MODE) {
-                        transitionTo(mSupplicantStoppingState);
-                    }
                     break;
                 case CMD_TARGET_BSSID:
                     // Trying to associate to this BSSID
@@ -4510,101 +4479,31 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         @Override
         public void exit() {
+            setWifiState(WIFI_STATE_DISABLING);
+            // when client mode is moved to WSMP, cleanup will be done on exit.  For now, cleanup is
+            // done when entering a mode.
+
+            // exiting supplicant started state is now only applicable to client mode
             mWifiDiagnostics.stopLogging();
+
+            if (mP2pSupported) {
+                 // we are not going to wait for a response - will still temporarily send the
+                 // disable command until p2p can detect the interface up/down on its own.
+                p2pSendMessage(WifiStateMachine.CMD_DISABLE_P2P_REQ);
+            }
+
+            handleNetworkDisconnect();
 
             mIsRunning = false;
             updateBatteryWorkSource(null);
             mScanResults = new ArrayList<>();
 
-            final Intent intent = new Intent(WifiManager.WIFI_SCAN_AVAILABLE);
-            intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
-            intent.putExtra(WifiManager.EXTRA_SCAN_AVAILABLE, WIFI_STATE_DISABLED);
-            mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
             mBufferedScanMsg.clear();
 
             mNetworkInfo.setIsAvailable(false);
             if (mNetworkAgent != null) mNetworkAgent.sendNetworkInfo(mNetworkInfo);
             mCountryCode.setReadyForChange(false);
-        }
-    }
-
-    class SupplicantStoppingState extends State {
-        @Override
-        public void enter() {
-            /* Send any reset commands to supplicant before shutting it down */
-            handleNetworkDisconnect();
-
-            String suppState = System.getProperty("init.svc.wpa_supplicant");
-            if (suppState == null) suppState = "unknown";
-
-            setWifiState(WIFI_STATE_DISABLING);
-            mSupplicantStateTracker.sendMessage(CMD_RESET_SUPPLICANT_STATE);
-            logd("SupplicantStoppingState: disableSupplicant "
-                    + " init.svc.wpa_supplicant=" + suppState);
-            if (mWifiNative.disableSupplicant()) {
-                mWifiNative.closeSupplicantConnection();
-                sendSupplicantConnectionChangedBroadcast(false);
-                setWifiState(WIFI_STATE_DISABLED);
-            } else {
-                // Failed to disable supplicant
-                handleSupplicantConnectionLoss(true);
-            }
-            transitionTo(mInitialState);
-        }
-    }
-
-    class WaitForP2pDisableState extends State {
-        private State mTransitionToState;
-        @Override
-        public void enter() {
-            switch (getCurrentMessage().what) {
-                case WifiMonitor.SUP_DISCONNECTION_EVENT:
-                    mTransitionToState = mInitialState;
-                    break;
-                case CMD_STOP_SUPPLICANT:
-                default:
-                    mTransitionToState = mSupplicantStoppingState;
-                    break;
-            }
-            if (p2pSendMessage(WifiStateMachine.CMD_DISABLE_P2P_REQ)) {
-                sendMessageDelayed(obtainMessage(CMD_DISABLE_P2P_WATCHDOG_TIMER,
-                        mDisableP2pWatchdogCount, 0), DISABLE_P2P_GUARD_TIMER_MSEC);
-            } else {
-                transitionTo(mTransitionToState);
-            }
-        }
-        @Override
-        public boolean processMessage(Message message) {
-            logStateAndMessage(message, this);
-
-            switch(message.what) {
-                case WifiStateMachine.CMD_DISABLE_P2P_RSP:
-                    transitionTo(mTransitionToState);
-                    break;
-                case WifiStateMachine.CMD_DISABLE_P2P_WATCHDOG_TIMER:
-                    if (mDisableP2pWatchdogCount == message.arg1) {
-                        logd("Timeout waiting for CMD_DISABLE_P2P_RSP");
-                        transitionTo(mTransitionToState);
-                    }
-                    break;
-                /* Defer wifi start/shut and driver commands */
-                case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
-                case CMD_START_SUPPLICANT:
-                case CMD_STOP_SUPPLICANT:
-                case CMD_START_AP:
-                case CMD_STOP_AP:
-                case CMD_SET_OPERATIONAL_MODE:
-                case CMD_START_SCAN:
-                case CMD_DISCONNECT:
-                case CMD_REASSOCIATE:
-                case CMD_RECONNECT:
-                    messageHandlingStatus = MESSAGE_HANDLING_STATUS_DEFERRED;
-                    deferMessage(message);
-                    break;
-                default:
-                    return NOT_HANDLED;
-            }
-            return HANDLED;
+            setWifiState(WIFI_STATE_DISABLED);
         }
     }
 
@@ -4612,9 +4511,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         private int mLastOperationMode;
         @Override
         public void enter() {
-            mLastOperationMode = mOperationalMode;
+            logd("entering ScanModeState");
             mWifiStateTracker.updateState(WifiStateTracker.SCAN_MODE);
             mWifiInjector.getWakeupController().start();
+            // We can't do this in the constructor because WifiStateMachine is created before the
+            // wifi scanning service is initialized
+            if (mWifiScanner == null) {
+                mWifiScanner = mWifiInjector.getWifiScanner();
+            }
         }
 
         @Override
@@ -4628,6 +4532,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
             switch(message.what) {
                 case CMD_SET_OPERATIONAL_MODE:
+                    int operationMode = message.arg1;
+                    if (operationMode == SCAN_ONLY_MODE
+                            || operationMode == SCAN_ONLY_WITH_WIFI_OFF_MODE) {
+                        // nothing to do, stay here...
+                        return HANDLED;
+                    }
+                    return NOT_HANDLED;
+
+                    /*
                     if (message.arg1 == CONNECT_MODE) {
                         mOperationalMode = CONNECT_MODE;
                         setWifiState(WIFI_STATE_ENABLING);
@@ -4637,9 +4550,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                     // Nothing to do
                     break;
+                    */
                 // Handle scan. All the connection related commands are
                 // handled only in ConnectModeState
                 case CMD_START_SCAN:
+                    // TODO b/31445200: as mentioned elsewhere, this needs to be moved out of WSM
                     handleScanRequest(message);
                     break;
                 default:
@@ -4846,6 +4761,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             }
             mWifiInfo.reset();
             mWifiInfo.setSupplicantState(SupplicantState.DISCONNECTED);
+            sendWifiScanAvailable(true);
             // Let the system know that wifi is available in client mode.
             setWifiState(WIFI_STATE_ENABLED);
 
@@ -4965,15 +4881,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     SupplicantState state = handleSupplicantStateChange(message);
                     // A driver/firmware hang can now put the interface in a down state.
                     // We detect the interface going down and recover from it
-                    if (!SupplicantState.isDriverActive(state)) {
+                    if (!SupplicantState.isDriverActive(state) && !mModeChange) {
                         if (mNetworkInfo.getState() != NetworkInfo.State.DISCONNECTED) {
                             handleNetworkDisconnect();
                         }
                         log("Detected an interface down, restart driver");
                         // Rely on the fact that this will force us into killing supplicant and then
                         // restart supplicant from a clean state.
-                        transitionTo(mSupplicantStoppingState);
                         sendMessage(CMD_START_SUPPLICANT);
+                        transitionTo(mInitialState);
                         break;
                     }
 
@@ -5843,12 +5759,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         transitionTo(mDisconnectingState);
                     }
                     break;
-                case CMD_SET_OPERATIONAL_MODE:
-                    if (message.arg1 != CONNECT_MODE) {
-                        sendMessage(CMD_DISCONNECT);
-                        deferMessage(message);
-                    }
-                    break;
                     /* Ignore connection to same network */
                 case WifiManager.CONNECT_NETWORK:
                     int netId = message.arg1;
@@ -6177,11 +6087,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         log("Roaming and CS doesnt want the network -> ignore");
                     }
                     return HANDLED;
-                case CMD_SET_OPERATIONAL_MODE:
-                    if (message.arg1 != CONNECT_MODE) {
-                        deferMessage(message);
-                    }
-                    break;
                 case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
                     /**
                      * If we get a SUPPLICANT_STATE_CHANGE_EVENT indicating a DISCONNECT
@@ -6562,11 +6467,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         public boolean processMessage(Message message) {
             logStateAndMessage(message, this);
             switch (message.what) {
-                case CMD_SET_OPERATIONAL_MODE:
-                    if (message.arg1 != CONNECT_MODE) {
-                        deferMessage(message);
-                    }
-                    break;
                 case CMD_START_SCAN:
                     deferMessage(message);
                     return HANDLED;
@@ -6658,19 +6558,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     sendMessageDelayed(obtainMessage(CMD_NO_NETWORKS_PERIODIC_SCAN,
                                 ++mPeriodicScanToken, 0), mNoNetworksPeriodicScan);
                     ret = NOT_HANDLED;
-                    break;
-                case CMD_SET_OPERATIONAL_MODE:
-                    if (message.arg1 != CONNECT_MODE) {
-                        mOperationalMode = message.arg1;
-                        if (mOperationalMode == DISABLED_MODE) {
-                            transitionTo(mSupplicantStoppingState);
-                        } else if (mOperationalMode == SCAN_ONLY_MODE
-                                || mOperationalMode == SCAN_ONLY_WITH_WIFI_OFF_MODE) {
-                            p2pSendMessage(CMD_DISABLE_P2P_REQ);
-                            setWifiState(WIFI_STATE_DISABLED);
-                            transitionTo(mScanModeState);
-                        }
-                    }
                     break;
                 case CMD_DISCONNECT:
                     mWifiMetrics.logStaEvent(StaEvent.TYPE_FRAMEWORK_DISCONNECT,
@@ -6833,19 +6720,14 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                  * Defer all commands that can cause connections to a different network
                  * or put the state machine out of connect mode
                  */
-                case CMD_SET_OPERATIONAL_MODE:
                 case WifiManager.CONNECT_NETWORK:
                 case CMD_ENABLE_NETWORK:
-                case CMD_RECONNECT:
-                    log(" Ignore CMD_RECONNECT request because wps is running");
-                    return HANDLED;
                 case CMD_REASSOCIATE:
                     deferMessage(message);
                     break;
+                case CMD_RECONNECT:
                 case CMD_START_CONNECT:
                 case CMD_START_ROAM:
-                    messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
-                    return HANDLED;
                 case CMD_START_SCAN:
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
                     return HANDLED;
@@ -6996,13 +6878,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case CMD_STOP_AP:
                     //mSoftApManager.stop();
-                    transitionTo(mInitialState);
+                    transitionTo(mDefaultState);
                     break;
                 case CMD_START_AP_FAILURE:
-                    transitionTo(mInitialState);
+                    transitionTo(mDefaultState);
                     break;
                 case CMD_AP_STOPPED:
-                    transitionTo(mInitialState);
+                    transitionTo(mDefaultState);
                     break;
                 default:
                     return NOT_HANDLED;
