@@ -157,13 +157,14 @@ public class WifiLockManager {
 
         long ident = Binder.clearCallingIdentity();
         try {
-            // TODO: Introduce a noteFullWifiLockChangedFromSource() so that this logic can be
-            // handled properly in BatteryStats rather than here. This would ensure there are no
-            // "holes" in the reported data due to a "release" event occurring before an
-            // "acquire" event.
+            // Log the acquire before the release to avoid "holes" in the collected data due to
+            // an acquire event immediately after a release in the case where newWorkSource and
+            // wl.mWorkSource share one or more attribution UIDs. BatteryStats can correctly match
+            // "nested" acquire / release pairs.
+            mBatteryStats.noteFullWifiLockAcquiredFromSource(newWorkSource);
             mBatteryStats.noteFullWifiLockReleasedFromSource(wl.mWorkSource);
+
             wl.mWorkSource = newWorkSource;
-            mBatteryStats.noteFullWifiLockAcquiredFromSource(wl.mWorkSource);
         } catch (RemoteException e) {
         } finally {
             Binder.restoreCallingIdentity(ident);
