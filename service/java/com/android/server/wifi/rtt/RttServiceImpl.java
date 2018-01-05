@@ -33,6 +33,8 @@ import android.net.wifi.aware.IWifiAwareMacAddressProvider;
 import android.net.wifi.aware.IWifiAwareManager;
 import android.net.wifi.rtt.IRttCallback;
 import android.net.wifi.rtt.IWifiRttManager;
+import android.net.wifi.rtt.LocationCivic;
+import android.net.wifi.rtt.LocationConfigurationInformation;
 import android.net.wifi.rtt.RangingRequest;
 import android.net.wifi.rtt.RangingResult;
 import android.net.wifi.rtt.RangingResultCallback;
@@ -54,6 +56,7 @@ import android.util.SparseIntArray;
 import com.android.internal.util.WakeupMessage;
 import com.android.server.wifi.Clock;
 import com.android.server.wifi.FrameworkFacade;
+import com.android.server.wifi.util.NativeUtil;
 import com.android.server.wifi.util.WifiPermissionsUtil;
 
 import java.io.FileDescriptor;
@@ -945,27 +948,37 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                     if (peer.peerHandle == null) {
                         finalResults.add(
                                 new RangingResult(RangingResult.STATUS_FAIL, peer.macAddress, 0, 0,
-                                        0, 0));
+                                        0, null, null, 0));
                     } else {
                         finalResults.add(
                                 new RangingResult(RangingResult.STATUS_FAIL, peer.peerHandle, 0, 0,
-                                        0, 0));
+                                        0, null, null, 0));
                     }
                 } else {
                     int status = resultForRequest.status == RttStatus.SUCCESS
                             ? RangingResult.STATUS_SUCCESS : RangingResult.STATUS_FAIL;
                     if (peer.peerHandle == null) {
-                        finalResults.add(
-                                new RangingResult(status, peer.macAddress,
-                                        resultForRequest.distanceInMm,
-                                        resultForRequest.distanceSdInMm,
-                                        resultForRequest.rssi, resultForRequest.timeStampInUs));
+                        finalResults.add(new RangingResult(status, peer.macAddress,
+                                resultForRequest.distanceInMm, resultForRequest.distanceSdInMm,
+                                resultForRequest.rssi,
+                                LocationConfigurationInformation.parseInformationElement(
+                                        resultForRequest.lci.id, NativeUtil.byteArrayFromArrayList(
+                                                resultForRequest.lcr.data)),
+                                LocationCivic.parseInformationElement(resultForRequest.lci.id,
+                                        NativeUtil.byteArrayFromArrayList(
+                                                resultForRequest.lci.data)),
+                                resultForRequest.timeStampInUs));
                     } else {
-                        finalResults.add(
-                                new RangingResult(status, peer.peerHandle,
-                                        resultForRequest.distanceInMm,
-                                        resultForRequest.distanceSdInMm,
-                                        resultForRequest.rssi, resultForRequest.timeStampInUs));
+                        finalResults.add(new RangingResult(status, peer.peerHandle,
+                                resultForRequest.distanceInMm, resultForRequest.distanceSdInMm,
+                                resultForRequest.rssi,
+                                LocationConfigurationInformation.parseInformationElement(
+                                        resultForRequest.lci.id, NativeUtil.byteArrayFromArrayList(
+                                                resultForRequest.lci.data)),
+                                LocationCivic.parseInformationElement(resultForRequest.lci.id,
+                                        NativeUtil.byteArrayFromArrayList(
+                                                resultForRequest.lci.data)),
+                                resultForRequest.timeStampInUs));
                     }
                 }
             }
