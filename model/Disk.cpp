@@ -80,6 +80,7 @@ static const unsigned int kMajorBlockDynamicMin = 234;
 static const unsigned int kMajorBlockDynamicMax = 512;
 
 static const char* kGptBasicData = "EBD0A0A2-B9E5-4433-87C0-68B6B72699C7";
+static const char* kGptLinuxFilesystem = "0FC63DAF-8483-4772-8E79-3D69D8477DE4";
 static const char* kGptAndroidMeta = "19A710A2-B3CA-11E4-B026-10604B889DCF";
 static const char* kGptAndroidExpand = "193D1EA4-B3CA-11E4-B075-10604B889DCF";
 
@@ -403,7 +404,8 @@ status_t Disk::readPartitions() {
                 if (++it == split.end()) continue;
                 auto partGuid = *it;
 
-                if (android::base::EqualsIgnoreCase(typeGuid, kGptBasicData)) {
+                if (android::base::EqualsIgnoreCase(typeGuid, kGptBasicData)
+                        || android::base::EqualsIgnoreCase(typeGuid, kGptLinuxFilesystem)) {
                     createPublicVolume(partDevice);
                 } else if (android::base::EqualsIgnoreCase(typeGuid, kGptAndroidExpand)) {
                     createPrivateVolume(partDevice, partGuid);
