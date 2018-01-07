@@ -305,8 +305,8 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
             binder.linkToDeath(dr, 0);
         } catch (RemoteException e) {
             Log.e(TAG, "Error on linkToDeath - " + e);
+            return;
         }
-
 
         mRttServiceSynchronized.mHandler.post(() -> {
             WorkSource sourceToUse = workSource;

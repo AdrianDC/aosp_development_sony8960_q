@@ -1099,7 +1099,10 @@ public class WifiScanningServiceTest {
         WifiScanner.ScanSettings requestSettings3 = createRequest(channelsToSpec(5150), 0,
                 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
         int requestId3 = 15;
-        WorkSource workSource3 = new WorkSource(2292);
+        // Let one of the WorkSources be a chained workSource.
+        WorkSource workSource3 = new WorkSource();
+        workSource3.createWorkChain()
+                .addNode(2292, "tag1");
         ScanResults results3 = ScanResults.create(0, false, 5150, 5150, 5150, 5150);
 
         WifiNative.ScanSettings nativeSettings2and3 = createSingleScanNativeSettingsForChannels(

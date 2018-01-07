@@ -652,6 +652,9 @@ public class WifiNativeInterfaceManagementTest {
         inOrder.verify(mWificondControl).setupInterfaceForClientMode(ifaceName);
         inOrder.verify(mSupplicantStaIfaceHal).setupIface(ifaceName);
         inOrder.verify(mNwManagementService).registerObserver(networkObserverCaptor.capture());
+        inOrder.verify(mNwManagementService).clearInterfaceAddresses(ifaceName);
+        inOrder.verify(mNwManagementService).setInterfaceIpv6PrivacyExtensions(ifaceName, true);
+        inOrder.verify(mNwManagementService).disableIpv6(ifaceName);
     }
 
     private void executeAndValidateTeardownClientInterface(
