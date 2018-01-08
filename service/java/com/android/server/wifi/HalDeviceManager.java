@@ -35,6 +35,7 @@ import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.hidl.manager.V1_0.IServiceNotification;
 import android.os.Handler;
+import android.os.HidlSupport.Mutable;
 import android.os.HwRemoteBinder;
 import android.os.RemoteException;
 import android.util.Log;
@@ -2052,18 +2053,6 @@ public class HalDeviceManager {
         }
 
         return typeResp.value;
-    }
-
-    private static class Mutable<E> {
-        public E value;
-
-        Mutable() {
-            value = null;
-        }
-
-        Mutable(E value) {
-            this.value = value;
-        }
     }
 
     /**
