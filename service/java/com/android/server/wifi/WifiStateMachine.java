@@ -2201,7 +2201,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     if (mReportedRunning) {
                         // If the work source has changed since last time, need
                         // to remove old work from battery stats.
-                        if (mLastRunningWifiUids.diff(mRunningWifiUids)) {
+                        if (!mLastRunningWifiUids.equals(mRunningWifiUids)) {
                             mBatteryStats.noteWifiRunningChanged(mLastRunningWifiUids,
                                     mRunningWifiUids);
                             mLastRunningWifiUids.set(mRunningWifiUids);
