@@ -44,6 +44,7 @@ import com.android.server.am.BatteryStatsService;
 import com.android.server.net.DelayedDiskWrite;
 import com.android.server.net.IpConfigStore;
 import com.android.server.wifi.aware.WifiAwareMetrics;
+import com.android.server.wifi.hotspot2.LegacyPasspointConfigParser;
 import com.android.server.wifi.hotspot2.PasspointManager;
 import com.android.server.wifi.hotspot2.PasspointNetworkEvaluator;
 import com.android.server.wifi.hotspot2.PasspointObjectFactory;
@@ -99,7 +100,9 @@ public class WifiInjector {
     private final WifiMulticastLockManager mWifiMulticastLockManager;
     private final WifiConfigStore mWifiConfigStore;
     private final WifiKeyStore mWifiKeyStore;
+    private final WifiNetworkHistory mWifiNetworkHistory;
     private final IpConfigStore mIpConfigStore;
+    private final WifiConfigStoreLegacy mWifiConfigStoreLegacy;
     private final WifiConfigManager mWifiConfigManager;
     private final WifiConnectivityHelper mWifiConnectivityHelper;
     private final LocalLog mConnectivityLocalLog;
@@ -196,11 +199,15 @@ public class WifiInjector {
                 WifiConfigStore.createSharedFile());
         // Legacy config store
         DelayedDiskWrite writer = new DelayedDiskWrite();
+        mWifiNetworkHistory = new WifiNetworkHistory(mContext, writer);
         mIpConfigStore = new IpConfigStore(writer);
+        mWifiConfigStoreLegacy = new WifiConfigStoreLegacy(
+                mWifiNetworkHistory, mWifiNative, mIpConfigStore,
+                new LegacyPasspointConfigParser());
         // Config Manager
         mWifiConfigManager = new WifiConfigManager(mContext, mClock,
                 UserManager.get(mContext), TelephonyManager.from(mContext),
-                mWifiKeyStore, mWifiConfigStore, mWifiPermissionsUtil,
+                mWifiKeyStore, mWifiConfigStore, mWifiConfigStoreLegacy, mWifiPermissionsUtil,
                 mWifiPermissionsWrapper, new NetworkListStoreData(mContext),
                 new DeletedEphemeralSsidsStoreData());
         mWifiMetrics.setWifiConfigManager(mWifiConfigManager);
