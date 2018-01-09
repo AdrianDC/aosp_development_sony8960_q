@@ -737,6 +737,32 @@ public class WifiServiceImplTest {
     }
 
     /**
+     * Ensure that the right WorkSource is always passed through to the WifiStateMachine.
+     */
+    @Test
+    public void testWifiScanStartedWorkSource() {
+        // Make sure SCAN_PACKAGE_NAME can initiate a scan.
+        when(mActivityManager.getPackageImportance(SCAN_PACKAGE_NAME)).thenReturn(
+                ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE);
+
+        // Passing in no WorkSource should use the caller's UID.
+        WorkSource thisCaller = new WorkSource(Process.myUid());
+        mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
+        verify(mWifiStateMachine).startScan(anyInt(), anyInt(), eq(null), eq(thisCaller));
+
+        // Names should be cleared from the WorkSource.
+        WorkSource withNames = new WorkSource();
+        withNames.add(100, "foo");
+        withNames.add(100, "bar");
+        withNames.createWorkChain().addNode(200, "chain");
+
+        WorkSource expected = new WorkSource(100);
+        expected.createWorkChain().addNode(200, "chain");
+        mWifiServiceImpl.startScan(null, withNames, SCAN_PACKAGE_NAME);
+        verify(mWifiStateMachine).startScan(anyInt(), anyInt(), eq(null), eq(expected));
+    }
+
+    /**
      * Ensure foreground apps can always do wifi scans.
      */
     @Test
