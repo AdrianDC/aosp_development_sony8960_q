@@ -20,7 +20,7 @@
 
     <option name="test-suite-tag" value="apct" />
     <option name="test-tag" value="FrameworksWifiTests" />
-    <test class="com.android.tradefed.testtype.InstrumentationTest" >
+    <test class="com.android.tradefed.testtype.AndroidJUnitTest" >
         <option name="package" value="com.android.server.wifi.test" />
         <option name="runner" value="com.android.server.wifi.CustomTestRunner" />
     </test>
