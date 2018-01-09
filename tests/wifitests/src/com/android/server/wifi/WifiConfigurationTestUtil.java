@@ -283,7 +283,6 @@ public class WifiConfigurationTestUtil {
         return configuration;
     }
 
-
     public static WifiConfiguration createWepNetworkWithSingleKey() {
         WifiConfiguration configuration =
                 generateWifiConfig(TEST_NETWORK_ID, TEST_UID, createNewSSID(), true, true, null,
