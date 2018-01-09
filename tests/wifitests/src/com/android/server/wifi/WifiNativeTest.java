@@ -150,6 +150,7 @@ public class WifiNativeTest {
     @Mock private WificondControl mWificondControl;
     @Mock private SupplicantStaIfaceHal mStaIfaceHal;
     @Mock private INetworkManagementService mNwService;
+    @Mock private PropertyService mPropertyService;
     private WifiNative mWifiNative;
 
     @Before
@@ -159,7 +160,8 @@ public class WifiNativeTest {
         when(mWifiVendorHal.startVendorHalSta()).thenReturn(true);
         when(mWifiVendorHal.startVendorHalAp()).thenReturn(true);
         mWifiNative = new WifiNative(
-                WIFI_IFACE_NAME, mWifiVendorHal, mStaIfaceHal, mWificondControl, mNwService);
+                WIFI_IFACE_NAME, mWifiVendorHal, mStaIfaceHal, mWificondControl, mNwService,
+                mPropertyService);
     }
 
     /**
