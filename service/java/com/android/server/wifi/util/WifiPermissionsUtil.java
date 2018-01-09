@@ -21,7 +21,6 @@ import android.app.AppOpsManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.pm.UserInfo;
-import android.net.NetworkScoreManager;
 import android.os.RemoteException;
 import android.os.UserManager;
 import android.provider.Settings;
@@ -43,19 +42,17 @@ public class WifiPermissionsUtil {
     private final AppOpsManager mAppOps;
     private final UserManager mUserManager;
     private final WifiSettingsStore mSettingsStore;
-    private final NetworkScoreManager mNetworkScoreManager;
     private WifiLog mLog;
 
     public WifiPermissionsUtil(WifiPermissionsWrapper wifiPermissionsWrapper,
             Context context, WifiSettingsStore settingsStore, UserManager userManager,
-            NetworkScoreManager networkScoreManager, WifiInjector wifiInjector) {
+            WifiInjector wifiInjector) {
         mWifiPermissionsWrapper = wifiPermissionsWrapper;
         mContext = context;
         mUserManager = userManager;
         mAppOps = (AppOpsManager) mContext.getSystemService(Context.APP_OPS_SERVICE);
         mSettingsStore = settingsStore;
         mLog = wifiInjector.makeLog(TAG);
-        mNetworkScoreManager = networkScoreManager;
     }
 
     /**
@@ -132,10 +129,8 @@ public class WifiPermissionsUtil {
     public boolean canAccessScanResults(String pkgName, int uid,
                 int minVersion) throws SecurityException {
         mAppOps.checkPackage(uid, pkgName);
-        // Check if the calling Uid has CAN_READ_PEER_MAC_ADDRESS
-        // permission or is an Active Nw scorer.
-        boolean canCallingUidAccessLocation = checkCallerHasPeersMacAddressPermission(uid)
-                || isCallerActiveNwScorer(uid);
+        // Check if the calling Uid has CAN_READ_PEER_MAC_ADDRESS permission.
+        boolean canCallingUidAccessLocation = checkCallerHasPeersMacAddressPermission(uid);
         // LocationAccess by App: For AppVersion older than minVersion,
         // it is sufficient to check if the App is foreground.
         // Otherwise, Location Mode must be enabled and caller must have
@@ -170,13 +165,6 @@ public class WifiPermissionsUtil {
         return mWifiPermissionsWrapper.getUidPermission(
                 android.Manifest.permission.PEERS_MAC_ADDRESS, uid)
                 == PackageManager.PERMISSION_GRANTED;
-    }
-
-    /**
-     * Returns true if the caller is an Active Network Scorer.
-     */
-    private boolean isCallerActiveNwScorer(int uid) {
-        return mNetworkScoreManager.isCallerActiveScorer(uid);
     }
 
     /**
