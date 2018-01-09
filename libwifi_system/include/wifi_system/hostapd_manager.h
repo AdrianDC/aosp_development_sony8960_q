@@ -33,6 +33,12 @@ class HostapdManager {
     kWpa2,  // Strongly prefer this if at all possible.
   };
 
+  enum class BandType {
+    kBand2G,
+    kBand5G,
+    kBandAny,
+  };
+
   HostapdManager() = default;
   virtual ~HostapdManager() = default;
 
@@ -48,7 +54,7 @@ class HostapdManager {
   // |interface_name| is a network interface name (e.g. "wlan0").
   // |ssid| is the SSID used by the configurated network.
   // |is_hidden| is true iff hostapd should not broadcast the SSID.
-  // |channel| is the WiFi channel (e.g. 6) or <0 for a default value.
+  // |band| defines the band which we will choose channel from.
   // |encryption_type| defines the encryption of the configured network.
   // |passphrase| is ignored for kOpen networks.
   //
@@ -57,7 +63,7 @@ class HostapdManager {
       const std::string& interface_name,
       const std::vector<uint8_t> ssid,
       bool is_hidden,
-      int channel,
+      BandType band,
       EncryptionType encryption,
       const std::vector<uint8_t> passphrase);
 
