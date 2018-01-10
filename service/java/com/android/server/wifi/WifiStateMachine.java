@@ -4166,7 +4166,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mIpClient.setMulticastFilter(true);
                     if (mVerboseLoggingEnabled) log("Supplicant start successful");
                     registerForWifiMonitorEvents();
-                    mWifiMonitor.startMonitoring(mInterfaceName, true);
+                    mWifiMonitor.startMonitoring(mInterfaceName);
                     mWifiInjector.getWifiLastResortWatchdog().clearAllFailureCounts();
                     setSupplicantLogLevel();
                     transitionTo(mSupplicantStartingState);

@@ -21,8 +21,6 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.net.InterfaceConfiguration;
 import android.net.apf.ApfCapabilities;
-import android.net.wifi.IApInterface;
-import android.net.wifi.IClientInterface;
 import android.net.wifi.RttManager;
 import android.net.wifi.RttManager.ResponderConfig;
 import android.net.wifi.ScanResult;
@@ -34,7 +32,6 @@ import android.os.RemoteException;
 import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.Log;
-import android.util.Pair;
 import android.util.SparseArray;
 
 import com.android.internal.annotations.Immutable;
@@ -109,75 +106,9 @@ public class WifiNative {
         mWifiVendorHal.enableVerboseLogging(verbose > 0);
     }
 
-   /********************************************************
-    * Native Initialization/Deinitialization
-    ********************************************************/
-    public static final int SETUP_SUCCESS = 0;
-    public static final int SETUP_FAILURE_HAL = 1;
-    public static final int SETUP_FAILURE_WIFICOND = 2;
-
-   /**
-    * Setup wifi native for Client mode operations.
-    *
-    * 1. Starts the Wifi HAL and configures it in client/STA mode.
-    * 2. Setup Wificond to operate in client mode and retrieve the handle to use for client
-    * operations.
-    *
-    * @return Pair of <Integer, IClientInterface> to indicate the status and the associated wificond
-    * client interface binder handler (will be null on failure).
-    */
-    public Pair<Integer, IClientInterface> setupForClientMode(@NonNull String ifaceName) {
-        if (!startHalIfNecessary(true)) {
-            Log.e(TAG, "Failed to start HAL for client mode");
-            return Pair.create(SETUP_FAILURE_HAL, null);
-        }
-        IClientInterface iClientInterface = mWificondControl.setupInterfaceForClientMode(ifaceName);
-        if (iClientInterface == null) {
-            return Pair.create(SETUP_FAILURE_WIFICOND, null);
-        }
-        return Pair.create(SETUP_SUCCESS, iClientInterface);
-    }
-
-    /**
-     * Setup wifi native for AP mode operations.
-     *
-     * 1. Starts the Wifi HAL and configures it in AP mode.
-     * 2. Setup Wificond to operate in AP mode and retrieve the handle to use for ap operations.
-     *
-     * @return Pair of <Integer, IApInterface> to indicate the status and the associated wificond
-     * AP interface binder handler (will be null on failure).
-     */
-    public Pair<Integer, IApInterface> setupForSoftApMode(@NonNull String ifaceName) {
-        if (!startHalIfNecessary(false)) {
-            Log.e(TAG, "Failed to start HAL for AP mode");
-            return Pair.create(SETUP_FAILURE_HAL, null);
-        }
-        IApInterface iApInterface = mWificondControl.setupInterfaceForSoftApMode(ifaceName);
-        if (iApInterface == null) {
-            return Pair.create(SETUP_FAILURE_WIFICOND, null);
-        }
-        return Pair.create(SETUP_SUCCESS, iApInterface);
-    }
-
-    /**
-     * Teardown all mode configurations in wifi native.
-     *
-     * 1. Stops the Wifi HAL.
-     * 2. Tears down all the interfaces from Wificond.
-     */
-    public void tearDown() {
-        stopHalIfNecessary();
-        if (!mWificondControl.tearDownInterfaces()) {
-            // TODO(b/34859006): Handle failures.
-            Log.e(TAG, "Failed to teardown interfaces from Wificond");
-        }
-    }
-
-    /**
-     * TODO(b/69426063): NEW API Surface for interface management. This will eventually
-     * deprecate the other interface management API's above. But, for now there will be
-     * some duplication to ease transition.
-     */
+    /********************************************************
+     * Interface management related methods.
+     ********************************************************/
     /**
      * Meta-info about every iface that is active.
      */
@@ -1045,38 +976,6 @@ public class WifiNative {
     }
 
     /**
-     * Registers a death notification for wificond.
-     * @return Returns true on success.
-     */
-    public boolean registerWificondDeathHandler(@NonNull WificondDeathEventHandler handler) {
-        return mWificondControl.registerDeathHandler(handler);
-    }
-
-    /**
-     * Deregisters a death notification for wificond.
-     * @return Returns true on success.
-     */
-    public boolean deregisterWificondDeathHandler() {
-        return mWificondControl.deregisterDeathHandler();
-    }
-
-    /**
-    * Disable wpa_supplicant via wificond.
-    * @return Returns true on success.
-    */
-    public boolean disableSupplicant() {
-        return mWificondControl.disableSupplicant();
-    }
-
-    /**
-    * Enable wpa_supplicant via wificond.
-    * @return Returns true on success.
-    */
-    public boolean enableSupplicant() {
-        return mWificondControl.enableSupplicant();
-    }
-
-    /**
     * Request signal polling to wificond.
     * Returns an SignalPollResult object.
     * Returns null on failure.
@@ -1256,41 +1155,6 @@ public class WifiNative {
          * Invoked when the supplicant dies.
          */
         void onDeath();
-    }
-
-    /**
-     * Registers a death notification for supplicant.
-     * @return Returns true on success.
-     */
-    public boolean registerSupplicantDeathHandler(@NonNull SupplicantDeathEventHandler handler) {
-        return mSupplicantStaIfaceHal.registerDeathHandler(handler);
-    }
-
-    /**
-     * This method is called repeatedly until the connection to wpa_supplicant is
-     * established and a STA iface is setup.
-     *
-     * @return true if connection is established, false otherwise.
-     * TODO: Add unit tests for these once we remove the legacy code.
-     */
-    public boolean connectToSupplicant() {
-        // Start initialization if not already started.
-        if (!mSupplicantStaIfaceHal.isInitializationStarted()
-                && !mSupplicantStaIfaceHal.initialize()) {
-            return false;
-        }
-        // Check if the initialization is complete.
-        if (!mSupplicantStaIfaceHal.isInitializationComplete()) {
-            return false;
-        }
-        // Setup the STA iface once connection is established.
-        return mSupplicantStaIfaceHal.setupIface(mInterfaceName);
-    }
-
-    /**
-     * Close supplicant connection.
-     */
-    public void closeSupplicantConnection() {
     }
 
     /**
@@ -1830,42 +1694,6 @@ public class WifiNative {
          * Invoked when the vendor HAL dies.
          */
         void onDeath();
-    }
-
-    /**
-     * Initializes the vendor HAL. This is just used to initialize the {@link HalDeviceManager}.
-     */
-    public boolean initializeVendorHal(VendorHalDeathEventHandler handler) {
-        return mWifiVendorHal.initialize(handler);
-    }
-
-    /**
-     * Bring up the Vendor HAL and configure for STA mode or AP mode, if vendor HAL is supported.
-     *
-     * @param isStaMode true to start HAL in STA mode, false to start in AP mode.
-     * @return false if the HAL start fails, true if successful or if vendor HAL not supported.
-     */
-    private boolean startHalIfNecessary(boolean isStaMode) {
-        if (!mWifiVendorHal.isVendorHalSupported()) {
-            Log.i(TAG, "Vendor HAL not supported, Ignore start...");
-            return true;
-        }
-        if (isStaMode) {
-            return mWifiVendorHal.startVendorHalSta();
-        } else {
-            return mWifiVendorHal.startVendorHalAp();
-        }
-    }
-
-    /**
-     * Stops the HAL, if vendor HAL is supported.
-     */
-    private void stopHalIfNecessary() {
-        if (!mWifiVendorHal.isVendorHalSupported()) {
-            Log.i(TAG, "Vendor HAL not supported, Ignore stop...");
-            return;
-        }
-        mWifiVendorHal.stopVendorHal();
     }
 
     /**
