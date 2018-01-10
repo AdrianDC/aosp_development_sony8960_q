@@ -67,7 +67,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -163,9 +162,14 @@ public class WifiAwareDataPathStateManager {
 
     private Map.Entry<WifiAwareNetworkSpecifier, AwareNetworkRequestInformation>
                 getNetworkRequestByCanonicalDescriptor(CanonicalConnectionInfo cci) {
+        if (VDBG) Log.v(TAG, "getNetworkRequestByCanonicalDescriptor: cci=" + cci);
         for (Map.Entry<WifiAwareNetworkSpecifier, AwareNetworkRequestInformation> entry :
                 mNetworkRequestsCache.entrySet()) {
-            if (entry.getValue().getCanonicalDescriptor().equals(cci)) {
+            if (VDBG) {
+                Log.v(TAG, "getNetworkRequestByCanonicalDescriptor: entry=" + entry.getValue()
+                        + " --> cci=" + entry.getValue().getCanonicalDescriptor());
+            }
+            if (entry.getValue().getCanonicalDescriptor().matches(cci)) {
                 return entry;
             }
         }
@@ -381,6 +385,10 @@ public class WifiAwareDataPathStateManager {
         nnri.state = AwareNetworkRequestInformation.STATE_RESPONDER_WAIT_FOR_RESPOND_RESPONSE;
         nnri.ndpId = ndpId;
         nnri.startTimestamp = SystemClock.elapsedRealtime();
+        if (nnri.peerDiscoveryMac == null) {
+            // the "accept anyone" request is now specific
+            nnri.peerDiscoveryMac = mac;
+        }
         mMgr.respondToDataPathRequest(true, ndpId, nnri.interfaceName, nnri.networkSpecifier.pmk,
                 nnri.networkSpecifier.passphrase, nnri.networkSpecifier.isOutOfBand());
 
@@ -1248,36 +1256,21 @@ public class WifiAwareDataPathStateManager {
         public final int sessionId;
         public final String passphrase;
 
-        @Override
-        public int hashCode() {
-            return Objects.hash(Arrays.hashCode(peerDiscoveryMac), Arrays.hashCode(pmk), sessionId,
-                passphrase);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-
-            if (!(obj instanceof CanonicalConnectionInfo)) {
-                return false;
-            }
-
-            CanonicalConnectionInfo lhs = (CanonicalConnectionInfo) obj;
-
-            return Arrays.equals(peerDiscoveryMac, lhs.peerDiscoveryMac) && Arrays.equals(pmk,
-                    lhs.pmk) && TextUtils.equals(passphrase, lhs.passphrase)
-                    && sessionId == lhs.sessionId;
+        public boolean matches(CanonicalConnectionInfo other) {
+            return (other.peerDiscoveryMac == null || Arrays
+                    .equals(peerDiscoveryMac, other.peerDiscoveryMac))
+                    && Arrays.equals(pmk, other.pmk)
+                    && TextUtils.equals(passphrase, other.passphrase)
+                    && (TextUtils.isEmpty(passphrase) || sessionId == other.sessionId);
         }
 
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder("CanonicalConnectionInfo: [");
             sb.append("peerDiscoveryMac=").append(peerDiscoveryMac == null ? ""
-                    : String.valueOf(HexEncoding.encode(peerDiscoveryMac))).append("pmk=").append(
-                    pmk == null ? "" : "*").append("sessionId=").append(sessionId).append(
-                    "passphrase=").append(passphrase == null ? "" : "*").append("]");
+                    : String.valueOf(HexEncoding.encode(peerDiscoveryMac))).append(", pmk=").append(
+                    pmk == null ? "" : "*").append(", sessionId=").append(sessionId).append(
+                    ", passphrase=").append(passphrase == null ? "" : "*").append("]");
             return sb.toString();
         }
     }
