@@ -34,7 +34,7 @@ namespace {
 const char kTestInterfaceName[] = "foobar0";
 const char kTestSsidStr[] = "helloisitme";
 const char kTestPassphraseStr[] = "yourelookingfor";
-const int kTestChannel = 2;
+const HostapdManager::BandType kTestBand = HostapdManager::BandType::kBand2G;
 
 // If you generate your config file with both the test ssid
 // and the test passphrase, you'll get this line in the config.
@@ -49,7 +49,7 @@ class HostapdManagerTest : public ::testing::Test {
         kTestInterfaceName,
         cstr2vector(kTestSsidStr),
         false,  // not hidden
-        kTestChannel,
+        kTestBand,
         encryption_type,
         cstr2vector(kTestPassphraseStr));
   }
@@ -66,7 +66,7 @@ void VerifyCommonConfigs(const string& config) {
   EXPECT_THAT(config, HasSubstr("driver=nl80211\n"));
   EXPECT_THAT(config, HasSubstr("ctrl_interface=/data/misc/wifi/hostapd/ctrl\n"));
   EXPECT_THAT(config, HasSubstr("ssid2=68656c6c6f" "6973" "6974" "6d65\n"));
-  EXPECT_THAT(config, HasSubstr("channel=2\n"));
+  EXPECT_THAT(config, HasSubstr("channel=0\n"));
   EXPECT_THAT(config, HasSubstr("hw_mode=g\n"));
   EXPECT_THAT(config, HasSubstr("wowlan_triggers=any\n"));
   EXPECT_THAT(config, HasSubstr("ignore_broadcast_ssid=0\n"));
@@ -104,23 +104,33 @@ TEST_F(HostapdManagerTest, RespectsHiddenSetting) {
         kTestInterfaceName,
         cstr2vector(kTestSsidStr),
         true,
-        kTestChannel,
+        kTestBand,
         HostapdManager::EncryptionType::kOpen,
         vector<uint8_t>());
   EXPECT_THAT(config, HasSubstr("ignore_broadcast_ssid=1\n"));
   EXPECT_THAT(config, Not(HasSubstr("ignore_broadcast_ssid=0\n")));
 }
 
-TEST_F(HostapdManagerTest, CorrectlyInfersHwMode) {
+TEST_F(HostapdManagerTest, CorrectlyInfersHwModeForBand5G) {
   string config = HostapdManager().CreateHostapdConfig(
         kTestInterfaceName,
         cstr2vector(kTestSsidStr),
         true,
-        44,
+        HostapdManager::BandType::kBand5G,
         HostapdManager::EncryptionType::kOpen,
         vector<uint8_t>());
   EXPECT_THAT(config, HasSubstr("hw_mode=a\n"));
-  EXPECT_THAT(config, Not(HasSubstr("hw_mode=g\n")));
+}
+
+TEST_F(HostapdManagerTest, CorrectlyInfersHwModeForBandAny) {
+  string config = HostapdManager().CreateHostapdConfig(
+        kTestInterfaceName,
+        cstr2vector(kTestSsidStr),
+        true,
+        HostapdManager::BandType::kBandAny,
+        HostapdManager::EncryptionType::kOpen,
+        vector<uint8_t>());
+  EXPECT_THAT(config, HasSubstr("hw_mode=any\n"));
 }
 
 

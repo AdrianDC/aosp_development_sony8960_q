@@ -173,7 +173,8 @@ public class WifiInjector {
         mNwManagementService = INetworkManagementService.Stub.asInterface(
                 ServiceManager.getService(Context.NETWORKMANAGEMENT_SERVICE));
         mWifiNative = new WifiNative(SystemProperties.get("wifi.interface", "wlan0"),
-                mWifiVendorHal, mSupplicantStaIfaceHal, mWificondControl, mNwManagementService);
+                mWifiVendorHal, mSupplicantStaIfaceHal, mWificondControl, mNwManagementService,
+                mPropertyService);
         mWifiP2pMonitor = new WifiP2pMonitor(this);
         mSupplicantP2pIfaceHal = new SupplicantP2pIfaceHal(mWifiP2pMonitor);
         mWifiP2pNative = new WifiP2pNative(SystemProperties.get("wifi.direct.interface", "p2p0"),
