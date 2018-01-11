@@ -650,6 +650,78 @@ public class WifiNativeInterfaceManagementTest {
     }
 
     /**
+     * Verifies failure handling in setup of a softAp interface.
+     */
+    @Test
+    public void testSetupSoftApInterfaceFailureInStartHal() throws Exception {
+        when(mWifiVendorHal.startVendorHal()).thenReturn(false);
+        assertNull(mWifiNative.setupInterfaceForSoftApMode(mIfaceCallback0));
+
+        mInOrder.verify(mWifiVendorHal).isVendorHalSupported();
+        mInOrder.verify(mWifiVendorHal).startVendorHal();
+
+        // To test if the failure is handled cleanly, invoke teardown and ensure that
+        // none of the mocks are used because the iface does not exist in the internal
+        // database.
+        mWifiNative.teardownInterface(IFACE_NAME_0);
+
+        verifyNoMoreInteractions(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal,
+                mNwManagementService, mIfaceCallback0, mIfaceCallback1);
+    }
+
+    /**
+     * Verifies failure handling in setup of a softAp interface.
+     */
+    @Test
+    public void testSetupSoftApInterfaceFailureInHalCreateApIface() throws Exception {
+        when(mWifiVendorHal.createApIface(any())).thenReturn(null);
+        assertNull(mWifiNative.setupInterfaceForSoftApMode(mIfaceCallback0));
+
+        mInOrder.verify(mWifiVendorHal).isVendorHalSupported();
+        mInOrder.verify(mWifiVendorHal).startVendorHal();
+        mInOrder.verify(mWifiVendorHal).isVendorHalSupported();
+        mInOrder.verify(mWifiVendorHal).createApIface(any());
+
+        // To test if the failure is handled cleanly, invoke teardown and ensure that
+        // none of the mocks are used because the iface does not exist in the internal
+        // database.
+        mWifiNative.teardownInterface(IFACE_NAME_0);
+
+        verifyNoMoreInteractions(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal,
+                mNwManagementService, mIfaceCallback0, mIfaceCallback1);
+    }
+
+    /**
+     * Verifies failure handling in setup of a softAp interface.
+     */
+    @Test
+    public void testSetupSoftApInterfaceFailureInWificondSetupInterfaceForClientMode()
+            throws Exception {
+        when(mWificondControl.setupInterfaceForSoftApMode(any())).thenReturn(null);
+        assertNull(mWifiNative.setupInterfaceForSoftApMode(mIfaceCallback0));
+
+        mInOrder.verify(mWifiVendorHal).isVendorHalSupported();
+        mInOrder.verify(mWifiVendorHal).startVendorHal();
+        mInOrder.verify(mWifiVendorHal).isVendorHalSupported();
+        mInOrder.verify(mWifiVendorHal).createApIface(mIfaceDestroyedListenerCaptor0.capture());
+        mInOrder.verify(mWificondControl).setupInterfaceForSoftApMode(any());
+        mInOrder.verify(mWifiVendorHal).isVendorHalSupported();
+        mInOrder.verify(mWifiVendorHal).removeApIface(any());
+
+        // Trigger the HAL interface destroyed callback to verify the whole removal sequence.
+        mIfaceDestroyedListenerCaptor0.getValue().onDestroyed(IFACE_NAME_0);
+        validateOnDestroyedSoftApInterface(false, false, IFACE_NAME_0, mIfaceCallback0,
+                null);
+
+        // To test if the failure is handled cleanly, invoke teardown and ensure that
+        // none of the mocks are used because the iface does not exist in the internal
+        // database.
+        mWifiNative.teardownInterface(IFACE_NAME_0);
+
+        verifyNoMoreInteractions(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal,
+                mNwManagementService, mIfaceCallback0, mIfaceCallback1);
+    }
+    /**
      * Verifies the interface state query API.
      */
     @Test
