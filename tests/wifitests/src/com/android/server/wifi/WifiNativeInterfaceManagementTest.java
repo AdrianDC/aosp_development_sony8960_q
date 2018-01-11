@@ -128,7 +128,6 @@ public class WifiNativeInterfaceManagementTest {
         mWifiNative.initialize();
         mWifiNative.registerStatusListener(mStatusListener);
 
-        mInOrder.verify(mWifiVendorHal).isVendorHalSupported();
         mInOrder.verify(mWifiVendorHal).initialize(any());
         mInOrder.verify(mWificondControl).registerDeathHandler(any());
     }

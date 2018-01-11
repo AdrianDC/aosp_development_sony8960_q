@@ -697,8 +697,7 @@ public class WifiNative {
      */
     public boolean initialize() {
         synchronized (mLock) {
-            if (mWifiVendorHal.isVendorHalSupported()
-                    && !mWifiVendorHal.initialize(new VendorHalDeathHandlerInternal())) {
+            if (!mWifiVendorHal.initialize(new VendorHalDeathHandlerInternal())) {
                 Log.e(TAG, "Failed to initialize vendor HAL");
                 return false;
             }
