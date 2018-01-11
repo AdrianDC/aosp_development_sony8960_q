@@ -57,7 +57,6 @@ import android.net.StaticIpConfiguration;
 import android.net.TrafficStats;
 import android.net.dhcp.DhcpClient;
 import android.net.ip.IpClient;
-import android.net.wifi.IClientInterface;
 import android.net.wifi.RssiPacketCountInfo;
 import android.net.wifi.ScanResult;
 import android.net.wifi.ScanSettings;
@@ -80,7 +79,6 @@ import android.os.BatteryStats;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.os.INetworkManagementService;
 import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
@@ -108,6 +106,8 @@ import com.android.internal.util.Protocol;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 import com.android.server.connectivity.KeepalivePacketData;
+import com.android.server.wifi.WifiNative.InterfaceCallback;
+import com.android.server.wifi.WifiNative.StatusListener;
 import com.android.server.wifi.hotspot2.AnqpEvent;
 import com.android.server.wifi.hotspot2.IconEvent;
 import com.android.server.wifi.hotspot2.NetworkDetail;
@@ -209,8 +209,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private WifiPermissionsUtil mWifiPermissionsUtil;
     private WifiConfigManager mWifiConfigManager;
     private WifiConnectivityManager mWifiConnectivityManager;
-    private INetworkManagementService mNwService;
-    private IClientInterface mClientInterface;
     private ConnectivityManager mCm;
     private BaseWifiDiagnostics mWifiDiagnostics;
     private WifiApConfigStore mWifiApConfigStore;
@@ -240,17 +238,32 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     private boolean mScreenOn = false;
 
-    private final String mInterfaceName;
+    private String mInterfaceName;
 
     private int mLastSignalLevel = -1;
     private String mLastBssid;
     private int mLastNetworkId; // The network Id we successfully joined
     private boolean mIsLinkDebouncing = false;
-    private final WifiNative.WificondDeathEventHandler mWificondDeathRecipient = () -> {
-        sendMessage(CMD_WIFICOND_BINDER_DEATH);
+
+    private final StatusListener mWifiNativeStatusListener = (boolean isReady) -> {
+        if (!isReady) {
+            sendMessage(CMD_WIFINATIVE_FAILURE);
+        }
     };
-    private final WifiNative.VendorHalDeathEventHandler mVendorHalDeathRecipient = () -> {
-        sendMessage(CMD_VENDOR_HAL_HWBINDER_DEATH);
+
+    private final InterfaceCallback mWifiNativeInterfaceCallback = new InterfaceCallback() {
+        @Override
+        public void onDestroyed(String ifaceName) {
+            sendMessage(CMD_INTERFACE_DESTROYED);
+        }
+
+        @Override
+        public void onUp(String ifaceName) {
+        }
+
+        @Override
+        public void onDown(String ifaceName) {
+        }
     };
     private boolean mIpReachabilityDisconnectEnabled = true;
 
@@ -456,7 +469,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         return true;
     }
 
-    private final IpClient mIpClient;
+    private IpClient mIpClient;
 
     // Channel for sending replies.
     private AsyncChannel mReplyChannel = new AsyncChannel();
@@ -485,10 +498,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
     /* The base for wifi message types */
     static final int BASE = Protocol.BASE_WIFI;
-    /* Start the supplicant */
+    /* Start the STA interface */
     static final int CMD_START_SUPPLICANT                               = BASE + 11;
-    /* Stop the supplicant */
+    /* Stop the STA interface */
     static final int CMD_STOP_SUPPLICANT                                = BASE + 12;
+    /* STA interface destroyed */
+    static final int CMD_INTERFACE_DESTROYED                            = BASE + 13;
     /* Indicates Static IP succeeded */
     static final int CMD_STATIC_IP_SUCCESS                              = BASE + 15;
     /* Indicates Static IP failed */
@@ -728,11 +743,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     /* used to indicate that the foreground user was switched */
     static final int CMD_USER_STOP                                      = BASE + 207;
 
-    /* Signals that wificond is dead. */
-    private static final int CMD_WIFICOND_BINDER_DEATH          = BASE + 250;
-
-    /* Signals that the Vendor HAL instance underpinning our state is dead. */
-    private static final int CMD_VENDOR_HAL_HWBINDER_DEATH              = BASE + 251;
+    /* Signals that one of the native daemons is dead. */
+    private static final int CMD_WIFINATIVE_FAILURE                     = BASE + 250;
 
     /* Indicates that diagnostics should time out a connection start event. */
     private static final int CMD_DIAGS_CONNECT_TIMEOUT                  = BASE + 252;
@@ -921,13 +933,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mWrongPasswordNotifier = wrongPasswordNotifier;
 
         // TODO refactor WifiNative use of context out into it's own class
-        mInterfaceName = mWifiNative.getInterfaceName();
         mNetworkInfo = new NetworkInfo(ConnectivityManager.TYPE_WIFI, 0, NETWORKTYPE, "");
         mBatteryStats = IBatteryStats.Stub.asInterface(mFacade.getService(
                 BatteryStats.SERVICE_NAME));
         mWifiStateTracker = wifiInjector.getWifiStateTracker();
         IBinder b = mFacade.getService(Context.NETWORKMANAGEMENT_SERVICE);
-        mNwService = INetworkManagementService.Stub.asInterface(b);
 
         mP2pSupported = mContext.getPackageManager().hasSystemFeature(
                 PackageManager.FEATURE_WIFI_DIRECT);
@@ -953,9 +963,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mLastBssid = null;
         mLastNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
         mLastSignalLevel = -1;
-
-        mIpClient = mFacade.makeIpClient(mContext, mInterfaceName, new IpClientCallback());
-        mIpClient.setMulticastFilter(true);
 
         mNoNetworksPeriodicScan = mContext.getResources().getInteger(
                 R.integer.config_wifi_no_network_periodic_scan_interval);
@@ -1079,6 +1086,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         // We update this field when we receive broadcasts from the system.
         handleScreenStateChanged(powerManager.isInteractive());
 
+        final Intent intent = new Intent(WifiManager.WIFI_SCAN_AVAILABLE);
+        intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
+        intent.putExtra(WifiManager.EXTRA_SCAN_AVAILABLE, WIFI_STATE_DISABLED);
+        mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
+
+        sendWifiScanAvailable(false);
+    }
+
+    private void registerForWifiMonitorEvents()  {
         mWifiMonitor.registerHandler(mInterfaceName, CMD_TARGET_BSSID, getHandler());
         mWifiMonitor.registerHandler(mInterfaceName, CMD_ASSOCIATED_BSSID, getHandler());
         mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.ANQP_DONE_EVENT, getHandler());
@@ -1086,7 +1102,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 getHandler());
         mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.AUTHENTICATION_FAILURE_EVENT,
                 getHandler());
-        mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.GAS_QUERY_DONE_EVENT, getHandler());
+        mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.GAS_QUERY_DONE_EVENT,
+                getHandler());
         mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.GAS_QUERY_START_EVENT,
                 getHandler());
         mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.HS20_REMEDIATION_EVENT,
@@ -1104,8 +1121,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 getHandler());
         mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT,
                 getHandler());
-        mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.SUP_REQUEST_IDENTITY, getHandler());
-        mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.SUP_REQUEST_SIM_AUTH, getHandler());
+        mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.SUP_REQUEST_IDENTITY,
+                getHandler());
+        mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.SUP_REQUEST_SIM_AUTH,
+                getHandler());
         mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.WPS_FAIL_EVENT, getHandler());
         mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.WPS_OVERLAP_EVENT, getHandler());
         mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.WPS_SUCCESS_EVENT, getHandler());
@@ -1125,8 +1144,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 mWifiMetrics.getHandler());
         mWifiMonitor.registerHandler(mInterfaceName, CMD_TARGET_BSSID,
                 mWifiMetrics.getHandler());
-
-        sendWifiScanAvailable(false);
     }
 
     class IpClientCallback extends IpClient.Callback {
@@ -1420,6 +1437,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     WifiLinkLayerStats getWifiLinkLayerStats() {
+        if (mInterfaceName == null) {
+            loge("getWifiLinkLayerStats called without an interface");
+            return null;
+        }
         WifiLinkLayerStats stats = null;
         if (mWifiLinkLayerStatsSupported > 0) {
             stats = mWifiNative.getWifiLinkLayerStats();
@@ -2070,14 +2091,18 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      * Start filtering Multicast v4 packets
      */
     public void startFilteringMulticastPackets() {
-        mIpClient.setMulticastFilter(true);
+        if (mIpClient != null) {
+            mIpClient.setMulticastFilter(true);
+        }
     }
 
     /**
      * Stop filtering Multicast v4 packets
      */
     public void stopFilteringMulticastPackets() {
-        mIpClient.setMulticastFilter(false);
+        if (mIpClient != null) {
+            mIpClient.setMulticastFilter(false);
+        }
     }
 
     /**
@@ -2194,7 +2219,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     public void dumpIpClient(FileDescriptor fd, PrintWriter pw, String[] args) {
-        mIpClient.dump(fd, pw, args);
+        if (mIpClient != null) {
+            mIpClient.dump(fd, pw, args);
+        }
     }
 
     @Override
@@ -3290,11 +3317,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         */
         if (killSupplicant) {
             mWifiMonitor.stopAllMonitoring();
-            if (!mWifiNative.disableSupplicant()) {
-                loge("Failed to disable supplicant after connection loss");
-            }
         }
-        mWifiNative.closeSupplicantConnection();
         sendSupplicantConnectionChangedBroadcast(false);
         setWifiState(WIFI_STATE_DISABLED);
     }
@@ -3711,17 +3734,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     /**
-     * Helper function to increment the appropriate setup failure metrics.
-     */
-    private void incrementMetricsForSetupFailure(int failureReason) {
-        if (failureReason == WifiNative.SETUP_FAILURE_HAL) {
-            mWifiMetrics.incrementNumWifiOnFailureDueToHal();
-        } else if (failureReason == WifiNative.SETUP_FAILURE_WIFICOND) {
-            mWifiMetrics.incrementNumWifiOnFailureDueToWificond();
-        }
-    }
-
-    /**
      * Register the phone listener if we need to set/reset the power limits during voice call for
      * this device.
      */
@@ -3847,7 +3859,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     }
                     break;
                 case CMD_INITIALIZE:
-                    ok = mWifiNative.initializeVendorHal(mVendorHalDeathRecipient);
+                    ok = mWifiNative.initialize();
                     mPasspointManager.initializeProvisioner(
                             mWifiInjector.getWifiServiceHandlerThread().getLooper());
                     replyToMessage(message, message.what, ok ? SUCCESS : FAILURE);
@@ -4083,18 +4095,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         mWifiNative.stopFilteringMulticastV4Packets();
                     }
                     break;
-                case CMD_WIFICOND_BINDER_DEATH:
-                    Log.e(TAG, "wificond died unexpectedly. Triggering recovery");
-                    mWifiMetrics.incrementNumWificondCrashes();
+                case CMD_WIFINATIVE_FAILURE:
+                    Log.e(TAG, "One of the native daemons died unexpectedly. Triggering recovery");
                     mWifiDiagnostics.captureBugReportData(
                             WifiDiagnostics.REPORT_REASON_WIFICOND_CRASH);
                     mWifiInjector.getSelfRecovery().trigger(SelfRecovery.REASON_WIFICOND_CRASH);
-                    break;
-                case CMD_VENDOR_HAL_HWBINDER_DEATH:
-                    Log.e(TAG, "Vendor HAL died unexpectedly. Triggering recovery");
-                    mWifiMetrics.incrementNumHalCrashes();
-                    mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_HAL_CRASH);
-                    mWifiInjector.getSelfRecovery().trigger(SelfRecovery.REASON_HAL_CRASH);
                     break;
                 case CMD_DIAGS_CONNECT_TIMEOUT:
                     mWifiDiagnostics.reportConnectionEvent(
@@ -4117,7 +4122,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     class InitialState extends State {
-
         private void cleanup() {
             // tell scanning service that scans are not available - about to kill the interface and
             // supplicant
@@ -4126,16 +4130,18 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             // Tearing down the client interfaces below is going to stop our supplicant.
             mWifiMonitor.stopAllMonitoring();
 
-            // stop hostapd in case it was running from SoftApMode
-            mWifiNative.stopSoftAp();
-            mWifiNative.disableSupplicant();
-
-            mWifiNative.deregisterWificondDeathHandler();
-            mWifiNative.tearDown();
+            mWifiNative.registerStatusListener(mWifiNativeStatusListener);
+            // TODO: This teardown should ideally be handled in STOP_SUPPLICANT to be consistent
+            // with other mode managers. But, client mode is not yet controlled by
+            // WifiStateMachinePrime.
+            // TODO: Remove this big hammer. We cannot support concurrent interfaces with this!
+            mWifiNative.teardownAllInterfaces();
+            mInterfaceName = null;
         }
 
         @Override
         public void enter() {
+            mWifiMonitor.stopAllMonitoring();
             mWifiStateTracker.updateState(WifiStateTracker.INVALID);
             cleanup();
             sendMessage(CMD_START_SUPPLICANT);
@@ -4147,48 +4153,19 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             logStateAndMessage(message, this);
             switch (message.what) {
                 case CMD_START_SUPPLICANT:
-                    Pair<Integer, IClientInterface> statusAndInterface =
-                            mWifiNative.setupForClientMode(mInterfaceName);
-                    if (statusAndInterface.first == WifiNative.SETUP_SUCCESS) {
-                        mClientInterface = statusAndInterface.second;
-                    } else {
-                        incrementMetricsForSetupFailure(statusAndInterface.first);
-                    }
-                    if (mClientInterface == null
-                            || !mWifiNative.registerWificondDeathHandler(mWificondDeathRecipient)) {
+                    mInterfaceName = mWifiNative.setupInterfaceForClientMode(
+                            mWifiNativeInterfaceCallback);
+                    if (TextUtils.isEmpty(mInterfaceName)) {
+                        Log.e(TAG, "setup failure when creating client interface.");
                         setWifiState(WifiManager.WIFI_STATE_UNKNOWN);
-                        cleanup();
+                        transitionTo(mDefaultState);
                         break;
                     }
-
-                    try {
-                        // A runtime crash or shutting down AP mode can leave
-                        // IP addresses configured, and this affects
-                        // connectivity when supplicant starts up.
-                        // Ensure we have no IP addresses before a supplicant start.
-                        mNwService.clearInterfaceAddresses(mInterfaceName);
-
-                        // Set privacy extensions
-                        mNwService.setInterfaceIpv6PrivacyExtensions(mInterfaceName, true);
-
-                        // IPv6 is enabled only as long as access point is connected since:
-                        // - IPv6 addresses and routes stick around after disconnection
-                        // - kernel is unaware when connected and fails to start IPv6 negotiation
-                        // - kernel can start autoconfiguration when 802.1x is not complete
-                        mNwService.disableIpv6(mInterfaceName);
-                    } catch (RemoteException re) {
-                        loge("Unable to change interface settings: " + re);
-                    } catch (IllegalStateException ie) {
-                        loge("Unable to change interface settings: " + ie);
-                    }
-
-                    if (!mWifiNative.enableSupplicant()) {
-                        loge("Failed to start supplicant!");
-                        setWifiState(WifiManager.WIFI_STATE_UNKNOWN);
-                        cleanup();
-                        break;
-                    }
+                    mIpClient = mFacade.makeIpClient(
+                            mContext, mInterfaceName, new IpClientCallback());
+                    mIpClient.setMulticastFilter(true);
                     if (mVerboseLoggingEnabled) log("Supplicant start successful");
+                    registerForWifiMonitorEvents();
                     mWifiMonitor.startMonitoring(mInterfaceName, true);
                     mWifiInjector.getWifiLastResortWatchdog().clearAllFailureCounts();
                     setSupplicantLogLevel();
