@@ -38,22 +38,16 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
 import android.database.ContentObserver;
-import android.net.InterfaceConfiguration;
 import android.net.Uri;
-import android.net.wifi.IApInterface;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
-import android.os.INetworkManagementService;
-import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.test.TestLooper;
 import android.provider.Settings;
 import android.test.suitebuilder.annotation.SmallTest;
-import android.util.Pair;
 
 import com.android.internal.R;
 import com.android.internal.util.WakeupMessage;
-import com.android.server.net.BaseNetworkObserver;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -94,16 +88,13 @@ public class SoftApManagerTest {
     @Mock Resources mResources;
     @Mock WifiNative mWifiNative;
     @Mock WifiManager.SoftApCallback mCallback;
-    @Mock InterfaceConfiguration mInterfaceConfiguration;
     @Mock FrameworkFacade mFrameworkFacade;
-    @Mock IApInterface mApInterface;
-    @Mock INetworkManagementService mNmService;
     @Mock WifiApConfigStore mWifiApConfigStore;
     @Mock WifiMetrics mWifiMetrics;
-    final ArgumentCaptor<WifiNative.WificondDeathEventHandler> mDeathListenerCaptor =
-            ArgumentCaptor.forClass(WifiNative.WificondDeathEventHandler.class);
-    final ArgumentCaptor<BaseNetworkObserver> mNetworkObserverCaptor =
-            ArgumentCaptor.forClass(BaseNetworkObserver.class);
+    final ArgumentCaptor<WifiNative.StatusListener> mWifiNativeStatusListenerCaptor =
+            ArgumentCaptor.forClass(WifiNative.StatusListener.class);
+    final ArgumentCaptor<WifiNative.InterfaceCallback> mWifiNativeInterfaceCallbackCaptor =
+            ArgumentCaptor.forClass(WifiNative.InterfaceCallback.class);
     final ArgumentCaptor<WifiNative.SoftApListener> mSoftApListenerCaptor =
             ArgumentCaptor.forClass(WifiNative.SoftApListener.class);
 
@@ -116,8 +107,6 @@ public class SoftApManagerTest {
         mLooper = new TestLooper();
 
         when(mWifiNative.startSoftAp(any(), any())).thenReturn(true);
-        when(mWifiNative.stopSoftAp()).thenReturn(true);
-        when(mWifiNative.registerWificondDeathHandler(any())).thenReturn(true);
 
         when(mFrameworkFacade.getIntegerSetting(
                 mContext, Settings.Global.SOFT_AP_TIMEOUT_ENABLED, 1)).thenReturn(1);
@@ -145,7 +134,6 @@ public class SoftApManagerTest {
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
                                                            mCallback,
-                                                           mNmService,
                                                            mWifiApConfigStore,
                                                            config,
                                                            mWifiMetrics);
@@ -206,11 +194,7 @@ public class SoftApManagerTest {
     /** Tests softap startup if default config fails to load. **/
     @Test
     public void startSoftApDefaultConfigFailedToLoad() throws Exception {
-        when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mApInterface.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mWifiNative.setupForSoftApMode(eq(TEST_INTERFACE_NAME)))
-                .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mApInterface));
-        when(mApInterface.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
+        when(mWifiNative.setupInterfaceForSoftApMode(any())).thenReturn(TEST_INTERFACE_NAME);
 
         when(mWifiApConfigStore.getApConfiguration()).thenReturn(null);
         SoftApModeConfiguration nullApConfig =
@@ -221,7 +205,6 @@ public class SoftApManagerTest {
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
                                                            mCallback,
-                                                           mNmService,
                                                            mWifiApConfigStore,
                                                            nullApConfig,
                                                            mWifiMetrics);
@@ -244,98 +227,13 @@ public class SoftApManagerTest {
     }
 
     /**
-     * Test that failure to create the SoftApInterface increments the corresponding metrics and
-     * proper state updates are sent out.
-     */
-    @Test
-    public void testSetupForSoftApModeHalFailureIncrementsMetrics() throws Exception {
-        when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mWifiNative.setupForSoftApMode(TEST_INTERFACE_NAME))
-                .thenReturn(Pair.create(WifiNative.SETUP_FAILURE_HAL, null));
-
-        SoftApModeConfiguration config = new SoftApModeConfiguration(
-                WifiManager.IFACE_IP_MODE_TETHERED, new WifiConfiguration());
-
-        when(mWifiApConfigStore.getApConfiguration()).thenReturn(null);
-        SoftApModeConfiguration nullApConfig =
-                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
-        SoftApManager newSoftApManager = new SoftApManager(mContext,
-                                                           mLooper.getLooper(),
-                                                           mFrameworkFacade,
-                                                           mWifiNative,
-                                                           TEST_COUNTRY_CODE,
-                                                           mCallback,
-                                                           mNmService,
-                                                           mWifiApConfigStore,
-                                                           nullApConfig,
-                                                           mWifiMetrics);
-        mLooper.dispatchAll();
-        newSoftApManager.start();
-        mLooper.dispatchAll();
-        verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
-                WifiManager.SAP_START_FAILURE_GENERAL);
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(),
-                eq(UserHandle.ALL));
-
-        checkApStateChangedBroadcast(intentCaptor.getValue(), WIFI_AP_STATE_FAILED,
-                WIFI_AP_STATE_DISABLED, WifiManager.SAP_START_FAILURE_GENERAL, null,
-                nullApConfig.getTargetMode());
-
-        verify(mWifiMetrics).incrementNumWifiOnFailureDueToHal();
-    }
-
-    /**
-     * Test that failure to create the SoftApInterface due to a wificond error increments
-     * the corresponding metrics and proper state updates are sent out.
-     */
-    @Test
-    public void testSetupForSoftApModeWificondFailureIncrementsMetrics() throws Exception {
-        when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mWifiNative.setupForSoftApMode(TEST_INTERFACE_NAME))
-                .thenReturn(Pair.create(WifiNative.SETUP_FAILURE_WIFICOND, null));
-
-        SoftApModeConfiguration config = new SoftApModeConfiguration(
-                WifiManager.IFACE_IP_MODE_TETHERED, new WifiConfiguration());
-
-        when(mWifiApConfigStore.getApConfiguration()).thenReturn(null);
-        SoftApModeConfiguration nullApConfig =
-                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
-        SoftApManager newSoftApManager = new SoftApManager(mContext,
-                                                           mLooper.getLooper(),
-                                                           mFrameworkFacade,
-                                                           mWifiNative,
-                                                           TEST_COUNTRY_CODE,
-                                                           mCallback,
-                                                           mNmService,
-                                                           mWifiApConfigStore,
-                                                           nullApConfig,
-                                                           mWifiMetrics);
-        mLooper.dispatchAll();
-        newSoftApManager.start();
-        mLooper.dispatchAll();
-        verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
-                WifiManager.SAP_START_FAILURE_GENERAL);
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(),
-                eq(UserHandle.ALL));
-
-        checkApStateChangedBroadcast(intentCaptor.getValue(), WIFI_AP_STATE_FAILED,
-                WIFI_AP_STATE_DISABLED, WifiManager.SAP_START_FAILURE_GENERAL, null,
-                nullApConfig.getTargetMode());
-
-        verify(mWifiMetrics).incrementNumWifiOnFailureDueToWificond();
-    }
-
-    /**
-     * Test that failure to retrieve the SoftApInterface increments the corresponding metrics
+     * Test that failure to retrieve the SoftApInterface name increments the corresponding metrics
      * and proper state updates are sent out.
      */
     @Test
-    public void testSetupForSoftApModeNullApInterfaceFailureIncrementsMetrics() throws Exception {
-        when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mWifiNative.setupForSoftApMode(eq(TEST_INTERFACE_NAME)))
-                .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, null));
+    public void testSetupForSoftApModeNullApInterfaceNameFailureIncrementsMetrics()
+            throws Exception {
+        when(mWifiNative.setupInterfaceForSoftApMode(any())).thenReturn(null);
 
         SoftApModeConfiguration config = new SoftApModeConfiguration(
                 WifiManager.IFACE_IP_MODE_TETHERED, new WifiConfiguration());
@@ -349,7 +247,6 @@ public class SoftApManagerTest {
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
                                                            mCallback,
-                                                           mNmService,
                                                            mWifiApConfigStore,
                                                            nullApConfig,
                                                            mWifiMetrics);
@@ -377,10 +274,7 @@ public class SoftApManagerTest {
     @Test
     public void testSetupForSoftApModeEmptyInterfaceNameFailureIncrementsMetrics()
             throws Exception {
-        when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mApInterface.getInterfaceName()).thenReturn("");
-        when(mWifiNative.setupForSoftApMode(eq(TEST_INTERFACE_NAME)))
-                .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mApInterface));
+        when(mWifiNative.setupInterfaceForSoftApMode(any())).thenReturn("");
 
         SoftApModeConfiguration config = new SoftApModeConfiguration(
                 WifiManager.IFACE_IP_MODE_TETHERED, new WifiConfiguration());
@@ -394,7 +288,6 @@ public class SoftApManagerTest {
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
                                                            mCallback,
-                                                           mNmService,
                                                            mWifiApConfigStore,
                                                            nullApConfig,
                                                            mWifiMetrics);
@@ -416,152 +309,6 @@ public class SoftApManagerTest {
     }
 
     /**
-     * Test that catching a RemoteException when retrieving the SoftApInterface name
-     * is detected as a failure and increments the corresponding metrics and proper
-     * state updates are sent out.
-     */
-    @Test
-    public void testSetupForSoftApModeInterfaceNameRemoteExceptionFailureIncrementsMetrics()
-            throws Exception {
-        when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        doThrow(new RemoteException()).when(mApInterface).getInterfaceName();
-        when(mWifiNative.setupForSoftApMode(eq(TEST_INTERFACE_NAME)))
-                .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mApInterface));
-
-        SoftApModeConfiguration config = new SoftApModeConfiguration(
-                WifiManager.IFACE_IP_MODE_TETHERED, new WifiConfiguration());
-
-        when(mWifiApConfigStore.getApConfiguration()).thenReturn(null);
-        SoftApModeConfiguration nullApConfig =
-                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
-        SoftApManager newSoftApManager = new SoftApManager(mContext,
-                                                           mLooper.getLooper(),
-                                                           mFrameworkFacade,
-                                                           mWifiNative,
-                                                           TEST_COUNTRY_CODE,
-                                                           mCallback,
-                                                           mNmService,
-                                                           mWifiApConfigStore,
-                                                           nullApConfig,
-                                                           mWifiMetrics);
-        mLooper.dispatchAll();
-        newSoftApManager.start();
-        mLooper.dispatchAll();
-        verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
-                WifiManager.SAP_START_FAILURE_GENERAL);
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(),
-                eq(UserHandle.ALL));
-
-        checkApStateChangedBroadcast(intentCaptor.getValue(), WIFI_AP_STATE_FAILED,
-                WIFI_AP_STATE_DISABLED, WifiManager.SAP_START_FAILURE_GENERAL, null,
-                nullApConfig.getTargetMode());
-
-        verify(mWifiMetrics).incrementSoftApStartResult(false,
-                WifiManager.SAP_START_FAILURE_GENERAL);
-    }
-
-
-    /**
-     * Tests that the generic error is propagated and properly reported when starting softap and we
-     * cannot register a wificond death handler.
-     */
-    @Test
-    public void startSoftApFailRegisterWificondDeathHandlerGeneralError() throws Exception {
-        WifiConfiguration config = new WifiConfiguration();
-        config.apBand = WifiConfiguration.AP_BAND_5GHZ;
-        config.SSID = TEST_SSID;
-        SoftApModeConfiguration softApConfig =
-                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, config);
-
-        when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mApInterface.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mWifiNative.setupForSoftApMode(eq(TEST_INTERFACE_NAME)))
-                .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mApInterface));
-
-        when(mWifiNative.registerWificondDeathHandler(any())).thenReturn(false);
-
-        SoftApManager newSoftApManager = new SoftApManager(mContext,
-                                                           mLooper.getLooper(),
-                                                           mFrameworkFacade,
-                                                           mWifiNative,
-                                                           null,
-                                                           mCallback,
-                                                           mNmService,
-                                                           mWifiApConfigStore,
-                                                           softApConfig,
-                                                           mWifiMetrics);
-        mLooper.dispatchAll();
-        newSoftApManager.start();
-        mLooper.dispatchAll();
-
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext, times(2)).sendStickyBroadcastAsUser(intentCaptor.capture(),
-                eq(UserHandle.ALL));
-
-        List<Intent> capturedIntents = intentCaptor.getAllValues();
-        checkApStateChangedBroadcast(capturedIntents.get(0), WIFI_AP_STATE_ENABLING,
-                WIFI_AP_STATE_DISABLED, HOTSPOT_NO_ERROR, TEST_INTERFACE_NAME,
-                softApConfig.getTargetMode());
-        checkApStateChangedBroadcast(capturedIntents.get(1), WIFI_AP_STATE_FAILED,
-                WIFI_AP_STATE_ENABLING, WifiManager.SAP_START_FAILURE_GENERAL, TEST_INTERFACE_NAME,
-                softApConfig.getTargetMode());
-        verify(mWifiMetrics).incrementSoftApStartResult(false,
-                WifiManager.SAP_START_FAILURE_GENERAL);
-    }
-
-    /**
-     * Tests that the generic error is propagated and properly reported when starting softap and we
-     * catch a RemoteException when attempting to register a NetworkObserver.
-     */
-    @Test
-    public void startSoftApFailNetworkObserverRemoteExceptionGeneralError() throws Exception {
-        WifiConfiguration config = new WifiConfiguration();
-        config.apBand = WifiConfiguration.AP_BAND_5GHZ;
-        config.SSID = TEST_SSID;
-        SoftApModeConfiguration softApConfig =
-                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, config);
-
-        when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mApInterface.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mWifiNative.setupForSoftApMode(eq(TEST_INTERFACE_NAME)))
-                .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mApInterface));
-
-        doThrow(new RemoteException()).when(mNmService).registerObserver(any());
-
-        SoftApManager newSoftApManager = new SoftApManager(mContext,
-                                                           mLooper.getLooper(),
-                                                           mFrameworkFacade,
-                                                           mWifiNative,
-                                                           null,
-                                                           mCallback,
-                                                           mNmService,
-                                                           mWifiApConfigStore,
-                                                           softApConfig,
-                                                           mWifiMetrics);
-        mLooper.dispatchAll();
-        newSoftApManager.start();
-        mLooper.dispatchAll();
-
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext, times(2)).sendStickyBroadcastAsUser(intentCaptor.capture(),
-                eq(UserHandle.ALL));
-
-        List<Intent> capturedIntents = intentCaptor.getAllValues();
-        checkApStateChangedBroadcast(capturedIntents.get(0), WIFI_AP_STATE_ENABLING,
-                WIFI_AP_STATE_DISABLED, HOTSPOT_NO_ERROR, TEST_INTERFACE_NAME,
-                softApConfig.getTargetMode());
-        checkApStateChangedBroadcast(capturedIntents.get(1), WIFI_AP_STATE_FAILED,
-                WIFI_AP_STATE_ENABLING, WifiManager.SAP_START_FAILURE_GENERAL, TEST_INTERFACE_NAME,
-                softApConfig.getTargetMode());
-        // we do once on enter of idle, and another after the failure
-        verify(mWifiNative, times(2)).deregisterWificondDeathHandler();
-        verify(mNmService).unregisterObserver(any());
-        verify(mWifiMetrics).incrementSoftApStartResult(false,
-                WifiManager.SAP_START_FAILURE_GENERAL);
-    }
-
-    /**
      * Tests that the generic error is propagated and properly reported when starting softap and the
      * specified channel cannot be used.
      */
@@ -573,20 +320,15 @@ public class SoftApManagerTest {
         SoftApModeConfiguration softApConfig =
                 new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, config);
 
-        when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mApInterface.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mWifiNative.setupForSoftApMode(eq(TEST_INTERFACE_NAME)))
-                .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mApInterface));
-
-        when(mWifiNative.isHalStarted()).thenReturn(true);
+        when(mWifiNative.setupInterfaceForSoftApMode(any())).thenReturn(TEST_INTERFACE_NAME);
+        when(mWifiNative.setCountryCodeHal(any())).thenReturn(false);
 
         SoftApManager newSoftApManager = new SoftApManager(mContext,
                                                            mLooper.getLooper(),
                                                            mFrameworkFacade,
                                                            mWifiNative,
-                                                           null,
+                                                           "US",
                                                            mCallback,
-                                                           mNmService,
                                                            mWifiApConfigStore,
                                                            softApConfig,
                                                            mWifiMetrics);
@@ -620,13 +362,8 @@ public class SoftApManagerTest {
         SoftApModeConfiguration softApConfig =
                 new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, config);
 
+        when(mWifiNative.setupInterfaceForSoftApMode(any())).thenReturn(TEST_INTERFACE_NAME);
         when(mWifiNative.isHalStarted()).thenReturn(true);
-
-        when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mApInterface.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mWifiNative.setupForSoftApMode(eq(TEST_INTERFACE_NAME)))
-                .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mApInterface));
-
 
         SoftApManager newSoftApManager = new SoftApManager(mContext,
                                                            mLooper.getLooper(),
@@ -634,7 +371,6 @@ public class SoftApManagerTest {
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
                                                            mCallback,
-                                                           mNmService,
                                                            mWifiApConfigStore,
                                                            softApConfig,
                                                            mWifiMetrics);
@@ -660,10 +396,8 @@ public class SoftApManagerTest {
      */
     @Test
     public void startSoftApApInterfaceFailedToStart() throws Exception {
+        when(mWifiNative.setupInterfaceForSoftApMode(any())).thenReturn(TEST_INTERFACE_NAME);
         when(mWifiNative.startSoftAp(any(), any())).thenReturn(false);
-        when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mWifiNative.setupForSoftApMode(eq(TEST_INTERFACE_NAME)))
-                .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mApInterface));
 
         SoftApModeConfiguration softApModeConfig =
                 new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, mDefaultApConfig);
@@ -674,7 +408,6 @@ public class SoftApManagerTest {
                                                            mWifiNative,
                                                            TEST_COUNTRY_CODE,
                                                            mCallback,
-                                                           mNmService,
                                                            mWifiApConfigStore,
                                                            softApModeConfig,
                                                            mWifiMetrics);
@@ -684,6 +417,7 @@ public class SoftApManagerTest {
         mLooper.dispatchAll();
         verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
                 WifiManager.SAP_START_FAILURE_GENERAL);
+        verify(mWifiNative).teardownInterface(TEST_INTERFACE_NAME);
     }
 
     /**
@@ -698,6 +432,7 @@ public class SoftApManagerTest {
         /* Verify no state changes. */
         verify(mCallback, never()).onStateChanged(anyInt(), anyInt());
         verify(mContext, never()).sendStickyBroadcastAsUser(any(), any());
+        verify(mWifiNative, never()).teardownInterface(anyString());
     }
 
     /**
@@ -712,32 +447,32 @@ public class SoftApManagerTest {
         // reset to clear verified Intents for ap state change updates
         reset(mContext);
 
-        InOrder order = inOrder(mCallback);
+        InOrder order = inOrder(mCallback, mContext);
 
         mSoftApManager.stop();
         mLooper.dispatchAll();
 
-        verify(mWifiNative).stopSoftAp();
-        order.verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLING, 0);
-        order.verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLED, 0);
         ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext, times(2)).sendStickyBroadcastAsUser(intentCaptor.capture(),
+        order.verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLING, 0);
+        order.verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(),
                 eq(UserHandle.ALL));
-
-        List<Intent> capturedIntents = intentCaptor.getAllValues();
-        checkApStateChangedBroadcast(capturedIntents.get(0), WIFI_AP_STATE_DISABLING,
+        checkApStateChangedBroadcast(intentCaptor.getValue(), WIFI_AP_STATE_DISABLING,
                 WIFI_AP_STATE_ENABLED, HOTSPOT_NO_ERROR, TEST_INTERFACE_NAME,
                 softApModeConfig.getTargetMode());
-        checkApStateChangedBroadcast(capturedIntents.get(1), WIFI_AP_STATE_DISABLED,
+
+        order.verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLED, 0);
+        order.verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(),
+                eq(UserHandle.ALL));
+        checkApStateChangedBroadcast(intentCaptor.getValue(), WIFI_AP_STATE_DISABLED,
                 WIFI_AP_STATE_DISABLING, HOTSPOT_NO_ERROR, TEST_INTERFACE_NAME,
                 softApModeConfig.getTargetMode());
     }
 
     /**
-     * Verify that SoftAp mode shuts down if wificond dies.
+     * Verify that SoftAp mode shuts down on wifinative failure.
      */
     @Test
-    public void handlesWificondInterfaceDeath() throws Exception {
+    public void handlesWifiNativeFailure() throws Exception {
         SoftApModeConfiguration softApModeConfig =
                 new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
         startSoftApAndVerifyEnabled(softApModeConfig);
@@ -745,22 +480,16 @@ public class SoftApManagerTest {
         // reset to clear verified Intents for ap state change updates
         reset(mContext);
 
-        mDeathListenerCaptor.getValue().onDeath();
+        mWifiNativeStatusListenerCaptor.getValue().onStatusChanged(false);
         mLooper.dispatchAll();
         InOrder order = inOrder(mCallback);
-        order.verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLING, 0);
         order.verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
                 WifiManager.SAP_START_FAILURE_GENERAL);
         ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext, times(2)).sendStickyBroadcastAsUser(intentCaptor.capture(),
+        verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(),
                 eq(UserHandle.ALL));
-
-        List<Intent> capturedIntents = intentCaptor.getAllValues();
-        checkApStateChangedBroadcast(capturedIntents.get(0), WIFI_AP_STATE_DISABLING,
-                WIFI_AP_STATE_ENABLED, HOTSPOT_NO_ERROR, TEST_INTERFACE_NAME,
-                softApModeConfig.getTargetMode());
-        checkApStateChangedBroadcast(capturedIntents.get(1), WIFI_AP_STATE_FAILED,
-                WIFI_AP_STATE_DISABLING, WifiManager.SAP_START_FAILURE_GENERAL, TEST_INTERFACE_NAME,
+        checkApStateChangedBroadcast(intentCaptor.getValue(), WIFI_AP_STATE_FAILED,
+                WIFI_AP_STATE_ENABLED, WifiManager.SAP_START_FAILURE_GENERAL, TEST_INTERFACE_NAME,
                 softApModeConfig.getTargetMode());
     }
 
@@ -859,7 +588,7 @@ public class SoftApManagerTest {
         mAlarmManager.dispatch(mSoftApManager.SOFT_AP_SEND_MESSAGE_TIMEOUT_TAG);
         mLooper.dispatchAll();
 
-        verify(mWifiNative).stopSoftAp();
+        verify(mWifiNative).teardownInterface(TEST_INTERFACE_NAME);
     }
 
     @Test
@@ -946,10 +675,8 @@ public class SoftApManagerTest {
     protected void startSoftApAndVerifyEnabled(
             SoftApModeConfiguration softApConfig) throws Exception {
         WifiConfiguration expectedConfig;
-        InOrder order =
-                inOrder(mCallback, mApInterface, mWifiNative, mNmService);
+        InOrder order = inOrder(mCallback, mWifiNative);
 
-        when(mWifiNative.isHalStarted()).thenReturn(false);
         when(mWifiNative.setCountryCodeHal(TEST_COUNTRY_CODE.toUpperCase(Locale.ROOT)))
                 .thenReturn(true);
 
@@ -966,22 +693,21 @@ public class SoftApManagerTest {
                 ContentObserver.class);
         ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
 
-        when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mApInterface.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mWifiNative.setupForSoftApMode(eq(TEST_INTERFACE_NAME)))
-                .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mApInterface));
+        when(mWifiNative.setupInterfaceForSoftApMode(any()))
+                .thenReturn(TEST_INTERFACE_NAME);
 
         mSoftApManager.start();
         mLooper.dispatchAll();
-        order.verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_ENABLING, 0);
-        order.verify(mWifiNative).registerWificondDeathHandler(mDeathListenerCaptor.capture());
-        order.verify(mNmService).registerObserver(mNetworkObserverCaptor.capture());
+        order.verify(mWifiNative).registerStatusListener(mWifiNativeStatusListenerCaptor.capture());
+        order.verify(mWifiNative).setupInterfaceForSoftApMode(
+                mWifiNativeInterfaceCallbackCaptor.capture());
         ArgumentCaptor<WifiConfiguration> configCaptor =
                 ArgumentCaptor.forClass(WifiConfiguration.class);
+        order.verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_ENABLING, 0);
         order.verify(mWifiNative).startSoftAp(
                 configCaptor.capture(), mSoftApListenerCaptor.capture());
         WifiConfigurationTestUtil.assertConfigurationEqual(expectedConfig, configCaptor.getValue());
-        mNetworkObserverCaptor.getValue().interfaceLinkStateChanged(TEST_INTERFACE_NAME, true);
+        mWifiNativeInterfaceCallbackCaptor.getValue().onUp(TEST_INTERFACE_NAME);
         mLooper.dispatchAll();
         order.verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_ENABLED, 0);
         verify(mContext, times(2)).sendStickyBroadcastAsUser(intentCaptor.capture(),
@@ -997,12 +723,6 @@ public class SoftApManagerTest {
         verify(mFrameworkFacade).registerContentObserver(eq(mContext), any(Uri.class), eq(true),
                 observerCaptor.capture());
         mContentObserver = observerCaptor.getValue();
-    }
-
-    /** Verifies that soft AP was not disabled. */
-    protected void verifySoftApNotDisabled() throws Exception {
-        verify(mCallback, never()).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLING, 0);
-        verify(mCallback, never()).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLED, 0);
     }
 
     private void checkApStateChangedBroadcast(Intent intent, int expectedCurrentState,

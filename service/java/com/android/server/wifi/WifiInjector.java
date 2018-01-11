@@ -240,10 +240,8 @@ public class WifiInjector {
                 this, mBackupManagerProxy, mCountryCode, mWifiNative,
                 new WrongPasswordNotifier(mContext, mFrameworkFacade));
         IBinder b = mFrameworkFacade.getService(Context.NETWORKMANAGEMENT_SERVICE);
-        INetworkManagementService networkManagementService =
-                INetworkManagementService.Stub.asInterface(b);
         mWifiStateMachinePrime = new WifiStateMachinePrime(this, wifiStateMachineLooper,
-                mWifiNative, networkManagementService);
+                mWifiNative);
         mOpenNetworkNotifier = new OpenNetworkNotifier(mContext,
                 mWifiStateMachineHandlerThread.getLooper(), mFrameworkFacade, mClock, mWifiMetrics,
                 mWifiConfigManager, mWifiConfigStore, mWifiStateMachine,
@@ -404,32 +402,26 @@ public class WifiInjector {
 
     /**
      * Create a SoftApManager.
-     * @param nmService NetworkManagementService allowing SoftApManager to listen for interface
-     * changes
      * @param listener listener for SoftApManager
      * @param config SoftApModeConfiguration object holding the config and mode
      * @return an instance of SoftApManager
      */
-    public SoftApManager makeSoftApManager(INetworkManagementService nmService,
-                                           WifiManager.SoftApCallback callback,
+    public SoftApManager makeSoftApManager(WifiManager.SoftApCallback callback,
                                            @NonNull SoftApModeConfiguration config) {
         return new SoftApManager(mContext, mWifiStateMachineHandlerThread.getLooper(),
                 mFrameworkFacade, mWifiNative, mCountryCode.getCountryCode(), callback,
-                nmService, mWifiApConfigStore, config, mWifiMetrics);
+                mWifiApConfigStore, config, mWifiMetrics);
     }
 
     /**
      * Create a ScanOnlyModeManager
      *
      * @param listener listener for ScanOnlyModeManager state changes
-     * @param nmService NetworkManagementService allowing ScanOnlyModeManager to listen for
-     * interface changes
      * @return a new instance of ScanOnlyModeManager
      */
-    public ScanOnlyModeManager makeScanOnlyModeManager(ScanOnlyModeManager.Listener listener,
-                                                       INetworkManagementService nmService) {
+    public ScanOnlyModeManager makeScanOnlyModeManager(ScanOnlyModeManager.Listener listener) {
         return new ScanOnlyModeManager(mContext, mWifiStateMachineHandlerThread.getLooper(),
-                mWifiNative, listener, nmService, mWifiMetrics, mWifiMonitor);
+                mWifiNative, listener, mNwManagementService, mWifiMetrics, mWifiMonitor);
     }
 
     /**

@@ -21,7 +21,6 @@ import static org.mockito.Mockito.*;
 
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
-import android.os.INetworkManagementService;
 import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Log;
@@ -54,7 +53,6 @@ public class WifiStateMachinePrimeTest {
     @Mock WifiNative mWifiNative;
     @Mock WifiApConfigStore mWifiApConfigStore;
     TestLooper mLooper;
-    @Mock INetworkManagementService mNMService;
     @Mock ScanOnlyModeManager mScanOnlyModeManager;
     @Mock SoftApManager mSoftApManager;
     ScanOnlyModeManager.Listener mScanOnlyListener;
@@ -72,20 +70,16 @@ public class WifiStateMachinePrimeTest {
         MockitoAnnotations.initMocks(this);
         mLooper = new TestLooper();
 
-        when(mWifiInjector.getWifiNative()).thenReturn(mWifiNative);
-        when(mWifiNative.getInterfaceName()).thenReturn(WIFI_IFACE_NAME);
         mWifiStateMachinePrime = createWifiStateMachinePrime();
 
         // creating a new WSMP cleans up any existing interfaces, check and reset expectations
         verifyCleanupCalled();
-        reset(mWifiNative);
 
         mWifiStateMachinePrime.registerSoftApCallback(mSoftApStateMachineCallback);
     }
 
     private WifiStateMachinePrime createWifiStateMachinePrime() {
-        return new WifiStateMachinePrime(mWifiInjector, mLooper.getLooper(),
-                mWifiNative, mNMService);
+        return new WifiStateMachinePrime(mWifiInjector, mLooper.getLooper(), mWifiNative);
     }
 
     /**
@@ -111,17 +105,15 @@ public class WifiStateMachinePrimeTest {
                         public ScanOnlyModeManager answer(InvocationOnMock invocation) {
                             Object[] args = invocation.getArguments();
                             mScanOnlyListener = (ScanOnlyModeManager.Listener) args[0];
-                            assertEquals(mNMService, (INetworkManagementService) args[1]);
                             return mScanOnlyModeManager;
                         }
                 }).when(mWifiInjector).makeScanOnlyModeManager(
-                        any(ScanOnlyModeManager.Listener.class),
-                        any(INetworkManagementService.class));
+                        any(ScanOnlyModeManager.Listener.class));
         mWifiStateMachinePrime.enterScanOnlyMode();
         mLooper.dispatchAll();
         Log.e("WifiStateMachinePrimeTest", "check fromState: " + fromState);
         if (!fromState.equals(WIFI_DISABLED_STATE_STRING)) {
-            verify(mWifiNative).tearDown();
+            verify(mWifiNative).teardownAllInterfaces();
         }
         assertEquals(SCAN_ONLY_MODE_ACTIVE_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
         verify(mScanOnlyModeManager).start();
@@ -138,13 +130,11 @@ public class WifiStateMachinePrimeTest {
                 new Answer<Object>() {
                     public SoftApManager answer(InvocationOnMock invocation) {
                         Object[] args = invocation.getArguments();
-                        assertEquals(mNMService, (INetworkManagementService) args[0]);
-                        mSoftApManagerCallback = (WifiManager.SoftApCallback) args[1];
-                        assertEquals(softApConfig, (SoftApModeConfiguration) args[2]);
+                        mSoftApManagerCallback = (WifiManager.SoftApCallback) args[0];
+                        assertEquals(softApConfig, (SoftApModeConfiguration) args[1]);
                         return mSoftApManager;
                     }
-                }).when(mWifiInjector).makeSoftApManager(any(INetworkManagementService.class),
-                                                         any(WifiManager.SoftApCallback.class),
+                }).when(mWifiInjector).makeSoftApManager(any(WifiManager.SoftApCallback.class),
                                                          any());
         mWifiStateMachinePrime.enterSoftAPMode(softApConfig);
         mLooper.dispatchAll();
@@ -159,20 +149,19 @@ public class WifiStateMachinePrimeTest {
     private void verifyCleanupCalled() {
         // for now, this is a single call, but make a helper to avoid adding any additional cleanup
         // checks
-        verify(mWifiNative, atLeastOnce()).tearDown();
+        verify(mWifiNative, atLeastOnce()).teardownAllInterfaces();
     }
 
     /**
      * Test that when a new instance of WifiStateMachinePrime is created, any existing
      * resources in WifiNative are cleaned up.
      * Expectations:  When the new WifiStateMachinePrime instance is created a call to
-     * WifiNative.tearDown() is made.
+     * WifiNative.teardownAllInterfaces() is made.
      */
     @Test
     public void testCleanupOnStart() throws Exception {
         WifiStateMachinePrime testWifiStateMachinePrime =
-                new WifiStateMachinePrime(mWifiInjector, mLooper.getLooper(),
-                                          mWifiNative, mNMService);
+                new WifiStateMachinePrime(mWifiInjector, mLooper.getLooper(), mWifiNative);
         verifyCleanupCalled();
     }
 
@@ -458,13 +447,11 @@ public class WifiStateMachinePrimeTest {
         SoftApModeConfiguration softApConfig2 =
                 new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, config2);
 
-        when(mWifiInjector.makeSoftApManager(any(INetworkManagementService.class),
-                                             any(WifiManager.SoftApCallback.class),
+        when(mWifiInjector.makeSoftApManager(any(WifiManager.SoftApCallback.class),
                                              eq(softApConfig1)))
                 .thenReturn(mSoftApManager);
-        when(mWifiInjector.makeSoftApManager(any(INetworkManagementService.class),
-                                             any(WifiManager.SoftApCallback.class),
-                                             eq(softApConfig2)))
+        when(mWifiInjector.makeSoftApManager(any(WifiManager.SoftApCallback.class),
+                eq(softApConfig2)))
                 .thenReturn(mSoftApManager);
 
 
