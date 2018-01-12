@@ -46,6 +46,7 @@ public class HostapdHal {
     private final Object mLock = new Object();
     private boolean mVerboseLoggingEnabled = false;
     private final boolean mEnableAcs;
+    private final boolean mEnableIeee80211AC;
 
     // Hostapd HAL interface objects
     private IServiceManager mIServiceManager = null;
@@ -88,6 +89,8 @@ public class HostapdHal {
 
     public HostapdHal(Context context) {
         mEnableAcs = context.getResources().getBoolean(R.bool.config_wifi_softap_acs_supported);
+        mEnableIeee80211AC =
+                context.getResources().getBoolean(R.bool.config_wifi_softap_ieee80211ac_supported);
     }
 
     /**
@@ -226,7 +229,7 @@ public class HostapdHal {
             IHostapd.IfaceParams ifaceParams = new IHostapd.IfaceParams();
             ifaceParams.ifaceName = ifaceName;
             ifaceParams.hwModeParams.enable80211N = true;
-            ifaceParams.hwModeParams.enable80211AC = false;
+            ifaceParams.hwModeParams.enable80211AC = mEnableIeee80211AC;
             if (config.apBand == WifiConfiguration.AP_BAND_2GHZ) {
                 ifaceParams.channelParams.band = IHostapd.Band.BAND_2_4_GHZ;
             } else if (config.apBand == WifiConfiguration.AP_BAND_5GHZ) {
