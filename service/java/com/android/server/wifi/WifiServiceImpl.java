@@ -196,6 +196,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @GuardedBy("mLocalOnlyHotspotRequests")
     private final ConcurrentHashMap<String, Integer> mIfaceIpModes;
 
+    /* Limit on number of registered soft AP callbacks to track and prevent potential memory leak */
+    private static final int NUM_SOFT_AP_CALLBACKS_WARN_LIMIT = 10;
+    private static final int NUM_SOFT_AP_CALLBACKS_WTF_LIMIT = 20;
     private final HashMap<Integer, ISoftApCallback> mRegisteredSoftApCallbacks;
 
     /**
@@ -470,7 +473,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
         mRegisteredSoftApCallbacks = new HashMap<>();
 
-        // TODO: All the other cases we need to re-register SoftApCallbackImpl. (e.g. after a reset)
         mWifiInjector.getWifiStateMachinePrime().registerSoftApCallback(new SoftApCallbackImpl());
     }
 
@@ -1104,13 +1106,16 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      *
      * @param binder IBinder instance to allow cleanup if the app dies
      * @param callback Soft AP callback to register
+     * @param callbackIdentifier Unique ID of the registering callback. This ID will be used to
+     *        unregister the callback. See {@link unregisterSoftApCallback(int)}
      *
      * @throws SecurityException if the caller does not have permission to register a callback
      * @throws RemoteException if remote exception happens
      * @throws IllegalArgumentException if the arguments are null or invalid
      */
     @Override
-    public void registerSoftApCallback(IBinder binder, ISoftApCallback callback) {
+    public void registerSoftApCallback(IBinder binder, ISoftApCallback callback,
+            int callbackIdentifier) {
         // verify arguments
         if (binder == null) {
             throw new IllegalArgumentException("Binder must not be null");
@@ -1121,14 +1126,13 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
         enforceNetworkSettingsPermission();
 
-        final int pid = Binder.getCallingPid();
         // register for binder death
         IBinder.DeathRecipient dr = new IBinder.DeathRecipient() {
             @Override
             public void binderDied() {
                 binder.unlinkToDeath(this, 0);
                 mClientHandler.post(() -> {
-                    mRegisteredSoftApCallbacks.remove(pid);
+                    mRegisteredSoftApCallbacks.remove(callbackIdentifier);
                 });
             }
         };
@@ -1141,12 +1145,17 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
         // post operation to handler thread
         mClientHandler.post(() -> {
-            mRegisteredSoftApCallbacks.put(pid, callback);
+            mRegisteredSoftApCallbacks.put(callbackIdentifier, callback);
+
+            if (mRegisteredSoftApCallbacks.size() > NUM_SOFT_AP_CALLBACKS_WTF_LIMIT) {
+                Log.wtf(TAG, "Too many soft AP callbacks: " + mRegisteredSoftApCallbacks.size());
+            } else if (mRegisteredSoftApCallbacks.size() > NUM_SOFT_AP_CALLBACKS_WARN_LIMIT) {
+                Log.w(TAG, "Too many soft AP callbacks: " + mRegisteredSoftApCallbacks.size());
+            }
 
             // Update the client about the current state immediately after registering the callback
             try {
-                // We never report failure state here, so failureReason is not used
-                callback.onStateChanged(mSoftApState, 0 /* not used */);
+                callback.onStateChanged(mSoftApState, 0);
                 callback.onNumClientsChanged(mSoftApNumClients);
             } catch (RemoteException e) {
                 Log.e(TAG, "registerSoftApCallback: remote exception -- " + e);
@@ -1156,13 +1165,20 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     }
 
     /**
-     * Method used for testing registerSoftApCallback. This method allows unit tests to register
-     * callbacks directly for testing mechanisms triggered by soft AP events.
+     * see {@link android.net.wifi.WifiManager#unregisterSoftApCallback(SoftApCallback)}
+     *
+     * @param callbackIdentifier Unique ID of the callback to be unregistered.
+     *
+     * @throws SecurityException if the caller does not have permission to register a callback
      */
-    @VisibleForTesting
-    public void registerSAPForTest(int pid, ISoftApCallback callback) {
+    @Override
+    public void unregisterSoftApCallback(int callbackIdentifier) {
+
+        enforceNetworkSettingsPermission();
+
+        // post operation to handler thread
         mClientHandler.post(() -> {
-            mRegisteredSoftApCallbacks.put(pid, callback);
+            mRegisteredSoftApCallbacks.remove(callbackIdentifier);
         });
     }
 
