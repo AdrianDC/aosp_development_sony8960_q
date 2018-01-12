@@ -45,6 +45,7 @@ namespace android {
 namespace wifi_system {
 namespace {
 
+const int kDefaultApChannel = 6;
 const char kHostapdServiceName[] = "hostapd";
 const char kHostapdConfigFilePath[] = "/data/misc/wifi/hostapd.conf";
 
@@ -125,10 +126,14 @@ string HostapdManager::CreateHostapdConfig(
     const string& interface_name,
     const vector<uint8_t> ssid,
     bool is_hidden,
-    BandType band,
+    int channel,
     EncryptionType encryption_type,
     const vector<uint8_t> passphrase) {
   string result;
+
+  if (channel < 0) {
+    channel = kDefaultApChannel;
+  }
 
   if (ssid.size() > 32) {
     LOG(ERROR) << "SSIDs must be <= 32 bytes long";
@@ -166,21 +171,6 @@ string HostapdManager::CreateHostapdConfig(
     }
   }
 
-  // hw_mode will be used to specify band for acs.
-  string hw_mode;
-  if (band == BandType::kBand2G) {
-    hw_mode = "g";
-  } else if (band == BandType::kBand5G) {
-    hw_mode = "a";
-  } else if (band == BandType::kBandAny) {
-    hw_mode = "any";
-  } else {
-      LOG(ERROR) << "Unknown band type ("
-                 << static_cast<int>(band)
-                 << ")";
-      return result;
-  }
-
   result = StringPrintf(
       "interface=%s\n"
       "driver=nl80211\n"
@@ -189,17 +179,16 @@ string HostapdManager::CreateHostapdConfig(
       // for use as a SSID.  In this case, we're giving it a hex string
       // and hostapd needs to expect that.
       "ssid2=%s\n"
-      // channel can be selected automatically at run time.
-      "channel=0\n"
-      "acs_exclude_dfs=1\n"
+      "channel=%d\n"
       "ieee80211n=1\n"
-      "hw_mode=%s\n"
+      "hw_mode=%c\n"
       "ignore_broadcast_ssid=%d\n"
       "wowlan_triggers=any\n"
       "%s",
       interface_name.c_str(),
       ssid_as_string.c_str(),
-      hw_mode.c_str(),
+      channel,
+      (channel <= 14) ? 'g' : 'a',
       (is_hidden) ? 1 : 0,
       encryption_config.c_str());
   return result;

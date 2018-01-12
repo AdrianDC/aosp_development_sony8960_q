@@ -34,7 +34,7 @@ class MockHostapdManager : public HostapdManager {
       const std::string& interface_name,
       const std::vector<uint8_t> ssid,
       bool is_hidden,
-      BandType band,
+      int channel,
       EncryptionType encryption,
       const std::vector<uint8_t> passphrase));
   MOCK_METHOD1(WriteHostapdConfig, bool(const std::string& config_file));
