@@ -23,12 +23,14 @@ import static com.android.server.wifi.WifiController.CMD_DEVICE_IDLE;
 import static com.android.server.wifi.WifiController.CMD_EMERGENCY_CALL_STATE_CHANGED;
 import static com.android.server.wifi.WifiController.CMD_EMERGENCY_MODE_CHANGED;
 import static com.android.server.wifi.WifiController.CMD_RESTART_WIFI;
+import static com.android.server.wifi.WifiController.CMD_SCREEN_ON;
 import static com.android.server.wifi.WifiController.CMD_SET_AP;
 import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.*;
 
+import android.app.AlarmManager;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.database.ContentObserver;
@@ -84,7 +86,6 @@ public class WifiControllerTest {
 
     TestLooper mLooper;
     @Mock Context mContext;
-    @Mock WifiServiceImpl mService;
     @Mock FrameworkFacade mFacade;
     @Mock WifiSettingsStore mSettingsStore;
     @Mock WifiStateMachine mWifiStateMachine;
@@ -107,6 +108,8 @@ public class WifiControllerTest {
         initializeSettingsStore();
 
         when(mContext.getContentResolver()).thenReturn(mContentResolver);
+        when(mContext.getSystemService(eq(Context.ALARM_SERVICE))).thenReturn(
+                mock(AlarmManager.class));
         ArgumentCaptor<ContentObserver> observerCaptor =
                 ArgumentCaptor.forClass(ContentObserver.class);
 
@@ -315,6 +318,35 @@ public class WifiControllerTest {
         inOrder.verify(mWifiStateMachine).setSupplicantRunning(true);
         inOrder.verify(mWifiStateMachine).setOperationalMode(WifiStateMachine.CONNECT_MODE);
         assertEquals("DeviceActiveState", getCurrentState().getName());
+    }
+
+    /**
+     * Make sure we handle WorkSources we obtain from WifiLockManager correctly.
+     */
+    @Test
+    public void testWorkSourcesPassedToWifiStateMachine() throws Exception {
+        enableWifi();
+
+        WorkSource workSource = new WorkSource(100);
+        workSource.createWorkChain().addNode(500, "foo");
+
+        // make sure mDeviceIdle is set to true
+        when(mWifiLockManager.getStrongestLockMode()).thenReturn(WIFI_MODE_FULL);
+        when(mWifiLockManager.createMergedWorkSource()).thenReturn(workSource);
+
+        mWifiController.sendMessage(CMD_DEVICE_IDLE);
+        mLooper.dispatchAll();
+        InOrder inOrder = inOrder(mWifiStateMachine);
+        inOrder.verify(mWifiStateMachine).updateBatteryWorkSource(eq(workSource));
+
+        // Now transition back to screen on and make sure the work source is updated again.
+        workSource = new WorkSource(100);
+        when(mWifiLockManager.createMergedWorkSource()).thenReturn(workSource);
+
+        mWifiController.sendMessage(CMD_SCREEN_ON);
+        mLooper.dispatchAll();
+        inOrder = inOrder(mWifiStateMachine);
+        inOrder.verify(mWifiStateMachine).updateBatteryWorkSource(eq(new WorkSource()));
     }
 
     /**
