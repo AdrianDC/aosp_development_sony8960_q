@@ -358,6 +358,7 @@ public class WifiStateMachineTest {
     @Mock HandlerThread mWifiServiceHandlerThread;
     @Mock WifiPermissionsWrapper mWifiPermissionsWrapper;
     @Mock WakeupController mWakeupController;
+    @Mock ScanRequestProxy mScanRequestProxy;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -399,6 +400,7 @@ public class WifiStateMachineTest {
         when(mWifiInjector.getWifiServiceHandlerThread()).thenReturn(mWifiServiceHandlerThread);
         when(mWifiInjector.getWifiPermissionsWrapper()).thenReturn(mWifiPermissionsWrapper);
         when(mWifiInjector.getWakeupController()).thenReturn(mWakeupController);
+        when(mWifiInjector.getScanRequestProxy()).thenReturn(mScanRequestProxy);
 
         when(mWifiNative.setupInterfaceForClientMode(any()))
                 .thenReturn(WIFI_IFACE_NAME);
@@ -995,6 +997,7 @@ public class WifiStateMachineTest {
                 .thenReturn(config);
 
         verify(mWifiNative).removeAllNetworks(WIFI_IFACE_NAME);
+        verify(mScanRequestProxy).enableScanningForHiddenNetworks(true);
 
         mLooper.startAutoDispatch();
         assertTrue(mWsm.syncEnableNetwork(mWsmAsyncChannel, config.networkId, true));
@@ -1146,6 +1149,7 @@ public class WifiStateMachineTest {
         when(mWifiConfigManager.getConfiguredNetwork(eq(0))).thenReturn(null);
 
         verify(mWifiNative).removeAllNetworks(WIFI_IFACE_NAME);
+        verify(mScanRequestProxy).enableScanningForHiddenNetworks(true);
 
         mLooper.startAutoDispatch();
         assertFalse(mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true));
@@ -1167,6 +1171,7 @@ public class WifiStateMachineTest {
         initializeAndAddNetworkAndVerifySuccess();
 
         verify(mWifiNative).removeAllNetworks(WIFI_IFACE_NAME);
+        verify(mScanRequestProxy).enableScanningForHiddenNetworks(true);
 
         mLooper.startAutoDispatch();
         mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true);
@@ -1715,6 +1720,7 @@ public class WifiStateMachineTest {
         when(mWifiConfigManager.updateLastConnectUid(eq(0), anyInt())).thenReturn(true);
 
         verify(mWifiNative).removeAllNetworks(WIFI_IFACE_NAME);
+        verify(mScanRequestProxy).enableScanningForHiddenNetworks(true);
 
         mLooper.startAutoDispatch();
         assertTrue(mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true));

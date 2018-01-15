@@ -44,16 +44,18 @@ public class ScanOnlyModeManager implements ActiveModeManager {
 
     private final WifiMetrics mWifiMetrics;
     private final Listener mListener;
+    private final ScanRequestProxy mScanRequestProxy;
 
     private String mClientInterfaceName;
 
 
     ScanOnlyModeManager(Context context, @NonNull Looper looper, WifiNative wifiNative,
-            Listener listener, WifiMetrics wifiMetrics) {
+            Listener listener, WifiMetrics wifiMetrics, ScanRequestProxy scanRequestProxy) {
         mContext = context;
         mWifiNative = wifiNative;
         mListener = listener;
         mWifiMetrics = wifiMetrics;
+        mScanRequestProxy = scanRequestProxy;
         mStateMachine = new ScanOnlyModeStateMachine(looper);
     }
 
@@ -201,6 +203,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                     sendScanAvailableBroadcast(true);
                     updateWifiState(WifiManager.WIFI_STATE_ENABLED);
                 }
+                mScanRequestProxy.enableScanningForHiddenNetworks(false);
             }
 
             @Override
@@ -239,6 +242,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                 // let WifiScanner know that wifi is down.
                 sendScanAvailableBroadcast(false);
                 updateWifiState(WifiManager.WIFI_STATE_DISABLED);
+                mScanRequestProxy.clearScanResults();
             }
         }
 

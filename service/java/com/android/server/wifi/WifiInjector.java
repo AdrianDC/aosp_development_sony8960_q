@@ -28,6 +28,7 @@ import android.net.wifi.WifiManager;
 import android.net.wifi.WifiNetworkScoreCache;
 import android.net.wifi.WifiScanner;
 import android.os.BatteryStats;
+import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.INetworkManagementService;
@@ -129,6 +130,7 @@ public class WifiInjector {
     private final SelfRecovery mSelfRecovery;
     private final WakeupController mWakeupController;
     private final INetworkManagementService mNwManagementService;
+    private final ScanRequestProxy mScanRequestProxy;
 
     private final boolean mUseRealLogger;
 
@@ -233,6 +235,7 @@ public class WifiInjector {
         mPasspointNetworkEvaluator = new PasspointNetworkEvaluator(
                 mPasspointManager, mWifiConfigManager, mConnectivityLocalLog);
         mWifiMetrics.setPasspointManager(mPasspointManager);
+        mScanRequestProxy = new ScanRequestProxy(mContext, this, mWifiConfigManager);
         // mWifiStateMachine has an implicit dependency on mJavaRuntime due to WifiDiagnostics.
         mJavaRuntime = Runtime.getRuntime();
         mWifiStateMachine = new WifiStateMachine(mContext, mFrameworkFacade,
@@ -282,6 +285,7 @@ public class WifiInjector {
         mWifiLastResortWatchdog.enableVerboseLogging(verbose);
         mWifiBackupRestore.enableVerboseLogging(verbose);
         mHalDeviceManager.enableVerboseLogging(verbose);
+        mScanRequestProxy.enableVerboseLogging(verbose);
         LogcatLog.enableVerboseLogging(verbose);
     }
 
@@ -327,6 +331,10 @@ public class WifiInjector {
 
     public WifiStateMachine getWifiStateMachine() {
         return mWifiStateMachine;
+    }
+
+    public Handler getWifiStateMachineHandler() {
+        return mWifiStateMachine.getHandler();
     }
 
     public WifiStateMachinePrime getWifiStateMachinePrime() {
@@ -421,7 +429,7 @@ public class WifiInjector {
      */
     public ScanOnlyModeManager makeScanOnlyModeManager(ScanOnlyModeManager.Listener listener) {
         return new ScanOnlyModeManager(mContext, mWifiStateMachineHandlerThread.getLooper(),
-                mWifiNative, listener, mWifiMetrics);
+                mWifiNative, listener, mWifiMetrics, mScanRequestProxy);
     }
 
     /**
@@ -542,5 +550,9 @@ public class WifiInjector {
 
     public PowerProfile getPowerProfile() {
         return new PowerProfile(mContext, false);
+    }
+
+    public ScanRequestProxy getScanRequestProxy() {
+        return mScanRequestProxy;
     }
 }

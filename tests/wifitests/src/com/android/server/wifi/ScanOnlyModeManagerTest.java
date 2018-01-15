@@ -55,6 +55,7 @@ public class ScanOnlyModeManagerTest {
     @Mock WifiNative mWifiNative;
     @Mock ScanOnlyModeManager.Listener mListener;
     @Mock WifiMonitor mWifiMonitor;
+    @Mock ScanRequestProxy mScanRequestProxy;
 
     final ArgumentCaptor<WifiNative.StatusListener> mStatusListenerCaptor =
             ArgumentCaptor.forClass(WifiNative.StatusListener.class);
@@ -72,7 +73,7 @@ public class ScanOnlyModeManagerTest {
 
     private ScanOnlyModeManager createScanOnlyModeManager() {
         return new ScanOnlyModeManager(mContext, mLooper.getLooper(), mWifiNative, mListener,
-                mWifiMetrics);
+                mWifiMetrics, mScanRequestProxy);
     }
 
     private void startScanOnlyModeAndVerifyEnabled() throws Exception {
@@ -93,6 +94,7 @@ public class ScanOnlyModeManagerTest {
 
         checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_ENABLED);
         checkWifiStateChangeListenerUpdate(WIFI_STATE_ENABLED);
+        verify(mScanRequestProxy, atLeastOnce()).enableScanningForHiddenNetworks(false);
     }
 
     private void checkWifiScanStateChangedBroadcast(Intent intent, int expectedCurrentState) {
@@ -174,6 +176,7 @@ public class ScanOnlyModeManagerTest {
                 eq(UserHandle.ALL));
         checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
         checkWifiStateChangeListenerUpdate(WIFI_STATE_DISABLED);
+        verify(mScanRequestProxy).clearScanResults();
     }
 
     /**

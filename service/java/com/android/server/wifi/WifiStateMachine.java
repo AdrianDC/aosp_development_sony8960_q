@@ -211,6 +211,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private WifiConnectivityManager mWifiConnectivityManager;
     private ConnectivityManager mCm;
     private BaseWifiDiagnostics mWifiDiagnostics;
+    private ScanRequestProxy mScanRequestProxy;
     private WifiApConfigStore mWifiApConfigStore;
     private final boolean mP2pSupported;
     private final AtomicBoolean mP2pConnected = new AtomicBoolean(false);
@@ -950,6 +951,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         mWifiMonitor = mWifiInjector.getWifiMonitor();
         mWifiDiagnostics = mWifiInjector.makeWifiDiagnostics(mWifiNative);
+        mScanRequestProxy = mWifiInjector.getScanRequestProxy();
         mWifiPermissionsWrapper = mWifiInjector.getWifiPermissionsWrapper();
 
         mWifiInfo = new ExtendedWifiInfo();
@@ -1350,6 +1352,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
      *                   workSource is specified.
      * @param workSource If not null, blame is given to workSource.
      * @param settings   Scan settings, see {@link ScanSettings}.
+     * TODO(b/70359905): Remove this method & it's dependencies since it's not used anymore.
      */
     public void startScan(int callingUid, int scanCounter,
                           ScanSettings settings, WorkSource workSource) {
@@ -4735,6 +4738,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             if (!mWifiNative.removeAllNetworks(mInterfaceName)) {
                 loge("Failed to remove networks on entering connect mode");
             }
+            mScanRequestProxy.enableScanningForHiddenNetworks(true);
             mWifiInfo.reset();
             mWifiInfo.setSupplicantState(SupplicantState.DISCONNECTED);
             sendWifiScanAvailable(true);
@@ -4771,6 +4775,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             if (!mWifiNative.removeAllNetworks(mInterfaceName)) {
                 loge("Failed to remove networks on exiting connect mode");
             }
+            mScanRequestProxy.enableScanningForHiddenNetworks(false);
+            // Do we want to optimize when we move from client mode to scan only mode.
+            mScanRequestProxy.clearScanResults();
             mWifiInfo.reset();
             mWifiInfo.setSupplicantState(SupplicantState.DISCONNECTED);
             setWifiState(WIFI_STATE_DISABLED);
