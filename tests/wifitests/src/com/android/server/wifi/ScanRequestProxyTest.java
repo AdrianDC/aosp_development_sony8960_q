@@ -20,16 +20,24 @@ import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
 import android.content.Context;
+import android.content.Intent;
+import android.net.wifi.ScanResult;
+import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
+import android.os.UserHandle;
+import android.os.WorkSource;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Unit tests for {@link com.android.server.wifi.ScanRequestProxy}.
@@ -37,11 +45,26 @@ import java.util.ArrayList;
 @SmallTest
 public class ScanRequestProxyTest {
     private static final int TEST_UID = 5;
+    private static final List<WifiScanner.ScanSettings.HiddenNetwork> TEST_HIDDEN_NETWORKS_LIST =
+            new ArrayList<WifiScanner.ScanSettings.HiddenNetwork>() {{
+                add(new WifiScanner.ScanSettings.HiddenNetwork("test_ssid_1"));
+                add(new WifiScanner.ScanSettings.HiddenNetwork("test_ssid_2"));
+
+            }};
 
     @Mock private Context mContext;
     @Mock private WifiInjector mWifiInjector;
     @Mock private WifiConfigManager mWifiConfigManager;
     @Mock private WifiScanner mWifiScanner;
+    private ArgumentCaptor<WorkSource> mWorkSourceArgumentCaptor =
+            ArgumentCaptor.forClass(WorkSource.class);
+    private ArgumentCaptor<WifiScanner.ScanSettings> mScanSettingsArgumentCaptor =
+            ArgumentCaptor.forClass(WifiScanner.ScanSettings.class);
+    private ArgumentCaptor<WifiScanner.ScanListener> mScanListenerArgumentCaptor =
+            ArgumentCaptor.forClass(WifiScanner.ScanListener.class);
+    private WifiScanner.ScanData[] mTestScanDatas1;
+    private WifiScanner.ScanData[] mTestScanDatas2;
+    private InOrder mInOrder;
 
     private ScanRequestProxy mScanRequestProxy;
 
@@ -50,7 +73,16 @@ public class ScanRequestProxyTest {
         MockitoAnnotations.initMocks(this);
 
         when(mWifiInjector.getWifiScanner()).thenReturn(mWifiScanner);
-        when(mWifiConfigManager.retrieveHiddenNetworkList()).thenReturn(new ArrayList());
+        when(mWifiConfigManager.retrieveHiddenNetworkList()).thenReturn(TEST_HIDDEN_NETWORKS_LIST);
+        doNothing().when(mWifiScanner).startScan(
+                mScanSettingsArgumentCaptor.capture(),
+                mScanListenerArgumentCaptor.capture(),
+                mWorkSourceArgumentCaptor.capture());
+
+        mInOrder = inOrder(mWifiScanner, mWifiConfigManager, mContext);
+        mTestScanDatas1 = ScanTestUtil.createScanDatas(new int[][]{ { 2417, 2427, 5180, 5170 } });
+        mTestScanDatas2 = ScanTestUtil.createScanDatas(new int[][]{ { 2412, 2422, 5200, 5210 } });
+
         mScanRequestProxy = new ScanRequestProxy(mContext, mWifiInjector, mWifiConfigManager);
     }
 
@@ -66,14 +98,23 @@ public class ScanRequestProxyTest {
     public void testStartScanFailWithoutScanner() {
         when(mWifiInjector.getWifiScanner()).thenReturn(null);
         assertFalse(mScanRequestProxy.startScan(TEST_UID));
+        validateScanResultsAvailableBroadcastSent(false);
+
+        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
     }
 
     /**
      * Verify scan request will forwarded to wifiscanner if wifiscanner is present.
      */
     @Test
-    public void testStartScanSuccessWithScanner() {
+    public void testStartScanSuccess() {
         assertTrue(mScanRequestProxy.startScan(TEST_UID));
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+
+        assertTrue(mWorkSourceArgumentCaptor.getValue().equals(new WorkSource(TEST_UID)));
+        validateScanSettings(mScanSettingsArgumentCaptor.getValue(), false);
+
+        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
     }
 
     /**
@@ -83,7 +124,13 @@ public class ScanRequestProxyTest {
     public void testStartScanWithHiddenNetworkScanningDisabled() {
         mScanRequestProxy.enableScanningForHiddenNetworks(false);
         assertTrue(mScanRequestProxy.startScan(TEST_UID));
-        verify(mWifiConfigManager, never()).retrieveHiddenNetworkList();
+        mInOrder.verify(mWifiConfigManager, never()).retrieveHiddenNetworkList();
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+
+        assertTrue(mWorkSourceArgumentCaptor.getValue().equals(new WorkSource(TEST_UID)));
+        validateScanSettings(mScanSettingsArgumentCaptor.getValue(), false);
+
+        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
     }
 
     /**
@@ -93,6 +140,175 @@ public class ScanRequestProxyTest {
     public void testStartScanWithHiddenNetworkScanningEnabled() {
         mScanRequestProxy.enableScanningForHiddenNetworks(true);
         assertTrue(mScanRequestProxy.startScan(TEST_UID));
-        verify(mWifiConfigManager).retrieveHiddenNetworkList();
+        mInOrder.verify(mWifiConfigManager).retrieveHiddenNetworkList();
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+
+        assertTrue(mWorkSourceArgumentCaptor.getValue().equals(new WorkSource(TEST_UID)));
+        validateScanSettings(mScanSettingsArgumentCaptor.getValue(), true);
+
+        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+    }
+
+    /**
+     * Verify a successful scan request and processing of scan results.
+     */
+    @Test
+    public void testScanSuccess() {
+        // Make a scan request.
+        testStartScanSuccess();
+
+        // Verify the scan results processing.
+        mScanListenerArgumentCaptor.getValue().onResults(mTestScanDatas1);
+        validateScanResultsAvailableBroadcastSent(true);
+
+        // Validate the scan results in the cache.
+        ScanTestUtil.assertScanResultsEquals(
+                mTestScanDatas1[0].getResults(),
+                mScanRequestProxy.getScanResults().stream().toArray(ScanResult[]::new));
+
+        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+    }
+
+    /**
+     * Verify a successful scan request and processing of scan failure.
+     */
+    @Test
+    public void testScanFailure() {
+        // Make a scan request.
+        testStartScanSuccess();
+
+        // Verify the scan failure processing.
+        mScanListenerArgumentCaptor.getValue().onFailure(0, "failed");
+        validateScanResultsAvailableBroadcastSent(false);
+
+        // Ensure scan results in the cache is empty.
+        assertTrue(mScanRequestProxy.getScanResults().isEmpty());
+
+        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+    }
+
+    /**
+     * Verify processing of successive successful scans.
+     */
+    @Test
+    public void testScanSuccessOverwritesPreviousResults() {
+        // Make scan request 1.
+        assertTrue(mScanRequestProxy.startScan(TEST_UID));
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+        // Verify the scan results processing for request 1.
+        mScanListenerArgumentCaptor.getValue().onResults(mTestScanDatas1);
+        validateScanResultsAvailableBroadcastSent(true);
+        // Validate the scan results in the cache.
+        ScanTestUtil.assertScanResultsEquals(
+                mTestScanDatas1[0].getResults(),
+                mScanRequestProxy.getScanResults().stream().toArray(ScanResult[]::new));
+
+        // Make scan request 2.
+        assertTrue(mScanRequestProxy.startScan(TEST_UID));
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+        // Verify the scan results processing for request 2.
+        mScanListenerArgumentCaptor.getValue().onResults(mTestScanDatas2);
+        validateScanResultsAvailableBroadcastSent(true);
+        // Validate the scan results in the cache.
+        ScanTestUtil.assertScanResultsEquals(
+                mTestScanDatas2[0].getResults(),
+                mScanRequestProxy.getScanResults().stream().toArray(ScanResult[]::new));
+
+        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+    }
+
+    /**
+     * Verify processing of a successful scan followed by a failure.
+     */
+    @Test
+    public void testScanFailureDoesNotOverwritePreviousResults() {
+        // Make scan request 1.
+        assertTrue(mScanRequestProxy.startScan(TEST_UID));
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+        // Verify the scan results processing for request 1.
+        mScanListenerArgumentCaptor.getValue().onResults(mTestScanDatas1);
+        validateScanResultsAvailableBroadcastSent(true);
+        // Validate the scan results in the cache.
+        ScanTestUtil.assertScanResultsEquals(
+                mTestScanDatas1[0].getResults(),
+                mScanRequestProxy.getScanResults().stream().toArray(ScanResult[]::new));
+
+        // Make scan request 2.
+        assertTrue(mScanRequestProxy.startScan(TEST_UID));
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+        // Verify the scan failure processing.
+        mScanListenerArgumentCaptor.getValue().onFailure(0, "failed");
+        validateScanResultsAvailableBroadcastSent(false);
+        // Validate the scan results from a previous successful scan in the cache.
+        ScanTestUtil.assertScanResultsEquals(
+                mTestScanDatas1[0].getResults(),
+                mScanRequestProxy.getScanResults().stream().toArray(ScanResult[]::new));
+
+        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+    }
+
+    /**
+     * Verify that clear scan results invocation clears all stored scan results.
+     */
+    @Test
+    public void testClearScanResults() {
+        // Make scan request 1.
+        assertTrue(mScanRequestProxy.startScan(TEST_UID));
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+        // Verify the scan results processing for request 1.
+        mScanListenerArgumentCaptor.getValue().onResults(mTestScanDatas1);
+        validateScanResultsAvailableBroadcastSent(true);
+        // Validate the scan results in the cache.
+        ScanTestUtil.assertScanResultsEquals(
+                mTestScanDatas1[0].getResults(),
+                mScanRequestProxy.getScanResults().stream().toArray(ScanResult[]::new));
+
+        mScanRequestProxy.clearScanResults();
+        assertTrue(mScanRequestProxy.getScanResults().isEmpty());
+        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+    }
+
+    private void validateScanSettings(WifiScanner.ScanSettings scanSettings,
+                                      boolean expectHiddenNetworks) {
+        assertNotNull(scanSettings);
+        assertEquals(WifiScanner.WIFI_BAND_BOTH_WITH_DFS, scanSettings.band);
+        assertEquals(WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN
+                | WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT, scanSettings.reportEvents);
+        if (expectHiddenNetworks) {
+            assertNotNull(scanSettings.hiddenNetworks);
+            assertEquals(TEST_HIDDEN_NETWORKS_LIST.size(), scanSettings.hiddenNetworks.length);
+            for (int i = 0; i < scanSettings.hiddenNetworks.length; i++) {
+                validateHiddenNetworkInList(scanSettings.hiddenNetworks[i],
+                        TEST_HIDDEN_NETWORKS_LIST);
+            }
+        } else {
+            assertNull(scanSettings.hiddenNetworks);
+        }
+    }
+
+    private void validateHiddenNetworkInList(
+            WifiScanner.ScanSettings.HiddenNetwork expectedHiddenNetwork,
+            List<WifiScanner.ScanSettings.HiddenNetwork> hiddenNetworkList) {
+        for (WifiScanner.ScanSettings.HiddenNetwork hiddenNetwork : hiddenNetworkList) {
+            if (hiddenNetwork.ssid.equals(expectedHiddenNetwork.ssid)) {
+                return;
+            }
+        }
+        fail();
+    }
+
+    private void validateScanResultsAvailableBroadcastSent(boolean expectScanSuceeded) {
+        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
+        ArgumentCaptor<UserHandle> userHandleCaptor = ArgumentCaptor.forClass(UserHandle.class);
+        mInOrder.verify(mContext).sendBroadcastAsUser(
+                intentCaptor.capture(), userHandleCaptor.capture());
+
+        assertEquals(userHandleCaptor.getValue(), UserHandle.ALL);
+
+        Intent intent = intentCaptor.getValue();
+        assertEquals(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION, intent.getAction());
+        assertEquals(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT, intent.getFlags());
+        boolean scanSucceeded = intent.getBooleanExtra(WifiManager.EXTRA_RESULTS_UPDATED, false);
+        assertEquals(expectScanSuceeded, scanSucceeded);
     }
 }

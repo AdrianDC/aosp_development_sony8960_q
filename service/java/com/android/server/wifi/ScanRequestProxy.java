@@ -23,9 +23,11 @@ import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.os.Binder;
 import android.os.UserHandle;
+import android.os.WorkSource;
 import android.util.Log;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -61,6 +63,53 @@ public class ScanRequestProxy {
     private boolean mScanningForHiddenNetworksEnabled = false;
     // Scan results cached from the last full single scan request.
     private final List<ScanResult> mLastScanResults = new ArrayList<>();
+    // Common scan listener for scan requests.
+    private final WifiScanner.ScanListener mScanListener = new WifiScanner.ScanListener() {
+        @Override
+        public void onSuccess() {
+            // Scan request succeeded, wait for results to report to external clients.
+            if (mVerboseLoggingEnabled) {
+                Log.d(TAG, "Scan request succeeded");
+            }
+        }
+
+        @Override
+        public void onFailure(int reason, String description) {
+            Log.e(TAG, "Scan failure received");
+            sendScanResultBroadcast(false);
+        }
+
+        @Override
+        public void onResults(WifiScanner.ScanData[] scanDatas) {
+            if (mVerboseLoggingEnabled) {
+                Log.d(TAG, "Scan results received");
+            }
+            // For single scans, the array size should always be 1.
+            if (scanDatas.length != 1) {
+                Log.e(TAG, "Found more than 1 batch of scan results, Ignoring...");
+                sendScanResultBroadcast(false);
+            }
+            WifiScanner.ScanData scanData = scanDatas[0];
+            ScanResult[] scanResults = scanData.getResults();
+            if (mVerboseLoggingEnabled) {
+                Log.d(TAG, "Received " + scanResults.length + " scan results");
+            }
+            // Store the last scan results & send out the scan completion broadcast.
+            mLastScanResults.clear();
+            mLastScanResults.addAll(Arrays.asList(scanResults));
+            sendScanResultBroadcast(true);
+        }
+
+        @Override
+        public void onFullResult(ScanResult fullScanResult) {
+            // Ignore for single scans.
+        }
+
+        @Override
+        public void onPeriodChanged(int periodInMs) {
+            // Ignore for single scans.
+        }
+    };
 
     ScanRequestProxy(Context context, WifiInjector wifiInjector, WifiConfigManager configManager) {
         mContext = context;
@@ -123,15 +172,26 @@ public class ScanRequestProxy {
     public boolean startScan(int callingUid) {
         if (!retrieveWifiScannerIfNecessary()) {
             Log.e(TAG, "Failed to retrieve wifiscanner");
+            sendScanResultBroadcast(false);
             return false;
         }
+        // Create a worksource using the caller's UID.
+        WorkSource workSource = new WorkSource(callingUid);
 
-        // Retrieve the list of hidden network SSIDs to scan for, if enabled.
+        // Create the scan settings.
+        WifiScanner.ScanSettings settings = new WifiScanner.ScanSettings();
+        // always do full scans
+        settings.band = WifiScanner.WIFI_BAND_BOTH_WITH_DFS;
+        settings.reportEvents = WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN
+                | WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT;
         if (mScanningForHiddenNetworksEnabled) {
+            // retrieve the list of hidden network SSIDs to scan for, if enabled.
             List<WifiScanner.ScanSettings.HiddenNetwork> hiddenNetworkList =
                     mWifiConfigManager.retrieveHiddenNetworkList();
+            settings.hiddenNetworks = hiddenNetworkList.toArray(
+                    new WifiScanner.ScanSettings.HiddenNetwork[hiddenNetworkList.size()]);
         }
-        // TODO: Implementation
+        mWifiScanner.startScan(settings, mScanListener, workSource);
         return true;
     }
 
@@ -142,5 +202,12 @@ public class ScanRequestProxy {
      */
     public List<ScanResult> getScanResults() {
         return mLastScanResults;
+    }
+
+    /**
+     * Clear the stored scan results.
+     */
+    public void clearScanResults() {
+        mLastScanResults.clear();
     }
 }
