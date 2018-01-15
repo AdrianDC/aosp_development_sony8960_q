@@ -16,6 +16,8 @@
 
 package com.android.server.wifi.rtt;
 
+import static android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE;
+
 import android.app.ActivityManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -44,6 +46,7 @@ import android.os.PowerManager;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.WorkSource;
+import android.os.WorkSource.WorkChain;
 import android.provider.Settings;
 import android.util.Log;
 import android.util.SparseIntArray;
@@ -286,6 +289,9 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         mWifiPermissionsUtil.enforceLocationPermission(callingPackage, uid);
         if (workSource != null) {
             enforceLocationHardware();
+            // We only care about UIDs in the incoming worksources and not their associated
+            // tags. Clear names so that other operations involving wakesources become simpler.
+            workSource.clearNames();
         }
 
         // register for binder death
@@ -310,7 +316,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
 
         mRttServiceSynchronized.mHandler.post(() -> {
             WorkSource sourceToUse = workSource;
-            if (workSource == null || workSource.size() == 0 || workSource.get(0) == 0) {
+            if (workSource == null || workSource.isEmpty()) {
                 sourceToUse = new WorkSource(uid);
             }
             mRttServiceSynchronized.queueRangingRequest(uid, sourceToUse, binder, dr,
@@ -322,8 +328,13 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
     public void cancelRanging(WorkSource workSource) throws RemoteException {
         if (VDBG) Log.v(TAG, "cancelRanging: workSource=" + workSource);
         enforceLocationHardware();
+        if (workSource != null) {
+            // We only care about UIDs in the incoming worksources and not their associated
+            // tags. Clear names so that other operations involving wakesources become simpler.
+            workSource.clearNames();
+        }
 
-        if (workSource == null || workSource.size() == 0 || workSource.get(0) == 0) {
+        if (workSource == null || workSource.isEmpty()) {
             Log.e(TAG, "cancelRanging: invalid work-source -- " + workSource);
             return;
         }
@@ -454,13 +465,8 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
 
                 boolean match = rri.uid == uid; // original UID will never be 0
                 if (rri.workSource != null && workSource != null) {
-                    try {
-                        rri.workSource.remove(workSource);
-                    } catch (IllegalArgumentException e) {
-                        Log.e(TAG, "Invalid WorkSource specified in the start or cancel requests: "
-                                + e);
-                    }
-                    if (rri.workSource.size() == 0) {
+                    rri.workSource.remove(workSource);
+                    if (rri.workSource.isEmpty()) {
                         match = true;
                     }
                 }
@@ -557,11 +563,29 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                     int uid = rri.workSource.get(i);
                     counts.put(uid, counts.get(uid) + 1);
                 }
+
+                final ArrayList<WorkChain> workChains = rri.workSource.getWorkChains();
+                if (workChains != null) {
+                    for (int i = 0; i < workChains.size(); ++i) {
+                        final int uid = workChains.get(i).getAttributionUid();
+                        counts.put(uid, counts.get(uid) + 1);
+                    }
+                }
             }
 
             for (int i = 0; i < ws.size(); ++i) {
                 if (counts.get(ws.get(i)) < MAX_QUEUED_PER_UID) {
                     return false;
+                }
+            }
+
+            final ArrayList<WorkChain> workChains = ws.getWorkChains();
+            if (workChains != null) {
+                for (int i = 0; i < workChains.size(); ++i) {
+                    final int uid = workChains.get(i).getAttributionUid();
+                    if (counts.get(uid) < MAX_QUEUED_PER_UID) {
+                        return false;
+                    }
                 }
             }
 
@@ -677,10 +701,26 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                     Log.v(TAG, "preExecThrottleCheck: uid=" + ws.get(i) + " -> importance="
                             + uidImportance);
                 }
-                if (uidImportance
-                        <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE) {
+                if (uidImportance <= IMPORTANCE_FOREGROUND_SERVICE) {
                     allUidsInBackground = false;
                     break;
+                }
+            }
+
+            final ArrayList<WorkChain> workChains = ws.getWorkChains();
+            if (allUidsInBackground && workChains != null) {
+                for (int i = 0; i < workChains.size(); ++i) {
+                    final WorkChain wc = workChains.get(i);
+                    int uidImportance = mActivityManager.getUidImportance(wc.getAttributionUid());
+                    if (VDBG) {
+                        Log.v(TAG, "preExecThrottleCheck: workChain=" + wc + " -> importance="
+                                + uidImportance);
+                    }
+
+                    if (uidImportance <= IMPORTANCE_FOREGROUND_SERVICE) {
+                        allUidsInBackground = false;
+                        break;
+                    }
                 }
             }
 
@@ -697,6 +737,18 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                         break;
                     }
                 }
+
+                if (workChains != null & !allowExecution) {
+                    for (int i = 0; i < workChains.size(); ++i) {
+                        final WorkChain wc = workChains.get(i);
+                        RttRequesterInfo info = mRttRequesterInfo.get(wc.getAttributionUid());
+                        if (info == null
+                                || info.lastRangingExecuted < mostRecentExecutionPermitted) {
+                            allowExecution = true;
+                            break;
+                        }
+                    }
+                }
             } else {
                 allowExecution = true;
             }
@@ -710,6 +762,18 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                         mRttRequesterInfo.put(ws.get(i), info);
                     }
                     info.lastRangingExecuted = mClock.getElapsedSinceBootMillis();
+                }
+
+                if (workChains != null) {
+                    for (int i = 0; i < workChains.size(); ++i) {
+                        final WorkChain wc = workChains.get(i);
+                        RttRequesterInfo info = mRttRequesterInfo.get(wc.getAttributionUid());
+                        if (info == null) {
+                            info = new RttRequesterInfo();
+                            mRttRequesterInfo.put(wc.getAttributionUid(), info);
+                        }
+                        info.lastRangingExecuted = mClock.getElapsedSinceBootMillis();
+                    }
                 }
             }
 
