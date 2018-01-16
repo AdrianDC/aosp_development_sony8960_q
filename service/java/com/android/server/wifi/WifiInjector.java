@@ -421,7 +421,7 @@ public class WifiInjector {
      */
     public ScanOnlyModeManager makeScanOnlyModeManager(ScanOnlyModeManager.Listener listener) {
         return new ScanOnlyModeManager(mContext, mWifiStateMachineHandlerThread.getLooper(),
-                mWifiNative, listener, mNwManagementService, mWifiMetrics, mWifiMonitor);
+                mWifiNative, listener, mWifiMetrics);
     }
 
     /**

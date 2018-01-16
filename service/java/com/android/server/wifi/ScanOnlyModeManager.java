@@ -19,21 +19,16 @@ package com.android.server.wifi;
 import android.annotation.NonNull;
 import android.content.Context;
 import android.content.Intent;
-import android.net.InterfaceConfiguration;
-import android.net.wifi.IClientInterface;
 import android.net.wifi.WifiManager;
-import android.os.INetworkManagementService;
 import android.os.Looper;
 import android.os.Message;
-import android.os.RemoteException;
 import android.os.UserHandle;
 import android.text.TextUtils;
 import android.util.Log;
-import android.util.Pair;
 
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
-import com.android.server.net.BaseNetworkObserver;
+import com.android.server.wifi.WifiNative.InterfaceCallback;
 
 /**
  * Manager WiFi in Scan Only Mode - no network connections.
@@ -47,24 +42,18 @@ public class ScanOnlyModeManager implements ActiveModeManager {
     private final Context mContext;
     private final WifiNative mWifiNative;
 
-    private final INetworkManagementService mNwService;
     private final WifiMetrics mWifiMetrics;
-    private final WifiMonitor mWifiMonitor;
     private final Listener mListener;
 
-    private IClientInterface mClientInterface;
     private String mClientInterfaceName;
 
 
     ScanOnlyModeManager(Context context, @NonNull Looper looper, WifiNative wifiNative,
-            Listener listener, INetworkManagementService networkManagementService,
-            WifiMetrics wifiMetrics, WifiMonitor wifiMonitor) {
+            Listener listener, WifiMetrics wifiMetrics) {
         mContext = context;
         mWifiNative = wifiNative;
         mListener = listener;
-        mNwService = networkManagementService;
         mWifiMetrics = wifiMetrics;
-        mWifiMonitor = wifiMonitor;
         mStateMachine = new ScanOnlyModeStateMachine(looper);
     }
 
@@ -80,20 +69,6 @@ public class ScanOnlyModeManager implements ActiveModeManager {
      */
     public void stop() {
         mStateMachine.sendMessage(ScanOnlyModeStateMachine.CMD_STOP);
-    }
-
-    /**
-     * Helper function to increment the appropriate setup failure metrics.
-     *
-     * Note: metrics about these failures will move to where the issues are actually detected
-     * (b/69426063)
-     */
-    private void incrementMetricsForSetupFailure(int failureReason) {
-        if (failureReason == WifiNative.SETUP_FAILURE_HAL) {
-            mWifiMetrics.incrementNumWifiOnFailureDueToHal();
-        } else if (failureReason == WifiNative.SETUP_FAILURE_WIFICOND) {
-            mWifiMetrics.incrementNumWifiOnFailureDueToWificond();
-        }
     }
 
     /**
@@ -121,41 +96,36 @@ public class ScanOnlyModeManager implements ActiveModeManager {
         // Commands for the state machine.
         public static final int CMD_START = 0;
         public static final int CMD_STOP = 1;
-        public static final int CMD_CLIENT_INTERFACE_BINDER_DEATH = 2;
+        public static final int CMD_WIFINATIVE_FAILURE = 2;
         public static final int CMD_INTERFACE_STATUS_CHANGED = 3;
+        public static final int CMD_INTERFACE_DESTROYED = 4;
 
         private final State mIdleState = new IdleState();
         private final State mStartedState = new StartedState();
 
-        private NetworkObserver mNetworkObserver;
-        private boolean mIfaceIsUp = false;
+        private final WifiNative.StatusListener mWifiNativeStatusListener = (boolean isReady) -> {
+            if (!isReady) {
+                sendMessage(CMD_WIFINATIVE_FAILURE);
+            }
+        };
 
-        private class NetworkObserver extends BaseNetworkObserver {
-            private final String mIfaceName;
-            NetworkObserver(String ifaceName) {
-                mIfaceName = ifaceName;
+        private final InterfaceCallback mWifiNativeInterfaceCallback = new InterfaceCallback() {
+            @Override
+            public void onDestroyed(String ifaceName) {
+                sendMessage(CMD_INTERFACE_DESTROYED);
             }
 
             @Override
-            public void interfaceLinkStateChanged(String iface, boolean up) {
-                Log.d(TAG, "iface update: " + iface + " our iface: " + mIfaceName);
-                if (mIfaceName.equals(iface)) {
-                    ScanOnlyModeStateMachine.this.sendMessage(
-                            CMD_INTERFACE_STATUS_CHANGED, up ? 1 : 0 , 0, this);
-                    Log.d(TAG, "sent interface status changed message");
-                }
+            public void onUp(String ifaceName) {
+                sendMessage(CMD_INTERFACE_STATUS_CHANGED, 1);
             }
-        }
 
-        private void unregisterObserver() {
-            if (mNetworkObserver == null) {
-                return;
+            @Override
+            public void onDown(String ifaceName) {
+                sendMessage(CMD_INTERFACE_STATUS_CHANGED, 0);
             }
-            try {
-                mNwService.unregisterObserver(mNetworkObserver);
-            } catch (RemoteException e) { }
-            mNetworkObserver = null;
-        }
+        };
+        private boolean mIfaceIsUp = false;
 
         ScanOnlyModeStateMachine(Looper looper) {
             super(TAG, looper);
@@ -172,63 +142,22 @@ public class ScanOnlyModeManager implements ActiveModeManager {
             @Override
             public void enter() {
                 Log.d(TAG, "entering IdleState");
-                unregisterObserver();
+                mWifiNative.registerStatusListener(mWifiNativeStatusListener);
+                mClientInterfaceName = null;
             }
 
             @Override
             public boolean processMessage(Message message) {
                 switch (message.what) {
                     case CMD_START:
-                        mClientInterface = null;
-                        Pair<Integer, IClientInterface> statusAndInterface =
-                                mWifiNative.setupForClientMode(mWifiNative.getInterfaceName());
-                        if (statusAndInterface.first == WifiNative.SETUP_SUCCESS) {
-                            mClientInterface = statusAndInterface.second;
-                        } else {
-                            incrementMetricsForSetupFailure(statusAndInterface.first);
-                        }
-                        if (mClientInterface == null) {
-                            Log.e(TAG, "Failed to create ClientInterface.");
-                            sendScanAvailableBroadcast(false);
-                            updateWifiState(WifiManager.WIFI_STATE_UNKNOWN);
-                            break;
-                        }
-                        try {
-                            mClientInterfaceName = mClientInterface.getInterfaceName();
-                        } catch (RemoteException e) {
-                            Log.e(TAG, "Failed to retrieve ClientInterface name.");
-                            sendScanAvailableBroadcast(false);
-                            updateWifiState(WifiManager.WIFI_STATE_UNKNOWN);
-                            break;
-                        }
-
+                        mClientInterfaceName = mWifiNative.setupInterfaceForClientMode(
+                                mWifiNativeInterfaceCallback);
                         if (TextUtils.isEmpty(mClientInterfaceName)) {
-                            Log.e(TAG, "Failed to retrieve ClientInterface name. Sit in Idle");
+                            Log.e(TAG, "Failed to create ClientInterface. Sit in Idle");
                             sendScanAvailableBroadcast(false);
                             updateWifiState(WifiManager.WIFI_STATE_UNKNOWN);
                             break;
                         }
-
-                        if (!mWifiNative.enableSupplicant()) {
-                            sendScanAvailableBroadcast(false);
-                            updateWifiState(WifiManager.WIFI_STATE_UNKNOWN);
-                            break;
-                        }
-                        mWifiMonitor.startMonitoring(mClientInterfaceName, true);
-
-
-                        try {
-                            mNetworkObserver =
-                                    new NetworkObserver(mClientInterface.getInterfaceName());
-                            mNwService.registerObserver(mNetworkObserver);
-                        } catch (RemoteException e) {
-                            mWifiNative.disableSupplicant();
-                            unregisterObserver();
-                            sendScanAvailableBroadcast(false);
-                            updateWifiState(WifiManager.WIFI_STATE_UNKNOWN);
-                            break;
-                        }
-
                         transitionTo(mStartedState);
                         break;
                     case CMD_STOP:
@@ -265,14 +194,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
             public void enter() {
                 Log.d(TAG, "entering StartedState");
                 mIfaceIsUp = false;
-                InterfaceConfiguration config = null;
-                try {
-                    config = mNwService.getInterfaceConfig(mClientInterfaceName);
-                } catch (RemoteException e) {
-                }
-                if (config != null) {
-                    onUpChanged(config.isUp());
-                }
+                onUpChanged(mWifiNative.isInterfaceUp(mClientInterfaceName));
 
                 if (mIfaceIsUp) {
                     // we already received the interface up notification when we were setting up
@@ -289,18 +211,16 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                         break;
                     case CMD_STOP:
                         Log.d(TAG, "Stopping scan mode.");
+                        mWifiNative.teardownInterface(mClientInterfaceName);
                         transitionTo(mIdleState);
                         break;
                     case CMD_INTERFACE_STATUS_CHANGED:
-                        if (message.obj != mNetworkObserver) {
-                            // This is not from our current observer
-                            break;
-                        }
                         boolean isUp = message.arg1 == 1;
                         onUpChanged(isUp);
                         break;
-                    case CMD_CLIENT_INTERFACE_BINDER_DEATH:
-                        Log.d(TAG, "interface binder death!  restart services?");
+                    case CMD_WIFINATIVE_FAILURE:
+                    case CMD_INTERFACE_DESTROYED:
+                        Log.d(TAG, "interface failure!  restart services?");
                         updateWifiState(WifiManager.WIFI_STATE_UNKNOWN);
                         transitionTo(mIdleState);
                         break;
@@ -319,8 +239,6 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                 // let WifiScanner know that wifi is down.
                 sendScanAvailableBroadcast(false);
                 updateWifiState(WifiManager.WIFI_STATE_DISABLED);
-
-                unregisterObserver();
             }
         }
 
