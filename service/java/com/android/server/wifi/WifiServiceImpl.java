@@ -30,13 +30,9 @@ import static android.net.wifi.WifiManager.WIFI_AP_STATE_FAILED;
 
 import static com.android.server.wifi.LocalOnlyHotspotRequestInfo.HOTSPOT_NO_ERROR;
 import static com.android.server.wifi.WifiController.CMD_AIRPLANE_TOGGLED;
-import static com.android.server.wifi.WifiController.CMD_BATTERY_CHANGED;
 import static com.android.server.wifi.WifiController.CMD_EMERGENCY_CALL_STATE_CHANGED;
 import static com.android.server.wifi.WifiController.CMD_EMERGENCY_MODE_CHANGED;
-import static com.android.server.wifi.WifiController.CMD_LOCKS_CHANGED;
 import static com.android.server.wifi.WifiController.CMD_SCAN_ALWAYS_MODE_CHANGED;
-import static com.android.server.wifi.WifiController.CMD_SCREEN_OFF;
-import static com.android.server.wifi.WifiController.CMD_SCREEN_ON;
 import static com.android.server.wifi.WifiController.CMD_SET_AP;
 import static com.android.server.wifi.WifiController.CMD_USER_PRESENT;
 import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
@@ -2108,15 +2104,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         @Override
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
-            if (action.equals(Intent.ACTION_SCREEN_ON)) {
-                mWifiController.sendMessage(CMD_SCREEN_ON);
-            } else if (action.equals(Intent.ACTION_USER_PRESENT)) {
+            if (action.equals(Intent.ACTION_USER_PRESENT)) {
                 mWifiController.sendMessage(CMD_USER_PRESENT);
-            } else if (action.equals(Intent.ACTION_SCREEN_OFF)) {
-                mWifiController.sendMessage(CMD_SCREEN_OFF);
-            } else if (action.equals(Intent.ACTION_BATTERY_CHANGED)) {
-                int pluggedType = intent.getIntExtra("plugged", 0);
-                mWifiController.sendMessage(CMD_BATTERY_CHANGED, pluggedType, 0, null);
             } else if (action.equals(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED)) {
                 int state = intent.getIntExtra(BluetoothAdapter.EXTRA_CONNECTION_STATE,
                         BluetoothAdapter.STATE_DISCONNECTED);
@@ -2225,10 +2214,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
     private void registerForBroadcasts() {
         IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(Intent.ACTION_SCREEN_ON);
         intentFilter.addAction(Intent.ACTION_USER_PRESENT);
-        intentFilter.addAction(Intent.ACTION_SCREEN_OFF);
-        intentFilter.addAction(Intent.ACTION_BATTERY_CHANGED);
         intentFilter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
         intentFilter.addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED);
         intentFilter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED);
@@ -2334,13 +2320,18 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         }
     }
 
+    /**
+     * NOTE: WifiLocks do not serve a useful purpose in their current impl and will be removed
+     * (including the methods below).
+     *
+     * TODO: b/71548157
+     */
     @Override
     public boolean acquireWifiLock(IBinder binder, int lockMode, String tag, WorkSource ws) {
         mLog.info("acquireWifiLock uid=% lockMode=%")
                 .c(Binder.getCallingUid())
                 .c(lockMode).flush();
         if (mWifiLockManager.acquireWifiLock(lockMode, tag, binder, ws)) {
-            mWifiController.sendMessage(CMD_LOCKS_CHANGED);
             return true;
         }
         return false;
@@ -2356,7 +2347,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     public boolean releaseWifiLock(IBinder binder) {
         mLog.info("releaseWifiLock uid=%").c(Binder.getCallingUid()).flush();
         if (mWifiLockManager.releaseWifiLock(binder)) {
-            mWifiController.sendMessage(CMD_LOCKS_CHANGED);
             return true;
         }
         return false;
