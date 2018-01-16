@@ -1287,20 +1287,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     /**
-     * Helper method to lookup the framework network ID of the network currently configured in
-     * wpa_supplicant using the provided supplicant network ID. This is needed for translating the
-     * networkID received from all {@link WifiMonitor} events.
-     *
-     * @param supplicantNetworkId Network ID of network in wpa_supplicant.
-     * @return Corresponding Internal configured network ID
-     * TODO(b/31080843): This is ugly! We need to hide this translation of networkId's. This will
-     * be handled once we move all of this connection logic to wificond.
-     */
-    private int lookupFrameworkNetworkId(int supplicantNetworkId) {
-        return mWifiNative.getFrameworkNetworkId(supplicantNetworkId);
-    }
-
-    /**
      * Initiates connection to a network specified by the user/app. This method checks if the
      * requesting app holds the NETWORK_SETTINGS permission.
      *
@@ -3235,7 +3221,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
         // Network id and SSID are only valid when we start connecting
         if (SupplicantState.isConnecting(state)) {
-            mWifiInfo.setNetworkId(lookupFrameworkNetworkId(stateChangeResult.networkId));
+            mWifiInfo.setNetworkId(stateChangeResult.networkId);
             mWifiInfo.setBSSID(stateChangeResult.BSSID);
             mWifiInfo.setSSID(stateChangeResult.wifiSsid);
         } else {
@@ -5099,8 +5085,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mBackupManagerProxy.notifyDataChanged();
                     break;
                 case WifiMonitor.SUP_REQUEST_IDENTITY:
-                    int supplicantNetworkId = message.arg2;
-                    netId = lookupFrameworkNetworkId(supplicantNetworkId);
+                    netId = message.arg2;
                     boolean identitySent = false;
                     // For SIM & AKA/AKA' EAP method Only, get identity from ICC
                     if (targetWificonfiguration != null
@@ -5110,7 +5095,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                                 TelephonyUtil.getSimIdentity(getTelephonyManager(),
                                         targetWificonfiguration);
                         if (identity != null) {
-                            mWifiNative.simIdentityResponse(supplicantNetworkId, identity);
+                            mWifiNative.simIdentityResponse(netId, identity);
                             identitySent = true;
                         } else {
                             Log.e(TAG, "Unable to retrieve identity from Telephony");
@@ -5402,7 +5387,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     return NOT_HANDLED;
                 case WifiMonitor.NETWORK_CONNECTION_EVENT:
                     if (mVerboseLoggingEnabled) log("Network connection established");
-                    mLastNetworkId = lookupFrameworkNetworkId(message.arg1);
+                    mLastNetworkId = message.arg1;
                     mWifiConfigManager.clearRecentFailureReason(mLastNetworkId);
                     mLastBssid = (String) message.obj;
                     reasonCode = message.arg2;
@@ -5891,7 +5876,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     return NOT_HANDLED;
                 case WifiMonitor.NETWORK_CONNECTION_EVENT:
                     mWifiInfo.setBSSID((String) message.obj);
-                    mLastNetworkId = lookupFrameworkNetworkId(message.arg1);
+                    mLastNetworkId = message.arg1;
                     mWifiInfo.setNetworkId(mLastNetworkId);
                     if(!mLastBssid.equals(message.obj)) {
                         mLastBssid = (String) message.obj;
@@ -6263,7 +6248,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         if (mVerboseLoggingEnabled) {
                             log("roaming and Network connection established");
                         }
-                        mLastNetworkId = lookupFrameworkNetworkId(message.arg1);
+                        mLastNetworkId = message.arg1;
                         mLastBssid = (String) message.obj;
                         mWifiInfo.setBSSID(mLastBssid);
                         mWifiInfo.setNetworkId(mLastNetworkId);
@@ -7102,7 +7087,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     void handleGsmAuthRequest(SimAuthRequestData requestData) {
         if (targetWificonfiguration == null
                 || targetWificonfiguration.networkId
-                == lookupFrameworkNetworkId(requestData.networkId)) {
+                == requestData.networkId) {
             logd("id matches targetWifiConfiguration");
         } else {
             logd("id does not match targetWifiConfiguration");
@@ -7123,7 +7108,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     void handle3GAuthRequest(SimAuthRequestData requestData) {
         if (targetWificonfiguration == null
                 || targetWificonfiguration.networkId
-                == lookupFrameworkNetworkId(requestData.networkId)) {
+                == requestData.networkId) {
             logd("id matches targetWifiConfiguration");
         } else {
             logd("id does not match targetWifiConfiguration");
