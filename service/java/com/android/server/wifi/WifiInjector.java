@@ -41,6 +41,7 @@ import android.util.LocalLog;
 
 import com.android.internal.R;
 import com.android.internal.app.IBatteryStats;
+import com.android.internal.os.PowerProfile;
 import com.android.server.am.BatteryStatsService;
 import com.android.server.net.DelayedDiskWrite;
 import com.android.server.net.IpConfigStore;
@@ -545,5 +546,9 @@ public class WifiInjector {
 
     public SelfRecovery getSelfRecovery() {
         return mSelfRecovery;
+    }
+
+    public PowerProfile getPowerProfile() {
+        return new PowerProfile(mContext, false);
     }
 }
