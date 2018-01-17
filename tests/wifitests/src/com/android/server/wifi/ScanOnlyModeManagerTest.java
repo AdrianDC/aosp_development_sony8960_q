@@ -65,6 +65,7 @@ public class ScanOnlyModeManagerTest {
     @Mock WifiNative mWifiNative;
     @Mock INetworkManagementService mNmService;
     @Mock ScanOnlyModeManager.Listener mListener;
+    @Mock WifiMonitor mWifiMonitor;
 
     final ArgumentCaptor<BaseNetworkObserver> mNetworkObserverCaptor =
             ArgumentCaptor.forClass(BaseNetworkObserver.class);
@@ -81,7 +82,7 @@ public class ScanOnlyModeManagerTest {
 
     private ScanOnlyModeManager createScanOnlyModeManager() {
         return new ScanOnlyModeManager(mContext, mLooper.getLooper(), mWifiNative, mListener,
-                mNmService, mWifiMetrics);
+                mNmService, mWifiMetrics, mWifiMonitor);
     }
 
     private void startScanOnlyModeAndVerifyEnabled() throws Exception {
@@ -89,6 +90,7 @@ public class ScanOnlyModeManagerTest {
         when(mClientInterface.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
         when(mWifiNative.setupForClientMode(eq(TEST_INTERFACE_NAME)))
                 .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mClientInterface));
+        when(mWifiNative.enableSupplicant()).thenReturn(true);
         mScanOnlyModeManager.start();
         mLooper.dispatchAll();
 
@@ -310,6 +312,26 @@ public class ScanOnlyModeManagerTest {
     }
 
     /**
+     * Test that failing to start supplicant cleans up any set state and does not proceed to the
+     * active state.
+     */
+    @Test
+    public void startScanModeSupplicantStartFails() throws Exception {
+        when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
+        when(mClientInterface.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
+        when(mWifiNative.setupForClientMode(eq(TEST_INTERFACE_NAME)))
+                .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mClientInterface));
+        when(mWifiNative.enableSupplicant()).thenReturn(false);
+
+        mScanOnlyModeManager.start();
+        mLooper.dispatchAll();
+        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
+        verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(), eq(UserHandle.ALL));
+        checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
+        checkWifiStateChangeListenerUpdate(WIFI_STATE_UNKNOWN);
+    }
+
+    /**
      * This is a basic test that will be enhanced as functionality is added to the class.
      * Test that failing to register the Networkobserver for the interface does not crash.  Later
      * CLs will expand the test to verify proper failure reporting and other error signals.
@@ -320,11 +342,17 @@ public class ScanOnlyModeManagerTest {
         when(mClientInterface.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
         when(mWifiNative.setupForClientMode(eq(TEST_INTERFACE_NAME)))
                 .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mClientInterface));
+        when(mWifiNative.enableSupplicant()).thenReturn(true);
         doThrow(new RemoteException()).when(mNmService).registerObserver(any());
 
         mScanOnlyModeManager.start();
         mLooper.dispatchAll();
         verify(mNmService).unregisterObserver(any());
+        verify(mWifiNative).disableSupplicant();
+        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
+        verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(), eq(UserHandle.ALL));
+        checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
+        checkWifiStateChangeListenerUpdate(WIFI_STATE_UNKNOWN);
     }
 
 
