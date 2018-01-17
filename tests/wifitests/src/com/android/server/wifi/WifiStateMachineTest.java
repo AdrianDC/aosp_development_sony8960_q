@@ -418,7 +418,6 @@ public class WifiStateMachineTest {
         when(mWifiNative.getInterfaceName()).thenReturn(WIFI_IFACE_NAME);
         when(mWifiNative.enableSupplicant()).thenReturn(true);
         when(mWifiNative.disableSupplicant()).thenReturn(true);
-        when(mWifiNative.getFrameworkNetworkId(anyInt())).thenReturn(0);
         when(mWifiNative.initializeVendorHal(any(WifiNative.VendorHalDeathEventHandler.class)))
                 .thenReturn(true);
         when(mWifiNative.registerWificondDeathHandler(any())).thenReturn(true);
@@ -2116,8 +2115,6 @@ public class WifiStateMachineTest {
                 .thenReturn(new NetworkUpdateResult(WPS_FRAMEWORK_NETWORK_ID));
         when(mWifiConfigManager.enableNetwork(eq(WPS_FRAMEWORK_NETWORK_ID), anyBoolean(), anyInt()))
                 .thenReturn(true);
-        when(mWifiNative.getFrameworkNetworkId(eq(WPS_FRAMEWORK_NETWORK_ID))).thenReturn(
-                WPS_FRAMEWORK_NETWORK_ID);
         when(mWifiConfigManager.getConfiguredNetwork(eq(WPS_FRAMEWORK_NETWORK_ID))).thenReturn(
                 config);
     }

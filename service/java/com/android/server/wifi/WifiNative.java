@@ -1587,17 +1587,6 @@ public class WifiNative {
     }
 
     /**
-     * Get the framework network ID corresponding to the provided supplicant network ID for the
-     * network configured in wpa_supplicant.
-     *
-     * @param supplicantNetworkId network ID in wpa_supplicant for the network.
-     * @return Corresponding framework network ID if found, -1 if network not found.
-     */
-    public int getFrameworkNetworkId(int supplicantNetworkId) {
-        return supplicantNetworkId;
-    }
-
-    /**
      * Remove all the networks.
      *
      * @return {@code true} if it succeeds, {@code false} otherwise
