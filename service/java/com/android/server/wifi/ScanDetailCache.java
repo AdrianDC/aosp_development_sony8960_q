@@ -150,12 +150,6 @@ public class ScanDetailCache {
                 public int compare(Object o1, Object o2) {
                     ScanResult a = ((ScanDetail) o1).getScanResult();
                     ScanResult b = ((ScanDetail) o2).getScanResult();
-                    if (a.numIpConfigFailures > b.numIpConfigFailures) {
-                        return 1;
-                    }
-                    if (a.numIpConfigFailures < b.numIpConfigFailures) {
-                        return -1;
-                    }
                     if (a.seen > b.seen) {
                         return -1;
                     }
@@ -272,10 +266,6 @@ public class ScanDetailCache {
                 if (ageSec > 0 || ageMilli > 0) {
                     sbuf.append(String.format(",%4d.%02d.%02d.%02d.%03dms", ageDay,
                             ageHour, ageMin, ageSec, ageMilli));
-                }
-                if (result.numIpConfigFailures > 0) {
-                    sbuf.append(",ipfail=");
-                    sbuf.append(result.numIpConfigFailures);
                 }
                 sbuf.append("} ");
             }
