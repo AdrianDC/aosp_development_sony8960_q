@@ -16,35 +16,22 @@
 
 package com.android.server.wifi;
 
-import static android.net.wifi.WifiManager.WIFI_MODE_FULL;
-import static android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF;
-import static android.net.wifi.WifiManager.WIFI_MODE_NO_LOCKS_HELD;
-import static android.net.wifi.WifiManager.WIFI_MODE_SCAN_ONLY;
-
-import android.app.AlarmManager;
-import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.database.ContentObserver;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
-import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.os.SystemClock;
 import android.os.WorkSource;
 import android.provider.Settings;
-import android.util.Slog;
 
 import com.android.internal.util.Protocol;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
-
-import java.io.FileDescriptor;
-import java.io.PrintWriter;
 
 /**
  * WifiController is the class used to manage on/off state of WifiStateMachine for various operating
@@ -54,26 +41,7 @@ public class WifiController extends StateMachine {
     private static final String TAG = "WifiController";
     private static final boolean DBG = false;
     private Context mContext;
-    private boolean mScreenOff;
-    private boolean mDeviceIdle;
-    private int mPluggedType;
-    private int mStayAwakeConditions;
-    private long mIdleMillis;
-    private int mSleepPolicy;
     private boolean mFirstUserSignOnSeen = false;
-
-    private AlarmManager mAlarmManager;
-    private PendingIntent mIdleIntent;
-    private static final int IDLE_REQUEST = 0;
-
-    /**
-     * See {@link Settings.Global#WIFI_IDLE_MS}. This is the default value if a
-     * Settings.Global value is not present. This timeout value is chosen as
-     * the approximate point at which the battery drain caused by Wi-Fi
-     * being enabled but not active exceeds the battery drain caused by
-     * re-establishing a connection to the mobile data network.
-     */
-    private static final long DEFAULT_IDLE_MS = 15 * 60 * 1000; /* 15 minutes */
 
     /**
      * See {@link Settings.Global#WIFI_REENABLE_DELAY_MS}.  This is the default value if a
@@ -83,19 +51,15 @@ public class WifiController extends StateMachine {
     private static final long DEFAULT_REENABLE_DELAY_MS = 500;
 
     // finding that delayed messages can sometimes be delivered earlier than expected
-    // probably rounding errors..  add a margin to prevent problems
+    // probably rounding errors.  add a margin to prevent problems
     private static final long DEFER_MARGIN_MS = 5;
 
     NetworkInfo mNetworkInfo = new NetworkInfo(ConnectivityManager.TYPE_WIFI, 0, "WIFI", "");
-
-    private static final String ACTION_DEVICE_IDLE =
-            "com.android.server.WifiManager.action.DEVICE_IDLE";
 
     /* References to values tracked in WifiService */
     private final WifiStateMachine mWifiStateMachine;
     private final WifiStateMachinePrime mWifiStateMachinePrime;
     private final WifiSettingsStore mSettingsStore;
-    private final WifiLockManager mWifiLockManager;
 
     /**
      * Temporary for computing UIDS that are responsible for starting WIFI.
@@ -110,11 +74,6 @@ public class WifiController extends StateMachine {
     private static final int BASE = Protocol.BASE_WIFI_CONTROLLER;
 
     static final int CMD_EMERGENCY_MODE_CHANGED        = BASE + 1;
-    static final int CMD_SCREEN_ON                     = BASE + 2;
-    static final int CMD_SCREEN_OFF                    = BASE + 3;
-    static final int CMD_BATTERY_CHANGED               = BASE + 4;
-    static final int CMD_DEVICE_IDLE                   = BASE + 5;
-    static final int CMD_LOCKS_CHANGED                 = BASE + 6;
     static final int CMD_SCAN_ALWAYS_MODE_CHANGED      = BASE + 7;
     static final int CMD_WIFI_TOGGLED                  = BASE + 8;
     static final int CMD_AIRPLANE_TOGGLED              = BASE + 9;
@@ -136,37 +95,21 @@ public class WifiController extends StateMachine {
     private StaDisabledWithScanState mStaDisabledWithScanState = new StaDisabledWithScanState();
     private ApEnabledState mApEnabledState = new ApEnabledState();
     private DeviceActiveState mDeviceActiveState = new DeviceActiveState();
-    private DeviceInactiveState mDeviceInactiveState = new DeviceInactiveState();
-    private ScanOnlyLockHeldState mScanOnlyLockHeldState = new ScanOnlyLockHeldState();
-    private FullLockHeldState mFullLockHeldState = new FullLockHeldState();
-    private FullHighPerfLockHeldState mFullHighPerfLockHeldState = new FullHighPerfLockHeldState();
-    private NoLockHeldState mNoLockHeldState = new NoLockHeldState();
     private EcmState mEcmState = new EcmState();
 
     WifiController(Context context, WifiStateMachine wsm, WifiSettingsStore wss,
-            WifiLockManager wifiLockManager, Looper looper, FrameworkFacade f,
-            WifiStateMachinePrime wsmp) {
+            Looper looper, FrameworkFacade f, WifiStateMachinePrime wsmp) {
         super(TAG, looper);
         mFacade = f;
         mContext = context;
         mWifiStateMachine = wsm;
         mWifiStateMachinePrime = wsmp;
         mSettingsStore = wss;
-        mWifiLockManager = wifiLockManager;
-
-        mAlarmManager = (AlarmManager)mContext.getSystemService(Context.ALARM_SERVICE);
-        Intent idleIntent = new Intent(ACTION_DEVICE_IDLE, null);
-        mIdleIntent = mFacade.getBroadcast(mContext, IDLE_REQUEST, idleIntent, 0);
 
         addState(mDefaultState);
             addState(mApStaDisabledState, mDefaultState);
             addState(mStaEnabledState, mDefaultState);
                 addState(mDeviceActiveState, mStaEnabledState);
-                addState(mDeviceInactiveState, mStaEnabledState);
-                    addState(mScanOnlyLockHeldState, mDeviceInactiveState);
-                    addState(mFullLockHeldState, mDeviceInactiveState);
-                    addState(mFullHighPerfLockHeldState, mDeviceInactiveState);
-                    addState(mNoLockHeldState, mDeviceInactiveState);
             addState(mStaDisabledWithScanState, mDefaultState);
             addState(mApEnabledState, mDefaultState);
             addState(mEcmState, mDefaultState);
@@ -189,7 +132,6 @@ public class WifiController extends StateMachine {
         setLogOnlyTransitions(false);
 
         IntentFilter filter = new IntentFilter();
-        filter.addAction(ACTION_DEVICE_IDLE);
         filter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
         filter.addAction(WifiManager.WIFI_AP_STATE_CHANGED_ACTION);
         filter.addAction(WifiManager.WIFI_STATE_CHANGED_ACTION);
@@ -198,9 +140,7 @@ public class WifiController extends StateMachine {
                     @Override
                     public void onReceive(Context context, Intent intent) {
                         String action = intent.getAction();
-                        if (action.equals(ACTION_DEVICE_IDLE)) {
-                            sendMessage(CMD_DEVICE_IDLE);
-                        } else if (action.equals(WifiManager.NETWORK_STATE_CHANGED_ACTION)) {
+                        if (action.equals(WifiManager.NETWORK_STATE_CHANGED_ACTION)) {
                             mNetworkInfo = (NetworkInfo) intent.getParcelableExtra(
                                     WifiManager.EXTRA_NETWORK_INFO);
                         } else if (action.equals(WifiManager.WIFI_AP_STATE_CHANGED_ACTION)) {
@@ -226,34 +166,7 @@ public class WifiController extends StateMachine {
                 },
                 new IntentFilter(filter));
 
-        initializeAndRegisterForSettingsChange(looper);
-    }
-
-    private void initializeAndRegisterForSettingsChange(Looper looper) {
-        Handler handler = new Handler(looper);
-        readStayAwakeConditions();
-        registerForStayAwakeModeChange(handler);
-        readWifiIdleTime();
-        registerForWifiIdleTimeChange(handler);
-        readWifiSleepPolicy();
-        registerForWifiSleepPolicyChange(handler);
         readWifiReEnableDelay();
-    }
-
-    private void readStayAwakeConditions() {
-        mStayAwakeConditions = mFacade.getIntegerSetting(mContext,
-                Settings.Global.STAY_ON_WHILE_PLUGGED_IN, 0);
-    }
-
-    private void readWifiIdleTime() {
-        mIdleMillis = mFacade.getLongSetting(mContext,
-                Settings.Global.WIFI_IDLE_MS, DEFAULT_IDLE_MS);
-    }
-
-    private void readWifiSleepPolicy() {
-        // This should always set to default value because the settings menu to toggle this
-        // has been removed now.
-        mSleepPolicy = Settings.Global.WIFI_SLEEP_POLICY_NEVER;
     }
 
     private void readWifiReEnableDelay() {
@@ -261,92 +174,8 @@ public class WifiController extends StateMachine {
                 Settings.Global.WIFI_REENABLE_DELAY_MS, DEFAULT_REENABLE_DELAY_MS);
     }
 
-    /**
-     * Observes settings changes to scan always mode.
-     */
-    private void registerForStayAwakeModeChange(Handler handler) {
-        ContentObserver contentObserver = new ContentObserver(handler) {
-            @Override
-            public void onChange(boolean selfChange) {
-                readStayAwakeConditions();
-            }
-        };
-
-        mFacade.registerContentObserver(mContext,
-                Settings.Global.getUriFor(Settings.Global.STAY_ON_WHILE_PLUGGED_IN), false,
-                contentObserver);
-    }
-
-    /**
-     * Observes settings changes to wifi idle time.
-     */
-    private void registerForWifiIdleTimeChange(Handler handler) {
-        ContentObserver contentObserver = new ContentObserver(handler) {
-            @Override
-            public void onChange(boolean selfChange) {
-                readWifiIdleTime();
-            }
-        };
-
-        mFacade.registerContentObserver(mContext,
-                Settings.Global.getUriFor(Settings.Global.WIFI_IDLE_MS), false, contentObserver);
-    }
-
-    /**
-     * Observes changes to wifi sleep policy
-     */
-    private void registerForWifiSleepPolicyChange(Handler handler) {
-        ContentObserver contentObserver = new ContentObserver(handler) {
-            @Override
-            public void onChange(boolean selfChange) {
-                readWifiSleepPolicy();
-            }
-        };
-        mFacade.registerContentObserver(mContext,
-                Settings.Global.getUriFor(Settings.Global.WIFI_SLEEP_POLICY), false,
-                contentObserver);
-    }
-
-    /**
-     * Determines whether the Wi-Fi chipset should stay awake or be put to
-     * sleep. Looks at the setting for the sleep policy and the current
-     * conditions.
-     *
-     * @see #shouldDeviceStayAwake(int)
-     */
-    private boolean shouldWifiStayAwake(int pluggedType) {
-        if (mSleepPolicy == Settings.Global.WIFI_SLEEP_POLICY_NEVER) {
-            // Never sleep
-            return true;
-        } else if ((mSleepPolicy == Settings.Global.WIFI_SLEEP_POLICY_NEVER_WHILE_PLUGGED) &&
-                (pluggedType != 0)) {
-            // Never sleep while plugged, and we're plugged
-            return true;
-        } else {
-            // Default
-            return shouldDeviceStayAwake(pluggedType);
-        }
-    }
-
-    /**
-     * Determine whether the bit value corresponding to {@code pluggedType} is set in
-     * the bit string mStayAwakeConditions. This determines whether the device should
-     * stay awake based on the current plugged type.
-     *
-     * @param pluggedType the type of plug (USB, AC, or none) for which the check is
-     * being made
-     * @return {@code true} if {@code pluggedType} indicates that the device is
-     * supposed to stay awake, {@code false} otherwise.
-     */
-    private boolean shouldDeviceStayAwake(int pluggedType) {
-        return (mStayAwakeConditions & pluggedType) != 0;
-    }
-
     private void updateBatteryWorkSource() {
         mTmpWorkSource.clear();
-        if (mDeviceIdle) {
-            mTmpWorkSource.add(mWifiLockManager.createMergedWorkSource());
-        }
         mWifiStateMachine.updateBatteryWorkSource(mTmpWorkSource);
     }
 
@@ -354,58 +183,8 @@ public class WifiController extends StateMachine {
         @Override
         public boolean processMessage(Message msg) {
             switch (msg.what) {
-                case CMD_SCREEN_ON:
-                    mAlarmManager.cancel(mIdleIntent);
-                    mScreenOff = false;
-                    mDeviceIdle = false;
-                    updateBatteryWorkSource();
-                    break;
-                case CMD_SCREEN_OFF:
-                    mScreenOff = true;
-                    /*
-                    * Set a timer to put Wi-Fi to sleep, but only if the screen is off
-                    * AND the "stay on while plugged in" setting doesn't match the
-                    * current power conditions (i.e, not plugged in, plugged in to USB,
-                    * or plugged in to AC).
-                    */
-                    if (!shouldWifiStayAwake(mPluggedType)) {
-                        //Delayed shutdown if wifi is connected
-                        if (mNetworkInfo.getDetailedState() ==
-                                NetworkInfo.DetailedState.CONNECTED) {
-                            if (DBG) Slog.d(TAG, "set idle timer: " + mIdleMillis + " ms");
-                            mAlarmManager.set(AlarmManager.RTC_WAKEUP,
-                                    System.currentTimeMillis() + mIdleMillis, mIdleIntent);
-                        } else {
-                            sendMessage(CMD_DEVICE_IDLE);
-                        }
-                    }
-                    break;
-                case CMD_DEVICE_IDLE:
-                    mDeviceIdle = true;
-                    updateBatteryWorkSource();
-                    break;
-                case CMD_BATTERY_CHANGED:
-                    /*
-                    * Set a timer to put Wi-Fi to sleep, but only if the screen is off
-                    * AND we are transitioning from a state in which the device was supposed
-                    * to stay awake to a state in which it is not supposed to stay awake.
-                    * If "stay awake" state is not changing, we do nothing, to avoid resetting
-                    * the already-set timer.
-                    */
-                    int pluggedType = msg.arg1;
-                    if (DBG) Slog.d(TAG, "battery changed pluggedType: " + pluggedType);
-                    if (mScreenOff && shouldWifiStayAwake(mPluggedType) &&
-                            !shouldWifiStayAwake(pluggedType)) {
-                        long triggerTime = System.currentTimeMillis() + mIdleMillis;
-                        if (DBG) Slog.d(TAG, "set idle timer for " + mIdleMillis + "ms");
-                        mAlarmManager.set(AlarmManager.RTC_WAKEUP, triggerTime, mIdleIntent);
-                    }
-
-                    mPluggedType = pluggedType;
-                    break;
                 case CMD_SET_AP:
                 case CMD_SCAN_ALWAYS_MODE_CHANGED:
-                case CMD_LOCKS_CHANGED:
                 case CMD_WIFI_TOGGLED:
                 case CMD_AIRPLANE_TOGGLED:
                 case CMD_EMERGENCY_MODE_CHANGED:
@@ -459,16 +238,12 @@ public class WifiController extends StateMachine {
                             mHaveDeferredEnable = !mHaveDeferredEnable;
                             break;
                         }
-                        if (mDeviceIdle == false) {
-                            // wifi is toggled, we need to explicitly tell WifiStateMachine that we
-                            // are headed to connect mode before going to the DeviceActiveState
-                            // since that will start supplicant and WifiStateMachine may not know
-                            // what state to head to (it might go to scan mode).
-                            mWifiStateMachine.setOperationalMode(WifiStateMachine.CONNECT_MODE);
-                            transitionTo(mDeviceActiveState);
-                        } else {
-                            checkLocksAndTransitionWhenDeviceIdle();
-                        }
+                        // wifi is toggled, we need to explicitly tell WifiStateMachine that we
+                        // are headed to connect mode before going to the DeviceActiveState
+                        // since that will start supplicant and WifiStateMachine may not know
+                        // what state to head to (it might go to scan mode).
+                        mWifiStateMachine.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+                        transitionTo(mDeviceActiveState);
                     } else if (mSettingsStore.isScanAlwaysAvailable()) {
                         transitionTo(mStaDisabledWithScanState);
                     }
@@ -618,11 +393,7 @@ public class WifiController extends StateMachine {
                             mHaveDeferredEnable = !mHaveDeferredEnable;
                             break;
                         }
-                        if (mDeviceIdle == false) {
-                            transitionTo(mDeviceActiveState);
-                        } else {
-                            checkLocksAndTransitionWhenDeviceIdle();
-                        }
+                        transitionTo(mDeviceActiveState);
                     }
                     break;
                 case CMD_AIRPLANE_TOGGLED:
@@ -744,13 +515,7 @@ public class WifiController extends StateMachine {
                          */
                         mPendingState = getNextWifiState();
                     }
-                    if (mPendingState == mDeviceActiveState && mDeviceIdle) {
-                        checkLocksAndTransitionWhenDeviceIdle();
-                    } else {
-                        // go ahead and transition because we are not idle or we are not going
-                        // to the active state.
-                        transitionTo(mPendingState);
-                    }
+                    transitionTo(mPendingState);
                     break;
                 case CMD_EMERGENCY_CALL_STATE_CHANGED:
                 case CMD_EMERGENCY_MODE_CHANGED:
@@ -822,11 +587,7 @@ public class WifiController extends StateMachine {
 
             if (exitEcm) {
                 if (mSettingsStore.isWifiToggleEnabled()) {
-                    if (mDeviceIdle == false) {
-                        transitionTo(mDeviceActiveState);
-                    } else {
-                        checkLocksAndTransitionWhenDeviceIdle();
-                    }
+                    transitionTo(mDeviceActiveState);
                 } else if (mSettingsStore.isScanAlwaysAvailable()) {
                     transitionTo(mStaDisabledWithScanState);
                 } else {
@@ -846,10 +607,7 @@ public class WifiController extends StateMachine {
 
         @Override
         public boolean processMessage(Message msg) {
-            if (msg.what == CMD_DEVICE_IDLE) {
-                checkLocksAndTransitionWhenDeviceIdle();
-                // We let default state handle the rest of work
-            } else if (msg.what == CMD_USER_PRESENT) {
+            if (msg.what == CMD_USER_PRESENT) {
                 // TLS networks can't connect until user unlocks keystore. KeyStore
                 // unlocks when the user punches PIN after the reboot. So use this
                 // trigger to get those networks connected.
@@ -865,90 +623,5 @@ public class WifiController extends StateMachine {
             }
             return NOT_HANDLED;
         }
-    }
-
-    /* Parent: StaEnabledState */
-    class DeviceInactiveState extends State {
-        @Override
-        public boolean processMessage(Message msg) {
-            switch (msg.what) {
-                case CMD_LOCKS_CHANGED:
-                    checkLocksAndTransitionWhenDeviceIdle();
-                    updateBatteryWorkSource();
-                    return HANDLED;
-                case CMD_SCREEN_ON:
-                    transitionTo(mDeviceActiveState);
-                    // More work in default state
-                    return NOT_HANDLED;
-                default:
-                    return NOT_HANDLED;
-            }
-        }
-    }
-
-    /* Parent: DeviceInactiveState. Device is inactive, but an app is holding a scan only lock. */
-    class ScanOnlyLockHeldState extends State {
-        @Override
-        public void enter() {
-            mWifiStateMachine.setOperationalMode(WifiStateMachine.SCAN_ONLY_MODE);
-        }
-    }
-
-    /* Parent: DeviceInactiveState. Device is inactive, but an app is holding a full lock. */
-    class FullLockHeldState extends State {
-        @Override
-        public void enter() {
-            mWifiStateMachine.setOperationalMode(WifiStateMachine.CONNECT_MODE);
-            mWifiStateMachine.setHighPerfModeEnabled(false);
-        }
-    }
-
-    /* Parent: DeviceInactiveState. Device is inactive, but an app is holding a high perf lock. */
-    class FullHighPerfLockHeldState extends State {
-        @Override
-        public void enter() {
-            mWifiStateMachine.setOperationalMode(WifiStateMachine.CONNECT_MODE);
-            mWifiStateMachine.setHighPerfModeEnabled(true);
-        }
-    }
-
-    /* Parent: DeviceInactiveState. Device is inactive and no app is holding a wifi lock. */
-    class NoLockHeldState extends State {
-        @Override
-        public void enter() {
-            mWifiStateMachine.setOperationalMode(WifiStateMachine.DISABLED_MODE);
-        }
-    }
-
-    private void checkLocksAndTransitionWhenDeviceIdle() {
-        switch (mWifiLockManager.getStrongestLockMode()) {
-            case WIFI_MODE_NO_LOCKS_HELD:
-                if (mSettingsStore.isScanAlwaysAvailable()) {
-                    transitionTo(mScanOnlyLockHeldState);
-                } else {
-                    transitionTo(mNoLockHeldState);
-                }
-                break;
-            case WIFI_MODE_FULL:
-                transitionTo(mFullLockHeldState);
-                break;
-            case WIFI_MODE_FULL_HIGH_PERF:
-                transitionTo(mFullHighPerfLockHeldState);
-                break;
-            case WIFI_MODE_SCAN_ONLY:
-                transitionTo(mScanOnlyLockHeldState);
-                break;
-        }
-    }
-
-    @Override
-    public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-        super.dump(fd, pw, args);
-
-        pw.println("mScreenOff " + mScreenOff);
-        pw.println("mDeviceIdle " + mDeviceIdle);
-        pw.println("mPluggedType " + mPluggedType);
-        pw.println("mIdleMillis " + mIdleMillis);
-        pw.println("mSleepPolicy " + mSleepPolicy);
     }
 }

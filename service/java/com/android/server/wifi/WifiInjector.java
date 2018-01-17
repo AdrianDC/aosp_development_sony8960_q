@@ -250,8 +250,7 @@ public class WifiInjector {
                 mWifiConfigManager, mWifiConfigStore, this, mFrameworkFacade);
         mLockManager = new WifiLockManager(mContext, BatteryStatsService.getService());
         mWifiController = new WifiController(mContext, mWifiStateMachine, mSettingsStore,
-                mLockManager, mWifiServiceHandlerThread.getLooper(), mFrameworkFacade,
-                mWifiStateMachinePrime);
+                mWifiServiceHandlerThread.getLooper(), mFrameworkFacade, mWifiStateMachinePrime);
         mSelfRecovery = new SelfRecovery(mWifiController, mClock);
         mWifiLastResortWatchdog = new WifiLastResortWatchdog(mSelfRecovery, mWifiMetrics);
         mWifiMulticastLockManager = new WifiMulticastLockManager(mWifiStateMachine,
@@ -412,6 +411,20 @@ public class WifiInjector {
         return new SoftApManager(mContext, mWifiStateMachineHandlerThread.getLooper(),
                 mFrameworkFacade, mWifiNative, mCountryCode.getCountryCode(), listener,
                 nmService, mWifiApConfigStore, config, mWifiMetrics);
+    }
+
+    /**
+     * Create a ScanOnlyModeManager
+     *
+     * @param listener listener for ScanOnlyModeManager state changes
+     * @param nmService NetworkManagementService allowing ScanOnlyModeManager to listen for
+     * interface changes
+     * @return a new instance of ScanOnlyModeManager
+     */
+    public ScanOnlyModeManager makeScanOnlyModeManager(ScanOnlyModeManager.Listener listener,
+                                                       INetworkManagementService nmService) {
+        return new ScanOnlyModeManager(mContext, mWifiStateMachineHandlerThread.getLooper(),
+                mWifiNative, listener, nmService, mWifiMetrics);
     }
 
     /**

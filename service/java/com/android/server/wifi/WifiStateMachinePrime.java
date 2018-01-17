@@ -51,17 +51,29 @@ public class WifiStateMachinePrime {
 
     private String mInterfaceName;
 
-    /* The base for wifi message types */
+    // The base for wifi message types
     static final int BASE = Protocol.BASE_WIFI;
 
-    /* Start the soft access point */
+    // The message identifiers below are mapped to those in WifiStateMachine when applicable.
+    // Start the soft access point
     static final int CMD_START_AP                                       = BASE + 21;
-    /* Indicates soft ap start failed */
+    // Indicates soft ap start failed
     static final int CMD_START_AP_FAILURE                               = BASE + 22;
-    /* Stop the soft access point */
+    // Stop the soft access point
     static final int CMD_STOP_AP                                        = BASE + 23;
-    /* Soft access point teardown is completed. */
+    // Soft access point teardown is completed
     static final int CMD_AP_STOPPED                                     = BASE + 24;
+
+    // Start Scan Only mode
+    static final int CMD_START_SCAN_ONLY_MODE                           = BASE + 200;
+    // Indicates that start Scan only mode failed
+    static final int CMD_START_SCAN_ONLY_MODE_FAILURE                   = BASE + 201;
+    // CMD_STOP_SCAN_ONLY-MODE
+    static final int CMD_STOP_SCAN_ONLY_MODE                            = BASE + 202;
+    // ScanOnly mode teardown is complete
+    static final int CMD_SCAN_ONLY_MODE_STOPPED                         = BASE + 203;
+    // ScanOnly mode failed
+    static final int CMD_SCAN_ONLY_MODE_FAILED                          = BASE + 204;
 
     WifiStateMachinePrime(WifiInjector wifiInjector,
                           Looper looper,
@@ -229,8 +241,16 @@ public class WifiStateMachinePrime {
         }
 
         class ScanOnlyModeState extends State {
+
             @Override
             public void enter() {
+                final Message message = mModeStateMachine.getCurrentMessage();
+                if (message.what != ModeStateMachine.CMD_START_SCAN_ONLY_MODE) {
+                    Log.d(TAG, "Entering ScanOnlyMode (idle)");
+                    return;
+                }
+
+                mModeStateMachine.transitionTo(mScanOnlyModeActiveState);
             }
 
             @Override
@@ -243,9 +263,7 @@ public class WifiStateMachinePrime {
 
             @Override
             public void exit() {
-                // Do not tear down interfaces yet since this mode is not actively controlled or
-                // used in tests at this time.
-                // tearDownInterfaces();
+                cleanup();
             }
         }
 
@@ -348,9 +366,52 @@ public class WifiStateMachinePrime {
         }
 
         class ScanOnlyModeActiveState extends ModeActiveState {
+            private class ScanOnlyListener implements ScanOnlyModeManager.Listener {
+                @Override
+                public void onStateChanged(int state) {
+                    Log.d(TAG, "State changed from scan only mode.");
+                    if (state == WifiManager.WIFI_STATE_UNKNOWN) {
+                        // error while setting up scan mode or an unexpected failure.
+                        mModeStateMachine.sendMessage(CMD_SCAN_ONLY_MODE_FAILED);
+                    } else if (state == WifiManager.WIFI_STATE_DISABLED) {
+                        //scan only mode stopped
+                        mModeStateMachine.sendMessage(CMD_SCAN_ONLY_MODE_STOPPED);
+                    } else if (state == WifiManager.WIFI_STATE_ENABLED) {
+                        // scan mode is ready to go
+                        Log.d(TAG, "scan mode active");
+                    } else {
+                        Log.d(TAG, "unexpected state update: " + state);
+                    }
+                }
+            }
+
             @Override
             public void enter() {
-                this.mActiveModeManager = new ScanOnlyModeManager();
+                Log.d(TAG, "Entering ScanOnlyModeActiveState");
+
+                this.mActiveModeManager = mWifiInjector.makeScanOnlyModeManager(
+                        new ScanOnlyListener(), mNMService);
+                this.mActiveModeManager.start();
+            }
+
+            @Override
+            public boolean processMessage(Message message) {
+                switch(message.what) {
+                    case CMD_START_SCAN_ONLY_MODE:
+                        Log.d(TAG, "Received CMD_START_SCAN_ONLY_MODE when active - drop");
+                        break;
+                    case CMD_SCAN_ONLY_MODE_FAILED:
+                        Log.d(TAG, "ScanOnlyMode failed, return to idle state.");
+                        mModeStateMachine.transitionTo(mScanOnlyModeState);
+                        break;
+                    case CMD_SCAN_ONLY_MODE_STOPPED:
+                        Log.d(TAG, "ScanOnlyMode stopped, return to idle state.");
+                        mModeStateMachine.transitionTo(mScanOnlyModeState);
+                        break;
+                    default:
+                        return NOT_HANDLED;
+                }
+                return HANDLED;
             }
         }
 
