@@ -357,6 +357,14 @@ public class WifiStateMachinePrime {
             public void enter() {
                 this.mActiveModeManager = new ClientModeManager();
             }
+
+            @Override
+            public boolean processMessage(Message message) {
+                if (checkForAndHandleModeChange(message)) {
+                    return HANDLED;
+                }
+                return NOT_HANDLED;
+            }
         }
 
         class ScanOnlyModeActiveState extends ModeActiveState {
@@ -390,6 +398,10 @@ public class WifiStateMachinePrime {
 
             @Override
             public boolean processMessage(Message message) {
+                if (checkForAndHandleModeChange(message)) {
+                    return HANDLED;
+                }
+
                 switch(message.what) {
                     case CMD_START_SCAN_ONLY_MODE:
                         Log.d(TAG, "Received CMD_START_SCAN_ONLY_MODE when active - drop");
@@ -454,6 +466,10 @@ public class WifiStateMachinePrime {
 
             @Override
             public boolean processMessage(Message message) {
+                if (checkForAndHandleModeChange(message)) {
+                    return HANDLED;
+                }
+
                 switch(message.what) {
                     case CMD_START_AP:
                         Log.d(TAG, "Received CMD_START_AP when active - invalid message - drop");
