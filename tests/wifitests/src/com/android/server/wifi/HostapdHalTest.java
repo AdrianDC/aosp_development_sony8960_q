@@ -22,6 +22,7 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.*;
 
+import android.content.Context;
 import android.hardware.wifi.hostapd.V1_0.HostapdStatus;
 import android.hardware.wifi.hostapd.V1_0.HostapdStatusCode;
 import android.hardware.wifi.hostapd.V1_0.IHostapd;
@@ -31,6 +32,7 @@ import android.net.wifi.WifiConfiguration;
 import android.os.IHwBinder;
 import android.os.RemoteException;
 
+import com.android.internal.R;
 import com.android.server.wifi.util.NativeUtil;
 
 import org.junit.Before;
@@ -48,9 +50,11 @@ public class HostapdHalTest {
     private static final String NETWORK_SSID = "test-ssid";
     private static final String NETWORK_PSK = "test-psk";
 
+    private @Mock Context mContext;
     private @Mock IServiceManager mServiceManagerMock;
     private @Mock IHostapd mIHostapdMock;
     private @Mock WifiNative.HostapdDeathEventHandler mHostapdHalDeathHandler;
+    private MockResources mResources;
     HostapdStatus mStatusSuccess;
     HostapdStatus mStatusFailure;
     private HostapdHal mHostapdHal;
@@ -68,7 +72,7 @@ public class HostapdHalTest {
 
     private class HostapdHalSpy extends HostapdHal {
         HostapdHalSpy() {
-            super();
+            super(mContext);
         }
 
         @Override
@@ -85,9 +89,13 @@ public class HostapdHalTest {
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
+        mResources = new MockResources();
+        mResources.setBoolean(R.bool.config_wifi_softap_acs_supported, false);
+
         mStatusSuccess = createHostapdStatus(HostapdStatusCode.SUCCESS);
         mStatusFailure = createHostapdStatus(HostapdStatusCode.FAILURE_UNKNOWN);
 
+        when(mContext.getResources()).thenReturn(mResources);
         when(mServiceManagerMock.linkToDeath(any(IHwBinder.DeathRecipient.class),
                 anyLong())).thenReturn(true);
         when(mServiceManagerMock.registerForNotifications(anyString(), anyString(),
@@ -144,7 +152,7 @@ public class HostapdHalTest {
      * Verifies the successful addition of access point.
      */
     @Test
-    public void testAddAccessPointSuccess_Psk_80211G() throws Exception {
+    public void testAddAccessPointSuccess_Psk_Band2G() throws Exception {
         executeAndValidateInitializationSequence();
         final int apChannel = 6;
 
@@ -154,6 +162,7 @@ public class HostapdHalTest {
         configuration.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA2_PSK);
         configuration.preSharedKey = NETWORK_PSK;
         configuration.apChannel = apChannel;
+        configuration.apBand = WifiConfiguration.AP_BAND_2GHZ;
 
         assertTrue(mHostapdHal.addAccessPoint(IFACE_NAME, configuration));
         verify(mIHostapdMock).addAccessPoint(any(), any());
@@ -177,7 +186,7 @@ public class HostapdHalTest {
      * Verifies the successful addition of access point.
      */
     @Test
-    public void testAddAccessPointSuccess_Open_80211A() throws Exception {
+    public void testAddAccessPointSuccess_Open_Band5G() throws Exception {
         executeAndValidateInitializationSequence();
         final int apChannel = 18;
 
@@ -186,6 +195,7 @@ public class HostapdHalTest {
         configuration.hiddenSSID = true;
         configuration.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
         configuration.apChannel = apChannel;
+        configuration.apBand = WifiConfiguration.AP_BAND_5GHZ;
 
         assertTrue(mHostapdHal.addAccessPoint(IFACE_NAME, configuration));
         verify(mIHostapdMock).addAccessPoint(any(), any());
@@ -209,7 +219,7 @@ public class HostapdHalTest {
      * Verifies the successful addition of access point.
      */
     @Test
-    public void testAddAccessPointSuccess_Psk_80211A_Hidden() throws Exception {
+    public void testAddAccessPointSuccess_Psk_Band5G_Hidden() throws Exception {
         executeAndValidateInitializationSequence();
         final int apChannel = 18;
 
@@ -219,6 +229,7 @@ public class HostapdHalTest {
         configuration.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA2_PSK);
         configuration.preSharedKey = NETWORK_PSK;
         configuration.apChannel = apChannel;
+        configuration.apBand = WifiConfiguration.AP_BAND_5GHZ;
 
         assertTrue(mHostapdHal.addAccessPoint(IFACE_NAME, configuration));
         verify(mIHostapdMock).addAccessPoint(any(), any());
@@ -239,6 +250,43 @@ public class HostapdHalTest {
     }
 
     /**
+     * Verifies the successful addition of access point.
+     */
+    @Test
+    public void testAddAccessPointSuccess_Psk_Band2G_WithACS() throws Exception {
+        // Enable ACS in the config.
+        mResources.setBoolean(R.bool.config_wifi_softap_acs_supported, true);
+        mHostapdHal = new HostapdHalSpy();
+
+        executeAndValidateInitializationSequence();
+        final int apChannel = 6;
+
+        WifiConfiguration configuration = new WifiConfiguration();
+        configuration.SSID = NETWORK_SSID;
+        configuration.hiddenSSID = false;
+        configuration.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA2_PSK);
+        configuration.preSharedKey = NETWORK_PSK;
+        configuration.apChannel = apChannel;
+        configuration.apBand = WifiConfiguration.AP_BAND_2GHZ;
+
+        assertTrue(mHostapdHal.addAccessPoint(IFACE_NAME, configuration));
+        verify(mIHostapdMock).addAccessPoint(any(), any());
+
+        assertEquals(IFACE_NAME, mIfaceParamsCaptor.getValue().ifaceName);
+        assertTrue(mIfaceParamsCaptor.getValue().hwModeParams.enable80211N);
+        assertFalse(mIfaceParamsCaptor.getValue().hwModeParams.enable80211AC);
+        assertEquals(IHostapd.Band.BAND_2_4_GHZ, mIfaceParamsCaptor.getValue().channelParams.band);
+        assertTrue(mIfaceParamsCaptor.getValue().channelParams.enableAcs);
+        assertTrue(mIfaceParamsCaptor.getValue().channelParams.acsShouldExcludeDfs);
+
+        assertEquals(NativeUtil.stringToByteArrayList(NETWORK_SSID),
+                mNetworkParamsCaptor.getValue().ssid);
+        assertFalse(mNetworkParamsCaptor.getValue().isHidden);
+        assertEquals(IHostapd.EncryptionType.WPA2, mNetworkParamsCaptor.getValue().encryptionType);
+        assertEquals(NETWORK_PSK, mNetworkParamsCaptor.getValue().pskPassphrase);
+    }
+
+    /**
      * Verifies the failure handling in addition of access point.
      */
     @Test
@@ -251,6 +299,7 @@ public class HostapdHalTest {
         configuration.hiddenSSID = true;
         configuration.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
         configuration.apChannel = 6;
+        configuration.apBand = WifiConfiguration.AP_BAND_2GHZ;
 
         assertFalse(mHostapdHal.addAccessPoint(IFACE_NAME, configuration));
         verify(mIHostapdMock).addAccessPoint(any(), any());
