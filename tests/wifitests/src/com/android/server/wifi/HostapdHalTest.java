@@ -326,6 +326,60 @@ public class HostapdHalTest {
     }
 
     /**
+     * Verifies the successful addition of access point.
+     */
+    @Test
+    public void testAddAccessPointSuccess_Psk_BandAny_WithACS() throws Exception {
+        // Enable ACS in the config.
+        mResources.setBoolean(R.bool.config_wifi_softap_acs_supported, true);
+        mHostapdHal = new HostapdHalSpy();
+
+        executeAndValidateInitializationSequence();
+        final int apChannel = 6;
+
+        WifiConfiguration configuration = new WifiConfiguration();
+        configuration.SSID = NETWORK_SSID;
+        configuration.hiddenSSID = false;
+        configuration.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA2_PSK);
+        configuration.preSharedKey = NETWORK_PSK;
+        configuration.apChannel = apChannel;
+        configuration.apBand = WifiConfiguration.AP_BAND_ANY;
+
+        assertTrue(mHostapdHal.addAccessPoint(IFACE_NAME, configuration));
+        verify(mIHostapdMock).addAccessPoint(any(), any());
+
+        assertEquals(IFACE_NAME, mIfaceParamsCaptor.getValue().ifaceName);
+        assertTrue(mIfaceParamsCaptor.getValue().hwModeParams.enable80211N);
+        assertFalse(mIfaceParamsCaptor.getValue().hwModeParams.enable80211AC);
+        assertEquals(IHostapd.Band.BAND_ANY, mIfaceParamsCaptor.getValue().channelParams.band);
+        assertTrue(mIfaceParamsCaptor.getValue().channelParams.enableAcs);
+        assertTrue(mIfaceParamsCaptor.getValue().channelParams.acsShouldExcludeDfs);
+
+        assertEquals(NativeUtil.stringToByteArrayList(NETWORK_SSID),
+                mNetworkParamsCaptor.getValue().ssid);
+        assertFalse(mNetworkParamsCaptor.getValue().isHidden);
+        assertEquals(IHostapd.EncryptionType.WPA2, mNetworkParamsCaptor.getValue().encryptionType);
+        assertEquals(NETWORK_PSK, mNetworkParamsCaptor.getValue().pskPassphrase);
+    }
+
+    /**
+     * Verifies the failure handling in addition of access point with an invalid band.
+     */
+    @Test
+    public void testAddAccessPointInvalidBandFailure() throws Exception {
+        executeAndValidateInitializationSequence();
+
+        WifiConfiguration configuration = new WifiConfiguration();
+        configuration.SSID = NETWORK_SSID;
+        configuration.hiddenSSID = true;
+        configuration.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+        configuration.apBand = WifiConfiguration.AP_BAND_5GHZ + 1;
+
+        assertFalse(mHostapdHal.addAccessPoint(IFACE_NAME, configuration));
+        verify(mIHostapdMock, never()).addAccessPoint(any(), any());
+    }
+
+    /**
      * Verifies the failure handling in addition of access point.
      */
     @Test

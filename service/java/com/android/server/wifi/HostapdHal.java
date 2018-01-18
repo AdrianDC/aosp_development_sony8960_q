@@ -230,10 +230,11 @@ public class HostapdHal {
             ifaceParams.ifaceName = ifaceName;
             ifaceParams.hwModeParams.enable80211N = true;
             ifaceParams.hwModeParams.enable80211AC = mEnableIeee80211AC;
-            if (config.apBand == WifiConfiguration.AP_BAND_2GHZ) {
-                ifaceParams.channelParams.band = IHostapd.Band.BAND_2_4_GHZ;
-            } else if (config.apBand == WifiConfiguration.AP_BAND_5GHZ) {
-                ifaceParams.channelParams.band = IHostapd.Band.BAND_5_GHZ;
+            try {
+                ifaceParams.channelParams.band = getBand(config);
+            } catch (IllegalArgumentException e) {
+                Log.e(TAG, "Unrecognized apBand " + config.apBand);
+                return false;
             }
             if (mEnableAcs) {
                 ifaceParams.channelParams.enableAcs = true;
@@ -384,6 +385,24 @@ public class HostapdHal {
                 break;
         }
         return encryptionType;
+    }
+
+    private static int getBand(WifiConfiguration localConfig) {
+        int bandType;
+        switch (localConfig.apBand) {
+            case WifiConfiguration.AP_BAND_2GHZ:
+                bandType = IHostapd.Band.BAND_2_4_GHZ;
+                break;
+            case WifiConfiguration.AP_BAND_5GHZ:
+                bandType = IHostapd.Band.BAND_5_GHZ;
+                break;
+            case WifiConfiguration.AP_BAND_ANY:
+                bandType = IHostapd.Band.BAND_ANY;
+                break;
+            default:
+                throw new IllegalArgumentException();
+        }
+        return bandType;
     }
 
     /**
