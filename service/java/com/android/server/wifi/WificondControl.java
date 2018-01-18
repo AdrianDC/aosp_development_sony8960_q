@@ -25,7 +25,6 @@ import android.net.wifi.IScanEvent;
 import android.net.wifi.IWifiScannerImpl;
 import android.net.wifi.IWificond;
 import android.net.wifi.ScanResult;
-import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
 import android.os.Binder;
@@ -45,7 +44,6 @@ import com.android.server.wifi.wificond.PnoNetwork;
 import com.android.server.wifi.wificond.PnoSettings;
 import com.android.server.wifi.wificond.SingleScanSettings;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
@@ -736,40 +734,24 @@ public class WificondControl implements IBinder.DeathRecipient {
     }
 
     /**
-     * Start Soft AP operation using the provided configuration.
+     * Start hostapd
+     * TODO(b/71513606): Move this to a global operation.
      *
      * @param ifaceName Name of the interface.
-     * @param config Configuration to use for the soft ap created.
      * @param listener Callback for AP events.
      * @return true on success, false otherwise.
      */
-    public boolean startSoftAp(@NonNull String ifaceName,
-                               WifiConfiguration config,
+    public boolean startHostapd(@NonNull String ifaceName,
                                SoftApListener listener) {
         IApInterface iface = getApInterface(ifaceName);
         if (iface == null) {
             Log.e(TAG, "No valid ap interface handler");
             return false;
         }
-        int encryptionType = getIApInterfaceEncryptionType(config);
         try {
-            // TODO(b/67745880) Note that config.SSID is intended to be either a
-            // hex string or "double quoted".
-            // However, it seems that whatever is handing us these configurations does not obey
-            // this convention.
-            boolean success = iface.writeHostapdConfig(
-                    config.SSID.getBytes(StandardCharsets.UTF_8), config.hiddenSSID,
-                    config.apChannel, encryptionType,
-                    (config.preSharedKey != null)
-                            ? config.preSharedKey.getBytes(StandardCharsets.UTF_8)
-                            : new byte[0]);
-            if (!success) {
-                Log.e(TAG, "Failed to write hostapd configuration");
-                return false;
-            }
             IApInterfaceEventCallback  callback = new ApInterfaceEventCallback(listener);
             mApInterfaceListeners.put(ifaceName, callback);
-            success = iface.startHostapd(callback);
+            boolean success = iface.startHostapd(callback);
             if (!success) {
                 Log.e(TAG, "Failed to start hostapd.");
                 return false;
@@ -782,12 +764,13 @@ public class WificondControl implements IBinder.DeathRecipient {
     }
 
     /**
-     * Stop the ongoing Soft AP operation.
+     * Stop hostapd
+     * TODO(b/71513606): Move this to a global operation.
      *
      * @param ifaceName Name of the interface.
      * @return true on success, false otherwise.
      */
-    public boolean stopSoftAp(@NonNull String ifaceName) {
+    public boolean stopHostapd(@NonNull String ifaceName) {
         IApInterface iface = getApInterface(ifaceName);
         if (iface == null) {
             Log.e(TAG, "No valid ap interface handler");
@@ -805,27 +788,6 @@ public class WificondControl implements IBinder.DeathRecipient {
         }
         mApInterfaceListeners.remove(ifaceName);
         return true;
-    }
-
-    private static int getIApInterfaceEncryptionType(WifiConfiguration localConfig) {
-        int encryptionType;
-        switch (localConfig.getAuthType()) {
-            case WifiConfiguration.KeyMgmt.NONE:
-                encryptionType = IApInterface.ENCRYPTION_TYPE_NONE;
-                break;
-            case WifiConfiguration.KeyMgmt.WPA_PSK:
-                encryptionType = IApInterface.ENCRYPTION_TYPE_WPA;
-                break;
-            case WifiConfiguration.KeyMgmt.WPA2_PSK:
-                encryptionType = IApInterface.ENCRYPTION_TYPE_WPA2;
-                break;
-            default:
-                // We really shouldn't default to None, but this was how NetworkManagementService
-                // used to do this.
-                encryptionType = IApInterface.ENCRYPTION_TYPE_NONE;
-                break;
-        }
-        return encryptionType;
     }
 
     /**

@@ -73,6 +73,7 @@ public class WifiNative {
     private static final String TAG = "WifiNative";
     private final String mInterfaceName;
     private final SupplicantStaIfaceHal mSupplicantStaIfaceHal;
+    private final HostapdHal mHostapdHal;
     private final WifiVendorHal mWifiVendorHal;
     private final WificondControl mWificondControl;
     private final INetworkManagementService mNwManagementService;
@@ -81,11 +82,13 @@ public class WifiNative {
     // TODO(b/69426063): Remove interfaceName from constructor once WifiStateMachine switches over
     // to the new interface management methods.
     public WifiNative(String interfaceName, WifiVendorHal vendorHal,
-                      SupplicantStaIfaceHal staIfaceHal, WificondControl condControl,
-                      INetworkManagementService nwService, PropertyService propertyService) {
+                      SupplicantStaIfaceHal staIfaceHal, HostapdHal hostapdHal,
+                      WificondControl condControl, INetworkManagementService nwService,
+                      PropertyService propertyService) {
         mInterfaceName = interfaceName;
         mWifiVendorHal = vendorHal;
         mSupplicantStaIfaceHal = staIfaceHal;
+        mHostapdHal = hostapdHal;
         mWificondControl = condControl;
         mNwManagementService = nwService;
         mPropertyService = propertyService;
@@ -450,8 +453,12 @@ public class WifiNative {
             if (!unregisterNetworkObserver(iface.networkObserver)) {
                 Log.e(TAG, "Failed to unregister network observer for iface=" + iface.name);
             }
-            if (!mWificondControl.stopSoftAp(iface.name)) {
-                Log.e(TAG, "Failed to stop softap on iface=" + iface.name);
+            if (!mHostapdHal.removeAccessPoint(iface.name)) {
+                Log.e(TAG, "Failed to remove access point on iface=" + iface.name);
+            }
+            // TODO(b/71513606): Move this to a global operation.
+            if (!mWificondControl.stopHostapd(iface.name)) {
+                Log.e(TAG, "Failed to stop hostapd on iface=" + iface.name);
             }
             if (!mWificondControl.tearDownSoftApInterface(iface.name)) {
                 Log.e(TAG, "Failed to teardown iface in wificond=" + iface.name);
@@ -1065,6 +1072,35 @@ public class WifiNative {
         void onNumAssociatedStationsChanged(int numStations);
     }
 
+    private static final int CONNECT_TO_HOSTAPD_RETRY_INTERVAL_MS = 100;
+    private static final int CONNECT_TO_HOSTAPD_RETRY_TIMES = 50;
+    /**
+     * This method is called to wait for establishing connection to hostapd.
+     *
+     * @return true if connection is established, false otherwise.
+     */
+    private boolean waitForHostapdConnection() {
+        // Start initialization if not already started.
+        if (!mHostapdHal.isInitializationStarted()
+                && !mHostapdHal.initialize()) {
+            return false;
+        }
+        boolean connected = false;
+        int connectTries = 0;
+        while (!connected && connectTries++ < CONNECT_TO_HOSTAPD_RETRY_TIMES) {
+            // Check if the initialization is complete.
+            connected = mHostapdHal.isInitializationComplete();
+            if (connected) {
+                break;
+            }
+            try {
+                Thread.sleep(CONNECT_TO_HOSTAPD_RETRY_INTERVAL_MS);
+            } catch (InterruptedException ignore) {
+            }
+        }
+        return connected;
+    }
+
     /**
      * Start Soft AP operation using the provided configuration.
      *
@@ -1073,7 +1109,19 @@ public class WifiNative {
      * @return true on success, false otherwise.
      */
     public boolean startSoftAp(WifiConfiguration config, SoftApListener listener) {
-        return mWificondControl.startSoftAp(mInterfaceName, config, listener);
+        if (!mWificondControl.startHostapd(mInterfaceName, listener)) {
+            Log.e(TAG, "Failed to start hostapd");
+            return false;
+        }
+        if (!waitForHostapdConnection()) {
+            Log.e(TAG, "Failed to establish connection to hostapd");
+            return false;
+        }
+        if (!mHostapdHal.addAccessPoint(mInterfaceName, config)) {
+            Log.e(TAG, "Failed to add acccess point");
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -1082,7 +1130,24 @@ public class WifiNative {
      * @return true on success, false otherwise.
      */
     public boolean stopSoftAp() {
-        return mWificondControl.stopSoftAp(mInterfaceName);
+        if (!mHostapdHal.removeAccessPoint(mInterfaceName)) {
+            Log.e(TAG, "Failed to remove access point");
+        }
+        return mWificondControl.stopHostapd(mInterfaceName);
+    }
+
+    /********************************************************
+     * Hostapd operations
+     ********************************************************/
+
+    /**
+     * Callback to notify hostapd death.
+     */
+    public interface HostapdDeathEventHandler {
+        /**
+         * Invoked when the supplicant dies.
+         */
+        void onDeath();
     }
 
     /********************************************************
