@@ -216,7 +216,7 @@ public class WifiController extends StateMachine {
 
         @Override
         public void enter() {
-            mWifiStateMachine.setSupplicantRunning(false);
+            mWifiStateMachine.setOperationalMode(WifiStateMachine.DISABLED_MODE);
             mWifiStateMachinePrime.disableWifi();
             // Supplicant can't restart right away, so note the time we switched off
             mDisabledTimestamp = SystemClock.elapsedRealtime();
@@ -251,7 +251,9 @@ public class WifiController extends StateMachine {
                 case CMD_SCAN_ALWAYS_MODE_CHANGED:
                     if (mSettingsStore.isScanAlwaysAvailable()) {
                         transitionTo(mStaDisabledWithScanState);
+                        break;
                     }
+                    mWifiStateMachine.setOperationalMode(WifiStateMachine.DISABLED_MODE);
                     break;
                 case CMD_SET_AP:
                     if (msg.arg1 == 1) {
@@ -303,8 +305,9 @@ public class WifiController extends StateMachine {
     class StaEnabledState extends State {
         @Override
         public void enter() {
-            mWifiStateMachine.setSupplicantRunning(true);
+            log("StaEnabledState.enter()");
         }
+
         @Override
         public boolean processMessage(Message msg) {
             switch (msg.what) {
@@ -369,15 +372,17 @@ public class WifiController extends StateMachine {
 
         @Override
         public void enter() {
-            // need to set the mode before starting supplicant because WSM will assume we are going
-            // in to client mode
+            // first send the message to WSM to trigger the transition and act as a shadow
             mWifiStateMachine.setOperationalMode(WifiStateMachine.SCAN_ONLY_WITH_WIFI_OFF_MODE);
-            mWifiStateMachine.setSupplicantRunning(true);
+
+            // now trigger the actual mode switch in WifiStateMachinePrime
+            mWifiStateMachinePrime.enterScanOnlyMode();
+
+            // TODO b/71559473: remove the defered enable after mode management changes are complete
             // Supplicant can't restart right away, so not the time we switched off
             mDisabledTimestamp = SystemClock.elapsedRealtime();
             mDeferredEnableSerialNumber++;
             mHaveDeferredEnable = false;
-            mWifiStateMachine.clearANQPCache();
         }
 
         @Override
@@ -393,6 +398,8 @@ public class WifiController extends StateMachine {
                             mHaveDeferredEnable = !mHaveDeferredEnable;
                             break;
                         }
+                        // transition from scan mode to initial state in WifiStateMachine
+                        mWifiStateMachine.setOperationalMode(WifiStateMachine.DISABLED_MODE);
                         transitionTo(mDeviceActiveState);
                     }
                     break;
@@ -404,6 +411,7 @@ public class WifiController extends StateMachine {
                     break;
                 case CMD_SCAN_ALWAYS_MODE_CHANGED:
                     if (! mSettingsStore.isScanAlwaysAvailable()) {
+                        log("StaDisabledWithScanState: scan no longer available");
                         transitionTo(mApStaDisabledState);
                     }
                     break;
@@ -544,7 +552,8 @@ public class WifiController extends StateMachine {
         private int mEcmEntryCount;
         @Override
         public void enter() {
-            mWifiStateMachine.setSupplicantRunning(false);
+            mWifiStateMachine.setOperationalMode(WifiStateMachine.DISABLED_MODE);
+            mWifiStateMachinePrime.disableWifi();
             mWifiStateMachine.clearANQPCache();
             mEcmEntryCount = 1;
         }
@@ -602,6 +611,7 @@ public class WifiController extends StateMachine {
         @Override
         public void enter() {
             mWifiStateMachine.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+            mWifiStateMachinePrime.enterClientMode();
             mWifiStateMachine.setHighPerfModeEnabled(false);
         }
 

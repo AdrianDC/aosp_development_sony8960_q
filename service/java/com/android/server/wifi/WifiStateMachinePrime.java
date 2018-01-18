@@ -244,6 +244,9 @@ public class WifiStateMachinePrime {
 
             @Override
             public void enter() {
+                // For now - need to clean up from other mode management in WSM
+                cleanup();
+
                 final Message message = mModeStateMachine.getCurrentMessage();
                 if (message.what != ModeStateMachine.CMD_START_SCAN_ONLY_MODE) {
                     Log.d(TAG, "Entering ScanOnlyMode (idle)");
@@ -263,7 +266,9 @@ public class WifiStateMachinePrime {
 
             @Override
             public void exit() {
-                cleanup();
+                // while in transition, cleanup is done on entering states.  in the future, each
+                // mode will clean up their own state on exit
+                //cleanup();
             }
         }
 

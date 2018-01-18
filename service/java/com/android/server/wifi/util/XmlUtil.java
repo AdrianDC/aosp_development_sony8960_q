@@ -296,7 +296,7 @@ public class XmlUtil {
     }
 
     /**
-     * Utility class to serialize and deseriaize {@link WifiConfiguration} object to XML &
+     * Utility class to serialize and deserialize {@link WifiConfiguration} object to XML &
      * vice versa.
      * This is used by both {@link com.android.server.wifi.WifiConfigStore} &
      * {@link com.android.server.wifi.WifiBackupRestore} modules.

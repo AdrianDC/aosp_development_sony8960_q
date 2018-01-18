@@ -82,6 +82,7 @@ public class WifiInjector {
     private final WifiP2pMonitor mWifiP2pMonitor;
     private final SupplicantStaIfaceHal mSupplicantStaIfaceHal;
     private final SupplicantP2pIfaceHal mSupplicantP2pIfaceHal;
+    private final HostapdHal mHostapdHal;
     private final WifiVendorHal mWifiVendorHal;
     private final WifiStateMachine mWifiStateMachine;
     private final WifiStateMachinePrime mWifiStateMachinePrime;
@@ -171,13 +172,14 @@ public class WifiInjector {
         mWifiVendorHal =
                 new WifiVendorHal(mHalDeviceManager, mWifiStateMachineHandlerThread.getLooper());
         mSupplicantStaIfaceHal = new SupplicantStaIfaceHal(mContext, mWifiMonitor);
+        mHostapdHal = new HostapdHal();
         mWificondControl = new WificondControl(this, mWifiMonitor,
                 new CarrierNetworkConfig(mContext));
         mNwManagementService = INetworkManagementService.Stub.asInterface(
                 ServiceManager.getService(Context.NETWORKMANAGEMENT_SERVICE));
         mWifiNative = new WifiNative(SystemProperties.get("wifi.interface", "wlan0"),
-                mWifiVendorHal, mSupplicantStaIfaceHal, mWificondControl, mNwManagementService,
-                mPropertyService);
+                mWifiVendorHal, mSupplicantStaIfaceHal, mHostapdHal, mWificondControl,
+                mNwManagementService, mPropertyService);
         mWifiP2pMonitor = new WifiP2pMonitor(this);
         mSupplicantP2pIfaceHal = new SupplicantP2pIfaceHal(mWifiP2pMonitor);
         mWifiP2pNative = new WifiP2pNative(SystemProperties.get("wifi.direct.interface", "p2p0"),
@@ -247,7 +249,8 @@ public class WifiInjector {
                 new ConnectToNetworkNotificationBuilder(mContext, mFrameworkFacade));
         mWakeupController = new WakeupController(mContext,
                 mWifiStateMachineHandlerThread.getLooper(), new WakeupLock(mWifiConfigManager),
-                mWifiConfigManager, mWifiConfigStore, this, mFrameworkFacade);
+                WakeupEvaluator.fromContext(mContext), mWifiConfigManager, mWifiConfigStore,
+                this, mFrameworkFacade);
         mLockManager = new WifiLockManager(mContext, BatteryStatsService.getService());
         mWifiController = new WifiController(mContext, mWifiStateMachine, mSettingsStore,
                 mWifiServiceHandlerThread.getLooper(), mFrameworkFacade, mWifiStateMachinePrime);
@@ -424,7 +427,7 @@ public class WifiInjector {
     public ScanOnlyModeManager makeScanOnlyModeManager(ScanOnlyModeManager.Listener listener,
                                                        INetworkManagementService nmService) {
         return new ScanOnlyModeManager(mContext, mWifiStateMachineHandlerThread.getLooper(),
-                mWifiNative, listener, nmService, mWifiMetrics);
+                mWifiNative, listener, nmService, mWifiMetrics, mWifiMonitor);
     }
 
     /**
