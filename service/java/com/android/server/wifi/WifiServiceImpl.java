@@ -58,6 +58,7 @@ import android.net.NetworkUtils;
 import android.net.StaticIpConfiguration;
 import android.net.Uri;
 import android.net.ip.IpClient;
+import android.net.wifi.ISoftApCallback;
 import android.net.wifi.IWifiManager;
 import android.net.wifi.ScanResult;
 import android.net.wifi.ScanSettings;
@@ -123,6 +124,7 @@ import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -194,6 +196,11 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @GuardedBy("mLocalOnlyHotspotRequests")
     private final ConcurrentHashMap<String, Integer> mIfaceIpModes;
 
+    /* Limit on number of registered soft AP callbacks to track and prevent potential memory leak */
+    private static final int NUM_SOFT_AP_CALLBACKS_WARN_LIMIT = 10;
+    private static final int NUM_SOFT_AP_CALLBACKS_WTF_LIMIT = 20;
+    private final HashMap<Integer, ISoftApCallback> mRegisteredSoftApCallbacks;
+
     /**
      * One of:  {@link WifiManager#WIFI_AP_STATE_DISABLED},
      *          {@link WifiManager#WIFI_AP_STATE_DISABLING},
@@ -203,8 +210,12 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      *
      * Access/maintenance MUST be done on the wifi service thread
      */
+    // TODO: (b/71714381) Remove mWifiApState and broadcast mechanism, keep mSoftApState as the only
+    //       field to store soft AP state. Then rename mSoftApState and mSoftApNumClients to
+    //       mWifiApState and mWifiApNumClients, to match the constants (i.e. WIFI_AP_STATE_*)
     private int mWifiApState = WifiManager.WIFI_AP_STATE_DISABLED;
-
+    private int mSoftApState = WifiManager.WIFI_AP_STATE_DISABLED;
+    private int mSoftApNumClients = 0;
 
     /**
      * Callback for use with LocalOnlyHotspot to unregister requesting applications upon death.
@@ -459,6 +470,10 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mIfaceIpModes = new ConcurrentHashMap<>();
         mLocalOnlyHotspotRequests = new HashMap<>();
         enableVerboseLoggingInternal(getVerboseLoggingLevel());
+
+        mRegisteredSoftApCallbacks = new HashMap<>();
+
+        mWifiInjector.getWifiStateMachinePrime().registerSoftApCallback(new SoftApCallbackImpl());
     }
 
     /**
@@ -1030,6 +1045,141 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
         mWifiController.sendMessage(CMD_SET_AP, 0, 0);
         return true;
+    }
+
+    /**
+     * Callback to use with WifiStateMachine to receive events from WifiStateMachine
+     *
+     * @hide
+     */
+    private final class SoftApCallbackImpl implements WifiManager.SoftApCallback {
+        /**
+         * Called when soft AP state changes.
+         *
+         * @param state new new AP state. One of {@link #WIFI_AP_STATE_DISABLED},
+         *        {@link #WIFI_AP_STATE_DISABLING}, {@link #WIFI_AP_STATE_ENABLED},
+         *        {@link #WIFI_AP_STATE_ENABLING}, {@link #WIFI_AP_STATE_FAILED}
+         * @param failureReason reason when in failed state. One of
+         *        {@link #SAP_START_FAILURE_GENERAL}, {@link #SAP_START_FAILURE_NO_CHANNEL}
+         */
+        @Override
+        public void onStateChanged(int state, int failureReason) {
+            mSoftApState = state;
+            mSoftApNumClients = 0;
+
+            Iterator<ISoftApCallback> iterator = mRegisteredSoftApCallbacks.values().iterator();
+            while (iterator.hasNext()) {
+                ISoftApCallback callback = iterator.next();
+                try {
+                    callback.onStateChanged(state, failureReason);
+                } catch (RemoteException e) {
+                    Log.e(TAG, "onStateChanged: remote exception -- " + e);
+                    iterator.remove();
+                }
+            }
+        }
+
+        /**
+         * Called when number of connected clients to soft AP changes.
+         *
+         * @param numClients number of connected clients to soft AP
+         */
+        @Override
+        public void onNumClientsChanged(int numClients) {
+            mSoftApNumClients = numClients;
+
+            Iterator<ISoftApCallback> iterator = mRegisteredSoftApCallbacks.values().iterator();
+            while (iterator.hasNext()) {
+                ISoftApCallback callback = iterator.next();
+                try {
+                    callback.onNumClientsChanged(numClients);
+                } catch (RemoteException e) {
+                    Log.e(TAG, "onNumClientsChanged: remote exception -- " + e);
+                    iterator.remove();
+                }
+            }
+        }
+    }
+
+    /**
+     * see {@link android.net.wifi.WifiManager#registerSoftApCallback(SoftApCallback, Handler)}
+     *
+     * @param binder IBinder instance to allow cleanup if the app dies
+     * @param callback Soft AP callback to register
+     * @param callbackIdentifier Unique ID of the registering callback. This ID will be used to
+     *        unregister the callback. See {@link unregisterSoftApCallback(int)}
+     *
+     * @throws SecurityException if the caller does not have permission to register a callback
+     * @throws RemoteException if remote exception happens
+     * @throws IllegalArgumentException if the arguments are null or invalid
+     */
+    @Override
+    public void registerSoftApCallback(IBinder binder, ISoftApCallback callback,
+            int callbackIdentifier) {
+        // verify arguments
+        if (binder == null) {
+            throw new IllegalArgumentException("Binder must not be null");
+        }
+        if (callback == null) {
+            throw new IllegalArgumentException("Callback must not be null");
+        }
+
+        enforceNetworkSettingsPermission();
+
+        // register for binder death
+        IBinder.DeathRecipient dr = new IBinder.DeathRecipient() {
+            @Override
+            public void binderDied() {
+                binder.unlinkToDeath(this, 0);
+                mClientHandler.post(() -> {
+                    mRegisteredSoftApCallbacks.remove(callbackIdentifier);
+                });
+            }
+        };
+        try {
+            binder.linkToDeath(dr, 0);
+        } catch (RemoteException e) {
+            Log.e(TAG, "Error on linkToDeath - " + e);
+            return;
+        }
+
+        // post operation to handler thread
+        mClientHandler.post(() -> {
+            mRegisteredSoftApCallbacks.put(callbackIdentifier, callback);
+
+            if (mRegisteredSoftApCallbacks.size() > NUM_SOFT_AP_CALLBACKS_WTF_LIMIT) {
+                Log.wtf(TAG, "Too many soft AP callbacks: " + mRegisteredSoftApCallbacks.size());
+            } else if (mRegisteredSoftApCallbacks.size() > NUM_SOFT_AP_CALLBACKS_WARN_LIMIT) {
+                Log.w(TAG, "Too many soft AP callbacks: " + mRegisteredSoftApCallbacks.size());
+            }
+
+            // Update the client about the current state immediately after registering the callback
+            try {
+                callback.onStateChanged(mSoftApState, 0);
+                callback.onNumClientsChanged(mSoftApNumClients);
+            } catch (RemoteException e) {
+                Log.e(TAG, "registerSoftApCallback: remote exception -- " + e);
+            }
+
+        });
+    }
+
+    /**
+     * see {@link android.net.wifi.WifiManager#unregisterSoftApCallback(SoftApCallback)}
+     *
+     * @param callbackIdentifier Unique ID of the callback to be unregistered.
+     *
+     * @throws SecurityException if the caller does not have permission to register a callback
+     */
+    @Override
+    public void unregisterSoftApCallback(int callbackIdentifier) {
+
+        enforceNetworkSettingsPermission();
+
+        // post operation to handler thread
+        mClientHandler.post(() -> {
+            mRegisteredSoftApCallbacks.remove(callbackIdentifier);
+        });
     }
 
     /**

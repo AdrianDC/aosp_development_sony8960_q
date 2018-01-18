@@ -327,8 +327,8 @@ public class WifiStateMachineTest {
     NetworkRequest mDefaultNetworkRequest;
     OsuProvider mOsuProvider;
 
-    final ArgumentCaptor<SoftApManager.Listener> mSoftApManagerListenerCaptor =
-                    ArgumentCaptor.forClass(SoftApManager.Listener.class);
+    final ArgumentCaptor<WifiManager.SoftApCallback> mSoftApCallbackCaptor =
+            ArgumentCaptor.forClass(WifiManager.SoftApCallback.class);
 
     @Mock WifiScanner mWifiScanner;
     @Mock SupplicantStateTracker mSupplicantStateTracker;
@@ -394,7 +394,7 @@ public class WifiStateMachineTest {
         when(mWifiInjector.makeWifiConnectivityManager(any(WifiInfo.class), anyBoolean()))
                 .thenReturn(mWifiConnectivityManager);
         //when(mWifiInjector.makeSoftApManager(any(INetworkManagementService.class),
-        //                                     mSoftApManagerListenerCaptor.capture(),
+        //                                     mSoftApCallbackCaptor.capture(),
         //                                     any(SoftApModeConfiguration.class)))
         //        .thenReturn(mSoftApManager);
         when(mWifiInjector.getPasspointManager()).thenReturn(mPasspointManager);
