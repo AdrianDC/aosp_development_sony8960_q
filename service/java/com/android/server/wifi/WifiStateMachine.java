@@ -4980,7 +4980,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             && TelephonyUtil.isSimConfig(targetWificonfiguration)) {
                         String identity =
                                 TelephonyUtil.getSimIdentity(getTelephonyManager(),
-                                        targetWificonfiguration);
+                                        new TelephonyUtil(), targetWificonfiguration);
                         if (identity != null) {
                             mWifiNative.simIdentityResponse(netId, identity);
                             identitySent = true;
