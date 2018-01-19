@@ -182,7 +182,8 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
             if (!allFreqs.isEmpty()) {
                 freqs = allFreqs.getScanFreqs();
                 success = mWifiNative.scan(
-                        mWifiNative.getClientInterfaceName(), freqs, hiddenNetworkSSIDSet);
+                        mWifiNative.getClientInterfaceName(), settings.scanType, freqs,
+                        hiddenNetworkSSIDSet);
                 if (!success) {
                     Log.e(TAG, "Failed to start scan, freqs=" + freqs);
                 }

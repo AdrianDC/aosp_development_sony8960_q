@@ -60,17 +60,25 @@ public class ScanTestUtil {
         return request;
     }
 
+    public static WifiScanner.ScanSettings createRequest(int type, int band, int period, int batch,
+            int bssidsPerScan, int reportEvents) {
+        return createRequest(WifiScanner.TYPE_HIGH_ACCURACY, band, period, 0, 0,
+                batch, bssidsPerScan, reportEvents);
+    }
+
     public static WifiScanner.ScanSettings createRequest(int band, int period, int batch,
             int bssidsPerScan, int reportEvents) {
-        return createRequest(band, period, 0, 0, batch, bssidsPerScan, reportEvents);
+        return createRequest(WifiScanner.TYPE_HIGH_ACCURACY, band, period, 0, 0, batch,
+                bssidsPerScan, reportEvents);
     }
 
     /**
      * Create an exponential back off scan request if maxPeriod != period && maxPeriod != 0.
      */
-    public static WifiScanner.ScanSettings createRequest(int band, int period, int maxPeriod,
-            int stepCount, int batch, int bssidsPerScan, int reportEvents) {
+    public static WifiScanner.ScanSettings createRequest(int type, int band, int period,
+            int maxPeriod, int stepCount, int batch, int bssidsPerScan, int reportEvents) {
         WifiScanner.ScanSettings request = new WifiScanner.ScanSettings();
+        request.type = type;
         request.band = band;
         request.channels = null;
         request.periodInMs = period;
@@ -88,11 +96,16 @@ public class ScanTestUtil {
     public static class NativeScanSettingsBuilder {
         private final WifiNative.ScanSettings mSettings = new WifiNative.ScanSettings();
         public NativeScanSettingsBuilder() {
+            mSettings.scanType = WifiNative.SCAN_TYPE_LOW_LATENCY;
             mSettings.buckets = new WifiNative.BucketSettings[0];
             mSettings.num_buckets = 0;
             mSettings.report_threshold_percent = 100;
         }
 
+        public NativeScanSettingsBuilder withType(int type) {
+            mSettings.scanType = type;
+            return this;
+        }
         public NativeScanSettingsBuilder withBasePeriod(int basePeriod) {
             mSettings.base_period_ms = basePeriod;
             return this;

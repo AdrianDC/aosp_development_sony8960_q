@@ -706,6 +706,11 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             }
         }
 
+        boolean validateScanType(int type) {
+            return (type == WifiScanner.TYPE_LOW_LATENCY || type == WifiScanner.TYPE_LOW_POWER
+                    || type == WifiScanner.TYPE_HIGH_ACCURACY);
+        }
+
         boolean validateScanRequest(ClientInfo ci, int handler, ScanSettings settings) {
             if (ci == null) {
                 Log.d(TAG, "Failing single scan request ClientInfo not found " + handler);
@@ -716,6 +721,10 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                     Log.d(TAG, "Failing single scan because channel list was empty");
                     return false;
                 }
+            }
+            if (!validateScanType(settings.type)) {
+                Log.e(TAG, "Invalid scan type " + settings.type);
+                return false;
             }
             if (mContext.checkPermission(
                     Manifest.permission.NETWORK_STACK, UNKNOWN_PID, ci.getUid())
@@ -734,8 +743,29 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             return true;
         }
 
+        int getNativeScanType(int type) {
+            switch(type) {
+                case WifiScanner.TYPE_LOW_LATENCY:
+                    return WifiNative.SCAN_TYPE_LOW_LATENCY;
+                case WifiScanner.TYPE_LOW_POWER:
+                    return WifiNative.SCAN_TYPE_LOW_POWER;
+                case WifiScanner.TYPE_HIGH_ACCURACY:
+                    return WifiNative.SCAN_TYPE_HIGH_ACCURACY;
+                default:
+                    // This should never happen becuase we've validated the incoming type in
+                    // |validateScanType|.
+                    throw new IllegalArgumentException("Invalid scan type " + type);
+            }
+        }
+
         boolean activeScanSatisfies(ScanSettings settings) {
             if (mActiveScanSettings == null) {
+                return false;
+            }
+
+            // TODO: Potentially we can coalesce a LOW_POWER/LOW_LATENCY scan request into an
+            // ongoing HIGH_ACCURACY scan request. We can't allow the vice versa though.
+            if (mActiveScanSettings.scanType != getNativeScanType(settings.type)) {
                 return false;
             }
 
@@ -808,6 +838,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             ChannelCollection channels = mChannelHelper.createChannelCollection();
             List<WifiNative.HiddenNetwork> hiddenNetworkList = new ArrayList<>();
             for (RequestInfo<ScanSettings> entry : mPendingScans) {
+                settings.scanType = getNativeScanType(entry.settings.type);
                 channels.addChannels(entry.settings);
                 if (entry.settings.hiddenNetworks != null) {
                     for (int i = 0; i < entry.settings.hiddenNetworks.length; i++) {
@@ -2107,8 +2138,24 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         return "results=" + results.length;
     }
 
+    static String getScanTypeString(int type) {
+        switch(type) {
+            case WifiScanner.TYPE_LOW_LATENCY:
+                return "LOW LATENCY";
+            case WifiScanner.TYPE_LOW_POWER:
+                return "LOW POWER";
+            case WifiScanner.TYPE_HIGH_ACCURACY:
+                return "HIGH ACCURACY";
+            default:
+                // This should never happen becuase we've validated the incoming type in
+                // |validateScanType|.
+                throw new IllegalArgumentException("Invalid scan type " + type);
+        }
+    }
+
     static String describeTo(StringBuilder sb, ScanSettings scanSettings) {
         sb.append("ScanSettings { ")
+          .append(" type:").append(getScanTypeString(scanSettings.type))
           .append(" band:").append(ChannelHelper.bandToString(scanSettings.band))
           .append(" period:").append(scanSettings.periodInMs)
           .append(" reportEvents:").append(scanSettings.reportEvents)
