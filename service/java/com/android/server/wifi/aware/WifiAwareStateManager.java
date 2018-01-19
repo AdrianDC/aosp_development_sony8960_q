@@ -21,6 +21,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.hardware.wifi.V1_0.NanStatusType;
+import android.hardware.wifi.V1_2.NanDataPathChannelInfo;
 import android.net.wifi.aware.Characteristics;
 import android.net.wifi.aware.ConfigRequest;
 import android.net.wifi.aware.IWifiAwareDiscoverySessionCallback;
@@ -57,6 +58,7 @@ import org.json.JSONObject;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -148,6 +150,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
     private static final int NOTIFICATION_TYPE_ON_DATA_PATH_REQUEST = 309;
     private static final int NOTIFICATION_TYPE_ON_DATA_PATH_CONFIRM = 310;
     private static final int NOTIFICATION_TYPE_ON_DATA_PATH_END = 311;
+    private static final int NOTIFICATION_TYPE_ON_DATA_PATH_SCHED_UPDATE = 312;
 
     private static final SparseArray<String> sSmToString = MessageUtils.findMessageNames(
             new Class[]{WifiAwareStateManager.class},
@@ -187,6 +190,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
     private static final String MESSAGE_BUNDLE_KEY_OOB = "out_of_band";
     private static final String MESSAGE_RANGING_INDICATION = "ranging_indication";
     private static final String MESSAGE_RANGE_MM = "range_mm";
+    private static final String MESSAGE_BUNDLE_KEY_NDP_IDS = "ndp_ids";
 
     private WifiAwareNativeApi mWifiAwareNativeApi;
     private WifiAwareNativeManager mWifiAwareNativeManager;
@@ -1058,7 +1062,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
      * data-path is now up.
      */
     public void onDataPathConfirmNotification(int ndpId, byte[] mac, boolean accept, int reason,
-            byte[] message) {
+            byte[] message, List<NanDataPathChannelInfo> channelInfo) {
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_NOTIFICATION);
         msg.arg1 = NOTIFICATION_TYPE_ON_DATA_PATH_CONFIRM;
         msg.arg2 = ndpId;
@@ -1066,6 +1070,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         msg.getData().putBoolean(MESSAGE_BUNDLE_KEY_SUCCESS_FLAG, accept);
         msg.getData().putInt(MESSAGE_BUNDLE_KEY_STATUS_CODE, reason);
         msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MESSAGE_DATA, message);
+        msg.obj = channelInfo;
         mSm.sendMessage(msg);
     }
 
@@ -1077,6 +1082,20 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_NOTIFICATION);
         msg.arg1 = NOTIFICATION_TYPE_ON_DATA_PATH_END;
         msg.arg2 = ndpId;
+        mSm.sendMessage(msg);
+    }
+
+    /**
+     * Place a callback request on the state machine queue: schedule update for the specified
+     * data-paths.
+     */
+    public void onDataPathScheduleUpdateNotification(byte[] peerMac, ArrayList<Integer> ndpIds,
+            List<NanDataPathChannelInfo> channelInfo) {
+        Message msg = mSm.obtainMessage(MESSAGE_TYPE_NOTIFICATION);
+        msg.arg1 = NOTIFICATION_TYPE_ON_DATA_PATH_SCHED_UPDATE;
+        msg.getData().putByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS, peerMac);
+        msg.getData().putIntegerArrayList(MESSAGE_BUNDLE_KEY_NDP_IDS, ndpIds);
+        msg.obj = channelInfo;
         mSm.sendMessage(msg);
     }
 
@@ -1401,7 +1420,8 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                             msg.arg2, msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS),
                             msg.getData().getBoolean(MESSAGE_BUNDLE_KEY_SUCCESS_FLAG),
                             msg.getData().getInt(MESSAGE_BUNDLE_KEY_STATUS_CODE),
-                            msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MESSAGE_DATA));
+                            msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MESSAGE_DATA),
+                            (List<NanDataPathChannelInfo>) msg.obj);
 
                     if (networkSpecifier != null) {
                         WakeupMessage timeout = mDataPathConfirmTimeoutMessages.remove(
@@ -1415,6 +1435,12 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                 }
                 case NOTIFICATION_TYPE_ON_DATA_PATH_END:
                     mDataPathMgr.onDataPathEnd(msg.arg2);
+                    break;
+                case NOTIFICATION_TYPE_ON_DATA_PATH_SCHED_UPDATE:
+                    mDataPathMgr.onDataPathSchedUpdate(
+                            msg.getData().getByteArray(MESSAGE_BUNDLE_KEY_MAC_ADDRESS),
+                            msg.getData().getIntegerArrayList(MESSAGE_BUNDLE_KEY_NDP_IDS),
+                            (List<NanDataPathChannelInfo>) msg.obj);
                     break;
                 default:
                     Log.wtf(TAG, "processNotification: this isn't a NOTIFICATION -- msg=" + msg);
