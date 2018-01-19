@@ -16,7 +16,6 @@
 
 package com.android.server.wifi.aware;
 
-import android.hardware.wifi.V1_0.IWifiNanIfaceEventCallback;
 import android.hardware.wifi.V1_0.NanCapabilities;
 import android.hardware.wifi.V1_0.NanClusterEventInd;
 import android.hardware.wifi.V1_0.NanClusterEventType;
@@ -26,6 +25,8 @@ import android.hardware.wifi.V1_0.NanFollowupReceivedInd;
 import android.hardware.wifi.V1_0.NanMatchInd;
 import android.hardware.wifi.V1_0.NanStatusType;
 import android.hardware.wifi.V1_0.WifiNanStatus;
+import android.hardware.wifi.V1_2.IWifiNanIfaceEventCallback;
+import android.hardware.wifi.V1_2.NanDataPathScheduleUpdateInd;
 import android.os.ShellCommand;
 import android.util.Log;
 import android.util.SparseIntArray;
@@ -48,6 +49,8 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub imp
     private static final String TAG = "WifiAwareNativeCallback";
     private static final boolean VDBG = false;
     /* package */ boolean mDbg = false;
+
+    /* package */ boolean mIsHal12OrLater = false;
 
     private final WifiAwareStateManager mWifiAwareStateManager;
 
@@ -480,11 +483,47 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub imp
                     + ", dataPathSetupSuccess=" + event.dataPathSetupSuccess + ", reason="
                     + event.status.status);
         }
+        if (mIsHal12OrLater) {
+            Log.wtf(TAG, "eventDataPathConfirm should not be called by a >=1.2 HAL!");
+        }
         incrementCbCount(CB_EV_DATA_PATH_CONFIRM);
 
         mWifiAwareStateManager.onDataPathConfirmNotification(event.ndpInstanceId,
                 event.peerNdiMacAddr, event.dataPathSetupSuccess, event.status.status,
                 convertArrayListToNativeByteArray(event.appInfo));
+    }
+
+    @Override
+    public void eventDataPathConfirm_1_2(android.hardware.wifi.V1_2.NanDataPathConfirmInd event) {
+        if (mDbg) {
+            Log.v(TAG, "eventDataPathConfirm_1_2: ndpInstanceId=" + event.V1_0.ndpInstanceId
+                    + ", peerNdiMacAddr=" + String.valueOf(
+                    HexEncoding.encode(event.V1_0.peerNdiMacAddr)) + ", dataPathSetupSuccess="
+                    + event.V1_0.dataPathSetupSuccess + ", reason=" + event.V1_0.status.status);
+        }
+        if (!mIsHal12OrLater) {
+            Log.wtf(TAG, "eventDataPathConfirm_1_2 should not be called by a <1.2 HAL!");
+            return;
+        }
+        incrementCbCount(CB_EV_DATA_PATH_CONFIRM);
+
+        // TODO: update to pass-through the channel information
+        mWifiAwareStateManager.onDataPathConfirmNotification(event.V1_0.ndpInstanceId,
+                event.V1_0.peerNdiMacAddr, event.V1_0.dataPathSetupSuccess,
+                event.V1_0.status.status, convertArrayListToNativeByteArray(event.V1_0.appInfo));
+    }
+
+    @Override
+    public void eventDataPathScheduleUpdate(NanDataPathScheduleUpdateInd event) {
+        if (mDbg) {
+            Log.v(TAG, "eventDataPathScheduleUpdate");
+        }
+        if (!mIsHal12OrLater) {
+            Log.wtf(TAG, "eventDataPathScheduleUpdate should not be called by a <1.2 HAL!");
+            return;
+        }
+
+        // TODO: pass-through the channel information
     }
 
     @Override
