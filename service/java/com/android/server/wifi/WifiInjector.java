@@ -173,7 +173,7 @@ public class WifiInjector {
         mWifiVendorHal =
                 new WifiVendorHal(mHalDeviceManager, mWifiStateMachineHandlerThread.getLooper());
         mSupplicantStaIfaceHal = new SupplicantStaIfaceHal(mContext, mWifiMonitor);
-        mHostapdHal = new HostapdHal();
+        mHostapdHal = new HostapdHal(mContext);
         mWificondControl = new WificondControl(this, mWifiMonitor,
                 new CarrierNetworkConfig(mContext));
         mNwManagementService = INetworkManagementService.Stub.asInterface(
