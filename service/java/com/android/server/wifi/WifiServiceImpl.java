@@ -106,6 +106,7 @@ import com.android.internal.telephony.PhoneConstants;
 import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.util.AsyncChannel;
 import com.android.server.wifi.hotspot2.PasspointProvider;
+import com.android.server.wifi.util.GeneralUtil.Mutable;
 import com.android.server.wifi.util.WifiHandler;
 import com.android.server.wifi.util.WifiPermissionsUtil;
 
@@ -148,6 +149,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     // Apps with importance higher than this value is considered as background app.
     private static final int BACKGROUND_IMPORTANCE_CUTOFF =
             RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE;
+
+    // Max wait time for posting blocking runnables
+    private static final int RUN_WITH_SCISSORS_TIMEOUT_MILLIS = 4000;
 
     final WifiStateMachine mWifiStateMachine;
     final ScanRequestProxy mScanRequestProxy;
@@ -444,6 +448,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private final WifiLockManager mWifiLockManager;
     private final WifiMulticastLockManager mWifiMulticastLockManager;
 
+    private WifiApConfigStore mWifiApConfigStore;
+
     public WifiServiceImpl(Context context, WifiInjector wifiInjector, AsyncChannel asyncChannel) {
         mContext = context;
         mWifiInjector = wifiInjector;
@@ -469,6 +475,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 wifiServiceHandlerThread.getLooper(), asyncChannel);
         mWifiController = mWifiInjector.getWifiController();
         mWifiBackupRestore = mWifiInjector.getWifiBackupRestore();
+        mWifiApConfigStore = mWifiInjector.getWifiApConfigStore();
         mPermissionReviewRequired = Build.PERMISSIONS_REVIEW_REQUIRED
                 || context.getResources().getBoolean(
                 com.android.internal.R.bool.config_permissionReviewRequired);
@@ -1545,7 +1552,18 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                     + "(uid = " + uid + ")");
         }
         mLog.info("getWifiApConfiguration uid=%").c(uid).flush();
-        return mWifiStateMachine.syncGetWifiApConfiguration();
+
+        // hand off work to the WSM handler thread to sync work between calls and SoftApManager
+        // starting up softap
+        final Mutable<WifiConfiguration> config = new Mutable();
+        boolean success = mWifiInjector.getWifiStateMachineHandler().runWithScissors(() -> {
+            config.value = mWifiApConfigStore.getApConfiguration();
+        }, RUN_WITH_SCISSORS_TIMEOUT_MILLIS);
+        if (success) {
+            return config.value;
+        }
+        Log.e(TAG, "Failed to post runnable to fetch ap config");
+        return new WifiConfiguration();
     }
 
     /**
@@ -1569,7 +1587,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         if (wifiConfig == null)
             return;
         if (isValid(wifiConfig)) {
-            mWifiStateMachine.setWifiApConfiguration(wifiConfig);
+            mWifiStateMachineHandler.post(() -> {
+                mWifiApConfigStore.setApConfiguration(wifiConfig);
+            });
         } else {
             Slog.e(TAG, "Invalid WifiConfiguration");
         }
