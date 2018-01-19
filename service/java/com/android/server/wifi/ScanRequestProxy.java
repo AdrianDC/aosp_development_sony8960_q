@@ -26,6 +26,8 @@ import android.os.UserHandle;
 import android.os.WorkSource;
 import android.util.Log;
 
+import com.android.server.wifi.util.WifiPermissionsUtil;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -55,6 +57,7 @@ public class ScanRequestProxy {
     private final Context mContext;
     private final WifiInjector mWifiInjector;
     private final WifiConfigManager mWifiConfigManager;
+    private final WifiPermissionsUtil mWifiPermissionsUtil;
     private WifiScanner mWifiScanner;
 
     // Verbose logging flag.
@@ -111,10 +114,12 @@ public class ScanRequestProxy {
         }
     };
 
-    ScanRequestProxy(Context context, WifiInjector wifiInjector, WifiConfigManager configManager) {
+    ScanRequestProxy(Context context, WifiInjector wifiInjector, WifiConfigManager configManager,
+            WifiPermissionsUtil wifiPermissionUtil) {
         mContext = context;
         mWifiInjector = wifiInjector;
         mWifiConfigManager = configManager;
+        mWifiPermissionsUtil = wifiPermissionUtil;
     }
 
     /**
@@ -180,6 +185,10 @@ public class ScanRequestProxy {
 
         // Create the scan settings.
         WifiScanner.ScanSettings settings = new WifiScanner.ScanSettings();
+        // Scan requests from apps with network settings will be of high accuracy type.
+        if (mWifiPermissionsUtil.checkNetworkSettingsPermission(callingUid)) {
+            settings.type = WifiScanner.TYPE_HIGH_ACCURACY;
+        }
         // always do full scans
         settings.band = WifiScanner.WIFI_BAND_BOTH_WITH_DFS;
         settings.reportEvents = WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN

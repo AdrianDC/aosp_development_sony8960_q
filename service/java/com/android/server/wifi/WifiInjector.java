@@ -235,7 +235,8 @@ public class WifiInjector {
         mPasspointNetworkEvaluator = new PasspointNetworkEvaluator(
                 mPasspointManager, mWifiConfigManager, mConnectivityLocalLog);
         mWifiMetrics.setPasspointManager(mPasspointManager);
-        mScanRequestProxy = new ScanRequestProxy(mContext, this, mWifiConfigManager);
+        mScanRequestProxy = new ScanRequestProxy(mContext, this, mWifiConfigManager,
+                mWifiPermissionsUtil);
         // mWifiStateMachine has an implicit dependency on mJavaRuntime due to WifiDiagnostics.
         mJavaRuntime = Runtime.getRuntime();
         mWifiStateMachine = new WifiStateMachine(mContext, mFrameworkFacade,

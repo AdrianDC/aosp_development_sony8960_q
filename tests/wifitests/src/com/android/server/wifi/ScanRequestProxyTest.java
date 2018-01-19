@@ -28,6 +28,8 @@ import android.os.UserHandle;
 import android.os.WorkSource;
 import android.test.suitebuilder.annotation.SmallTest;
 
+import com.android.server.wifi.util.WifiPermissionsUtil;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -56,6 +58,7 @@ public class ScanRequestProxyTest {
     @Mock private WifiInjector mWifiInjector;
     @Mock private WifiConfigManager mWifiConfigManager;
     @Mock private WifiScanner mWifiScanner;
+    @Mock private WifiPermissionsUtil mWifiPermissionsUtil;
     private ArgumentCaptor<WorkSource> mWorkSourceArgumentCaptor =
             ArgumentCaptor.forClass(WorkSource.class);
     private ArgumentCaptor<WifiScanner.ScanSettings> mScanSettingsArgumentCaptor =
@@ -83,7 +86,8 @@ public class ScanRequestProxyTest {
         mTestScanDatas1 = ScanTestUtil.createScanDatas(new int[][]{ { 2417, 2427, 5180, 5170 } });
         mTestScanDatas2 = ScanTestUtil.createScanDatas(new int[][]{ { 2412, 2422, 5200, 5210 } });
 
-        mScanRequestProxy = new ScanRequestProxy(mContext, mWifiInjector, mWifiConfigManager);
+        mScanRequestProxy =
+            new ScanRequestProxy(mContext, mWifiInjector, mWifiConfigManager, mWifiPermissionsUtil);
     }
 
     @After
@@ -116,6 +120,22 @@ public class ScanRequestProxyTest {
 
         verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
     }
+
+    /**
+     * Verify scan request will forwarded to wifiscanner if wifiscanner is present.
+     */
+    @Test
+    public void testStartScanSuccessFromAppWithNetworkSettings() {
+        when(mWifiPermissionsUtil.checkNetworkSettingsPermission(TEST_UID)).thenReturn(true);
+        assertTrue(mScanRequestProxy.startScan(TEST_UID));
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+
+        assertTrue(mWorkSourceArgumentCaptor.getValue().equals(new WorkSource(TEST_UID)));
+        validateScanSettings(mScanSettingsArgumentCaptor.getValue(), false, true);
+
+        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+    }
+
 
     /**
      * Verify that hidden network list is not retrieved when hidden network scanning is disabled.
@@ -270,8 +290,19 @@ public class ScanRequestProxyTest {
 
     private void validateScanSettings(WifiScanner.ScanSettings scanSettings,
                                       boolean expectHiddenNetworks) {
+        validateScanSettings(scanSettings, expectHiddenNetworks, false);
+    }
+
+    private void validateScanSettings(WifiScanner.ScanSettings scanSettings,
+                                      boolean expectHiddenNetworks,
+                                      boolean expectHighAccuracyType) {
         assertNotNull(scanSettings);
         assertEquals(WifiScanner.WIFI_BAND_BOTH_WITH_DFS, scanSettings.band);
+        if (expectHighAccuracyType) {
+            assertEquals(WifiScanner.TYPE_HIGH_ACCURACY, scanSettings.type);
+        } else {
+            assertEquals(WifiScanner.TYPE_LOW_LATENCY, scanSettings.type);
+        }
         assertEquals(WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN
                 | WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT, scanSettings.reportEvents);
         if (expectHiddenNetworks) {
