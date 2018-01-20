@@ -293,6 +293,66 @@ public class WifiNativeInterfaceManagementTest {
     }
 
     /**
+     * Verifies the setup of a client & softAp interface & then initiate teardown of all active
+     * interfaces.
+     *
+     * Sequence tested:
+     * a) Setup softAp interface.
+     * b) Setup client interface.
+     * c) Teardown all active interfaces.
+     */
+    @Test
+    public void testTeardownAllInterfaces() throws Exception {
+        executeAndValidateSetupSoftApInterface(
+                false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
+                mNetworkObserverCaptor0);
+        executeAndValidateSetupClientInterface(
+                false, true, IFACE_NAME_1, mIfaceCallback1, mIfaceDestroyedListenerCaptor1,
+                mNetworkObserverCaptor1);
+
+        // Assert that a client & softap interface is present.
+        assertNotNull(mWifiNative.getClientInterfaceName());
+        assertNotNull(mWifiNative.getSoftApInterfaceName());
+
+        mWifiNative.teardownAllInterfaces();
+
+        // Note: This is not using InOrder because order of interface deletion cannot be
+        // predetermined.
+
+        // Verify STA removal
+        verify(mWifiVendorHal).removeStaIface(IFACE_NAME_1);
+        // Now trigger the HalDeviceManager destroy callback to initiate the rest of the teardown.
+        mIfaceDestroyedListenerCaptor1.getValue().onDestroyed(IFACE_NAME_1);
+        verify(mNwManagementService).unregisterObserver(mNetworkObserverCaptor1.getValue());
+        verify(mSupplicantStaIfaceHal).teardownIface(IFACE_NAME_1);
+        verify(mWificondControl).tearDownClientInterface(IFACE_NAME_1);
+        verify(mSupplicantStaIfaceHal).deregisterDeathHandler();
+        verify(mWificondControl).disableSupplicant();
+        verify(mIfaceCallback1).onDestroyed(IFACE_NAME_1);
+
+        // Verify AP removal
+        verify(mWifiVendorHal).removeApIface(IFACE_NAME_0);
+        // Now trigger the HalDeviceManager destroy callback to initiate the rest of the teardown.
+        mIfaceDestroyedListenerCaptor0.getValue().onDestroyed(IFACE_NAME_0);
+        verify(mNwManagementService).unregisterObserver(mNetworkObserverCaptor0.getValue());
+        verify(mHostapdHal).removeAccessPoint(IFACE_NAME_0);
+        verify(mWificondControl).stopHostapd(IFACE_NAME_0);
+        verify(mWificondControl).tearDownSoftApInterface(IFACE_NAME_0);
+        verify(mWificondControl).tearDownInterfaces();
+        verify(mWifiVendorHal).stopVendorHal();
+        verify(mIfaceCallback0).onDestroyed(IFACE_NAME_0);
+
+        verify(mWifiVendorHal, atLeastOnce()).isVendorHalSupported();
+
+        // Assert that the client & softap interface is no more there.
+        assertNull(mWifiNative.getClientInterfaceName());
+        assertNull(mWifiNative.getSoftApInterfaceName());
+
+        verifyNoMoreInteractions(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal,
+                mNwManagementService, mIfaceCallback0, mIfaceCallback1, mWifiMetrics);
+    }
+
+    /**
      * Verifies the setup of a client interface and then a SoftAp interface which would
      * destroy the Client interface. This is what would happen on older devices which do not
      * support concurrent interfaces.

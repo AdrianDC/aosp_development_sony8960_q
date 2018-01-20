@@ -292,6 +292,14 @@ public class WifiNative {
             return iface.name;
         }
 
+        private String findAnyApIfaceName() {
+            Iface iface = findAnyIfaceOfType(Iface.IFACE_TYPE_AP);
+            if (iface == null) {
+                return null;
+            }
+            return iface.name;
+        }
+
         /** Removes the existing iface that does not match the provided id. */
         public Iface removeExistingIface(int newIfaceId) {
             Iface removedIface = null;
@@ -917,6 +925,7 @@ public class WifiNative {
      *
      * This method tears down the associated interface from all the native daemons
      * (wificond, wpa_supplicant & vendor HAL).
+     * Also, brings down the HAL, supplicant or hostapd as necessary.
      *
      * @param ifaceName Name of the interface.
      */
@@ -945,6 +954,24 @@ public class WifiNative {
     }
 
     /**
+     * Teardown all the active interfaces.
+     *
+     * This method tears down the associated interfaces from all the native daemons
+     * (wificond, wpa_supplicant & vendor HAL).
+     * Also, brings down the HAL, supplicant or hostapd as necessary.
+     */
+    public void teardownAllInterfaces() {
+        synchronized (mLock) {
+            Iterator<Integer> ifaceIdIter = mIfaceMgr.getIfaceIdIter();
+            while (ifaceIdIter.hasNext()) {
+                Iface iface = mIfaceMgr.getIface(ifaceIdIter.next());
+                teardownInterface(iface.name);
+            }
+            Log.i(TAG, "Successfully initiated teardown for all ifaces");
+        }
+    }
+
+    /**
      * Get name of the client interface.
      *
      * This is mainly used by external modules that needs to perform some
@@ -961,6 +988,25 @@ public class WifiNative {
      */
     public String getClientInterfaceName() {
         return mIfaceMgr.findAnyStaIfaceName();
+    }
+
+    /**
+     * Get name of the softap interface.
+     *
+     * This is mainly used by external modules that needs to perform some
+     * operations on the AP interface.
+     *
+     * TODO(b/70932231): This may need to be reworked once we start supporting AP + AP.
+     *
+     * @return Interface name of any active softap interface, null if no active softap interface
+     * exist.
+     * Return Values for the different scenarios are listed below:
+     * a) When there are no softap interfaces, returns null.
+     * b) when there is 1 softap interface, returns the name of that interface.
+     * c) When there are 2 or more softap interface, returns the name of any softap interface.
+     */
+    public String getSoftApInterfaceName() {
+        return mIfaceMgr.findAnyApIfaceName();
     }
 
     /********************************************************
