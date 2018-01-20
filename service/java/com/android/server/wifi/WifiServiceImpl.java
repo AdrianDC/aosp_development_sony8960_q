@@ -2072,26 +2072,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     }
 
     /**
-     * Tell the supplicant to persist the current list of configured networks.
-     * @return {@code true} if the operation succeeded
-     *
-     * TODO: deprecate this
-     */
-    @Override
-    public boolean saveConfiguration(String packageName) {
-        if (enforceChangePermission(packageName) != MODE_ALLOWED) {
-            return false;
-        }
-        mLog.info("saveConfiguration uid=%").c(Binder.getCallingUid()).flush();
-        if (mWifiStateMachineChannel != null) {
-            return mWifiStateMachine.syncSaveConfig(mWifiStateMachineChannel);
-        } else {
-            Slog.e(TAG, "mWifiStateMachineChannel is not initialized");
-            return false;
-        }
-    }
-
-    /**
      * Set the country code
      * @param countryCode ISO 3166 country code.
      *
@@ -2657,7 +2637,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                     for (WifiConfiguration config : networks) {
                         removeNetwork(config.networkId, packageName);
                     }
-                    saveConfiguration(packageName);
                 }
             }
         }
