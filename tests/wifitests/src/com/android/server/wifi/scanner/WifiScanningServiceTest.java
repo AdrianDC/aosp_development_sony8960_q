@@ -1125,9 +1125,11 @@ public class WifiScanningServiceTest {
     /**
      * Send a single scan request and then a second one not satisfied by the first before the first
      * completes. Verify that both are scheduled and succeed.
+     * Validates that a high accuracy scan request is not satisfied by an ongoing low latency scan,
+     * while any other low latency/low power scan request is satisfied.
      */
     @Test
-    public void sendSingleScanRequestWhilePreviousScanRunningWithDifferentType() {
+    public void sendSingleScanRequestWhilePreviousScanRunningWithTypesThatDoesNotSatisfy() {
         // Create identitical scan requests other than the types being different.
         WifiScanner.ScanSettings requestSettings1 = createRequest(channelsToSpec(2400), 0,
                 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
@@ -1196,23 +1198,27 @@ public class WifiScanningServiceTest {
     /**
      * Send a single scan request and then two more before the first completes. Neither are
      * satisfied by the first scan. Verify that the first completes and the second two are merged.
+     * Validates that a high accuracy scan is always preferred over the other types while merging.
      */
     @Test
     public void sendMultipleSingleScanRequestWhilePreviousScanRunning() throws RemoteException {
         WifiScanner.ScanSettings requestSettings1 = createRequest(channelsToSpec(2400), 0,
                 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+        requestSettings1.type = WifiScanner.TYPE_LOW_LATENCY;
         int requestId1 = 12;
         WorkSource workSource1 = new WorkSource(1121);
         ScanResults results1 = ScanResults.create(0, false, 2400);
 
         WifiScanner.ScanSettings requestSettings2 = createRequest(channelsToSpec(2450, 5175), 0,
                 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+        requestSettings2.type = WifiScanner.TYPE_HIGH_ACCURACY;
         int requestId2 = 13;
         WorkSource workSource2 = new WorkSource(Binder.getCallingUid()); // don't explicitly set
         ScanResults results2 = ScanResults.create(0, false, 2450, 5175, 2450);
 
         WifiScanner.ScanSettings requestSettings3 = createRequest(channelsToSpec(5150), 0,
                 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+        requestSettings3.type = WifiScanner.TYPE_LOW_POWER;
         int requestId3 = 15;
         // Let one of the WorkSources be a chained workSource.
         WorkSource workSource3 = new WorkSource();
@@ -1221,7 +1227,8 @@ public class WifiScanningServiceTest {
         ScanResults results3 = ScanResults.create(0, false, 5150, 5150, 5150, 5150);
 
         WifiNative.ScanSettings nativeSettings2and3 = createSingleScanNativeSettingsForChannels(
-                WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN, channelsToSpec(2450, 5175, 5150));
+                WifiNative.SCAN_TYPE_HIGH_ACCURACY, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN,
+                channelsToSpec(2450, 5175, 5150));
         ScanResults results2and3 = ScanResults.merge(results2, results3);
         WorkSource workSource2and3 = new WorkSource();
         workSource2and3.add(workSource2);
@@ -1301,10 +1308,11 @@ public class WifiScanningServiceTest {
                 "results=" + results3.getRawScanResults().length);
     }
 
-
     /**
      * Send a single scan request and then a second one satisfied by the first before the first
      * completes. Verify that only one scan is scheduled.
+     * Validates that a low latency scan type request is satisfied by an ongoing high accuracy
+     * scan.
      */
     @Test
     public void sendSingleScanRequestWhilePreviousScanRunningAndMergeIntoFirstScan() {
@@ -1314,7 +1322,7 @@ public class WifiScanningServiceTest {
         ScanResults resultsBoth = ScanResults.merge(results24GHz, results5GHz);
 
         WifiScanner.ScanSettings requestSettings1 = createRequest(
-                WifiScanner.TYPE_LOW_LATENCY, WifiScanner.WIFI_BAND_BOTH, 0,
+                WifiScanner.TYPE_HIGH_ACCURACY, WifiScanner.WIFI_BAND_BOTH, 0,
                 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
         int requestId1 = 12;
         ScanResults results1 = resultsBoth;
@@ -1367,6 +1375,8 @@ public class WifiScanningServiceTest {
      * Send a single scan request and then two more before the first completes, one of which is
      * satisfied by the first scan. Verify that the first two complete together the second scan is
      * just for the other scan.
+     * Validates that a high accuracy scan request is not satisfied by an ongoing low latency scan,
+     * while any other low latency/low power scan request is satisfied.
      */
     @Test
     public void sendMultipleSingleScanRequestWhilePreviousScanRunningAndMergeOneIntoFirstScan()
@@ -1378,18 +1388,21 @@ public class WifiScanningServiceTest {
 
         WifiScanner.ScanSettings requestSettings1 = createRequest(channelsToSpec(2400, 2450), 0,
                 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+        requestSettings1.type = WifiScanner.TYPE_LOW_LATENCY;
         int requestId1 = 12;
         WorkSource workSource1 = new WorkSource(1121);
         ScanResults results1 = results1and3;
 
         WifiScanner.ScanSettings requestSettings2 = createRequest(channelsToSpec(2450, 5175), 0,
                 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+        requestSettings2.type = WifiScanner.TYPE_HIGH_ACCURACY;
         int requestId2 = 13;
         WorkSource workSource2 = new WorkSource(Binder.getCallingUid()); // don't explicitly set
         ScanResults results2 = ScanResults.create(0, 2450, 5175, 2450);
 
         WifiScanner.ScanSettings requestSettings3 = createRequest(channelsToSpec(2400), 0,
                 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+        requestSettings3.type = WifiScanner.TYPE_LOW_POWER;
         int requestId3 = 15;
         WorkSource workSource3 = new WorkSource(2292);
         ScanResults results3 = results2400;
