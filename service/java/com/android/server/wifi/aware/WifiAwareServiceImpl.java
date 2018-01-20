@@ -17,6 +17,7 @@
 package com.android.server.wifi.aware;
 
 import android.Manifest;
+import android.app.AppOpsManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.database.ContentObserver;
@@ -63,6 +64,7 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
     /* package */ boolean mDbg = false;
 
     private Context mContext;
+    private AppOpsManager mAppOps;
     private WifiPermissionsUtil mWifiPermissionsUtil;
     private WifiAwareStateManager mStateManager;
     private WifiAwareShellCommand mShellCommand;
@@ -75,6 +77,7 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
 
     public WifiAwareServiceImpl(Context context) {
         mContext = context.getApplicationContext();
+        mAppOps = (AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
     }
 
     /**
@@ -100,7 +103,8 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
         mWifiPermissionsUtil = wifiPermissionsUtil;
         mStateManager = awareStateManager;
         mShellCommand = awareShellCommand;
-        mStateManager.start(mContext, handlerThread.getLooper(), awareMetrics, permissionsWrapper);
+        mStateManager.start(mContext, handlerThread.getLooper(), awareMetrics, wifiPermissionsUtil,
+                permissionsWrapper);
 
         frameworkFacade.registerContentObserver(mContext,
                 Settings.Global.getUriFor(Settings.Global.WIFI_VERBOSE_LOGGING_ENABLED), true,
@@ -173,6 +177,10 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
             boolean notifyOnIdentityChanged) {
         enforceAccessPermission();
         enforceChangePermission();
+
+        final int uid = getMockableCallingUid();
+        mAppOps.checkPackage(uid, callingPackage);
+
         if (callback == null) {
             throw new IllegalArgumentException("Callback must not be null");
         }
@@ -191,7 +199,7 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
         }
         configRequest.validate();
 
-        final int uid = getMockableCallingUid();
+
         int pid = getCallingPid();
 
         final int clientId;
@@ -285,6 +293,10 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
             IWifiAwareDiscoverySessionCallback callback) {
         enforceAccessPermission();
         enforceChangePermission();
+
+        int uid = getMockableCallingUid();
+        mAppOps.checkPackage(uid, callingPackage);
+
         enforceLocationPermission(callingPackage, getMockableCallingUid());
 
         if (callback == null) {
@@ -296,7 +308,6 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
         publishConfig.assertValid(mStateManager.getCharacteristics(),
                 mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WIFI_RTT));
 
-        int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
         if (VDBG) {
             Log.v(TAG, "publish: uid=" + uid + ", clientId=" + clientId + ", publishConfig="
@@ -332,6 +343,10 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
             IWifiAwareDiscoverySessionCallback callback) {
         enforceAccessPermission();
         enforceChangePermission();
+
+        int uid = getMockableCallingUid();
+        mAppOps.checkPackage(uid, callingPackage);
+
         enforceLocationPermission(callingPackage, getMockableCallingUid());
 
         if (callback == null) {
@@ -343,7 +358,6 @@ public class WifiAwareServiceImpl extends IWifiAwareManager.Stub {
         subscribeConfig.assertValid(mStateManager.getCharacteristics(),
                 mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_WIFI_RTT));
 
-        int uid = getMockableCallingUid();
         enforceClientValidity(uid, clientId);
         if (VDBG) {
             Log.v(TAG, "subscribe: uid=" + uid + ", clientId=" + clientId + ", config="

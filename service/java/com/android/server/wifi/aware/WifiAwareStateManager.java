@@ -39,6 +39,7 @@ import android.os.RemoteException;
 import android.os.ShellCommand;
 import android.os.SystemClock;
 import android.os.UserHandle;
+import android.text.TextUtils;
 import android.util.ArrayMap;
 import android.util.Log;
 import android.util.Pair;
@@ -49,6 +50,7 @@ import com.android.internal.util.MessageUtils;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 import com.android.internal.util.WakeupMessage;
+import com.android.server.wifi.util.WifiPermissionsUtil;
 import com.android.server.wifi.util.WifiPermissionsWrapper;
 
 import libcore.util.HexEncoding;
@@ -72,6 +74,7 @@ import java.util.Map;
 public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShellCommand {
     private static final String TAG = "WifiAwareStateManager";
     private static final boolean VDBG = false; // STOPSHIP if true
+    private static final boolean VVDBG = false; // STOPSHIP if true - for detailed state machine
     /* package */ boolean mDbg = false;
 
     @VisibleForTesting
@@ -313,6 +316,25 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                 pw_out.println(j.toString());
                 return 0;
             }
+            case "allow_ndp_any": {
+                String flag = parentShell.getNextArgRequired();
+                if (VDBG) Log.v(TAG, "onCommand: flag='" + flag + "'");
+                if (mDataPathMgr == null) {
+                    pw_err.println("Null Aware data-path manager - can't configure");
+                    return -1;
+                }
+                if (TextUtils.equals("true", flag)) {
+                    mDataPathMgr.mAllowNdpResponderFromAnyOverride = true;
+                } else  if (TextUtils.equals("false", flag)) {
+                    mDataPathMgr.mAllowNdpResponderFromAnyOverride = false;
+                } else {
+                    pw_err.println(
+                            "Unknown configuration flag for 'allow_ndp_any' - true|false expected"
+                                    + " -- '"
+                                    + flag + "'");
+                    return -1;
+                }
+            }
             default:
                 pw_err.println("Unknown 'wifiaware state_mgr <cmd>'");
         }
@@ -323,6 +345,9 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
     @Override
     public void onReset() {
         mSettableParameters.put(PARAM_ON_IDLE_DISABLE_AWARE, PARAM_ON_IDLE_DISABLE_AWARE_DEFAULT);
+        if (mDataPathMgr != null) {
+            mDataPathMgr.mAllowNdpResponderFromAnyOverride = false;
+        }
     }
 
     @Override
@@ -335,6 +360,9 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         pw.println("    get <name>: gets named parameter value. Names: "
                 + mSettableParameters.keySet());
         pw.println("    get_capabilities: prints out the capabilities as a JSON string");
+        pw.println(
+                "    allow_ndp_any true|false: configure whether Responders can be specified to "
+                        + "accept requests from ANY requestor (null peer spec)");
     }
 
     /**
@@ -344,18 +372,18 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
      * @param looper Thread looper on which to run the handler.
      */
     public void start(Context context, Looper looper, WifiAwareMetrics awareMetrics,
-            WifiPermissionsWrapper permissionsWrapper) {
+            WifiPermissionsUtil wifiPermissionsUtil, WifiPermissionsWrapper permissionsWrapper) {
         Log.i(TAG, "start()");
 
         mContext = context;
         mAwareMetrics = awareMetrics;
         mSm = new WifiAwareStateMachine(TAG, looper);
-        mSm.setDbg(VDBG);
+        mSm.setDbg(VVDBG);
         mSm.start();
 
         mDataPathMgr = new WifiAwareDataPathStateManager(this);
         mDataPathMgr.start(mContext, mSm.getHandler().getLooper(), awareMetrics,
-                permissionsWrapper);
+                wifiPermissionsUtil, permissionsWrapper);
 
         mPowerManager = mContext.getSystemService(PowerManager.class);
 

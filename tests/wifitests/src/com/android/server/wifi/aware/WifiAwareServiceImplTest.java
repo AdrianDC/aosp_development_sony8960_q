@@ -31,6 +31,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.Manifest;
+import android.app.AppOpsManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.net.wifi.aware.Characteristics;
@@ -131,6 +132,9 @@ public class WifiAwareServiceImplTest {
         doNothing().when(mFrameworkFacade).registerContentObserver(eq(mContextMock), any(),
                 anyBoolean(), any());
 
+        AppOpsManager appOpsMock = mock(AppOpsManager.class);
+        when(mContextMock.getSystemService(Context.APP_OPS_SERVICE)).thenReturn(appOpsMock);
+
         when(mContextMock.getApplicationContext()).thenReturn(mContextMock);
         when(mContextMock.getPackageManager()).thenReturn(mPackageManagerMock);
         when(mPackageManagerMock.hasSystemFeature(PackageManager.FEATURE_WIFI_AWARE))
@@ -146,7 +150,7 @@ public class WifiAwareServiceImplTest {
                 mock(WifiAwareNativeManager.class), mock(WifiAwareNativeApi.class),
                 mock(WifiAwareNativeCallback.class));
         verify(mAwareStateManagerMock).start(eq(mContextMock), any(), eq(mAwareMetricsMock),
-                eq(mPermissionsWrapperMock));
+                eq(mWifiPermissionsUtil), eq(mPermissionsWrapperMock));
     }
 
     /**

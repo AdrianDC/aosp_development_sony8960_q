@@ -207,7 +207,7 @@ public class WifiPermissionsUtil {
     /**
      * Returns true if the App version is older than minVersion.
      */
-    private boolean isLegacyVersion(String pkgName, int minVersion) {
+    public boolean isLegacyVersion(String pkgName, int minVersion) {
         try {
             if (mContext.getPackageManager().getApplicationInfo(pkgName, 0)
                     .targetSdkVersion < minVersion) {
