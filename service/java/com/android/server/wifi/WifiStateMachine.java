@@ -254,6 +254,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     };
     private boolean mIpReachabilityDisconnectEnabled = true;
 
+    private WifiManager.SoftApCallback mSoftApCallback;
+
+    /**
+     * Called from WifiServiceImpl to register a callback for notifications from SoftApManager
+     */
+    public void registerSoftApCallback(WifiManager.SoftApCallback callback) {
+        mSoftApCallback = callback;
+    }
+
     @Override
     public void onRssiThresholdBreached(byte curRssi) {
         if (mVerboseLoggingEnabled) {
@@ -4980,7 +4989,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             && TelephonyUtil.isSimConfig(targetWificonfiguration)) {
                         String identity =
                                 TelephonyUtil.getSimIdentity(getTelephonyManager(),
-                                        targetWificonfiguration);
+                                        new TelephonyUtil(), targetWificonfiguration);
                         if (identity != null) {
                             mWifiNative.simIdentityResponse(netId, identity);
                             identitySent = true;
@@ -6787,7 +6796,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         private int mMode;
 
         /*
-        private class SoftApListener implements SoftApManager.Listener {
+        private class SoftApCallbackImpl implements WifiManager.SoftApCallback {
             @Override
             public void onStateChanged(int state, int reason) {
                 if (state == WIFI_AP_STATE_DISABLED) {
@@ -6797,6 +6806,17 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 }
 
                 setWifiApState(state, reason, mIfaceName, mMode);
+
+                if (mSoftApCallback != null) {
+                    mSoftApCallback.onStateChanged(state, reason);
+                }
+            }
+
+            @Override
+            public void onNumClientsChanged(int numClients) {
+                if (mSoftApCallback != null) {
+                    mSoftApCallback.onNumClientsChanged(numClients);
+                }
             }
         }
         */
@@ -6840,7 +6860,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
             checkAndSetConnectivityInstance();
             mSoftApManager = mWifiInjector.makeSoftApManager(mNwService,
-                                                             new SoftApListener(),
+                                                             new SoftApCallbackImpl(),
                                                              config);
             mSoftApManager.start();
             mWifiStateTracker.updateState(WifiStateTracker.SOFT_AP);

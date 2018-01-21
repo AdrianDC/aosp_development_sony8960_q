@@ -16,7 +16,6 @@
 
 package com.android.server.wifi.aware;
 
-import android.hardware.wifi.V1_0.IWifiNanIfaceEventCallback;
 import android.hardware.wifi.V1_0.NanCapabilities;
 import android.hardware.wifi.V1_0.NanClusterEventInd;
 import android.hardware.wifi.V1_0.NanClusterEventType;
@@ -26,6 +25,8 @@ import android.hardware.wifi.V1_0.NanFollowupReceivedInd;
 import android.hardware.wifi.V1_0.NanMatchInd;
 import android.hardware.wifi.V1_0.NanStatusType;
 import android.hardware.wifi.V1_0.WifiNanStatus;
+import android.hardware.wifi.V1_2.IWifiNanIfaceEventCallback;
+import android.hardware.wifi.V1_2.NanDataPathScheduleUpdateInd;
 import android.os.ShellCommand;
 import android.util.Log;
 import android.util.SparseIntArray;
@@ -49,6 +50,8 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub imp
     private static final boolean VDBG = false;
     /* package */ boolean mDbg = false;
 
+    /* package */ boolean mIsHal12OrLater = false;
+
     private final WifiAwareStateManager mWifiAwareStateManager;
 
     public WifiAwareNativeCallback(WifiAwareStateManager wifiAwareStateManager) {
@@ -69,6 +72,7 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub imp
     private static final int CB_EV_DATA_PATH_REQUEST = 8;
     private static final int CB_EV_DATA_PATH_CONFIRM = 9;
     private static final int CB_EV_DATA_PATH_TERMINATED = 10;
+    private static final int CB_EV_DATA_PATH_SCHED_UPDATE = 11;
 
     private SparseIntArray mCallbackCounter = new SparseIntArray();
 
@@ -91,7 +95,7 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub imp
         switch (subCmd) {
             case "get_cb_count": {
                 String option = parentShell.getNextOption();
-                Log.v(TAG, "option='" + option + "'");
+                if (VDBG) Log.v(TAG, "option='" + option + "'");
                 boolean reset = false;
                 if (option != null) {
                     if ("--reset".equals(option)) {
@@ -480,11 +484,49 @@ public class WifiAwareNativeCallback extends IWifiNanIfaceEventCallback.Stub imp
                     + ", dataPathSetupSuccess=" + event.dataPathSetupSuccess + ", reason="
                     + event.status.status);
         }
+        if (mIsHal12OrLater) {
+            Log.wtf(TAG, "eventDataPathConfirm should not be called by a >=1.2 HAL!");
+        }
         incrementCbCount(CB_EV_DATA_PATH_CONFIRM);
 
         mWifiAwareStateManager.onDataPathConfirmNotification(event.ndpInstanceId,
                 event.peerNdiMacAddr, event.dataPathSetupSuccess, event.status.status,
-                convertArrayListToNativeByteArray(event.appInfo));
+                convertArrayListToNativeByteArray(event.appInfo), null);
+    }
+
+    @Override
+    public void eventDataPathConfirm_1_2(android.hardware.wifi.V1_2.NanDataPathConfirmInd event) {
+        if (mDbg) {
+            Log.v(TAG, "eventDataPathConfirm_1_2: ndpInstanceId=" + event.V1_0.ndpInstanceId
+                    + ", peerNdiMacAddr=" + String.valueOf(
+                    HexEncoding.encode(event.V1_0.peerNdiMacAddr)) + ", dataPathSetupSuccess="
+                    + event.V1_0.dataPathSetupSuccess + ", reason=" + event.V1_0.status.status);
+        }
+        if (!mIsHal12OrLater) {
+            Log.wtf(TAG, "eventDataPathConfirm_1_2 should not be called by a <1.2 HAL!");
+            return;
+        }
+        incrementCbCount(CB_EV_DATA_PATH_CONFIRM);
+
+        mWifiAwareStateManager.onDataPathConfirmNotification(event.V1_0.ndpInstanceId,
+                event.V1_0.peerNdiMacAddr, event.V1_0.dataPathSetupSuccess,
+                event.V1_0.status.status, convertArrayListToNativeByteArray(event.V1_0.appInfo),
+                event.channelInfo);
+    }
+
+    @Override
+    public void eventDataPathScheduleUpdate(NanDataPathScheduleUpdateInd event) {
+        if (mDbg) {
+            Log.v(TAG, "eventDataPathScheduleUpdate");
+        }
+        if (!mIsHal12OrLater) {
+            Log.wtf(TAG, "eventDataPathScheduleUpdate should not be called by a <1.2 HAL!");
+            return;
+        }
+        incrementCbCount(CB_EV_DATA_PATH_SCHED_UPDATE);
+
+        mWifiAwareStateManager.onDataPathScheduleUpdateNotification(event.peerDiscoveryAddress,
+                event.ndpInstanceIds, event.channelInfo);
     }
 
     @Override

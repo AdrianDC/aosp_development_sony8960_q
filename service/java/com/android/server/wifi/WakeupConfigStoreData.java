@@ -110,6 +110,10 @@ public class WakeupConfigStoreData implements StoreData {
     @Override
     public void deserializeData(XmlPullParser in, int outerTagDepth, boolean shared)
             throws XmlPullParserException, IOException {
+        // Ignore empty reads.
+        if (in == null) {
+            return;
+        }
         if (shared) {
             throw new XmlPullParserException("Shared data not supported");
         }

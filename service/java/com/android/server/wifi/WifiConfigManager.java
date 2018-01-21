@@ -2419,7 +2419,8 @@ public class WifiConfigManager {
             if (TelephonyUtil.isSimConfig(config)) {
                 String currentIdentity = null;
                 if (simPresent) {
-                    currentIdentity = TelephonyUtil.getSimIdentity(mTelephonyManager, config);
+                    currentIdentity = TelephonyUtil.getSimIdentity(mTelephonyManager,
+                        new TelephonyUtil(), config);
                 }
                 // Update the loaded config
                 config.enterpriseConfig.setIdentity(currentIdentity);

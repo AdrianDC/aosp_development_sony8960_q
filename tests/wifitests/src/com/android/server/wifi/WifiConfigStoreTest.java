@@ -125,6 +125,19 @@ public class WifiConfigStoreTest {
                     + "</DeletedEphemeralSSIDList>\n"
                     + "</WifiConfigStoreData>\n";
 
+    private static final String TEST_DATA_XML_STRING_FORMAT_WITH_ONE_DATA_SOURCE =
+            "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n"
+                    + "<WifiConfigStoreData>\n"
+                    + "<int name=\"Version\" value=\"1\" />\n"
+                    + "<%s/>n"
+                    + "</WifiConfigStoreData>\n";
+    private static final String TEST_DATA_XML_STRING_FORMAT_WITH_TWO_DATA_SOURCE =
+            "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n"
+                    + "<WifiConfigStoreData>\n"
+                    + "<int name=\"Version\" value=\"1\" />\n"
+                    + "<%s/>n"
+                    + "<%s/>n"
+                    + "</WifiConfigStoreData>\n";
     // Test mocks
     @Mock private Context mContext;
     @Mock private PackageManager mPackageManager;
@@ -296,21 +309,50 @@ public class WifiConfigStoreTest {
     }
 
     /**
-     * Tests the read API behaviour when there is no store files on the device.
+     * Tests the read API behaviour when the shared store file is empty and the user store
+     * is not yet visible (user not yet unlocked).
      * Expected behaviour: The read should return an empty store data instance when the file not
      * found exception is raised.
      */
     @Test
-    public void testReadWithNoStoreFile() throws Exception {
+    public void testReadWithNoSharedStoreFileAndUserStoreNotVisible() throws Exception {
+        WifiConfigStore.StoreData storeData = mock(WifiConfigStore.StoreData.class);
+
         // Reading the mock store without a write should simulate the file not found case because
         // |readRawData| would return null.
-        mWifiConfigStore.registerStoreData(mStoreData);
+        mWifiConfigStore.registerStoreData(storeData);
         assertFalse(mWifiConfigStore.areStoresPresent());
         mWifiConfigStore.read();
 
-        // Empty data.
-        assertNull(mStoreData.getUserData());
-        assertNull(mStoreData.getShareData());
+        // Ensure that we got the call to deserialize empty shared data, but no user data.
+        verify(storeData).resetData(eq(true));
+        verify(storeData).deserializeData(eq(null), anyInt(), eq(true));
+        verify(storeData, never()).resetData(eq(false));
+        verify(storeData, never()).deserializeData(eq(null), anyInt(), eq(false));
+    }
+
+    /**
+     * Tests the read API behaviour when there are no user/shared store files on the device.
+     * Expected behaviour: The read should return an empty store data instance when the file not
+     * found exception is raised.
+     */
+    @Test
+    public void testReadWithNoStoreFiles() throws Exception {
+        WifiConfigStore.StoreData storeData = mock(WifiConfigStore.StoreData.class);
+
+        // Reading the mock store without a write should simulate the file not found case because
+        // |readRawData| would return null.
+        mWifiConfigStore.registerStoreData(storeData);
+        // Read both share and user config store.
+        mWifiConfigStore.switchUserStoreAndRead(mUserStore);
+        assertFalse(mWifiConfigStore.areStoresPresent());
+        mWifiConfigStore.read();
+
+        // Ensure that we got the call to deserialize empty shared & user data.
+        verify(storeData).resetData(eq(true));
+        verify(storeData).deserializeData(eq(null), anyInt(), eq(true));
+        verify(storeData, times(2)).resetData(eq(false));
+        verify(storeData, times(2)).deserializeData(eq(null), anyInt(), eq(false));
     }
 
     /**
@@ -322,7 +364,6 @@ public class WifiConfigStoreTest {
     public void testReadAfterWriteWithNoUserStore() throws Exception {
         // Setup data container.
         mWifiConfigStore.registerStoreData(mStoreData);
-        mStoreData.setUserData(TEST_USER_DATA);
         mStoreData.setShareData(TEST_SHARE_DATA);
 
         // Perform write for the share store file.
@@ -330,7 +371,6 @@ public class WifiConfigStoreTest {
         mWifiConfigStore.read();
         // Verify data content for both user and share data.
         assertEquals(TEST_SHARE_DATA, mStoreData.getShareData());
-        assertNull(mStoreData.getUserData());
     }
 
     /**
@@ -445,6 +485,89 @@ public class WifiConfigStoreTest {
     }
 
     /**
+     * Verify that a store file contained WiFi configuration store data (network list and
+     * deleted ephemeral SSID list) using the predefined test XML data is read and parsed
+     * correctly.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testReadWifiConfigStoreDataIndicateClientsThatThereIsNoDataForThem()
+            throws Exception {
+        // Set both the user store & shared store files.
+        mWifiConfigStore.switchUserStoreAndRead(mUserStore);
+
+        String storeData1Name = "test1";
+        String storeData2Name = "test2";
+        WifiConfigStore.StoreData storeData1 = mock(WifiConfigStore.StoreData.class);
+        WifiConfigStore.StoreData storeData2 = mock(WifiConfigStore.StoreData.class);
+        when(storeData1.getName()).thenReturn(storeData1Name);
+        when(storeData2.getName()).thenReturn(storeData2Name);
+
+        assertTrue(mWifiConfigStore.registerStoreData(storeData1));
+        assertTrue(mWifiConfigStore.registerStoreData(storeData2));
+
+        String fileContentsXmlStringWithOnlyStoreData1 =
+                String.format(TEST_DATA_XML_STRING_FORMAT_WITH_ONE_DATA_SOURCE, storeData1Name);
+        String fileContentsXmlStringWithOnlyStoreData2 =
+                String.format(TEST_DATA_XML_STRING_FORMAT_WITH_ONE_DATA_SOURCE, storeData2Name);
+        String fileContentsXmlStringWithStoreData1AndStoreData2 =
+                String.format(TEST_DATA_XML_STRING_FORMAT_WITH_TWO_DATA_SOURCE,
+                        storeData1Name, storeData2Name);
+
+        // Scenario 1: StoreData1 in shared store file.
+        mSharedStore.storeRawDataToWrite(fileContentsXmlStringWithOnlyStoreData1.getBytes());
+        mUserStore.storeRawDataToWrite(null);
+
+        mWifiConfigStore.read();
+        verify(storeData1).deserializeData(notNull(), anyInt(), eq(true));
+        verify(storeData1, never()).deserializeData(eq(null), anyInt(), eq(true));
+        verify(storeData1).deserializeData(eq(null), anyInt(), eq(false));
+        verify(storeData2).deserializeData(eq(null), anyInt(), eq(true));
+        verify(storeData2).deserializeData(eq(null), anyInt(), eq(false));
+        reset(storeData1, storeData2);
+
+        // Scenario 2: StoreData2 in user store file.
+        mSharedStore.storeRawDataToWrite(null);
+        mUserStore.storeRawDataToWrite(fileContentsXmlStringWithOnlyStoreData2.getBytes());
+
+        mWifiConfigStore.read();
+        verify(storeData1).deserializeData(eq(null), anyInt(), eq(true));
+        verify(storeData1).deserializeData(eq(null), anyInt(), eq(false));
+        verify(storeData2).deserializeData(eq(null), anyInt(), eq(true));
+        verify(storeData2).deserializeData(notNull(), anyInt(), eq(false));
+        verify(storeData2, never()).deserializeData(eq(null), anyInt(), eq(false));
+        reset(storeData1, storeData2);
+
+        // Scenario 3: StoreData1 in shared store file & StoreData2 in user store file.
+        mSharedStore.storeRawDataToWrite(fileContentsXmlStringWithOnlyStoreData1.getBytes());
+        mUserStore.storeRawDataToWrite(fileContentsXmlStringWithOnlyStoreData2.getBytes());
+
+        mWifiConfigStore.read();
+        verify(storeData1).deserializeData(notNull(), anyInt(), eq(true));
+        verify(storeData1, never()).deserializeData(eq(null), anyInt(), eq(true));
+        verify(storeData1).deserializeData(eq(null), anyInt(), eq(false));
+        verify(storeData2).deserializeData(eq(null), anyInt(), eq(true));
+        verify(storeData2).deserializeData(notNull(), anyInt(), eq(false));
+        verify(storeData2, never()).deserializeData(eq(null), anyInt(), eq(false));
+        reset(storeData1, storeData2);
+
+        // Scenario 4: StoreData1 & StoreData2 in shared store file.
+        mSharedStore.storeRawDataToWrite(
+                fileContentsXmlStringWithStoreData1AndStoreData2.getBytes());
+        mUserStore.storeRawDataToWrite(null);
+
+        mWifiConfigStore.read();
+        verify(storeData1).deserializeData(notNull(), anyInt(), eq(true));
+        verify(storeData1, never()).deserializeData(eq(null), anyInt(), eq(true));
+        verify(storeData1).deserializeData(eq(null), anyInt(), eq(false));
+        verify(storeData2).deserializeData(notNull(), anyInt(), eq(true));
+        verify(storeData2, never()).deserializeData(eq(null), anyInt(), eq(true));
+        verify(storeData2).deserializeData(eq(null), anyInt(), eq(false));
+        reset(storeData1, storeData2);
+    }
+
+    /**
      * Verify that a XmlPullParserException will be thrown when reading an user store file
      * containing unknown data.
      *
@@ -549,6 +672,9 @@ public class WifiConfigStoreTest {
         @Override
         public void deserializeData(XmlPullParser in, int outerTagDepth, boolean shared)
                 throws XmlPullParserException, IOException {
+            if (in == null) {
+                return;
+            }
             if (shared) {
                 mShareData = (String) XmlUtil.readNextValueWithName(in, XML_TAG_TEST_DATA);
             } else {

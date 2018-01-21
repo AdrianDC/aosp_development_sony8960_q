@@ -21,10 +21,12 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.hardware.wifi.V1_0.NanDataPathChannelCfg;
 import android.hardware.wifi.V1_0.NanStatusType;
+import android.hardware.wifi.V1_2.NanDataPathChannelInfo;
 import android.net.ConnectivityManager;
 import android.net.IpPrefix;
 import android.net.LinkAddress;
 import android.net.LinkProperties;
+import android.net.MacAddress;
 import android.net.MatchAllNetworkSpecifier;
 import android.net.NetworkAgent;
 import android.net.NetworkCapabilities;
@@ -60,6 +62,7 @@ import java.net.SocketException;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -122,6 +125,7 @@ public class WifiAwareDataPathStateManager {
                 .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
                 .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
                 .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_ROAMING)
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_CONGESTED)
                 .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED)
                 .addCapability(NetworkCapabilities.NET_CAPABILITY_TRUSTED);
         sNetworkCapabilitiesFilter.setNetworkSpecifier(new MatchAllNetworkSpecifier());
@@ -452,13 +456,15 @@ public class WifiAwareDataPathStateManager {
      *                      rejection/failure.
      * @param message       The message provided by the peer as part of the data-path setup
      *                      process.
+     * @param channelInfo   Lists of channels used for this NDP.
      * @return The network specifier of the data-path or a null if none/error.
      */
     public WifiAwareNetworkSpecifier onDataPathConfirm(int ndpId, byte[] mac, boolean accept,
-            int reason, byte[] message) {
+            int reason, byte[] message, List<NanDataPathChannelInfo> channelInfo) {
         if (VDBG) {
             Log.v(TAG, "onDataPathConfirm: ndpId=" + ndpId + ", mac=" + String.valueOf(
-                    HexEncoding.encode(mac)) + ", accept=" + accept + ", reason=" + reason);
+                    HexEncoding.encode(mac)) + ", accept=" + accept + ", reason=" + reason
+                    + ", channelInfo=" + channelInfo);
         }
 
         Map.Entry<WifiAwareNetworkSpecifier, AwareNetworkRequestInformation> nnriE =
@@ -487,6 +493,7 @@ public class WifiAwareDataPathStateManager {
         if (accept) {
             nnri.state = AwareNetworkRequestInformation.STATE_CONFIRMED;
             nnri.peerDataMac = mac;
+            nnri.channelInfo = channelInfo;
 
             NetworkInfo networkInfo = new NetworkInfo(ConnectivityManager.TYPE_NONE, 0,
                     NETWORK_TAG, "");
@@ -569,6 +576,35 @@ public class WifiAwareDataPathStateManager {
         mNetworkRequestsCache.remove(nnriE.getKey());
 
         mNetworkFactory.tickleConnectivityIfWaiting();
+    }
+
+    /**
+     * Notification (unsolicited/asynchronous) from the firmware that the channel for the specified
+     * NDP ids has been updated.
+     */
+    public void onDataPathSchedUpdate(byte[] peerMac, List<Integer> ndpIds,
+            List<NanDataPathChannelInfo> channelInfo) {
+        if (VDBG) {
+            Log.v(TAG, "onDataPathSchedUpdate: peerMac=" + MacAddress.fromBytes(peerMac).toString()
+                    + ", ndpIds=" + ndpIds + ", channelInfo=" + channelInfo);
+        }
+
+        for (int ndpId : ndpIds) {
+            Map.Entry<WifiAwareNetworkSpecifier, AwareNetworkRequestInformation> nnriE =
+                    getNetworkRequestByNdpId(ndpId);
+            if (nnriE == null) {
+                Log.e(TAG, "onDataPathSchedUpdate: ndpId=" + ndpId + " - not found");
+                continue;
+            }
+            if (!Arrays.equals(peerMac, nnriE.getValue().peerDiscoveryMac)) {
+                Log.e(TAG, "onDataPathSchedUpdate: ndpId=" + ndpId + ", report NMI="
+                        + MacAddress.fromBytes(peerMac).toString() + " doesn't match NDP NMI="
+                        + MacAddress.fromBytes(nnriE.getValue().peerDiscoveryMac).toString());
+                continue;
+            }
+
+            nnriE.getValue().channelInfo = channelInfo;
+        }
     }
 
     /**
@@ -967,6 +1003,7 @@ public class WifiAwareDataPathStateManager {
         public int ndpId = 0; // 0 is never a valid ID!
         public byte[] peerDataMac;
         public WifiAwareNetworkSpecifier networkSpecifier;
+        public List<NanDataPathChannelInfo> channelInfo;
         public long startTimestamp = 0; // request is made (initiator) / get request (responder)
 
         public WifiAwareNetworkAgent networkAgent;
@@ -1159,7 +1196,8 @@ public class WifiAwareDataPathStateManager {
                     ", ndpId=").append(ndpId).append(", peerDataMac=").append(
                     peerDataMac == null ? ""
                             : String.valueOf(HexEncoding.encode(peerDataMac))).append(
-                    ", startTimestamp=").append(startTimestamp).append(", equivalentSpecifiers=[");
+                    ", startTimestamp=").append(startTimestamp).append(", channelInfo=").append(
+                    channelInfo).append(", equivalentSpecifiers=[");
             for (WifiAwareNetworkSpecifier ns: equivalentSpecifiers) {
                 sb.append(ns.toString()).append(", ");
             }

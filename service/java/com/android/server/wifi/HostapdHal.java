@@ -17,6 +17,7 @@ package com.android.server.wifi;
 
 
 import android.annotation.NonNull;
+import android.content.Context;
 import android.hardware.wifi.hostapd.V1_0.HostapdStatus;
 import android.hardware.wifi.hostapd.V1_0.HostapdStatusCode;
 import android.hardware.wifi.hostapd.V1_0.IHostapd;
@@ -27,6 +28,7 @@ import android.os.HwRemoteBinder;
 import android.os.RemoteException;
 import android.util.Log;
 
+import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.wifi.WifiNative.HostapdDeathEventHandler;
 import com.android.server.wifi.util.NativeUtil;
@@ -43,6 +45,8 @@ public class HostapdHal {
 
     private final Object mLock = new Object();
     private boolean mVerboseLoggingEnabled = false;
+    private final boolean mEnableAcs;
+    private final boolean mEnableIeee80211AC;
 
     // Hostapd HAL interface objects
     private IServiceManager mIServiceManager = null;
@@ -83,7 +87,10 @@ public class HostapdHal {
             };
 
 
-    public HostapdHal() {
+    public HostapdHal(Context context) {
+        mEnableAcs = context.getResources().getBoolean(R.bool.config_wifi_softap_acs_supported);
+        mEnableIeee80211AC =
+                context.getResources().getBoolean(R.bool.config_wifi_softap_ieee80211ac_supported);
     }
 
     /**
@@ -222,14 +229,20 @@ public class HostapdHal {
             IHostapd.IfaceParams ifaceParams = new IHostapd.IfaceParams();
             ifaceParams.ifaceName = ifaceName;
             ifaceParams.hwModeParams.enable80211N = true;
-            ifaceParams.hwModeParams.enable80211AC = false;
-            if (config.apChannel <= 14) {
-                ifaceParams.channelParams.band = IHostapd.Band.BAND_2_4_GHZ;
-            } else {
-                ifaceParams.channelParams.band = IHostapd.Band.BAND_5_GHZ;
+            ifaceParams.hwModeParams.enable80211AC = mEnableIeee80211AC;
+            try {
+                ifaceParams.channelParams.band = getBand(config);
+            } catch (IllegalArgumentException e) {
+                Log.e(TAG, "Unrecognized apBand " + config.apBand);
+                return false;
             }
-            ifaceParams.channelParams.enableAcs = false;
-            ifaceParams.channelParams.channel = config.apChannel;
+            if (mEnableAcs) {
+                ifaceParams.channelParams.enableAcs = true;
+                ifaceParams.channelParams.acsShouldExcludeDfs = true;
+            } else {
+                ifaceParams.channelParams.enableAcs = false;
+                ifaceParams.channelParams.channel = config.apChannel;
+            }
 
             IHostapd.NetworkParams nwParams = new IHostapd.NetworkParams();
             // TODO(b/67745880) Note that config.SSID is intended to be either a
@@ -372,6 +385,24 @@ public class HostapdHal {
                 break;
         }
         return encryptionType;
+    }
+
+    private static int getBand(WifiConfiguration localConfig) {
+        int bandType;
+        switch (localConfig.apBand) {
+            case WifiConfiguration.AP_BAND_2GHZ:
+                bandType = IHostapd.Band.BAND_2_4_GHZ;
+                break;
+            case WifiConfiguration.AP_BAND_5GHZ:
+                bandType = IHostapd.Band.BAND_5_GHZ;
+                break;
+            case WifiConfiguration.AP_BAND_ANY:
+                bandType = IHostapd.Band.BAND_ANY;
+                break;
+            default:
+                throw new IllegalArgumentException();
+        }
+        return bandType;
     }
 
     /**

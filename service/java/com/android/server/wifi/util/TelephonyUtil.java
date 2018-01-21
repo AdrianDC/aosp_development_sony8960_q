@@ -18,17 +18,34 @@ package com.android.server.wifi.util;
 
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
+import android.telephony.ImsiEncryptionInfo;
 import android.telephony.TelephonyManager;
 import android.util.Base64;
 import android.util.Log;
 
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.wifi.WifiNative;
+
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 
 /**
  * Utilities for the Wifi Service to interact with telephony.
  */
 public class TelephonyUtil {
     public static final String TAG = "TelephonyUtil";
+
+    private static final String THREE_GPP_NAI_REALM_FORMAT = "wlan.mnc%s.mcc%s.3gppnetwork.org";
+
+    // IMSI encryption method: RSA-OAEP with SHA-256 hash function
+    private static final String IMSI_CIPHER_TRANSFORMATION =
+            "RSA/ECB/OAEPwithSHA-256andMGF1Padding";
 
     /**
      * Get the identity for the current SIM or null if the SIM is not available
@@ -37,7 +54,8 @@ public class TelephonyUtil {
      * @param config WifiConfiguration that indicates what sort of authentication is necessary
      * @return String with the identity or none if the SIM is not available or config is invalid
      */
-    public static String getSimIdentity(TelephonyManager tm, WifiConfiguration config) {
+    public static String getSimIdentity(TelephonyManager tm, TelephonyUtil telephonyUtil,
+            WifiConfiguration config) {
         if (tm == null) {
             Log.e(TAG, "No valid TelephonyManager");
             return null;
@@ -49,18 +67,69 @@ public class TelephonyUtil {
             mccMnc = tm.getSimOperator();
         }
 
-        return buildIdentity(getSimMethodForConfig(config), imsi, mccMnc);
+        ImsiEncryptionInfo imsiEncryptionInfo;
+        try {
+            imsiEncryptionInfo = tm.getCarrierInfoForImsiEncryption(TelephonyManager.KEY_TYPE_WLAN);
+        } catch (RuntimeException e) {
+            Log.e(TAG, "Failed to get imsi encryption info: " + e.getMessage());
+            return null;
+        }
+
+        return buildIdentity(telephonyUtil, getSimMethodForConfig(config), imsi, mccMnc,
+                imsiEncryptionInfo);
     }
 
     /**
-     * create Permanent Identity base on IMSI,
+     * Encrypt the given data with the given public key.  The encrypted data will be returned as
+     * a Base64 encoded string.
      *
-     * rfc4186 & rfc4187:
-     * identity = usernam@realm
-     * with username = prefix | IMSI
-     * and realm is derived MMC/MNC tuple according 3GGP spec(TS23.003)
+     * @param key The public key to use for encryption
+     * @return Base64 encoded string, or null if encryption failed
      */
-    private static String buildIdentity(int eapMethod, String imsi, String mccMnc) {
+    @VisibleForTesting
+    public String encryptDataUsingPublicKey(PublicKey key, byte[] data) {
+        try {
+            Cipher cipher = Cipher.getInstance(IMSI_CIPHER_TRANSFORMATION);
+            cipher.init(Cipher.ENCRYPT_MODE, key);
+            byte[] encryptedBytes = cipher.doFinal(data);
+            return Base64.encodeToString(encryptedBytes, 0, encryptedBytes.length, Base64.DEFAULT);
+        } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException
+                | IllegalBlockSizeException | BadPaddingException e) {
+            Log.e(TAG, "Encryption failed: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Create an identity used for SIM-based EAP authentication. The identity will be based on
+     * the info retrieved from the SIM card, such as IMSI and IMSI encryption info. The IMSI
+     * contained in the identity will be encrypted if IMSI encryption info is provided.
+     *
+     * See  rfc4186 & rfc4187 & rfc5448:
+     *
+     * Identity format:
+     * Prefix | [IMSI || Encrypted IMSI] | @realm | {, Key Identifier AVP}
+     * where "|" denotes concatenation, "||" denotes exclusive value, "{}"
+     * denotes optional value, and realm is the 3GPP network domain name derived from the given
+     * MCC/MNC according to the 3GGP spec(TS23.003).
+     *
+     * Prefix value:
+     * "\0" - Encrypted Identity
+     * "0" - EAP-AKA Identity
+     * "1" - EAP-SIM Identity
+     * "6" - EAP-AKA' Identity
+     *
+     * Encrypted IMSI:
+     * Base64{RSA_Public_Key_Encryption{IMSI}}
+     *
+     * @param eapMethod EAP authentication method: EAP-SIM, EAP-AKA, EAP-AKA'
+     * @param imsi The IMSI retrieved from the SIM
+     * @param mccMnc The MCC MNC identifier retrieved from the SIM
+     * @param imsiEncryptionInfo The IMSI encryption info retrieved from the SIM
+     */
+    private static String buildIdentity(TelephonyUtil telephonyUtil, int eapMethod,
+            String imsi, String mccMnc,
+            ImsiEncryptionInfo imsiEncryptionInfo) {
         if (imsi == null || imsi.isEmpty()) {
             Log.e(TAG, "No IMSI or IMSI is null");
             return null;
@@ -93,7 +162,29 @@ public class TelephonyUtil {
             mnc = imsi.substring(3, 6);
         }
 
-        return prefix + imsi + "@wlan.mnc" + mnc + ".mcc" + mcc + ".3gppnetwork.org";
+        String naiRealm = String.format(THREE_GPP_NAI_REALM_FORMAT, mnc, mcc);
+
+        if (imsiEncryptionInfo == null) {
+            // Non-encrypted identity.
+            return prefix + imsi + "@" + naiRealm;
+        }
+
+        // Override prefix for encrypted IMSI.
+        prefix = "\0";
+
+        // Build and return the encrypted identity.
+        String encryptedImsi = telephonyUtil.encryptDataUsingPublicKey(
+                imsiEncryptionInfo.getPublicKey(), imsi.getBytes());
+        if (encryptedImsi == null) {
+            Log.e(TAG, "Failed to encrypt IMSI");
+            return null;
+        }
+        String encryptedIdentity = prefix + encryptedImsi + "@" + naiRealm;
+        if (imsiEncryptionInfo.getKeyIdentifier() != null) {
+            // Include key identifier AVP (Attribute Value Pair).
+            encryptedIdentity = encryptedIdentity + "," + imsiEncryptionInfo.getKeyIdentifier();
+        }
+        return encryptedIdentity;
     }
 
     /**

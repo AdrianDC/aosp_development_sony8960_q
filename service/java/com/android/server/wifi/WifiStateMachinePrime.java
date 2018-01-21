@@ -75,6 +75,15 @@ public class WifiStateMachinePrime {
     // ScanOnly mode failed
     static final int CMD_SCAN_ONLY_MODE_FAILED                          = BASE + 204;
 
+    private WifiManager.SoftApCallback mSoftApCallback;
+
+    /**
+     * Called from WifiServiceImpl to register a callback for notifications from SoftApManager
+     */
+    public void registerSoftApCallback(WifiManager.SoftApCallback callback) {
+        mSoftApCallback = callback;
+    }
+
     WifiStateMachinePrime(WifiInjector wifiInjector,
                           Looper looper,
                           WifiNative wifiNative,
@@ -421,13 +430,28 @@ public class WifiStateMachinePrime {
         }
 
         class SoftAPModeActiveState extends ModeActiveState {
-            private class SoftApListener implements SoftApManager.Listener {
+            private class SoftApCallbackImpl implements WifiManager.SoftApCallback {
                 @Override
                 public void onStateChanged(int state, int reason) {
                     if (state == WifiManager.WIFI_AP_STATE_DISABLED) {
                         mModeStateMachine.sendMessage(CMD_AP_STOPPED);
                     } else if (state == WifiManager.WIFI_AP_STATE_FAILED) {
                         mModeStateMachine.sendMessage(CMD_START_AP_FAILURE);
+                    }
+
+                    if (mSoftApCallback != null) {
+                        mSoftApCallback.onStateChanged(state, reason);
+                    } else {
+                        Log.wtf(TAG, "SoftApCallback is null. Dropping StateChanged event.");
+                    }
+                }
+
+                @Override
+                public void onNumClientsChanged(int numClients) {
+                    if (mSoftApCallback != null) {
+                        mSoftApCallback.onNumClientsChanged(numClients);
+                    } else {
+                        Log.d(TAG, "SoftApCallback is null. Dropping NumClientsChanged event.");
                     }
                 }
             }
@@ -444,7 +468,7 @@ public class WifiStateMachinePrime {
                     config = null;
                 }
                 this.mActiveModeManager = mWifiInjector.makeSoftApManager(mNMService,
-                        new SoftApListener(), softApModeConfig);
+                        new SoftApCallbackImpl(), softApModeConfig);
                 this.mActiveModeManager.start();
             }
 

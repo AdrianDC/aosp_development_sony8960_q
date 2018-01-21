@@ -61,6 +61,15 @@ public class WifiAwareNativeManager {
     }
 
     /**
+     * (HIDL) Cast the input to a 1.2 NAN interface (possibly resulting in a null).
+     *
+     * Separate function so can be mocked in unit tests.
+     */
+    public android.hardware.wifi.V1_2.IWifiNanIface mockableCastTo_1_2(IWifiNanIface iface) {
+        return android.hardware.wifi.V1_2.IWifiNanIface.castFrom(iface);
+    }
+
+    /**
      * Initialize the class - intended for late initialization.
      *
      * @param handler Handler on which to execute interface available callbacks.
@@ -132,7 +141,15 @@ public class WifiAwareNativeManager {
                 if (mDbg) Log.v(TAG, "Obtained an IWifiNanIface");
 
                 try {
-                    WifiStatus status = iface.registerEventCallback(mWifiAwareNativeCallback);
+                    android.hardware.wifi.V1_2.IWifiNanIface iface12 = mockableCastTo_1_2(iface);
+                    WifiStatus status;
+                    if (iface12 == null) {
+                        mWifiAwareNativeCallback.mIsHal12OrLater = false;
+                        status = iface.registerEventCallback(mWifiAwareNativeCallback);
+                    } else {
+                        mWifiAwareNativeCallback.mIsHal12OrLater = true;
+                        status = iface12.registerEventCallback_1_2(mWifiAwareNativeCallback);
+                    }
                     if (status.code != WifiStatusCode.SUCCESS) {
                         Log.e(TAG, "IWifiNanIface.registerEventCallback error: " + statusString(
                                 status));

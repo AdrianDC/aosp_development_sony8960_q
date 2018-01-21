@@ -1273,6 +1273,16 @@ public class WifiMetrics {
     }
 
     /**
+     * Increment number of times the supplicant crashed.
+     */
+    public void incrementNumSupplicantCrashes() {
+        synchronized (mLock) {
+            // TODO(b/71720421): Add metrics for supplicant crashes.
+            mWifiLogProto.numHalCrashes++;
+        }
+    }
+
+    /**
      * Increment number of times the wifi on failed due to an error in HAL.
      */
     public void incrementNumWifiOnFailureDueToHal() {
@@ -1287,6 +1297,16 @@ public class WifiMetrics {
     public void incrementNumWifiOnFailureDueToWificond() {
         synchronized (mLock) {
             mWifiLogProto.numWifiOnFailureDueToWificond++;
+        }
+    }
+
+    /**
+     * Increment number of times the wifi on failed due to an error in wificond.
+     */
+    public void incrementNumWifiOnFailureDueToSupplicant() {
+        synchronized (mLock) {
+            // TODO(b/71720421): Add metrics for supplicant failure during startup.
+            mWifiLogProto.numWifiOnFailureDueToHal++;
         }
     }
 

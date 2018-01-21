@@ -125,6 +125,10 @@ public class PasspointConfigStoreData implements WifiConfigStore.StoreData {
     @Override
     public void deserializeData(XmlPullParser in, int outerTagDepth, boolean shared)
             throws XmlPullParserException, IOException {
+        // Ignore empty reads.
+        if (in == null) {
+            return;
+        }
         if (shared) {
             deserializeShareData(in, outerTagDepth);
         } else {
