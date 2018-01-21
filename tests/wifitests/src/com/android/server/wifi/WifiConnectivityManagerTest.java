@@ -126,6 +126,8 @@ public class WifiConnectivityManagerTest {
     @Mock private Clock mClock;
     @Mock private WifiLastResortWatchdog mWifiLastResortWatchdog;
     @Mock private OpenNetworkNotifier mOpenNetworkNotifier;
+    @Mock private CarrierNetworkNotifier mCarrierNetworkNotifier;
+    @Mock private CarrierNetworkConfig mCarrierNetworkConfig;
     @Mock private WifiMetrics mWifiMetrics;
     @Mock private WifiNetworkScoreCache mScoreCache;
     @Captor ArgumentCaptor<ScanResult> mCandidateScanResultCaptor;
@@ -304,8 +306,9 @@ public class WifiConnectivityManagerTest {
     WifiConnectivityManager createConnectivityManager() {
         return new WifiConnectivityManager(mContext, mWifiStateMachine, mWifiScanner,
                 mWifiConfigManager, mWifiInfo, mWifiNS, mWifiConnectivityHelper,
-                mWifiLastResortWatchdog, mOpenNetworkNotifier, mWifiMetrics,
-                mLooper.getLooper(), mClock, mLocalLog, true, mFrameworkFacade, null, null, null);
+                mWifiLastResortWatchdog, mOpenNetworkNotifier, mCarrierNetworkNotifier,
+                mCarrierNetworkConfig, mWifiMetrics, mLooper.getLooper(), mClock, mLocalLog, true,
+                mFrameworkFacade, null, null, null);
     }
 
     /**
@@ -731,6 +734,120 @@ public class WifiConnectivityManagerTest {
         mWifiConnectivityManager.handleScreenStateChanged(true);
 
         verify(mOpenNetworkNotifier).handleScreenStateChanged(true);
+    }
+
+    /**
+     * {@link CarrierNetworkNotifier} handles scan results on network selection.
+     *
+     * Expected behavior: CarrierNetworkNotifier handles scan results
+     */
+    @Test
+    public void wifiDisconnected_noConnectionCandidate_CarrierNetworkNotifierScanResultsHandled() {
+        // no connection candidate selected
+        when(mWifiNS.selectNetwork(anyObject(), anyObject(), anyObject(), anyBoolean(),
+                anyBoolean(), anyBoolean())).thenReturn(null);
+
+        List<ScanDetail> expectedCarrierNetworks = new ArrayList<>();
+        expectedCarrierNetworks.add(
+                new ScanDetail(
+                        new ScanResult(WifiSsid.createFromAsciiEncoded(CANDIDATE_SSID),
+                                CANDIDATE_SSID, CANDIDATE_BSSID, 1245, 0, "[EAP][ESS]", -78, 2450,
+                                1025, 22, 33, 20, 0, 0, true), null));
+
+        when(mWifiNS.getFilteredScanDetailsForCarrierUnsavedNetworks(any()))
+                .thenReturn(expectedCarrierNetworks);
+
+        // Set WiFi to disconnected state to trigger PNO scan
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+
+        verify(mCarrierNetworkNotifier).handleScanResults(expectedCarrierNetworks);
+    }
+
+    /**
+     * When wifi is connected, {@link CarrierNetworkNotifier} handles the Wi-Fi connected behavior.
+     *
+     * Expected behavior: CarrierNetworkNotifier handles connected behavior
+     */
+    @Test
+    public void wifiConnected_carrierNetworkNotifierHandlesConnection() {
+        // Set WiFi to connected state
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_CONNECTED);
+
+        verify(mCarrierNetworkNotifier).handleWifiConnected();
+    }
+
+    /**
+     * When wifi is connected, {@link CarrierNetworkNotifier} handles connection state
+     * change.
+     *
+     * Expected behavior: CarrierNetworkNotifer does not clear pending notification.
+     */
+    @Test
+    public void wifiDisconnected_carrierNetworkNotifierDoesNotClearPendingNotification() {
+        // Set WiFi to disconnected state
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+
+        verify(mCarrierNetworkNotifier, never()).clearPendingNotification(anyBoolean());
+    }
+
+    /**
+     * When a Wi-Fi connection attempt ends, {@link CarrierNetworkNotifier} handles the connection
+     * failure. A failure code that is not {@link WifiMetrics.ConnectionEvent#FAILURE_NONE}
+     * represents a connection failure.
+     *
+     * Expected behavior: CarrierNetworkNotifier handles connection failure.
+     */
+    @Test
+    public void wifiConnectionEndsWithFailure_carrierNetworkNotifierHandlesConnectionFailure() {
+        mWifiConnectivityManager.handleConnectionAttemptEnded(
+                WifiMetrics.ConnectionEvent.FAILURE_CONNECT_NETWORK_FAILED);
+
+        verify(mCarrierNetworkNotifier).handleConnectionFailure();
+    }
+
+    /**
+     * When a Wi-Fi connection attempt ends, {@link CarrierNetworkNotifier} does not handle
+     * connection failure after a successful connection.
+     * {@link WifiMetrics.ConnectionEvent#FAILURE_NONE} represents a successful connection.
+     *
+     * Expected behavior: CarrierNetworkNotifier does nothing.
+     */
+    @Test
+    public void
+            wifiConnectionEndsWithSuccess_carrierNetworkNotifierDoesNotHandleConnectionFailure() {
+        mWifiConnectivityManager.handleConnectionAttemptEnded(
+                WifiMetrics.ConnectionEvent.FAILURE_NONE);
+
+        verify(mCarrierNetworkNotifier, never()).handleConnectionFailure();
+    }
+
+    /**
+     * When Wi-Fi is disabled, clear the pending notification and reset notification repeat delay.
+     *
+     * Expected behavior: clear pending notification and reset notification repeat delay
+     * */
+    @Test
+    public void carrierNetworkNotifierClearsPendingNotificationOnWifiDisabled() {
+        mWifiConnectivityManager.setWifiEnabled(false);
+
+        verify(mCarrierNetworkNotifier).clearPendingNotification(true /* resetRepeatDelay */);
+    }
+
+    /**
+     * Verify that the CarrierNetworkNotifier tracks screen state changes.
+     */
+    @Test
+    public void carrierNetworkNotifierTracksScreenStateChanges() {
+        mWifiConnectivityManager.handleScreenStateChanged(false);
+
+        verify(mCarrierNetworkNotifier).handleScreenStateChanged(false);
+
+        mWifiConnectivityManager.handleScreenStateChanged(true);
+
+        verify(mCarrierNetworkNotifier).handleScreenStateChanged(true);
     }
 
     /**

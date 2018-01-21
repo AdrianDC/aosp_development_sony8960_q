@@ -360,6 +360,36 @@ public class WifiNetworkSelector {
     }
 
     /**
+     * This returns a list of ScanDetails that were filtered in the process of network selection.
+     * The list is further filtered for only carrier unsaved networks with EAP encryption.
+     *
+     * @param carrierConfig CarrierNetworkConfig used to filter carrier networks
+     * @return the list of ScanDetails for carrier unsaved networks that do not have invalid SSIDS,
+     * blacklisted BSSIDS, or low signal strength, and with EAP encryption. This will return an
+     * empty list when there are no such networks, or when network selection has not been run.
+     */
+    public List<ScanDetail> getFilteredScanDetailsForCarrierUnsavedNetworks(
+            CarrierNetworkConfig carrierConfig) {
+        List<ScanDetail> carrierUnsavedNetworks = new ArrayList<>();
+        for (ScanDetail scanDetail : mFilteredNetworks) {
+            ScanResult scanResult = scanDetail.getScanResult();
+
+            if (!ScanResultUtil.isScanResultForEapNetwork(scanResult)
+                    || !carrierConfig.isCarrierNetwork(scanResult.SSID)) {
+                continue;
+            }
+
+            // Skip saved networks
+            if (mWifiConfigManager.getConfiguredNetworkForScanDetailAndCache(scanDetail) != null) {
+                continue;
+            }
+
+            carrierUnsavedNetworks.add(scanDetail);
+        }
+        return carrierUnsavedNetworks;
+    }
+
+    /**
      * @return the list of ScanDetails scored as potential candidates by the last run of
      * selectNetwork, this will be empty if Network selector determined no selection was
      * needed on last run. This includes scan details of sufficient signal strength, and

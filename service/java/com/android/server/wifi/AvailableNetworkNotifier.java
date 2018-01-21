@@ -20,6 +20,7 @@ import static com.android.server.wifi.ConnectToNetworkNotificationBuilder.ACTION
 import static com.android.server.wifi.ConnectToNetworkNotificationBuilder.ACTION_PICK_WIFI_NETWORK;
 import static com.android.server.wifi.ConnectToNetworkNotificationBuilder.ACTION_PICK_WIFI_NETWORK_AFTER_CONNECT_FAILURE;
 import static com.android.server.wifi.ConnectToNetworkNotificationBuilder.ACTION_USER_DISMISSED_NOTIFICATION;
+import static com.android.server.wifi.ConnectToNetworkNotificationBuilder.AVAILABLE_NETWORK_NOTIFIER_TAG;
 
 import android.annotation.IntDef;
 import android.annotation.NonNull;
@@ -45,7 +46,6 @@ import android.util.ArraySet;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.messages.nano.SystemMessageProto.SystemMessage;
 import com.android.server.wifi.nano.WifiMetricsProto.ConnectToNetworkNotificationAndActionCount;
 import com.android.server.wifi.util.ScanResultUtil;
 
@@ -137,10 +137,14 @@ public class AvailableNetworkNotifier {
     /** Identifier for the settings toggle, used for registering ContentObserver */
     private final String mToggleSettingsName;
 
+    /** System wide identifier for notification in Notification Manager */
+    private final int mSystemMessageNotificationId;
+
     public AvailableNetworkNotifier(
             String tag,
             String storeDataIdentifier,
             String toggleSettingsName,
+            int notificationIdentifier,
             Context context,
             Looper looper,
             FrameworkFacade framework,
@@ -153,6 +157,7 @@ public class AvailableNetworkNotifier {
         mTag = tag;
         mStoreDataIdentifier = storeDataIdentifier;
         mToggleSettingsName = toggleSettingsName;
+        mSystemMessageNotificationId = notificationIdentifier;
         mContext = context;
         mHandler = new Handler(looper);
         mFrameworkFacade = framework;
@@ -189,6 +194,9 @@ public class AvailableNetworkNotifier {
             new BroadcastReceiver() {
                 @Override
                 public void onReceive(Context context, Intent intent) {
+                    if (!mTag.equals(intent.getExtra(AVAILABLE_NETWORK_NOTIFIER_TAG))) {
+                        return;
+                    }
                     switch (intent.getAction()) {
                         case ACTION_USER_DISMISSED_NOTIFICATION:
                             handleUserDismissedAction();
@@ -235,7 +243,7 @@ public class AvailableNetworkNotifier {
         }
 
         if (mState != STATE_NO_NOTIFICATION) {
-            getNotificationManager().cancel(SystemMessage.NOTE_NETWORK_AVAILABLE);
+            getNotificationManager().cancel(mSystemMessageNotificationId);
 
             if (mRecommendedNetwork != null) {
                 Log.d(mTag, "Notification with state="
@@ -379,8 +387,10 @@ public class AvailableNetworkNotifier {
                 && TextUtils.equals(mRecommendedNetwork.SSID, recommendedNetwork.SSID)) {
             return;
         }
-        postNotification(mNotificationBuilder.createConnectToNetworkNotification(
+
+        postNotification(mNotificationBuilder.createConnectToAvailableNetworkNotification(mTag,
                 recommendedNetwork));
+
         if (mState == STATE_NO_NOTIFICATION) {
             mWifiMetrics.incrementConnectToNetworkNotification(mTag,
                     ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK);
@@ -393,7 +403,7 @@ public class AvailableNetworkNotifier {
     }
 
     private void postNotification(Notification notification) {
-        getNotificationManager().notify(SystemMessage.NOTE_NETWORK_AVAILABLE, notification);
+        getNotificationManager().notify(mSystemMessageNotificationId, notification);
     }
 
     private void handleConnectToNetworkAction() {
@@ -409,7 +419,7 @@ public class AvailableNetworkNotifier {
 
         Log.d(mTag,
                 "User initiated connection to recommended network: " + mRecommendedNetwork.SSID);
-        WifiConfiguration network = ScanResultUtil.createNetworkFromScanResult(mRecommendedNetwork);
+        WifiConfiguration network = createRecommendedNetworkConfig(mRecommendedNetwork);
         Message msg = Message.obtain();
         msg.what = WifiManager.CONNECT_NETWORK;
         msg.arg1 = WifiConfiguration.INVALID_NETWORK_ID;
@@ -425,6 +435,10 @@ public class AvailableNetworkNotifier {
                     }
                 },
                 TIME_TO_SHOW_CONNECTING_MILLIS);
+    }
+
+    WifiConfiguration createRecommendedNetworkConfig(ScanResult recommendedNetwork) {
+        return ScanResultUtil.createNetworkFromScanResult(recommendedNetwork);
     }
 
     private void handleSeeAllNetworksAction() {
@@ -475,7 +489,7 @@ public class AvailableNetworkNotifier {
         mRecommendedNetwork = null;
     }
 
-    /** Dump ONA controller state. */
+    /** Dump this network notifier's state. */
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         pw.println(mTag + ": ");
         pw.println("mSettingEnabled " + mSettingEnabled);
@@ -520,6 +534,7 @@ public class AvailableNetworkNotifier {
             boolean enabled =
                     mFrameworkFacade.getIntegerSetting(mContext, mToggleSettingsName, 1) == 1;
             mWifiMetrics.setIsWifiNetworksAvailableNotificationEnabled(mTag, enabled);
+            Log.d(mTag, "Settings toggle enabled=" + enabled);
             return enabled;
         }
     }

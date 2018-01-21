@@ -137,6 +137,8 @@ public class WifiConnectivityManager {
     private final WifiNetworkSelector mNetworkSelector;
     private final WifiLastResortWatchdog mWifiLastResortWatchdog;
     private final OpenNetworkNotifier mOpenNetworkNotifier;
+    private final CarrierNetworkNotifier mCarrierNetworkNotifier;
+    private final CarrierNetworkConfig mCarrierNetworkConfig;
     private final WifiMetrics mWifiMetrics;
     private final AlarmManager mAlarmManager;
     private final Handler mEventHandler;
@@ -275,6 +277,8 @@ public class WifiConnectivityManager {
             if (mWifiState == WIFI_STATE_DISCONNECTED) {
                 mOpenNetworkNotifier.handleScanResults(
                         mNetworkSelector.getFilteredScanDetailsForOpenUnsavedNetworks());
+                mCarrierNetworkNotifier.handleScanResults(mNetworkSelector
+                        .getFilteredScanDetailsForCarrierUnsavedNetworks(mCarrierNetworkConfig));
             }
             return false;
         }
@@ -558,10 +562,10 @@ public class WifiConnectivityManager {
     WifiConnectivityManager(Context context, WifiStateMachine stateMachine,
             WifiScanner scanner, WifiConfigManager configManager, WifiInfo wifiInfo,
             WifiNetworkSelector networkSelector, WifiConnectivityHelper connectivityHelper,
-            WifiLastResortWatchdog wifiLastResortWatchdog,
-            OpenNetworkNotifier openNetworkNotifier, WifiMetrics wifiMetrics,
-            Looper looper, Clock clock, LocalLog localLog, boolean enable,
-            FrameworkFacade frameworkFacade,
+            WifiLastResortWatchdog wifiLastResortWatchdog, OpenNetworkNotifier openNetworkNotifier,
+            CarrierNetworkNotifier carrierNetworkNotifier,
+            CarrierNetworkConfig carrierNetworkConfig, WifiMetrics wifiMetrics, Looper looper,
+            Clock clock, LocalLog localLog, boolean enable, FrameworkFacade frameworkFacade,
             SavedNetworkEvaluator savedNetworkEvaluator,
             ScoredNetworkEvaluator scoredNetworkEvaluator,
             PasspointNetworkEvaluator passpointNetworkEvaluator) {
@@ -574,6 +578,8 @@ public class WifiConnectivityManager {
         mLocalLog = localLog;
         mWifiLastResortWatchdog = wifiLastResortWatchdog;
         mOpenNetworkNotifier = openNetworkNotifier;
+        mCarrierNetworkNotifier = carrierNetworkNotifier;
+        mCarrierNetworkConfig = carrierNetworkConfig;
         mWifiMetrics = wifiMetrics;
         mAlarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         mEventHandler = new Handler(looper);
@@ -1076,6 +1082,7 @@ public class WifiConnectivityManager {
         mScreenOn = screenOn;
 
         mOpenNetworkNotifier.handleScreenStateChanged(screenOn);
+        mCarrierNetworkNotifier.handleScreenStateChanged(screenOn);
 
         startConnectivityScan(SCAN_ON_SCHEDULE);
     }
@@ -1106,6 +1113,7 @@ public class WifiConnectivityManager {
 
         if (mWifiState == WIFI_STATE_CONNECTED) {
             mOpenNetworkNotifier.handleWifiConnected();
+            mCarrierNetworkNotifier.handleWifiConnected();
         }
 
         // Reset BSSID of last connection attempt and kick off
@@ -1127,6 +1135,7 @@ public class WifiConnectivityManager {
     public void handleConnectionAttemptEnded(int failureCode) {
         if (failureCode != WifiMetrics.ConnectionEvent.FAILURE_NONE) {
             mOpenNetworkNotifier.handleConnectionFailure();
+            mCarrierNetworkNotifier.handleConnectionFailure();
         }
     }
 
@@ -1353,6 +1362,7 @@ public class WifiConnectivityManager {
         clearBssidBlacklist();
         resetLastPeriodicSingleScanTimeStamp();
         mOpenNetworkNotifier.clearPendingNotification(true /* resetRepeatDelay */);
+        mCarrierNetworkNotifier.clearPendingNotification(true /* resetRepeatDelay */);
         mLastConnectionAttemptBssid = null;
         mWaitForFullBandScanResults = false;
     }
@@ -1413,5 +1423,6 @@ public class WifiConnectivityManager {
         mLocalLog.dump(fd, pw, args);
         pw.println("WifiConnectivityManager - Log End ----");
         mOpenNetworkNotifier.dump(fd, pw, args);
+        mCarrierNetworkNotifier.dump(fd, pw, args);
     }
 }
