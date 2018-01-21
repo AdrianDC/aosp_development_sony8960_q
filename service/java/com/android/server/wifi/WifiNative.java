@@ -1487,12 +1487,14 @@ public class WifiNative {
      * Send the eap identity response for the currently configured network.
      *
      * @param ifaceName Name of the interface.
-     * @param response String to send.
+     * @param unencryptedResponse String to send.
+     * @param encryptedResponse String to send.
      * @return true if succeeds, false otherwise.
      */
-    public boolean simIdentityResponse(@NonNull String ifaceName, int id, String response) {
-        return mSupplicantStaIfaceHal.sendCurrentNetworkEapIdentityResponse(
-                ifaceName, response);
+    public boolean simIdentityResponse(@NonNull String ifaceName, int id,
+                                       String unencryptedResponse, String encryptedResponse) {
+        return mSupplicantStaIfaceHal.sendCurrentNetworkEapIdentityResponse(ifaceName,
+                unencryptedResponse, encryptedResponse);
     }
 
     /**

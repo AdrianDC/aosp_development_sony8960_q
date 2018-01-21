@@ -43,6 +43,7 @@ import android.text.TextUtils;
 import android.util.ArraySet;
 import android.util.LocalLog;
 import android.util.Log;
+import android.util.Pair;
 
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
@@ -2410,13 +2411,17 @@ public class WifiConfigManager {
         if (mVerboseLoggingEnabled) localLog("resetSimNetworks");
         for (WifiConfiguration config : getInternalConfiguredNetworks()) {
             if (TelephonyUtil.isSimConfig(config)) {
-                String currentIdentity = null;
+                Pair<String, String> currentIdentity = null;
                 if (simPresent) {
                     currentIdentity = TelephonyUtil.getSimIdentity(mTelephonyManager,
                         new TelephonyUtil(), config);
                 }
                 // Update the loaded config
-                config.enterpriseConfig.setIdentity(currentIdentity);
+                if (currentIdentity == null) {
+                    Log.d(TAG, "Identity is null");
+                    return;
+                }
+                config.enterpriseConfig.setIdentity(currentIdentity.first);
                 if (config.enterpriseConfig.getEapMethod() != WifiEnterpriseConfig.Eap.PEAP) {
                     config.enterpriseConfig.setAnonymousIdentity("");
                 }

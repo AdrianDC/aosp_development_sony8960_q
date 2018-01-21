@@ -863,17 +863,18 @@ public class SupplicantStaIfaceHal {
      * Send the eap identity response for the currently configured network.
      *
      * @param ifaceName Name of the interface.
-     * @param identityStr String to send.
+     * @param identity identity used for EAP-Identity
+     * @param encryptedIdentity encrypted identity used for EAP-AKA/EAP-SIM
      * @return true if succeeds, false otherwise.
      */
     public boolean sendCurrentNetworkEapIdentityResponse(
-            @NonNull String ifaceName, String identityStr) {
+            @NonNull String ifaceName, @NonNull String identity, String encryptedIdentity) {
         synchronized (mLock) {
             SupplicantStaNetworkHal networkHandle =
                     checkSupplicantStaNetworkAndLogFailure(
                             ifaceName, "sendCurrentNetworkEapIdentityResponse");
             if (networkHandle == null) return false;
-            return networkHandle.sendNetworkEapIdentityResponse(identityStr);
+            return networkHandle.sendNetworkEapIdentityResponse(identity, encryptedIdentity);
         }
     }
 
