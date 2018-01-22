@@ -287,7 +287,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
     }
 
     public void startService() {
-        mClientHandler = new ClientHandler(TAG, mLooper);
         mBackgroundScanStateMachine = new WifiBackgroundScanStateMachine(mLooper);
         mSingleScanStateMachine = new WifiSingleScanStateMachine(mLooper);
         mPnoScanStateMachine = new WifiPnoScanStateMachine(mLooper);
@@ -314,6 +313,9 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
         mBackgroundScanStateMachine.start();
         mSingleScanStateMachine.start();
         mPnoScanStateMachine.start();
+
+        // Create client handler only after StateMachines are ready.
+        mClientHandler = new ClientHandler(TAG, mLooper);
     }
 
     /**
