@@ -225,9 +225,9 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
                 config.bw = halRttChannelBandwidthFromResponderChannelWidth(responder.channelWidth);
                 config.preamble = halRttPreambleFromResponderPreamble(responder.preamble);
 
-                config.mustRequestLci = false;
-                config.mustRequestLcr = false;
                 if (config.peer == RttPeerType.NAN) {
+                    config.mustRequestLci = false;
+                    config.mustRequestLcr = false;
                     config.burstPeriod = 0;
                     config.numBurst = 0;
                     config.numFramesPerBurst = 5;
@@ -235,6 +235,8 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
                     config.numRetriesPerFtmr = 3;
                     config.burstDuration = 15;
                 } else { // AP + all non-NAN requests
+                    config.mustRequestLci = true;
+                    config.mustRequestLcr = true;
                     config.burstPeriod = 0;
                     config.numBurst = 0;
                     config.numFramesPerBurst = 8;

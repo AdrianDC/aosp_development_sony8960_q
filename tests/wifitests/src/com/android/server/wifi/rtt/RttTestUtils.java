@@ -95,11 +95,11 @@ public class RttTestUtils {
                 if (peer.peerHandle == null) {
                     rangingResult = new RangingResult(RangingResult.STATUS_SUCCESS,
                             peer.macAddress, rangeCmBase++, rangeStdDevCmBase++, rssiBase++,
-                            rangeTimestampBase++);
+                            null, null, rangeTimestampBase++);
                 } else {
                     rangingResult = new RangingResult(RangingResult.STATUS_SUCCESS,
                             peer.peerHandle, rangeCmBase++, rangeStdDevCmBase++, rssiBase++,
-                            rangeTimestampBase++);
+                            null, null, rangeTimestampBase++);
                 }
                 results.add(rangingResult);
                 halResults.add(getMatchingRttResult(rangingResult, peer.macAddress));
@@ -107,13 +107,13 @@ public class RttTestUtils {
         } else {
             results.add(new RangingResult(RangingResult.STATUS_SUCCESS,
                     MacAddress.fromString("10:01:02:03:04:05"), rangeCmBase++,
-                    rangeStdDevCmBase++, rssiBase++, rangeTimestampBase++));
+                    rangeStdDevCmBase++, rssiBase++, null, null, rangeTimestampBase++));
             results.add(new RangingResult(RangingResult.STATUS_SUCCESS,
                     MacAddress.fromString("1A:0B:0C:0D:0E:0F"), rangeCmBase++,
-                    rangeStdDevCmBase++, rssiBase++, rangeTimestampBase++));
+                    rangeStdDevCmBase++, rssiBase++, null, null, rangeTimestampBase++));
             results.add(new RangingResult(RangingResult.STATUS_SUCCESS,
                     MacAddress.fromString("08:09:08:07:06:05"), rangeCmBase++,
-                    rangeStdDevCmBase++, rssiBase++, rangeTimestampBase++));
+                    rangeStdDevCmBase++, rssiBase++, null, null, rangeTimestampBase++));
             halResults.add(getMatchingRttResult(results.get(0), null));
             halResults.add(getMatchingRttResult(results.get(1), null));
             halResults.add(getMatchingRttResult(results.get(2), null));
