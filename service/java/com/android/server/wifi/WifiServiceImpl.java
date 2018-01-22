@@ -2609,23 +2609,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     }
 
     @Override
-    public void enableAggressiveHandover(int enabled) {
-        enforceAccessPermission();
-        mLog.info("enableAggressiveHandover uid=% enabled=%")
-            .c(Binder.getCallingUid())
-            .c(enabled)
-            .flush();
-        mWifiStateMachine.enableAggressiveHandover(enabled);
-    }
-
-    @Override
-    public int getAggressiveHandover() {
-        enforceAccessPermission();
-        mLog.info("getAggressiveHandover uid=%").c(Binder.getCallingUid()).flush();
-        return mWifiStateMachine.getAggressiveHandover();
-    }
-
-    @Override
     public void factoryReset(String packageName) {
         enforceConnectivityInternalPermission();
         if (enforceChangePermission(packageName) != MODE_ALLOWED) {
