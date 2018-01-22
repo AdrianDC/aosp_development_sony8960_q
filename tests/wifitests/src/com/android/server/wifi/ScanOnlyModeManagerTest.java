@@ -34,6 +34,7 @@ import android.test.suitebuilder.annotation.SmallTest;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -56,6 +57,7 @@ public class ScanOnlyModeManagerTest {
     @Mock ScanOnlyModeManager.Listener mListener;
     @Mock WifiMonitor mWifiMonitor;
     @Mock ScanRequestProxy mScanRequestProxy;
+    @Mock WakeupController mWakeupController;
 
     final ArgumentCaptor<WifiNative.StatusListener> mStatusListenerCaptor =
             ArgumentCaptor.forClass(WifiNative.StatusListener.class);
@@ -73,7 +75,7 @@ public class ScanOnlyModeManagerTest {
 
     private ScanOnlyModeManager createScanOnlyModeManager() {
         return new ScanOnlyModeManager(mContext, mLooper.getLooper(), mWifiNative, mListener,
-                mWifiMetrics, mScanRequestProxy);
+                mWifiMetrics, mScanRequestProxy, mWakeupController);
     }
 
     private void startScanOnlyModeAndVerifyEnabled() throws Exception {
@@ -224,5 +226,31 @@ public class ScanOnlyModeManagerTest {
         verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(), eq(UserHandle.ALL));
         checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
         checkWifiStateChangeListenerUpdate(WIFI_STATE_DISABLED);
+    }
+
+    /**
+     * Entering StartedState starts the WakeupController.
+     */
+    @Test
+    public void scanModeEnterStartsWakeupController() throws Exception {
+        startScanOnlyModeAndVerifyEnabled();
+
+        verify(mWakeupController).start();
+    }
+
+    /**
+     * Exiting StartedState stops the WakeupController.
+     */
+    @Test
+    public void scanModeExitStopsWakeupController() throws Exception {
+        startScanOnlyModeAndVerifyEnabled();
+
+        mScanOnlyModeManager.stop();
+        mLooper.dispatchAll();
+
+        InOrder inOrder = inOrder(mWakeupController);
+
+        inOrder.verify(mWakeupController).start();
+        inOrder.verify(mWakeupController).stop();
     }
 }

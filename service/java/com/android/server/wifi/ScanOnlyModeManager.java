@@ -45,17 +45,20 @@ public class ScanOnlyModeManager implements ActiveModeManager {
     private final WifiMetrics mWifiMetrics;
     private final Listener mListener;
     private final ScanRequestProxy mScanRequestProxy;
+    private final WakeupController mWakeupController;
 
     private String mClientInterfaceName;
 
 
     ScanOnlyModeManager(Context context, @NonNull Looper looper, WifiNative wifiNative,
-            Listener listener, WifiMetrics wifiMetrics, ScanRequestProxy scanRequestProxy) {
+            Listener listener, WifiMetrics wifiMetrics, ScanRequestProxy scanRequestProxy,
+            WakeupController wakeupController) {
         mContext = context;
         mWifiNative = wifiNative;
         mListener = listener;
         mWifiMetrics = wifiMetrics;
         mScanRequestProxy = scanRequestProxy;
+        mWakeupController = wakeupController;
         mStateMachine = new ScanOnlyModeStateMachine(looper);
     }
 
@@ -183,6 +186,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                 mIfaceIsUp = isUp;
                 if (isUp) {
                     Log.d(TAG, "Wifi is ready to use for scanning");
+                    mWakeupController.start();
                     sendScanAvailableBroadcast(true);
                     updateWifiState(WifiManager.WIFI_STATE_ENABLED);
                 } else {
@@ -239,6 +243,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
              */
             @Override
             public void exit() {
+                mWakeupController.stop();
                 // let WifiScanner know that wifi is down.
                 sendScanAvailableBroadcast(false);
                 updateWifiState(WifiManager.WIFI_STATE_DISABLED);
