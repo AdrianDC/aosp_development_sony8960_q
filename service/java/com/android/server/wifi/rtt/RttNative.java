@@ -53,7 +53,7 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
 
     private Object mLock = new Object();
 
-    private IWifiRttController mIWifiRttController;
+    private volatile IWifiRttController mIWifiRttController;
 
     public RttNative(RttServiceImpl rttService, HalDeviceManager halDeviceManager) {
         mRttService = rttService;
@@ -78,9 +78,7 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
      * Returns true if Wi-Fi is ready for RTT requests, false otherwise.
      */
     public boolean isReady() {
-        synchronized (mLock) {
-            return mIWifiRttController != null;
-        }
+        return mIWifiRttController != null;
     }
 
     private void updateController() {
@@ -89,24 +87,26 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
         // only care about isStarted (Wi-Fi started) not isReady - since if not
         // ready then Wi-Fi will also be down.
         synchronized (mLock) {
+            IWifiRttController localWifiRttController = mIWifiRttController;
             if (mHalDeviceManager.isStarted()) {
-                if (mIWifiRttController == null) {
-                    mIWifiRttController = mHalDeviceManager.createRttController();
-                    if (mIWifiRttController == null) {
+                if (localWifiRttController == null) {
+                    localWifiRttController = mHalDeviceManager.createRttController();
+                    if (localWifiRttController == null) {
                         Log.e(TAG, "updateController: Failed creating RTT controller - but Wifi is "
                                 + "started!");
                     } else {
                         try {
-                            mIWifiRttController.registerEventCallback(this);
+                            localWifiRttController.registerEventCallback(this);
                         } catch (RemoteException e) {
                             Log.e(TAG, "updateController: exception registering callback: " + e);
-                            mIWifiRttController = null;
+                            localWifiRttController = null;
                         }
                     }
                 }
             } else {
-                mIWifiRttController = null;
+                localWifiRttController = null;
             }
+            mIWifiRttController = localWifiRttController;
 
             if (mIWifiRttController == null) {
                 mRttService.disable();
@@ -225,9 +225,9 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
                 config.bw = halRttChannelBandwidthFromResponderChannelWidth(responder.channelWidth);
                 config.preamble = halRttPreambleFromResponderPreamble(responder.preamble);
 
-                config.mustRequestLci = false;
-                config.mustRequestLcr = false;
                 if (config.peer == RttPeerType.NAN) {
+                    config.mustRequestLci = false;
+                    config.mustRequestLcr = false;
                     config.burstPeriod = 0;
                     config.numBurst = 0;
                     config.numFramesPerBurst = 5;
@@ -235,6 +235,8 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
                     config.numRetriesPerFtmr = 3;
                     config.burstDuration = 15;
                 } else { // AP + all non-NAN requests
+                    config.mustRequestLci = true;
+                    config.mustRequestLcr = true;
                     config.burstPeriod = 0;
                     config.numBurst = 0;
                     config.numFramesPerBurst = 8;

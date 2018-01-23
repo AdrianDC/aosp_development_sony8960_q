@@ -87,6 +87,7 @@ import android.os.test.TestLooper;
 import android.provider.Settings;
 import android.test.suitebuilder.annotation.SmallTest;
 
+import com.android.internal.os.PowerProfile;
 import com.android.internal.util.AsyncChannel;
 import com.android.server.wifi.WifiServiceImpl.LocalOnlyRequestorCallback;
 import com.android.server.wifi.hotspot2.PasspointProvisioningTestUtil;
@@ -177,7 +178,7 @@ public class WifiServiceImplTest {
     @Mock IProvisioningCallback mProvisioningCallback;
     @Mock ISoftApCallback mClientSoftApCallback;
     @Mock ISoftApCallback mAnotherSoftApCallback;
-
+    @Mock PowerProfile mPowerProfile;
     @Spy FakeWifiLog mLog;
 
     private class WifiAsyncChannelTester {
@@ -257,6 +258,7 @@ public class WifiServiceImplTest {
         when(mWifiStateMachine.syncInitialize(any())).thenReturn(true);
         when(mWifiInjector.getWifiStateMachinePrime()).thenReturn(mWifiStateMachinePrime);
         when(mWifiInjector.getWifiServiceHandlerThread()).thenReturn(mHandlerThread);
+        when(mWifiInjector.getPowerProfile()).thenReturn(mPowerProfile);
         when(mHandlerThread.getLooper()).thenReturn(mLooper.getLooper());
         when(mContext.getResources()).thenReturn(mResources);
         when(mContext.getContentResolver()).thenReturn(mContentResolver);
