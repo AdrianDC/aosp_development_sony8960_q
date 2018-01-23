@@ -956,22 +956,6 @@ public class WificondControlTest {
     }
 
     /**
-     * Verifies registration and invocation of 2 wificond death handlers.
-     */
-    @Test
-    public void testRegisterTwoDeathHandlers() throws Exception {
-        WifiNative.WificondDeathEventHandler handler1 =
-                mock(WifiNative.WificondDeathEventHandler.class);
-        WifiNative.WificondDeathEventHandler handler2 =
-                mock(WifiNative.WificondDeathEventHandler.class);
-        assertTrue(mWificondControl.registerDeathHandler(handler1));
-        assertFalse(mWificondControl.registerDeathHandler(handler2));
-        mWificondControl.binderDied();
-        verify(handler1).onDeath();
-        verify(handler2, never()).onDeath();
-    }
-
-    /**
      * Verifies de-registration of wificond death handler.
      */
     @Test

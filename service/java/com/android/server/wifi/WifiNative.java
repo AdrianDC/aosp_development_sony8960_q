@@ -392,6 +392,9 @@ public class WifiNative {
             if (!mHostapdHal.removeAccessPoint(iface.name)) {
                 Log.e(TAG, "Failed to remove access point on iface=" + iface.name);
             }
+            if (!mHostapdHal.deregisterDeathHandler()) {
+                Log.e(TAG, "Failed to deregister supplicant death handler");
+            }
             // TODO(b/71513606): Move this to a global operation.
             if (!mWificondControl.stopHostapd(iface.name)) {
                 Log.e(TAG, "Failed to stop hostapd on iface=" + iface.name);
@@ -502,6 +505,20 @@ public class WifiNative {
                 Log.i(TAG, "wpa_supplicant died. Cleaning up internal state.");
                 onNativeDaemonDeath();
                 mWifiMetrics.incrementNumSupplicantCrashes();
+            }
+        }
+    }
+
+    /**
+     * Death handler for the hostapd daemon.
+     */
+    private class HostapdDeathHandlerInternal implements HostapdDeathEventHandler {
+        @Override
+        public void onDeath() {
+            synchronized (mLock) {
+                Log.i(TAG, "hostapd died. Cleaning up internal state.");
+                onNativeDaemonDeath();
+                mWifiMetrics.incrementNumHostapdCrashes();
             }
         }
     }
@@ -1113,6 +1130,10 @@ public class WifiNative {
         }
         if (!waitForHostapdConnection()) {
             Log.e(TAG, "Failed to establish connection to hostapd");
+            return false;
+        }
+        if (!mHostapdHal.registerDeathHandler(new HostapdDeathHandlerInternal())) {
+            Log.e(TAG, "Failed to register hostapd death handler");
             return false;
         }
         if (!mHostapdHal.addAccessPoint(ifaceName, config)) {
