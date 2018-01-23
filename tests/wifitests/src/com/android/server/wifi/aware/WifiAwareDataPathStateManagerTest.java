@@ -68,7 +68,7 @@ import android.os.Messenger;
 import android.os.PowerManager;
 import android.os.Process;
 import android.os.test.TestLooper;
-import android.test.suitebuilder.annotation.SmallTest;
+import android.support.test.filters.SmallTest;
 
 import com.android.internal.util.AsyncChannel;
 import com.android.server.wifi.util.WifiPermissionsWrapper;

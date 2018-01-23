@@ -23,7 +23,7 @@ import static org.mockito.MockitoAnnotations.*;
 
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiSsid;
-import android.test.suitebuilder.annotation.SmallTest;
+import android.support.test.filters.SmallTest;
 import android.util.Pair;
 
 import org.junit.Before;

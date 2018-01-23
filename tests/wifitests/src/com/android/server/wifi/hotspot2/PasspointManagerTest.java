@@ -63,7 +63,7 @@ import android.net.wifi.hotspot2.pps.HomeSp;
 import android.os.Looper;
 import android.os.UserHandle;
 import android.os.test.TestLooper;
-import android.test.suitebuilder.annotation.SmallTest;
+import android.support.test.filters.SmallTest;
 import android.util.Base64;
 import android.util.Pair;
 

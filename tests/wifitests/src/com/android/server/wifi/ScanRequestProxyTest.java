@@ -26,7 +26,7 @@ import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.os.UserHandle;
 import android.os.WorkSource;
-import android.test.suitebuilder.annotation.SmallTest;
+import android.support.test.filters.SmallTest;
 
 import com.android.server.wifi.util.WifiPermissionsUtil;
 

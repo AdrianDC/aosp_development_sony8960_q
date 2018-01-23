@@ -28,7 +28,7 @@ import static org.mockito.Mockito.validateMockitoUsage;
 
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiScanner.ScanSettings;
-import android.test.suitebuilder.annotation.SmallTest;
+import android.support.test.filters.SmallTest;
 import android.util.ArraySet;
 
 import com.android.server.wifi.WifiNative;

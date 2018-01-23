@@ -85,7 +85,7 @@ import android.os.RemoteException;
 import android.os.UserManager;
 import android.os.test.TestLooper;
 import android.provider.Settings;
-import android.test.suitebuilder.annotation.SmallTest;
+import android.support.test.filters.SmallTest;
 
 import com.android.internal.os.PowerProfile;
 import com.android.internal.util.AsyncChannel;

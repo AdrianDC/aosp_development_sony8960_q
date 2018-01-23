@@ -38,7 +38,7 @@ import android.net.wifi.WifiManager;
 import android.os.Handler;
 import android.os.Message;
 import android.os.test.TestLooper;
-import android.test.suitebuilder.annotation.SmallTest;
+import android.support.test.filters.SmallTest;
 
 import com.android.internal.util.test.BidirectionalAsyncChannel;
 import com.android.server.wifi.util.WifiPermissionsUtil;

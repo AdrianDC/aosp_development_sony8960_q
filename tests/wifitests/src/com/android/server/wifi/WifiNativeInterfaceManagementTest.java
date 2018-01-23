@@ -31,7 +31,7 @@ import android.net.wifi.IClientInterface;
 import android.net.wifi.WifiConfiguration;
 import android.os.INetworkManagementService;
 import android.os.RemoteException;
-import android.test.suitebuilder.annotation.SmallTest;
+import android.support.test.filters.SmallTest;
 
 import com.android.server.net.BaseNetworkObserver;
 import com.android.server.wifi.HalDeviceManager.InterfaceDestroyedListener;

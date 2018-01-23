@@ -24,7 +24,7 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.net.wifi.WifiConfiguration;
 import android.os.test.TestLooper;
-import android.test.suitebuilder.annotation.SmallTest;
+import android.support.test.filters.SmallTest;
 
 import com.android.server.wifi.WifiConfigStore.StoreFile;
 import com.android.server.wifi.util.XmlUtil;

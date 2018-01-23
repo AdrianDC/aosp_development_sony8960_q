@@ -22,7 +22,7 @@ import static org.mockito.Mockito.*;
 import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.net.IpConfiguration;
 import android.net.wifi.WifiConfiguration;
-import android.test.suitebuilder.annotation.SmallTest;
+import android.support.test.filters.SmallTest;
 import android.text.TextUtils;
 import android.util.SparseArray;
 
