@@ -231,7 +231,8 @@ public class WifiVendorHal {
     private final HalDeviceManager mHalDeviceManager;
     private final HalDeviceManagerStatusListener mHalDeviceManagerStatusCallbacks;
     private final IWifiStaIfaceEventCallback mIWifiStaIfaceEventCallback;
-    private final IWifiChipEventCallback mIWifiChipEventCallback;
+    private final ChipEventCallback mIWifiChipEventCallback;
+    private final ChipEventCallbackV12 mIWifiChipEventCallbackV12;
     private final RttEventCallback mRttEventCallback;
 
     // Plumbing for event handling.
@@ -250,10 +251,10 @@ public class WifiVendorHal {
         mHalDeviceManagerStatusCallbacks = new HalDeviceManagerStatusListener();
         mIWifiStaIfaceEventCallback = new StaIfaceEventCallback();
         mIWifiChipEventCallback = new ChipEventCallback();
+        mIWifiChipEventCallbackV12 = new ChipEventCallbackV12();
         mRttEventCallback = new RttEventCallback();
     }
 
-    // TODO(mplass): figure out where we need locking in hidl world. b/33383725
     public static final Object sLock = new Object();
 
     private void handleRemoteException(RemoteException e) {
@@ -540,9 +541,14 @@ public class WifiVendorHal {
     private boolean registerChipCallback() {
         synchronized (sLock) {
             if (mIWifiChip == null) return boolResult(false);
-            if (mIWifiChipEventCallback == null) return boolResult(false);
             try {
-                WifiStatus status = mIWifiChip.registerEventCallback(mIWifiChipEventCallback);
+                WifiStatus status;
+                android.hardware.wifi.V1_2.IWifiChip iWifiChipV12 = getWifiChipForV1_2Mockable();
+                if (iWifiChipV12 != null) {
+                    status = iWifiChipV12.registerEventCallback_1_2(mIWifiChipEventCallbackV12);
+                } else {
+                    status = mIWifiChip.registerEventCallback(mIWifiChipEventCallback);
+                }
                 return ok(status);
             } catch (RemoteException e) {
                 handleRemoteException(e);
@@ -2524,6 +2530,17 @@ public class WifiVendorHal {
         return android.hardware.wifi.V1_1.IWifiChip.castFrom(mIWifiChip);
     }
 
+    /**
+     * Method to mock out the V1_2 IWifiChip retrieval in unit tests.
+     *
+     * @return 1.2 IWifiChip object if the device is running the 1.2 wifi hal service, null
+     * otherwise.
+     */
+    protected android.hardware.wifi.V1_2.IWifiChip getWifiChipForV1_2Mockable() {
+        if (mIWifiChip == null) return null;
+        return android.hardware.wifi.V1_2.IWifiChip.castFrom(mIWifiChip);
+    }
+
     private int frameworkToHalTxPowerScenario(int scenario) {
         switch (scenario) {
             case WifiNative.TX_POWER_SCENARIO_VOICE_CALL:
@@ -2687,7 +2704,7 @@ public class WifiVendorHal {
     }
 
     /**
-     * Callback for events on the STA interface.
+     * Callback for events on the chip.
      */
     private class ChipEventCallback extends IWifiChipEventCallback.Stub {
         @Override
@@ -2772,6 +2789,50 @@ public class WifiVendorHal {
                 eventHandler.onWifiAlert(
                         errorCode, NativeUtil.byteArrayFromArrayList(debugData));
             });
+        }
+    }
+
+    /**
+     * Callback for events on the 1.2 chip.
+     */
+    private class ChipEventCallbackV12 extends
+            android.hardware.wifi.V1_2.IWifiChipEventCallback.Stub {
+        @Override
+        public void onChipReconfigured(int modeId) {
+            mIWifiChipEventCallback.onChipReconfigured(modeId);
+        }
+
+        @Override
+        public void onChipReconfigureFailure(WifiStatus status) {
+            mIWifiChipEventCallback.onChipReconfigureFailure(status);
+        }
+
+        public void onIfaceAdded(int type, String name) {
+            mIWifiChipEventCallback.onIfaceAdded(type, name);
+        }
+
+        @Override
+        public void onIfaceRemoved(int type, String name) {
+            mIWifiChipEventCallback.onIfaceRemoved(type, name);
+        }
+
+        @Override
+        public void onDebugRingBufferDataAvailable(
+                WifiDebugRingBufferStatus status, java.util.ArrayList<Byte> data) {
+            mIWifiChipEventCallback.onDebugRingBufferDataAvailable(status, data);
+        }
+
+        @Override
+        public void onDebugErrorAlert(int errorCode, java.util.ArrayList<Byte> debugData) {
+            mIWifiChipEventCallback.onDebugErrorAlert(errorCode, debugData);
+        }
+
+        @Override
+        public void onRadioModeChange(
+                ArrayList<android.hardware.wifi.V1_2.IWifiChipEventCallback.RadioModeInfo>
+                radioModeInfoList) {
+            // Need to handle this callback.
+            mVerboseLog.d("onRadioModeChange " + radioModeInfoList);
         }
     }
 
