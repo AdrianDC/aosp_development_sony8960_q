@@ -71,6 +71,7 @@ public class WifiStateMachinePrimeTest {
         mLooper = new TestLooper();
 
         mWifiStateMachinePrime = createWifiStateMachinePrime();
+        mLooper.dispatchAll();
 
         // creating a new WSMP cleans up any existing interfaces, check and reset expectations
         verifyCleanupCalled();

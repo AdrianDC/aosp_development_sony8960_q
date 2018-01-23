@@ -84,8 +84,7 @@ public class WifiStateMachinePrime {
         mWifiInjector = wifiInjector;
         mLooper = looper;
         mWifiNative = wifiNative;
-
-        mWifiNative.teardownAllInterfaces();
+        mModeStateMachine = new ModeStateMachine();
     }
 
     /**
@@ -138,15 +137,6 @@ public class WifiStateMachinePrime {
     }
 
     private void changeMode(int newMode) {
-        if (mModeStateMachine == null) {
-            if (newMode == ModeStateMachine.CMD_DISABLE_WIFI) {
-                // command is to disable wifi, but it is already disabled.
-                Log.e(TAG, "Received call to disable wifi when it is already disabled.");
-                return;
-            }
-            // state machine was not initialized yet, we must be starting up.
-            mModeStateMachine = new ModeStateMachine();
-        }
         mModeStateMachine.sendMessage(newMode);
     }
 
