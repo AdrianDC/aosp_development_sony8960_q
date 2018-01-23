@@ -157,8 +157,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * @hide
  */
-public class WifiStateMachine extends StateMachine implements WifiNative.WifiRssiEventHandler,
-        WifiMulticastLockManager.FilterController {
+public class WifiStateMachine extends StateMachine
+        implements WifiMulticastLockManager.FilterController {
 
     private static final String NETWORKTYPE = "WIFI";
     private static final String NETWORKTYPE_UNTRUSTED = "WIFI_UT";
@@ -274,15 +274,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mSoftApCallback = callback;
     }
 
-    @Override
-    public void onRssiThresholdBreached(byte curRssi) {
-        if (mVerboseLoggingEnabled) {
-            Log.e(TAG, "onRssiThresholdBreach event. Cur Rssi = " + curRssi);
-        }
-        sendMessage(CMD_RSSI_THRESHOLD_BREACHED, curRssi);
-    }
-
-    public void processRssiThreshold(byte curRssi, int reason) {
+    private void processRssiThreshold(byte curRssi, int reason,
+            WifiNative.WifiRssiEventHandler rssiHandler) {
         if (curRssi == Byte.MAX_VALUE || curRssi == Byte.MIN_VALUE) {
             Log.wtf(TAG, "processRssiThreshold: Invalid rssi " + curRssi);
             return;
@@ -298,7 +291,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 // value is invalid
                 mWifiInfo.setRssi(curRssi);
                 updateCapabilities();
-                int ret = startRssiMonitoringOffload(maxRssi, minRssi);
+                int ret = startRssiMonitoringOffload(maxRssi, minRssi, rssiHandler);
                 Log.d(TAG, "Re-program RSSI thresholds for " + smToString(reason) +
                         ": [" + minRssi + ", " + maxRssi + "], curRssi=" + curRssi + " ret=" + ret);
                 break;
@@ -1522,9 +1515,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
     }
 
-    int startRssiMonitoringOffload(byte maxRssi, byte minRssi) {
-        return mWifiNative.startRssiMonitoring(
-                mInterfaceName, maxRssi, minRssi, WifiStateMachine.this);
+    int startRssiMonitoringOffload(byte maxRssi, byte minRssi,
+            WifiNative.WifiRssiEventHandler rssiHandler) {
+        return mWifiNative.startRssiMonitoring(mInterfaceName, maxRssi, minRssi, rssiHandler);
     }
 
     int stopRssiMonitoringOffload() {
@@ -5542,6 +5535,18 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     class L2ConnectedState extends State {
+        class RssiEventHandler implements WifiNative.WifiRssiEventHandler {
+            @Override
+            public void onRssiThresholdBreached(byte curRssi) {
+                if (mVerboseLoggingEnabled) {
+                    Log.e(TAG, "onRssiThresholdBreach event. Cur Rssi = " + curRssi);
+                }
+                sendMessage(CMD_RSSI_THRESHOLD_BREACHED, curRssi);
+            }
+        }
+
+        RssiEventHandler mRssiEventHandler = new RssiEventHandler();
+
         @Override
         public void enter() {
             mRssiPollToken++;
@@ -5788,7 +5793,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_START_RSSI_MONITORING_OFFLOAD:
                 case CMD_RSSI_THRESHOLD_BREACHED:
                     byte currRssi = (byte) message.arg1;
-                    processRssiThreshold(currRssi, message.what);
+                    processRssiThreshold(currRssi, message.what, mRssiEventHandler);
                     break;
                 case CMD_STOP_RSSI_MONITORING_OFFLOAD:
                     stopRssiMonitoringOffload();
