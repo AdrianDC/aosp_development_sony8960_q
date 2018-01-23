@@ -62,7 +62,7 @@ public class ApConfigUtil {
 
     /**
      * Return a channel number for AP setup based on the frequency band.
-     * @param apBand 0 for 2GHz, 1 for 5GHz
+     * @param apBand one of the value of WifiConfiguration.AP_BAND_*.
      * @param allowed2GChannels list of allowed 2GHz channels
      * @param allowed5GFreqList list of allowed 5GHz frequencies
      * @return a valid channel number on success, -1 on failure.
@@ -71,12 +71,15 @@ public class ApConfigUtil {
                                       ArrayList<Integer> allowed2GChannels,
                                       int[] allowed5GFreqList) {
         if (apBand != WifiConfiguration.AP_BAND_2GHZ
-                && apBand != WifiConfiguration.AP_BAND_5GHZ) {
+                && apBand != WifiConfiguration.AP_BAND_5GHZ
+                        && apBand != WifiConfiguration.AP_BAND_ANY) {
             Log.e(TAG, "Invalid band: " + apBand);
             return -1;
         }
 
-        if (apBand == WifiConfiguration.AP_BAND_2GHZ)  {
+        // TODO(b/72120668): Create channel selection logic for AP_BAND_ANY.
+        if (apBand == WifiConfiguration.AP_BAND_2GHZ
+                || apBand == WifiConfiguration.AP_BAND_ANY)  {
             /* Select a channel from 2GHz band. */
             if (allowed2GChannels == null || allowed2GChannels.size() == 0) {
                 Log.d(TAG, "2GHz allowed channel list not specified");
