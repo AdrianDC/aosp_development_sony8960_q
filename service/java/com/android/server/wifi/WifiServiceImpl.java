@@ -786,6 +786,25 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     }
 
     /**
+     * Check if the caller must still pass permission check or if the caller is exempted
+     * from the consent UI via the MANAGE_WIFI_WHEN_PERMISSION_REVIEW_REQUIRED check.
+     *
+     * Commands from some callers may be exempted from triggering the consent UI when
+     * enabling wifi. This exemption is checked via the MANAGE_WIFI_WHEN_PERMISSION_REVIEW_REQUIRED
+     * and allows calls to skip the consent UI where it may otherwise be required.
+     *
+     * @hide
+     */
+    private boolean checkWifiPermissionWhenPermissionReviewRequired() {
+        if (!mPermissionReviewRequired) {
+            return false;
+        }
+        int result = mContext.checkCallingPermission(
+                android.Manifest.permission.MANAGE_WIFI_WHEN_PERMISSION_REVIEW_REQUIRED);
+        return result == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /**
      * see {@link android.net.wifi.WifiManager#setWifiEnabled(boolean)}
      * @param enable {@code true} to enable, {@code false} to disable.
      * @return {@code true} if the enable/disable operation was
@@ -2274,7 +2293,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
     private boolean startConsentUi(String packageName,
             int callingUid, String intentAction) throws RemoteException {
-        if (UserHandle.getAppId(callingUid) == Process.SYSTEM_UID) {
+        if (UserHandle.getAppId(callingUid) == Process.SYSTEM_UID
+                || checkWifiPermissionWhenPermissionReviewRequired()) {
             return false;
         }
         try {
@@ -2284,7 +2304,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                             PackageManager.MATCH_DEBUG_TRIAGED_MISSING,
                             UserHandle.getUserId(callingUid));
             if (applicationInfo.uid != callingUid) {
-                throw new SecurityException("Package " + callingUid
+                throw new SecurityException("Package " + packageName
                         + " not in uid " + callingUid);
             }
 

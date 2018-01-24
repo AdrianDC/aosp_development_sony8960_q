@@ -34,6 +34,7 @@ import static android.net.wifi.WifiManager.WIFI_AP_STATE_ENABLED;
 import static android.net.wifi.WifiManager.WIFI_AP_STATE_ENABLING;
 import static android.net.wifi.WifiManager.WIFI_AP_STATE_FAILED;
 import static android.net.wifi.WifiManager.WIFI_STATE_DISABLED;
+import static android.net.wifi.WifiManager.WIFI_STATE_ENABLED;
 import static android.provider.Settings.Secure.LOCATION_MODE_HIGH_ACCURACY;
 import static android.provider.Settings.Secure.LOCATION_MODE_OFF;
 
@@ -58,6 +59,7 @@ import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.IntentFilter;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.net.IpConfiguration;
@@ -124,6 +126,8 @@ public class WifiServiceImplTest {
     private static final String SYSUI_PACKAGE_NAME = "com.android.systemui";
     private static final int TEST_PID = 6789;
     private static final int TEST_PID2 = 9876;
+    private static final int TEST_UID = 1200000;
+    private static final int OTHER_TEST_UID = 1300000;
     private static final String WIFI_IFACE_NAME = "wlan0";
     private static final String TEST_COUNTRY_CODE = "US";
 
@@ -157,6 +161,7 @@ public class WifiServiceImplTest {
     @Mock HandlerThread mHandlerThread;
     @Mock AsyncChannel mAsyncChannel;
     @Mock Resources mResources;
+    @Mock ApplicationInfo mApplicationInfo;
     @Mock FrameworkFacade mFrameworkFacade;
     @Mock WifiLockManager mLockManager;
     @Mock WifiMulticastLockManager mWifiMulticastLockManager;
@@ -500,6 +505,96 @@ public class WifiServiceImplTest {
     }
 
     /**
+     * Verify that wifi can be enabled without consent UI popup when permission
+     * review is required but got permission granted.
+     */
+    @Test
+    public void testSetWifiEnabledSuccessWhenPermissionReviewRequiredAndPermissionGranted()
+            throws Exception {
+        // Set PermissionReviewRequired to true explicitly
+        when(mResources.getBoolean(anyInt())).thenReturn(true);
+        mWifiServiceImpl = new WifiServiceImpl(mContext, mWifiInjector, mAsyncChannel);
+        when(mSettingsStore.handleWifiToggled(eq(true))).thenReturn(true);
+        when(mSettingsStore.isAirplaneModeOn()).thenReturn(false);
+        when(mContext.checkCallingPermission(
+                eq(android.Manifest.permission.MANAGE_WIFI_WHEN_PERMISSION_REVIEW_REQUIRED)))
+                        .thenReturn(PackageManager.PERMISSION_GRANTED);
+
+        assertTrue(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, true));
+        verify(mWifiController).sendMessage(eq(CMD_WIFI_TOGGLED));
+    }
+
+    /**
+     * Verify that wifi is not enabled but got consent UI popup when permission
+     * review is required but do not have permission.
+     */
+    @Test
+    public void testSetWifiEnabledConsentUiWhenPermissionReviewRequiredAndPermissionDenied()
+            throws Exception {
+        // Set PermissionReviewRequired to true explicitly
+        when(mResources.getBoolean(anyInt())).thenReturn(true);
+        mWifiServiceImpl = new WifiServiceImpl(mContext, mWifiInjector, mAsyncChannel);
+        when(mSettingsStore.handleWifiToggled(eq(true))).thenReturn(true);
+        when(mSettingsStore.isAirplaneModeOn()).thenReturn(false);
+        when(mContext.checkCallingPermission(
+                eq(android.Manifest.permission.MANAGE_WIFI_WHEN_PERMISSION_REVIEW_REQUIRED)))
+                        .thenReturn(PackageManager.PERMISSION_DENIED);
+        when(mPackageManager.getApplicationInfoAsUser(
+                anyString(), anyInt(), anyInt()))
+                        .thenReturn(mApplicationInfo);
+        mApplicationInfo.uid = TEST_UID;
+        BinderUtil.setUid(TEST_UID);
+
+        assertTrue(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, true));
+        verify(mContext).startActivity(any());
+        verify(mWifiController, never()).sendMessage(eq(CMD_WIFI_TOGGLED));
+    }
+
+    /**
+     * Verify that wifi can be enabled when wifi is off and permission review is
+     * not required.
+     */
+    @Test
+    public void testSetWifiEnabledSuccessWhenPermissionReviewNotRequired() throws Exception {
+        // Set PermissionReviewRequired to false explicitly
+        when(mResources.getBoolean(anyInt())).thenReturn(false);
+        mWifiServiceImpl = new WifiServiceImpl(mContext, mWifiInjector, mAsyncChannel);
+        when(mSettingsStore.handleWifiToggled(eq(true))).thenReturn(true);
+        when(mSettingsStore.isAirplaneModeOn()).thenReturn(false);
+
+        assertTrue(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, true));
+        verify(mWifiController).sendMessage(eq(CMD_WIFI_TOGGLED));
+    }
+
+    /**
+     * Verify a SecurityException is thrown when bringing up Consent UI but caller
+     * uid does not match application uid.
+     *
+     * @throws SecurityException
+     */
+    @Test(expected = SecurityException.class)
+    public void testSetWifiEnabledThrowsSecurityExceptionForConsentUiIfUidNotMatch()
+            throws Exception {
+        // Set PermissionReviewRequired to true explicitly
+        when(mResources.getBoolean(anyInt())).thenReturn(true);
+        mWifiServiceImpl = new WifiServiceImpl(mContext, mWifiInjector, mAsyncChannel);
+        when(mSettingsStore.handleWifiToggled(eq(true))).thenReturn(true);
+        when(mSettingsStore.isAirplaneModeOn()).thenReturn(false);
+        when(mContext.checkCallingPermission(
+                eq(android.Manifest.permission.MANAGE_WIFI_WHEN_PERMISSION_REVIEW_REQUIRED)))
+                        .thenReturn(PackageManager.PERMISSION_DENIED);
+        when(mPackageManager.getApplicationInfoAsUser(
+                anyString(), anyInt(), anyInt()))
+                        .thenReturn(mApplicationInfo);
+        mApplicationInfo.uid = TEST_UID;
+        BinderUtil.setUid(OTHER_TEST_UID);
+
+        assertTrue(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, true));
+        verify(mContext, never()).startActivity(any());
+        verify(mWifiController, never()).sendMessage(eq(CMD_WIFI_TOGGLED));
+    }
+
+    /**
      * Verify that wifi can be disabled by a caller with WIFI_STATE_CHANGE permission when wifi is
      * on.
      */
@@ -530,6 +625,103 @@ public class WifiServiceImplTest {
                 .enforceCallingOrSelfPermission(eq(android.Manifest.permission.CHANGE_WIFI_STATE),
                                                 eq("WifiService"));
         mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, false);
+    }
+
+    /**
+     * Verify that wifi can be disabled without consent UI popup when permission
+     * review is required but got permission granted.
+     */
+    @Test
+    public void testSetWifiDisabledSuccessWhenPermissionReviewRequiredAndPermissionGranted()
+            throws Exception {
+        // Set PermissionReviewRequired to true explicitly
+        when(mResources.getBoolean(anyInt())).thenReturn(true);
+        mWifiServiceImpl = new WifiServiceImpl(mContext, mWifiInjector, mAsyncChannel);
+        when(mSettingsStore.handleWifiToggled(eq(false))).thenReturn(true);
+        when(mSettingsStore.isAirplaneModeOn()).thenReturn(false);
+        when(mWifiStateMachine.syncGetWifiState()).thenReturn(WIFI_STATE_ENABLED);
+        when(mContext.checkCallingPermission(
+                eq(android.Manifest.permission.MANAGE_WIFI_WHEN_PERMISSION_REVIEW_REQUIRED)))
+                        .thenReturn(PackageManager.PERMISSION_GRANTED);
+
+        assertTrue(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, false));
+        verify(mWifiController).sendMessage(eq(CMD_WIFI_TOGGLED));
+    }
+
+    /**
+     * Verify that wifi is not disabled but got consent UI popup when permission
+     * review is required but do not have permission.
+     */
+    @Test
+    public void testSetWifiDisabledConsentUiWhenPermissionReviewRequiredAndPermissionDenied()
+            throws Exception {
+        // Set PermissionReviewRequired to true explicitly
+        when(mResources.getBoolean(anyInt())).thenReturn(true);
+        mWifiServiceImpl = new WifiServiceImpl(mContext, mWifiInjector, mAsyncChannel);
+        when(mSettingsStore.handleWifiToggled(eq(false))).thenReturn(true);
+        when(mSettingsStore.isAirplaneModeOn()).thenReturn(false);
+        when(mWifiStateMachine.syncGetWifiState()).thenReturn(WIFI_STATE_ENABLED);
+        when(mContext.checkCallingPermission(
+                eq(android.Manifest.permission.MANAGE_WIFI_WHEN_PERMISSION_REVIEW_REQUIRED)))
+                        .thenReturn(PackageManager.PERMISSION_DENIED);
+        when(mPackageManager.getApplicationInfoAsUser(
+                anyString(), anyInt(), anyInt()))
+                        .thenReturn(mApplicationInfo);
+        mApplicationInfo.uid = TEST_UID;
+        BinderUtil.setUid(TEST_UID);
+
+        assertTrue(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, false));
+        verify(mContext).startActivity(any());
+        verify(mWifiController, never()).sendMessage(eq(CMD_WIFI_TOGGLED));
+    }
+
+    /**
+     * Verify that wifi can be disabled when wifi is on and permission review is
+     * not required.
+     */
+    @Test
+    public void testSetWifiDisabledSuccessWhenPermissionReviewNotRequired() throws Exception {
+        // Set PermissionReviewRequired to false explicitly
+        when(mResources.getBoolean(anyInt())).thenReturn(false);
+        mWifiServiceImpl = new WifiServiceImpl(mContext, mWifiInjector, mAsyncChannel);
+        when(mSettingsStore.handleWifiToggled(eq(false))).thenReturn(true);
+        when(mSettingsStore.isAirplaneModeOn()).thenReturn(false);
+        when(mWifiStateMachine.syncGetWifiState()).thenReturn(WIFI_STATE_ENABLED);
+        when(mContext.checkCallingPermission(
+                eq(android.Manifest.permission.MANAGE_WIFI_WHEN_PERMISSION_REVIEW_REQUIRED)))
+                        .thenReturn(PackageManager.PERMISSION_GRANTED);
+
+        assertTrue(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, false));
+        verify(mWifiController).sendMessage(eq(CMD_WIFI_TOGGLED));
+    }
+
+    /**
+     * Verify a SecurityException is thrown when bringing up Consent UI but caller
+     * uid does not match application uid.
+     *
+     * @throws SecurityException
+     */
+    @Test(expected = SecurityException.class)
+    public void testSetWifiDisabledThrowsSecurityExceptionForConsentUiIfUidNotMatch()
+            throws Exception {
+        // Set PermissionReviewRequired to true explicitly
+        when(mResources.getBoolean(anyInt())).thenReturn(true);
+        mWifiServiceImpl = new WifiServiceImpl(mContext, mWifiInjector, mAsyncChannel);
+        when(mSettingsStore.handleWifiToggled(eq(false))).thenReturn(true);
+        when(mSettingsStore.isAirplaneModeOn()).thenReturn(false);
+        when(mWifiStateMachine.syncGetWifiState()).thenReturn(WIFI_STATE_ENABLED);
+        when(mContext.checkCallingPermission(
+                eq(android.Manifest.permission.MANAGE_WIFI_WHEN_PERMISSION_REVIEW_REQUIRED)))
+                        .thenReturn(PackageManager.PERMISSION_DENIED);
+        when(mPackageManager.getApplicationInfoAsUser(
+                anyString(), anyInt(), anyInt()))
+                        .thenReturn(mApplicationInfo);
+        mApplicationInfo.uid = TEST_UID;
+        BinderUtil.setUid(OTHER_TEST_UID);
+
+        assertTrue(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, false));
+        verify(mContext, never()).startActivity(any());
+        verify(mWifiController, never()).sendMessage(eq(CMD_WIFI_TOGGLED));
     }
 
     /**
