@@ -103,11 +103,13 @@ public class WifiTrafficPoller {
                 }, filter);
     }
 
-    void addClient(Messenger client) {
+    /** */
+    public void addClient(Messenger client) {
         Message.obtain(mTrafficHandler, ADD_CLIENT, client).sendToTarget();
     }
 
-    void removeClient(Messenger client) {
+    /** */
+    public void removeClient(Messenger client) {
         Message.obtain(mTrafficHandler, REMOVE_CLIENT, client).sendToTarget();
     }
 
