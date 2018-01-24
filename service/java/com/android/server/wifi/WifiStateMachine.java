@@ -4492,7 +4492,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         public void enter() {
             logd("entering ScanModeState");
             mWifiStateTracker.updateState(WifiStateTracker.SCAN_MODE);
-            mWifiInjector.getWakeupController().start();
             // We can't do this in the constructor because WifiStateMachine is created before the
             // wifi scanning service is initialized
             if (mWifiScanner == null) {
@@ -4501,9 +4500,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
 
         @Override
-        public void exit() {
-            mWifiInjector.getWakeupController().stop();
-        }
+        public void exit() {}
 
         @Override
         public boolean processMessage(Message message) {
