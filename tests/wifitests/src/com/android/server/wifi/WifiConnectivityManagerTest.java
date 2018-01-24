@@ -65,6 +65,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Unit tests for {@link com.android.server.wifi.WifiConnectivityManager}.
@@ -201,6 +202,14 @@ public class WifiConnectivityManagerTest {
             public void answer(ScanSettings settings, ScanListener listener,
                     WorkSource workSource) throws Exception {
                 listener.onResults(scanDatas);
+                // WCM processes scan results received via onFullResult (even though they're the
+                // same as onResult for single scans).
+                if (mScanData != null && mScanData.getResults() != null) {
+                    for (int i = 0; i < mScanData.getResults().length; i++) {
+                        allSingleScanListenerCaptor.getValue().onFullResult(
+                                mScanData.getResults()[i]);
+                    }
+                }
                 allSingleScanListenerCaptor.getValue().onResults(scanDatas);
             }}).when(scanner).startScan(anyObject(), anyObject(), anyObject());
 
@@ -1748,4 +1757,70 @@ public class WifiConnectivityManagerTest {
 
         verify(mOpenNetworkNotifier).dump(any(), any(), any());
     }
+
+    /**
+     * WifiConnectivityManager should filter scan results which contain scans from a single radio
+     * chain (i.e DBS scan).
+     * Note:
+     * a) ScanResult with no radio chain indicates a lack of DBS support on the device.
+     * b) ScanResult with 2 radio chain info indicates a scan done using both the radio chains
+     * on a DBS supported device.
+     *
+     * Expected behavior: WifiConnectivityManager invokes
+     * {@link WifiNetworkSelector#selectNetwork(List, HashSet, WifiInfo, boolean, boolean, boolean)}
+     * after filtering out the scan results obtained via DBS scan.
+     */
+    @Test
+    public void filterScanResultsWithOneRadioChainInfoForNetworkSelection() {
+        when(mWifiNS.selectNetwork(any(), any(), any(), anyBoolean(), anyBoolean(), anyBoolean()))
+                .thenReturn(null);
+
+        // Create 4 scan results.
+        ScanData[] scanDatas =
+                ScanTestUtil.createScanDatas(new int[][]{{5150, 5175, 2412, 2400}}, new int[]{0});
+        mScanData = scanDatas[0];
+        // WCM barfs if the scan result does not have an IE.
+        mScanData.getResults()[0].informationElements = new InformationElement[0];
+        mScanData.getResults()[1].informationElements = new InformationElement[0];
+        mScanData.getResults()[2].informationElements = new InformationElement[0];
+        mScanData.getResults()[3].informationElements = new InformationElement[0];
+        // First scan result has null radio chain info (No DBS support).
+        mScanData.getResults()[0].radioChainInfos = null;
+        // Second scan result has empty radio chain info (No DBS support).
+        mScanData.getResults()[1].radioChainInfos = new ScanResult.RadioChainInfo[0];
+        // Third scan result has 1 radio chain info (DBS scan).
+        mScanData.getResults()[2].radioChainInfos = new ScanResult.RadioChainInfo[1];
+        // Fourth scan result has 2 radio chain info (non-DBS scan).
+        mScanData.getResults()[3].radioChainInfos = new ScanResult.RadioChainInfo[2];
+
+        // Capture scan details which were sent to network selector.
+        final List<ScanDetail> capturedScanDetails = new ArrayList<>();
+        doAnswer(new AnswerWithArguments() {
+            public WifiConfiguration answer(
+                    List<ScanDetail> scanDetails, HashSet<String> bssidBlacklist, WifiInfo wifiInfo,
+                    boolean connected, boolean disconnected, boolean untrustedNetworkAllowed)
+                    throws Exception {
+                capturedScanDetails.addAll(scanDetails);
+                return null;
+            }}).when(mWifiNS).selectNetwork(
+                    any(), any(), any(), anyBoolean(), anyBoolean(), anyBoolean());
+
+        // Set WiFi to disconnected state with screen on which triggers a scan immediately.
+        mWifiConnectivityManager.handleScreenStateChanged(true);
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+
+        // We should have filtered out the 3rd scan result.
+        assertEquals(3, capturedScanDetails.size());
+        List<ScanResult> capturedScanResults =
+                capturedScanDetails.stream().map(ScanDetail::getScanResult)
+                        .collect(Collectors.toList());
+
+        assertEquals(3, capturedScanResults.size());
+        assertTrue(capturedScanResults.contains(mScanData.getResults()[0]));
+        assertTrue(capturedScanResults.contains(mScanData.getResults()[1]));
+        assertFalse(capturedScanResults.contains(mScanData.getResults()[2]));
+        assertTrue(capturedScanResults.contains(mScanData.getResults()[3]));
+    }
+
 }

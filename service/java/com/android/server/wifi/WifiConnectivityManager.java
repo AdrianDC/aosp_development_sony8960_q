@@ -37,6 +37,7 @@ import android.util.Log;
 
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.util.ArrayUtils;
 import com.android.server.wifi.hotspot2.PasspointNetworkEvaluator;
 import com.android.server.wifi.util.ScanResultUtil;
 
@@ -286,9 +287,11 @@ public class WifiConnectivityManager {
     //       other modules.
     private class AllSingleScanListener implements WifiScanner.ScanListener {
         private List<ScanDetail> mScanDetails = new ArrayList<ScanDetail>();
+        private int mNumScanResultsIgnoredDueToSingleRadioChain = 0;
 
         public void clearScanDetails() {
             mScanDetails.clear();
+            mNumScanResultsIgnoredDueToSingleRadioChain = 0;
         }
 
         @Override
@@ -327,6 +330,10 @@ public class WifiConnectivityManager {
                 mWifiMetrics.incrementAvailableNetworksHistograms(mScanDetails,
                         results[0].isAllChannelsScanned());
             }
+            if (mNumScanResultsIgnoredDueToSingleRadioChain > 0) {
+                Log.i(TAG, "Number of scan results ignored due to single radio chain scan: "
+                        + mNumScanResultsIgnoredDueToSingleRadioChain);
+            }
             boolean wasConnectAttempted = handleScanResults(mScanDetails, "AllSingleScanListener");
             clearScanDetails();
 
@@ -352,6 +359,14 @@ public class WifiConnectivityManager {
             if (mDbg) {
                 localLog("AllSingleScanListener onFullResult: " + fullScanResult.SSID
                         + " capabilities " + fullScanResult.capabilities);
+            }
+
+            // When the scan result has radio chain info, ensure we throw away scan results
+            // not received with both radio chains.
+            if (ArrayUtils.size(fullScanResult.radioChainInfos) == 1) {
+                // Keep track of the number of dropped scan results for logging.
+                mNumScanResultsIgnoredDueToSingleRadioChain++;
+                return;
             }
 
             mScanDetails.add(ScanResultUtil.toScanDetail(fullScanResult));
@@ -879,6 +894,7 @@ public class WifiConnectivityManager {
                 isFullBandScan = true;
             }
         }
+        settings.type = WifiScanner.TYPE_HIGH_ACCURACY; // always do high accuracy scans.
         settings.band = getScanBand(isFullBandScan);
         settings.reportEvents = WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT
                             | WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN;
