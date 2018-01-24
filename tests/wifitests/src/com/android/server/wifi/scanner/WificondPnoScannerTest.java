@@ -135,7 +135,7 @@ public class WificondPnoScannerTest {
 
     private void createScannerWithHwPnoScanSupport() {
         mResources.setBoolean(R.bool.config_wifi_background_scan_support, true);
-        mScanner = new WificondScannerImpl(mContext, mWifiNative, mWifiMonitor,
+        mScanner = new WificondScannerImpl(mContext, IFACE_NAME, mWifiNative, mWifiMonitor,
                 new WificondChannelHelper(mWifiNative), mLooper.getLooper(), mClock);
     }
 
