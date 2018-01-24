@@ -1791,6 +1791,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     }
 
     /**
+     * Initiates a system-level bugreport, in a non-blocking fashion.
+     */
+    public void takeBugReport() {
+        mWifiDiagnostics.takeBugReport();
+    }
+
+    /**
      * Allow tests to confirm the operational mode for WSM.
      */
     @VisibleForTesting

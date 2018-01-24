@@ -26,17 +26,21 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.contains;
 import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyObject;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.app.ActivityManager;
 import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.content.Context;
 import android.test.suitebuilder.annotation.SmallTest;
 
 import com.android.internal.R;
+import com.android.server.am.ActivityManagerService;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -64,6 +68,7 @@ public class WifiDiagnosticsTest {
     @Mock LastMileLogger mLastMileLogger;
     @Mock Runtime mJavaRuntime;
     @Mock Process mExternalProcess;
+    @Mock ActivityManagerService mActivityManagerService;
     WifiDiagnostics mWifiDiagnostics;
 
     private static final String FAKE_RING_BUFFER_NAME = "fake-ring-buffer";
@@ -112,6 +117,7 @@ public class WifiDiagnosticsTest {
         when(mContext.getResources()).thenReturn(resources);
         when(mWifiInjector.makeLog(anyString())).thenReturn(mLog);
         when(mWifiInjector.getJavaRuntime()).thenReturn(mJavaRuntime);
+        when(mWifiInjector.getActivityManagerService()).thenReturn(mActivityManagerService);
 
         mWifiDiagnostics = new WifiDiagnostics(
                 mContext, mWifiInjector, mWsm, mWifiNative, mBuildProperties, mLastMileLogger);
@@ -828,6 +834,30 @@ public class WifiDiagnosticsTest {
         mWifiDiagnostics.dump(
                 new FileDescriptor(), new PrintWriter(new StringWriter()), new String[]{});
         verify(mLastMileLogger).dump(anyObject());
+    }
+
+    @Test
+    public void takeBugReportCallsActivityManagerOnUserDebug() {
+        when(mBuildProperties.isUserBuild()).thenReturn(false);
+        mWifiDiagnostics.takeBugReport();
+        verify(mActivityManagerService, times(1)).requestBugReport(
+                ActivityManager.BUGREPORT_OPTION_WIFI);
+    }
+
+    @Test
+    public void takeBugReportSwallowsExceptions() {
+        when(mBuildProperties.isUserBuild()).thenReturn(false);
+        doThrow(new RuntimeException()).when(mActivityManagerService).requestBugReport(anyInt());
+        mWifiDiagnostics.takeBugReport();
+        verify(mActivityManagerService, times(1)).requestBugReport(
+                ActivityManager.BUGREPORT_OPTION_WIFI);
+    }
+
+    @Test
+    public void takeBugReportDoesNothingOnUserBuild() {
+        when(mBuildProperties.isUserBuild()).thenReturn(true);
+        mWifiDiagnostics.takeBugReport();
+        verify(mActivityManagerService, never()).requestBugReport(anyInt());
     }
 
     private void setBuildPropertiesToEnableRingBuffers() {
