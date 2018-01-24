@@ -57,6 +57,7 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
     private static final int MAX_SCAN_BUCKETS = 16;
 
     private final Context mContext;
+    private final String mIfaceName;
     private final WifiNative mWifiNative;
     private final AlarmManager mAlarmManager;
     private final Handler mEventHandler;
@@ -93,10 +94,11 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
             }
         };
 
-    public WificondScannerImpl(Context context, WifiNative wifiNative,
+    public WificondScannerImpl(Context context, String ifaceName, WifiNative wifiNative,
                                WifiMonitor wifiMonitor, ChannelHelper channelHelper,
                                Looper looper, Clock clock) {
         mContext = context;
+        mIfaceName = ifaceName;
         mWifiNative = wifiNative;
         mChannelHelper = channelHelper;
         mAlarmManager = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
@@ -107,11 +109,11 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
         mHwPnoScanSupported = mContext.getResources().getBoolean(
                 R.bool.config_wifi_background_scan_support);
 
-        wifiMonitor.registerHandler(mWifiNative.getClientInterfaceName(),
+        wifiMonitor.registerHandler(mIfaceName,
                 WifiMonitor.SCAN_FAILED_EVENT, mEventHandler);
-        wifiMonitor.registerHandler(mWifiNative.getClientInterfaceName(),
+        wifiMonitor.registerHandler(mIfaceName,
                 WifiMonitor.PNO_SCAN_RESULTS_EVENT, mEventHandler);
-        wifiMonitor.registerHandler(mWifiNative.getClientInterfaceName(),
+        wifiMonitor.registerHandler(mIfaceName,
                 WifiMonitor.SCAN_RESULTS_EVENT, mEventHandler);
     }
 

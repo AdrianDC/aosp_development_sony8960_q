@@ -39,17 +39,19 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
     private static final String TAG = "HalWifiScannerImpl";
     private static final boolean DBG = false;
 
+    private final String mIfaceName;
     private final WifiNative mWifiNative;
     private final ChannelHelper mChannelHelper;
     private final WificondScannerImpl mWificondScannerDelegate;
 
-    public HalWifiScannerImpl(Context context, WifiNative wifiNative, WifiMonitor wifiMonitor,
-                              Looper looper, Clock clock) {
+    public HalWifiScannerImpl(Context context, String ifaceName, WifiNative wifiNative,
+                              WifiMonitor wifiMonitor, Looper looper, Clock clock) {
+        mIfaceName = ifaceName;
         mWifiNative = wifiNative;
         mChannelHelper = new WificondChannelHelper(wifiNative);
         mWificondScannerDelegate =
-                new WificondScannerImpl(context, wifiNative, wifiMonitor, mChannelHelper,
-                        looper, clock);
+                new WificondScannerImpl(context, mIfaceName, wifiNative, wifiMonitor,
+                        mChannelHelper, looper, clock);
     }
 
     @Override

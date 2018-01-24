@@ -58,7 +58,7 @@ import java.util.Set;
  * {@link com.android.server.wifi.scanner.WifiScannerImpl}.
  */
 public abstract class BaseWifiScannerImplTest {
-    private static final String IFACE_NAME = "a_test_interface_name";
+    protected static final String IFACE_NAME = "a_test_interface_name";
     @Mock Context mContext;
     TestAlarmManager mAlarmManager;
     MockWifiMonitor mWifiMonitor;
