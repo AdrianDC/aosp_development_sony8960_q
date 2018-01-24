@@ -1454,6 +1454,68 @@ public class WifiConfigManagerTest {
     }
 
     /**
+     * Verifies that randomized MAC address is masked out to "0:0:0:0:0:0" when we return
+     * external configs except when explicitly asked for MAC address.
+     */
+    @Test
+    public void testGetConfiguredNetworksMasksRandomizedMac() {
+        WifiConfiguration config = WifiConfigurationTestUtil.createOpenNetwork();
+        NetworkUpdateResult result = verifyAddNetworkToWifiConfigManager(config);
+
+        MacAddress testMac = MacAddress.createRandomUnicastAddress();
+        mWifiConfigManager.setNetworkRandomizedMacAddress(result.getNetworkId(), testMac);
+
+        // Verify that randomized MAC address is masked in retrieved network configs.
+        WifiConfiguration configWithMaskedRandomizedMac = mWifiConfigManager
+                .getConfiguredNetwork(result.getNetworkId());
+        assertRandomizedMacAddressMaskedInWifiConfiguration(configWithMaskedRandomizedMac);
+
+        configWithMaskedRandomizedMac = mWifiConfigManager
+                .getConfiguredNetworkWithPassword(result.getNetworkId());
+        assertRandomizedMacAddressMaskedInWifiConfiguration(configWithMaskedRandomizedMac);
+
+        // Ensure that the MAC address is present when asked for config with MAC address.
+        WifiConfiguration configWithRandomizedMac = mWifiConfigManager
+                .getConfiguredNetworkWithoutMasking(result.getNetworkId());
+        assertEquals(testMac, configWithRandomizedMac.getRandomizedMacAddress());
+    }
+
+    /**
+     * Verifies that passwords are masked out when we return external configs except when
+     * explicitly asked for them.
+     */
+    @Test
+    public void testGetConfiguredNetworksMasksPasswords() {
+        WifiConfiguration networkWithPasswords = WifiConfigurationTestUtil.createEapNetwork();
+        networkWithPasswords.wepKeys = WifiConfigurationTestUtil.TEST_WEP_KEYS;
+        networkWithPasswords.preSharedKey = WifiConfigurationTestUtil.TEST_PSK;
+        networkWithPasswords.enterpriseConfig.setPassword(
+                WifiConfigurationTestUtil.TEST_EAP_PASSWORD);
+
+        NetworkUpdateResult result = verifyAddNetworkToWifiConfigManager(networkWithPasswords);
+
+        // All of these passwords must be masked in this retrieved network config.
+        WifiConfiguration retrievedNetworkWithMaskedPassword =
+                mWifiConfigManager.getConfiguredNetwork(result.getNetworkId());
+        assertPasswordsMaskedInWifiConfiguration(retrievedNetworkWithMaskedPassword);
+
+        // Ensure that the passwords are present when asked for configs with passwords.
+        WifiConfiguration retrievedNetworkWithPassword =
+                mWifiConfigManager.getConfiguredNetworkWithPassword(result.getNetworkId());
+        assertEquals(networkWithPasswords.preSharedKey, retrievedNetworkWithPassword.preSharedKey);
+        assertEquals(networkWithPasswords.wepKeys, retrievedNetworkWithPassword.wepKeys);
+        assertEquals(networkWithPasswords.enterpriseConfig.getPassword(),
+                retrievedNetworkWithPassword.enterpriseConfig.getPassword());
+
+        retrievedNetworkWithPassword =
+                mWifiConfigManager.getConfiguredNetworkWithoutMasking(result.getNetworkId());
+        assertEquals(networkWithPasswords.preSharedKey, retrievedNetworkWithPassword.preSharedKey);
+        assertEquals(networkWithPasswords.wepKeys, retrievedNetworkWithPassword.wepKeys);
+        assertEquals(networkWithPasswords.enterpriseConfig.getPassword(),
+                retrievedNetworkWithPassword.enterpriseConfig.getPassword());
+    }
+
+    /**
      * Verifies the ordering of network list generated using
      * {@link WifiConfigManager#retrievePnoNetworkList()}.
      */
@@ -3457,15 +3519,16 @@ public class WifiConfigManagerTest {
         // Verify that internal randomized MAC address does not change from
         // from setting external randomized MAC address
         MacAddress originalMac = originalConfig.getOrCreateRandomizedMacAddress();
-        WifiConfiguration retrievedConfig =
-                mWifiConfigManager.getConfiguredNetwork(result.getNetworkId());
+        WifiConfiguration retrievedConfig = mWifiConfigManager
+                .getConfiguredNetworkWithoutMasking(result.getNetworkId());
         assertNotEquals(originalMac, retrievedConfig.getRandomizedMacAddress());
 
         // Verify that changing randomized MAC address through setNetworkRandomizedMacAddress
         // changes the internal randomized MAC address
         MacAddress newMac = MacAddress.createRandomUnicastAddress();
         mWifiConfigManager.setNetworkRandomizedMacAddress(result.getNetworkId(), newMac);
-        retrievedConfig = mWifiConfigManager.getConfiguredNetwork(result.getNetworkId());
+        retrievedConfig = mWifiConfigManager
+                .getConfiguredNetworkWithoutMasking(result.getNetworkId());
         assertEquals(newMac, retrievedConfig.getRandomizedMacAddress());
     }
 
@@ -3729,6 +3792,14 @@ public class WifiConfigManagerTest {
             assertEquals(
                     WifiConfigManager.PASSWORD_MASK,
                     configuration.enterpriseConfig.getPassword());
+        }
+    }
+
+    private void assertRandomizedMacAddressMaskedInWifiConfiguration(
+            WifiConfiguration configuration) {
+        MacAddress randomizedMacAddress = configuration.getRandomizedMacAddress();
+        if (randomizedMacAddress != null) {
+            assertEquals(MacAddress.ALL_ZEROS_ADDRESS, randomizedMacAddress);
         }
     }
 
