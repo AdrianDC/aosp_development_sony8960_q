@@ -522,6 +522,11 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             public boolean processMessage(Message msg) {
                 switch (msg.what) {
                     case CMD_DRIVER_LOADED:
+                        if (mScannerImpl == null) {
+                            loge("Failed to start single scan state machine because scanner impl"
+                                    + " is null");
+                            return HANDLED;
+                        }
                         transitionTo(mIdleState);
                         return HANDLED;
                     case CMD_DRIVER_UNLOADED:
@@ -1072,10 +1077,13 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         // TODO this should be moved to a common location since it is used outside
                         // of this state machine. It is ok right now because the driver loaded event
                         // is sent to this state machine first.
+                        mScannerImpl = mScannerImplFactory.create(mContext, mLooper, mClock);
                         if (mScannerImpl == null) {
-                            mScannerImpl = mScannerImplFactory.create(mContext, mLooper, mClock);
-                            mChannelHelper = mScannerImpl.getChannelHelper();
+                            loge("Failed to start bgscan scan state machine because scanner impl"
+                                    + " is null");
+                            return HANDLED;
                         }
+                        mChannelHelper = mScannerImpl.getChannelHelper();
 
                         mBackgroundScheduler = new BackgroundScanScheduler(mChannelHelper);
 
@@ -1137,7 +1145,9 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             public void exit() {
                 sendBackgroundScanFailedToAllAndClear(
                         WifiScanner.REASON_UNSPECIFIED, "Scan was interrupted");
-                mScannerImpl.cleanup();
+                if (mScannerImpl != null) {
+                    mScannerImpl.cleanup();
+                }
             }
 
             @Override
@@ -1482,6 +1492,11 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             public boolean processMessage(Message msg) {
                 switch (msg.what) {
                     case CMD_DRIVER_LOADED:
+                        if (mScannerImpl == null) {
+                            loge("Failed to start pno scan state machine because scanner impl"
+                                    + " is null");
+                            return HANDLED;
+                        }
                         transitionTo(mStartedState);
                         break;
                     case CMD_DRIVER_UNLOADED:
