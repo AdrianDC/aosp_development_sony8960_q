@@ -42,6 +42,7 @@ import com.android.server.wifi.wificond.HiddenNetwork;
 import com.android.server.wifi.wificond.NativeScanResult;
 import com.android.server.wifi.wificond.PnoNetwork;
 import com.android.server.wifi.wificond.PnoSettings;
+import com.android.server.wifi.wificond.RadioChainInfo;
 import com.android.server.wifi.wificond.SingleScanSettings;
 
 import java.util.ArrayList;
@@ -541,15 +542,28 @@ public class WificondControl implements IBinder.DeathRecipient {
 
                 ScanDetail scanDetail = new ScanDetail(networkDetail, wifiSsid, bssid, flags,
                         result.signalMbm / 100, result.frequency, result.tsf, ies, null);
+                ScanResult scanResult = scanDetail.getScanResult();
                 // Update carrier network info if this AP's SSID is associated with a carrier Wi-Fi
                 // network and it uses EAP.
                 if (ScanResultUtil.isScanResultForEapNetwork(scanDetail.getScanResult())
                         && mCarrierNetworkConfig.isCarrierNetwork(wifiSsid.toString())) {
-                    scanDetail.getScanResult().isCarrierAp = true;
-                    scanDetail.getScanResult().carrierApEapType =
+                    scanResult.isCarrierAp = true;
+                    scanResult.carrierApEapType =
                             mCarrierNetworkConfig.getNetworkEapType(wifiSsid.toString());
-                    scanDetail.getScanResult().carrierName =
+                    scanResult.carrierName =
                             mCarrierNetworkConfig.getCarrierName(wifiSsid.toString());
+                }
+                // Fill up the radio chain info.
+                if (result.radioChainInfos != null) {
+                    scanResult.radioChainInfos =
+                        new ScanResult.RadioChainInfo[result.radioChainInfos.size()];
+                    int idx = 0;
+                    for (RadioChainInfo nativeRadioChainInfo : result.radioChainInfos) {
+                        scanResult.radioChainInfos[idx] = new ScanResult.RadioChainInfo();
+                        scanResult.radioChainInfos[idx].id = nativeRadioChainInfo.chainId;
+                        scanResult.radioChainInfos[idx].level = nativeRadioChainInfo.level;
+                        idx++;
+                    }
                 }
                 results.add(scanDetail);
             }
@@ -564,13 +578,31 @@ public class WificondControl implements IBinder.DeathRecipient {
     }
 
     /**
+     * Return scan type for the parcelable {@link SingleScanSettings}
+     */
+    private static int getScanType(int scanType) {
+        switch (scanType) {
+            case WifiNative.SCAN_TYPE_LOW_LATENCY:
+                return IWifiScannerImpl.SCAN_TYPE_LOW_SPAN;
+            case WifiNative.SCAN_TYPE_LOW_POWER:
+                return IWifiScannerImpl.SCAN_TYPE_LOW_POWER;
+            case WifiNative.SCAN_TYPE_HIGH_ACCURACY:
+                return IWifiScannerImpl.SCAN_TYPE_HIGH_ACCURACY;
+            default:
+                throw new IllegalArgumentException("Invalid scan type " + scanType);
+        }
+    }
+
+    /**
      * Start a scan using wificond for the given parameters.
      * @param ifaceName Name of the interface.
+     * @param scanType Type of scan to perform.
      * @param freqs list of frequencies to scan for, if null scan all supported channels.
      * @param hiddenNetworkSSIDs List of hidden networks to be scanned for.
      * @return Returns true on success.
      */
     public boolean scan(@NonNull String ifaceName,
+                        int scanType,
                         Set<Integer> freqs,
                         Set<String> hiddenNetworkSSIDs) {
         IWifiScannerImpl scannerImpl = getScannerImpl(ifaceName);
@@ -579,6 +611,12 @@ public class WificondControl implements IBinder.DeathRecipient {
             return false;
         }
         SingleScanSettings settings = new SingleScanSettings();
+        try {
+            settings.scanType = getScanType(scanType);
+        } catch (IllegalArgumentException e) {
+            Log.e(TAG, "Invalid scan type ", e);
+            return false;
+        }
         settings.channelSettings  = new ArrayList<>();
         settings.hiddenNetworks  = new ArrayList<>();
 

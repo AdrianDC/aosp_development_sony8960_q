@@ -512,9 +512,11 @@ public class WifiNativeTest {
      */
     @Test
     public void testScan() throws Exception {
-        mWifiNative.scan(WIFI_IFACE_NAME, SCAN_FREQ_SET, SCAN_HIDDEN_NETWORK_SSID_SET);
+        mWifiNative.scan(WIFI_IFACE_NAME, WifiNative.SCAN_TYPE_HIGH_ACCURACY, SCAN_FREQ_SET,
+                SCAN_HIDDEN_NETWORK_SSID_SET);
         verify(mWificondControl).scan(
-                WIFI_IFACE_NAME, SCAN_FREQ_SET, SCAN_HIDDEN_NETWORK_SSID_SET);
+                WIFI_IFACE_NAME, WifiNative.SCAN_TYPE_HIGH_ACCURACY,
+                SCAN_FREQ_SET, SCAN_HIDDEN_NETWORK_SSID_SET);
     }
 
     /**

@@ -1026,13 +1026,16 @@ public class WifiNative {
     /**
      * Start a scan using wificond for the given parameters.
      * @param ifaceName Name of the interface.
+     * @param scanType Type of scan to perform. One of {@link ScanSettings#SCAN_TYPE_LOW_LATENCY},
+     * {@link ScanSettings#SCAN_TYPE_LOW_POWER} or {@link ScanSettings#SCAN_TYPE_HIGH_ACCURACY}.
      * @param freqs list of frequencies to scan for, if null scan all supported channels.
      * @param hiddenNetworkSSIDs List of hidden networks to be scanned for.
      * @return Returns true on success.
      */
     public boolean scan(
-            @NonNull String ifaceName, Set<Integer> freqs, Set<String> hiddenNetworkSSIDs) {
-        return mWificondControl.scan(ifaceName, freqs, hiddenNetworkSSIDs);
+            @NonNull String ifaceName, int scanType, Set<Integer> freqs,
+            Set<String> hiddenNetworkSSIDs) {
+        return mWificondControl.scan(ifaceName, scanType, freqs, hiddenNetworkSSIDs);
     }
 
     /**
@@ -1838,7 +1841,16 @@ public class WifiNative {
         }
     }
 
+    public static final int SCAN_TYPE_LOW_LATENCY = 0;
+    public static final int SCAN_TYPE_LOW_POWER = 1;
+    public static final int SCAN_TYPE_HIGH_ACCURACY = 2;
+
     public static class ScanSettings {
+        /**
+         * Type of scan to perform. One of {@link ScanSettings#SCAN_TYPE_LOW_LATENCY},
+         * {@link ScanSettings#SCAN_TYPE_LOW_POWER} or {@link ScanSettings#SCAN_TYPE_HIGH_ACCURACY}.
+         */
+        public int scanType;
         public int base_period_ms;
         public int max_ap_per_scan;
         public int report_threshold_percent;
