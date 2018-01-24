@@ -207,6 +207,7 @@ public class WifiApConfigStore {
      */
     private WifiConfiguration getDefaultApConfiguration() {
         WifiConfiguration config = new WifiConfiguration();
+        config.apBand = WifiConfiguration.AP_BAND_ANY;
         config.SSID = mContext.getResources().getString(
                 R.string.wifi_tether_configure_ssid_default) + "_" + getRandomIntForDefaultSsid();
         config.allowedKeyManagement.set(KeyMgmt.WPA2_PSK);
@@ -227,6 +228,8 @@ public class WifiApConfigStore {
      */
     public static WifiConfiguration generateLocalOnlyHotspotConfig(Context context) {
         WifiConfiguration config = new WifiConfiguration();
+        // For local only hotspot we only use 2.4Ghz band.
+        config.apBand = WifiConfiguration.AP_BAND_2GHZ;
         config.SSID = context.getResources().getString(
               R.string.wifi_localhotspot_configure_ssid_default) + "_"
                       + getRandomIntForDefaultSsid();

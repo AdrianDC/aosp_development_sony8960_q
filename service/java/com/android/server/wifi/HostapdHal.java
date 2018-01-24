@@ -240,6 +240,14 @@ public class HostapdHal {
                 ifaceParams.channelParams.enableAcs = true;
                 ifaceParams.channelParams.acsShouldExcludeDfs = true;
             } else {
+                // Downgrade IHostapd.Band.BAND_ANY to IHostapd.Band.BAND_2_4_GHZ if ACS
+                // is not supported.
+                // We should remove this workaround once channel selection is moved from
+                // ApConfigUtil to here.
+                if (ifaceParams.channelParams.band == IHostapd.Band.BAND_ANY) {
+                    Log.d(TAG, "ACS is not supported on this device, using 2.4 GHz band.");
+                    ifaceParams.channelParams.band = IHostapd.Band.BAND_2_4_GHZ;
+                }
                 ifaceParams.channelParams.enableAcs = false;
                 ifaceParams.channelParams.channel = config.apChannel;
             }
@@ -291,7 +299,6 @@ public class HostapdHal {
     public boolean registerDeathHandler(@NonNull HostapdDeathEventHandler handler) {
         if (mDeathEventHandler != null) {
             Log.e(TAG, "Death handler already present");
-            return false;
         }
         mDeathEventHandler = handler;
         return true;
@@ -304,7 +311,6 @@ public class HostapdHal {
     public boolean deregisterDeathHandler() {
         if (mDeathEventHandler == null) {
             Log.e(TAG, "No Death handler present");
-            return false;
         }
         mDeathEventHandler = null;
         return true;

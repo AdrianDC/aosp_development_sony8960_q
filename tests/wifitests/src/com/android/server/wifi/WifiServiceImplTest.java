@@ -62,7 +62,7 @@ import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.net.IpConfiguration;
 import android.net.wifi.ISoftApCallback;
-import android.net.wifi.ScanSettings;
+import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiManager;
@@ -82,7 +82,6 @@ import android.os.PowerManager;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.UserManager;
-import android.os.WorkSource;
 import android.os.test.TestLooper;
 import android.provider.Settings;
 import android.test.suitebuilder.annotation.SmallTest;
@@ -105,6 +104,8 @@ import org.mockito.Spy;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -132,6 +133,7 @@ public class WifiServiceImplTest {
     private TestLooper mLooper;
     private PowerManager mPowerManager;
     private Handler mHandler;
+    private Handler mHandlerSpyForWsmRunWithScissors;
     private Messenger mAppMessenger;
     private int mPid;
     private int mPid2 = Process.myPid();
@@ -179,6 +181,9 @@ public class WifiServiceImplTest {
     @Mock ISoftApCallback mClientSoftApCallback;
     @Mock ISoftApCallback mAnotherSoftApCallback;
     @Mock PowerProfile mPowerProfile;
+    @Mock WifiTrafficPoller mWifiTrafficPolller;
+    @Mock ScanRequestProxy mScanRequestProxy;
+
     @Spy FakeWifiLog mLog;
 
     private class WifiAsyncChannelTester {
@@ -289,12 +294,11 @@ public class WifiServiceImplTest {
         when(mWifiInjector.getWifiLastResortWatchdog()).thenReturn(mWifiLastResortWatchdog);
         when(mWifiInjector.getWifiBackupRestore()).thenReturn(mWifiBackupRestore);
         when(mWifiInjector.makeLog(anyString())).thenReturn(mLog);
-        WifiTrafficPoller wifiTrafficPoller = new WifiTrafficPoller(mContext,
-                mLooper.getLooper(), "mockWlan");
-        when(mWifiInjector.getWifiTrafficPoller()).thenReturn(wifiTrafficPoller);
+        when(mWifiInjector.getWifiTrafficPoller()).thenReturn(mWifiTrafficPoller);
         when(mWifiInjector.getWifiPermissionsUtil()).thenReturn(mWifiPermissionsUtil);
         when(mWifiInjector.getWifiSettingsStore()).thenReturn(mSettingsStore);
         when(mWifiInjector.getClock()).thenReturn(mClock);
+        when(mWifiInjector.getScanRequestProxy()).thenReturn(mScanRequestProxy);
         when(mWifiStateMachine.syncStartSubscriptionProvisioning(anyInt(),
                 any(OsuProvider.class), any(IProvisioningCallback.class), any())).thenReturn(true);
         when(mPackageManager.hasSystemFeature(
@@ -598,8 +602,7 @@ public class WifiServiceImplTest {
     @Test
     public void testGetWifiApEnabled() {
         // set up WifiServiceImpl with a live thread for testing
-        HandlerThread serviceHandlerThread = new HandlerThread("ServiceHandlerThreadForTest");
-        serviceHandlerThread.start();
+        HandlerThread serviceHandlerThread = createAndStartHandlerThreadForRunWithScissors();
         when(mWifiInjector.getWifiServiceHandlerThread()).thenReturn(serviceHandlerThread);
         mWifiServiceImpl = new WifiServiceImpl(mContext, mWifiInjector, mAsyncChannel);
         mWifiServiceImpl.setWifiHandlerLogForTest(mLog);
@@ -751,41 +754,16 @@ public class WifiServiceImplTest {
     }
 
     /**
-     * Ensure that the right WorkSource is always passed through to the WifiStateMachine.
-     */
-    @Test
-    public void testWifiScanStartedWorkSource() {
-        // Make sure SCAN_PACKAGE_NAME can initiate a scan.
-        when(mActivityManager.getPackageImportance(SCAN_PACKAGE_NAME)).thenReturn(
-                ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE);
-
-        // Passing in no WorkSource should use the caller's UID.
-        WorkSource thisCaller = new WorkSource(Process.myUid());
-        mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
-        verify(mWifiStateMachine).startScan(anyInt(), anyInt(), eq(null), eq(thisCaller));
-
-        // Names should be cleared from the WorkSource.
-        WorkSource withNames = new WorkSource();
-        withNames.add(100, "foo");
-        withNames.add(100, "bar");
-        withNames.createWorkChain().addNode(200, "chain");
-
-        WorkSource expected = new WorkSource(100);
-        expected.createWorkChain().addNode(200, "chain");
-        mWifiServiceImpl.startScan(null, withNames, SCAN_PACKAGE_NAME);
-        verify(mWifiStateMachine).startScan(anyInt(), anyInt(), eq(null), eq(expected));
-    }
-
-    /**
      * Ensure foreground apps can always do wifi scans.
      */
     @Test
     public void testWifiScanStartedForeground() {
+        setupWifiStateMachineHandlerForRunWithScissors();
+
         when(mActivityManager.getPackageImportance(SCAN_PACKAGE_NAME)).thenReturn(
                 ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE);
         mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
-        verify(mWifiStateMachine).startScan(
-                anyInt(), anyInt(), (ScanSettings) eq(null), any(WorkSource.class));
+        verify(mScanRequestProxy).startScan(Process.myUid());
     }
 
     /**
@@ -793,19 +771,19 @@ public class WifiServiceImplTest {
      */
     @Test
     public void testWifiScanBackgroundThrottled() {
+        setupWifiStateMachineHandlerForRunWithScissors();
+
         when(mActivityManager.getPackageImportance(SCAN_PACKAGE_NAME)).thenReturn(
                 ActivityManager.RunningAppProcessInfo.IMPORTANCE_CACHED);
         long startMs = 1000;
         when(mClock.getElapsedSinceBootMillis()).thenReturn(startMs);
         mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
-        verify(mWifiStateMachine).startScan(
-                anyInt(), anyInt(), (ScanSettings) eq(null), any(WorkSource.class));
+        verify(mScanRequestProxy).startScan(Process.myUid());
 
         when(mClock.getElapsedSinceBootMillis()).thenReturn(
                 startMs + WIFI_BACKGROUND_SCAN_INTERVAL - 1000);
         mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
-        verify(mWifiStateMachine, times(1)).startScan(
-                anyInt(), anyInt(), (ScanSettings) eq(null), any(WorkSource.class));
+        verify(mScanRequestProxy, times(1)).startScan(Process.myUid());
     }
 
     /**
@@ -813,19 +791,19 @@ public class WifiServiceImplTest {
      */
     @Test
     public void testWifiScanBackgroundNotThrottled() {
+        setupWifiStateMachineHandlerForRunWithScissors();
+
         when(mActivityManager.getPackageImportance(SCAN_PACKAGE_NAME)).thenReturn(
                 ActivityManager.RunningAppProcessInfo.IMPORTANCE_CACHED);
         long startMs = 1000;
         when(mClock.getElapsedSinceBootMillis()).thenReturn(startMs);
         mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
-        verify(mWifiStateMachine).startScan(
-                anyInt(), eq(0), (ScanSettings) eq(null), any(WorkSource.class));
+        verify(mScanRequestProxy).startScan(Process.myUid());
 
         when(mClock.getElapsedSinceBootMillis()).thenReturn(
                 startMs + WIFI_BACKGROUND_SCAN_INTERVAL + 1000);
         mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
-        verify(mWifiStateMachine).startScan(
-                anyInt(), eq(1), (ScanSettings) eq(null), any(WorkSource.class));
+        verify(mScanRequestProxy, times(2)).startScan(Process.myUid());
     }
 
     /**
@@ -833,19 +811,83 @@ public class WifiServiceImplTest {
      */
     @Test
     public void testWifiScanBackgroundWhiteListed() {
+        setupWifiStateMachineHandlerForRunWithScissors();
+
         when(mActivityManager.getPackageImportance(WHITE_LIST_SCAN_PACKAGE_NAME)).thenReturn(
                 ActivityManager.RunningAppProcessInfo.IMPORTANCE_CACHED);
         long startMs = 1000;
         when(mClock.getElapsedSinceBootMillis()).thenReturn(startMs);
         mWifiServiceImpl.startScan(null, null, WHITE_LIST_SCAN_PACKAGE_NAME);
-        verify(mWifiStateMachine).startScan(
-                anyInt(), anyInt(), (ScanSettings) eq(null), any(WorkSource.class));
+        verify(mScanRequestProxy).startScan(Process.myUid());
 
         when(mClock.getElapsedSinceBootMillis()).thenReturn(
                 startMs + WIFI_BACKGROUND_SCAN_INTERVAL - 1000);
         mWifiServiceImpl.startScan(null, null, WHITE_LIST_SCAN_PACKAGE_NAME);
-        verify(mWifiStateMachine, times(2)).startScan(
-                anyInt(), anyInt(), (ScanSettings) eq(null), any(WorkSource.class));
+        verify(mScanRequestProxy, times(2)).startScan(Process.myUid());
+    }
+
+    /**
+     * Ensure that we handle scan request failure when posting the runnable to handler fails.
+     */
+    @Test
+    public void testStartScanFailureInRunWithScissors() {
+        setupWifiStateMachineHandlerForRunWithScissors();
+        doReturn(false).when(mHandlerSpyForWsmRunWithScissors)
+                .runWithScissors(any(), anyLong());
+
+        when(mActivityManager.getPackageImportance(SCAN_PACKAGE_NAME)).thenReturn(
+                ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE);
+        mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
+        verify(mScanRequestProxy, never()).startScan(Process.myUid());
+    }
+
+    /**
+     * Test fetching of scan results.
+     */
+    @Test
+    public void testGetScanResults() {
+        setupWifiStateMachineHandlerForRunWithScissors();
+
+        ScanResult[] scanResults =
+                ScanTestUtil.createScanDatas(new int[][]{{2417, 2427, 5180, 5170}})[0]
+                        .getResults();
+        List<ScanResult> scanResultList =
+                new ArrayList<>(Arrays.asList(scanResults));
+        when(mScanRequestProxy.getScanResults()).thenReturn(scanResultList);
+
+        String packageName = "test.com";
+        when(mWifiPermissionsUtil.canAccessScanResults(eq(packageName), anyInt(), anyInt()))
+                .thenReturn(true);
+        List<ScanResult> retrievedScanResultList = mWifiServiceImpl.getScanResults(packageName);
+        verify(mScanRequestProxy).getScanResults();
+
+        ScanTestUtil.assertScanResultsEquals(scanResults,
+                retrievedScanResultList.toArray(new ScanResult[retrievedScanResultList.size()]));
+    }
+
+    /**
+     * Ensure that we handle scan results failure when posting the runnable to handler fails.
+     */
+    @Test
+    public void testGetScanResultsFailureInRunWithScisccors() {
+        setupWifiStateMachineHandlerForRunWithScissors();
+        doReturn(false).when(mHandlerSpyForWsmRunWithScissors)
+                .runWithScissors(any(), anyLong());
+
+        ScanResult[] scanResults =
+                ScanTestUtil.createScanDatas(new int[][]{{2417, 2427, 5180, 5170}})[0]
+                        .getResults();
+        List<ScanResult> scanResultList =
+                new ArrayList<>(Arrays.asList(scanResults));
+        when(mScanRequestProxy.getScanResults()).thenReturn(scanResultList);
+
+        String packageName = "test.com";
+        when(mWifiPermissionsUtil.canAccessScanResults(eq(packageName), anyInt(), anyInt()))
+                .thenReturn(true);
+        List<ScanResult> retrievedScanResultList = mWifiServiceImpl.getScanResults(packageName);
+        verify(mScanRequestProxy, never()).getScanResults();
+
+        assertTrue(retrievedScanResultList.isEmpty());
     }
 
     private void registerLOHSRequestFull() {
@@ -2198,5 +2240,21 @@ public class WifiServiceImplTest {
                         eq("ConnectivityService"));
         mWifiServiceImpl.setCountryCode(TEST_COUNTRY_CODE);
         verify(mWifiCountryCode, never()).setCountryCode(TEST_COUNTRY_CODE);
+    }
+
+    /**
+     * Set the wifi state machine mock to return a handler created on test thread.
+     */
+    private void setupWifiStateMachineHandlerForRunWithScissors() {
+        HandlerThread handlerThread = createAndStartHandlerThreadForRunWithScissors();
+        mHandlerSpyForWsmRunWithScissors = spy(handlerThread.getThreadHandler());
+        when(mWifiInjector.getWifiStateMachineHandler())
+                .thenReturn(mHandlerSpyForWsmRunWithScissors);
+    }
+
+    private HandlerThread createAndStartHandlerThreadForRunWithScissors() {
+        HandlerThread handlerThread = new HandlerThread("ServiceHandlerThreadForTest");
+        handlerThread.start();
+        return handlerThread;
     }
 }

@@ -40,8 +40,6 @@ import android.net.NetworkFactory;
 import android.net.NetworkRequest;
 import android.net.dhcp.DhcpClient;
 import android.net.ip.IpClient;
-import android.net.wifi.IClientInterface;
-import android.net.wifi.IWificond;
 import android.net.wifi.ScanResult;
 import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
@@ -80,7 +78,6 @@ import android.test.mock.MockContentProvider;
 import android.test.mock.MockContentResolver;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Log;
-import android.util.Pair;
 import android.util.SparseArray;
 
 import com.android.internal.R;
@@ -341,8 +338,6 @@ public class WifiStateMachineTest {
     @Mock WifiLastResortWatchdog mWifiLastResortWatchdog;
     @Mock PropertyService mPropertyService;
     @Mock BuildProperties mBuildProperties;
-    @Mock IWificond mWificond;
-    @Mock IClientInterface mClientInterface;
     @Mock IBinder mPackageManagerBinder;
     @Mock WifiConfigManager mWifiConfigManager;
     @Mock WifiNative mWifiNative;
@@ -363,6 +358,7 @@ public class WifiStateMachineTest {
     @Mock HandlerThread mWifiServiceHandlerThread;
     @Mock WifiPermissionsWrapper mWifiPermissionsWrapper;
     @Mock WakeupController mWakeupController;
+    @Mock ScanRequestProxy mScanRequestProxy;
 
     public WifiStateMachineTest() throws Exception {
     }
@@ -388,15 +384,10 @@ public class WifiStateMachineTest {
         when(mWifiInjector.getKeyStore()).thenReturn(mock(KeyStore.class));
         when(mWifiInjector.getWifiBackupRestore()).thenReturn(mock(WifiBackupRestore.class));
         when(mWifiInjector.makeWifiDiagnostics(anyObject())).thenReturn(mWifiDiagnostics);
-        when(mWifiInjector.makeWificond()).thenReturn(mWificond);
         when(mWifiInjector.getWifiConfigManager()).thenReturn(mWifiConfigManager);
         when(mWifiInjector.getWifiScanner()).thenReturn(mWifiScanner);
         when(mWifiInjector.makeWifiConnectivityManager(any(WifiInfo.class), anyBoolean()))
                 .thenReturn(mWifiConnectivityManager);
-        //when(mWifiInjector.makeSoftApManager(any(INetworkManagementService.class),
-        //                                     mSoftApCallbackCaptor.capture(),
-        //                                     any(SoftApModeConfiguration.class)))
-        //        .thenReturn(mSoftApManager);
         when(mWifiInjector.getPasspointManager()).thenReturn(mPasspointManager);
         when(mWifiInjector.getWifiStateTracker()).thenReturn(mWifiStateTracker);
         when(mWifiInjector.getWifiMonitor()).thenReturn(mWifiMonitor);
@@ -409,18 +400,11 @@ public class WifiStateMachineTest {
         when(mWifiInjector.getWifiServiceHandlerThread()).thenReturn(mWifiServiceHandlerThread);
         when(mWifiInjector.getWifiPermissionsWrapper()).thenReturn(mWifiPermissionsWrapper);
         when(mWifiInjector.getWakeupController()).thenReturn(mWakeupController);
+        when(mWifiInjector.getScanRequestProxy()).thenReturn(mScanRequestProxy);
 
-        when(mWifiNative.setupForClientMode(WIFI_IFACE_NAME))
-                .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mClientInterface));
-        //when(mWifiNative.setupForSoftApMode(WIFI_IFACE_NAME))
-        //        .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mApInterface));
-        //when(mApInterface.getInterfaceName()).thenReturn(WIFI_IFACE_NAME);
-        when(mWifiNative.getInterfaceName()).thenReturn(WIFI_IFACE_NAME);
-        when(mWifiNative.enableSupplicant()).thenReturn(true);
-        when(mWifiNative.disableSupplicant()).thenReturn(true);
-        when(mWifiNative.initializeVendorHal(any(WifiNative.VendorHalDeathEventHandler.class)))
-                .thenReturn(true);
-        when(mWifiNative.registerWificondDeathHandler(any())).thenReturn(true);
+        when(mWifiNative.setupInterfaceForClientMode(any()))
+                .thenReturn(WIFI_IFACE_NAME);
+        when(mWifiNative.initialize()).thenReturn(true);
 
         mFrameworkFacade = getFrameworkFacade();
         mContext = getContext();
@@ -514,6 +498,10 @@ public class WifiStateMachineTest {
                 .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                 .build();
         sendDefaultNetworkRequest(TEST_VALID_NETWORK_SCORE);
+
+        mLooper.startAutoDispatch();
+        mWsm.syncInitialize(mWsmAsyncChannel);
+        mLooper.stopAutoDispatch();
     }
 
     /**
@@ -569,7 +557,7 @@ public class WifiStateMachineTest {
 
         assertEquals("SoftApState", getCurrentState().getName());
 
-        verify(mWifiNative, never()).setupForSoftApMode(WIFI_IFACE_NAME);
+        verify(mWifiNative, never()).setupInterfaceForSoftApMode(any());
         verify(mSoftApManager, never()).start();
     }
 
@@ -580,8 +568,8 @@ public class WifiStateMachineTest {
         WpsInfo wpsInfo = new WpsInfo();
         wpsInfo.setup = WpsInfo.PBC;
         wpsInfo.BSSID = sBSSID;
-        when(mWifiNative.removeAllNetworks()).thenReturn(true);
-        when(mWifiNative.startWpsPbc(anyString())).thenReturn(true);
+        when(mWifiNative.removeAllNetworks(WIFI_IFACE_NAME)).thenReturn(true);
+        when(mWifiNative.startWpsPbc(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
         mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
         mLooper.dispatchAll();
         assertEquals("WpsRunningState", getCurrentState().getName());
@@ -599,49 +587,22 @@ public class WifiStateMachineTest {
 
     @Test
     public void shouldRequireSupplicantStartupToLeaveInitialState() throws Exception {
-        when(mWifiNative.enableSupplicant()).thenReturn(false);
+        when(mWifiNative.setupInterfaceForClientMode(any())).thenReturn(null);
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
         mLooper.dispatchAll();
-        assertEquals("InitialState", getCurrentState().getName());
+        assertEquals("DefaultState", getCurrentState().getName());
         // we should be sending a wifi enabling update
         verify(mContext).sendStickyBroadcastAsUser(
                 (Intent) argThat(new WifiEnablingStateIntentMatcher()), any());
     }
 
     @Test
-    public void shouldRequireWificondToLeaveInitialState() throws Exception {
-        // We start out with valid default values, break them going backwards so that
-        // we test all the bailout cases.
-
-        // wificond dies after inteface creation.
-        when(mWifiNative.registerWificondDeathHandler(any())).thenReturn(false);
-        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
-        mLooper.dispatchAll();
-        assertEquals("InitialState", getCurrentState().getName());
-
-        // Failed to even create the client interface.
-        mWsm.setSupplicantRunning(true);
-        mLooper.dispatchAll();
-        assertEquals("InitialState", getCurrentState().getName());
-
-        // Failed to get wificond proxy.
-        when(mWifiInjector.makeWificond()).thenReturn(null);
-        mWsm.setSupplicantRunning(true);
-        mLooper.dispatchAll();
-        assertEquals("InitialState", getCurrentState().getName());
-    }
-
-    @Test
     public void loadComponentsFailure() throws Exception {
-        when(mWifiNative.enableSupplicant()).thenReturn(false);
+        when(mWifiNative.setupInterfaceForClientMode(any())).thenReturn(null);
 
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
         mLooper.dispatchAll();
-        assertEquals("InitialState", getCurrentState().getName());
-
-        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
-        mLooper.dispatchAll();
-        assertEquals("InitialState", getCurrentState().getName());
+        assertEquals("DefaultState", getCurrentState().getName());
     }
 
     @Test
@@ -889,20 +850,21 @@ public class WifiStateMachineTest {
 
         assertEquals("SupplicantStartingState", getCurrentState().getName());
 
-        when(mWifiNative.setDeviceName(anyString())).thenReturn(true);
-        when(mWifiNative.setManufacturer(anyString())).thenReturn(true);
-        when(mWifiNative.setModelName(anyString())).thenReturn(true);
-        when(mWifiNative.setModelNumber(anyString())).thenReturn(true);
-        when(mWifiNative.setSerialNumber(anyString())).thenReturn(true);
-        when(mWifiNative.setConfigMethods(anyString())).thenReturn(true);
-        when(mWifiNative.setDeviceType(anyString())).thenReturn(true);
-        when(mWifiNative.setSerialNumber(anyString())).thenReturn(true);
-        when(mWifiNative.setScanningMacOui(any(byte[].class))).thenReturn(true);
+        when(mWifiNative.setDeviceName(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
+        when(mWifiNative.setManufacturer(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
+        when(mWifiNative.setModelName(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
+        when(mWifiNative.setModelNumber(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
+        when(mWifiNative.setSerialNumber(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
+        when(mWifiNative.setConfigMethods(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
+        when(mWifiNative.setDeviceType(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
+        when(mWifiNative.setSerialNumber(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
+        when(mWifiNative.setScanningMacOui(eq(WIFI_IFACE_NAME), any(byte[].class)))
+                .thenReturn(true);
 
         mWsm.sendMessage(WifiMonitor.SUP_CONNECTION_EVENT);
         mLooper.dispatchAll();
 
-        verify(mWifiNative, atLeastOnce()).setupForClientMode(WIFI_IFACE_NAME);
+        verify(mWifiNative, atLeastOnce()).setupInterfaceForClientMode(any());
         verify(mWifiLastResortWatchdog, atLeastOnce()).clearAllFailureCounts();
     }
 
@@ -984,7 +946,7 @@ public class WifiStateMachineTest {
         }
         assertEquals("hidden networks", hiddenNetworkSSIDSet, actualHiddenNetworkSSIDSet);
 
-        when(mWifiNative.getScanResults()).thenReturn(getMockScanResults());
+        when(mWifiNative.getScanResults(WIFI_IFACE_NAME)).thenReturn(getMockScanResults());
         mWsm.sendMessage(WifiMonitor.SCAN_RESULTS_EVENT);
 
         mLooper.dispatchAll();
@@ -1034,7 +996,8 @@ public class WifiStateMachineTest {
         when(mWifiConfigManager.getConfiguredNetworkWithPassword(eq(config.networkId)))
                 .thenReturn(config);
 
-        verify(mWifiNative).removeAllNetworks();
+        verify(mWifiNative).removeAllNetworks(WIFI_IFACE_NAME);
+        verify(mScanRequestProxy).enableScanningForHiddenNetworks(true);
 
         mLooper.startAutoDispatch();
         assertTrue(mWsm.syncEnableNetwork(mWsmAsyncChannel, config.networkId, true));
@@ -1046,7 +1009,7 @@ public class WifiStateMachineTest {
         verify(mWifiConnectivityManager).setUserConnectChoice(eq(config.networkId));
         verify(mWifiConnectivityManager).prepareForForcedConnection(eq(config.networkId));
         verify(mWifiConfigManager).getConfiguredNetworkWithPassword(eq(config.networkId));
-        verify(mWifiNative).connectToNetwork(eq(config));
+        verify(mWifiNative).connectToNetwork(eq(WIFI_IFACE_NAME), eq(config));
     }
 
     private void validateFailureConnectSequence(WifiConfiguration config) {
@@ -1054,7 +1017,7 @@ public class WifiStateMachineTest {
         verify(mWifiConnectivityManager).setUserConnectChoice(eq(config.networkId));
         verify(mWifiConnectivityManager).prepareForForcedConnection(eq(config.networkId));
         verify(mWifiConfigManager, never()).getConfiguredNetworkWithPassword(eq(config.networkId));
-        verify(mWifiNative, never()).connectToNetwork(eq(config));
+        verify(mWifiNative, never()).connectToNetwork(eq(WIFI_IFACE_NAME), eq(config));
     }
 
     /**
@@ -1185,7 +1148,8 @@ public class WifiStateMachineTest {
         initializeAndAddNetworkAndVerifySuccess();
         when(mWifiConfigManager.getConfiguredNetwork(eq(0))).thenReturn(null);
 
-        verify(mWifiNative).removeAllNetworks();
+        verify(mWifiNative).removeAllNetworks(WIFI_IFACE_NAME);
+        verify(mScanRequestProxy).enableScanningForHiddenNetworks(true);
 
         mLooper.startAutoDispatch();
         assertFalse(mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true));
@@ -1206,7 +1170,8 @@ public class WifiStateMachineTest {
     public void reconnectToConnectedNetwork() throws Exception {
         initializeAndAddNetworkAndVerifySuccess();
 
-        verify(mWifiNative).removeAllNetworks();
+        verify(mWifiNative).removeAllNetworks(WIFI_IFACE_NAME);
+        verify(mScanRequestProxy).enableScanningForHiddenNetworks(true);
 
         mLooper.startAutoDispatch();
         mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true);
@@ -1700,10 +1665,8 @@ public class WifiStateMachineTest {
      */
     @Test
     public void syncStartSubscriptionProvisioningInClientMode() throws Exception {
-        mLooper.startAutoDispatch();
-        mWsm.syncInitialize(mWsmAsyncChannel);
+        // syncInitialize is invoke in Setup.
         verify(mPasspointManager).initializeProvisioner(any(Looper.class));
-        mLooper.stopAutoDispatch();
 
         loadComponentsInStaMode();
         when(mPasspointManager.startSubscriptionProvisioning(anyInt(),
@@ -1756,7 +1719,8 @@ public class WifiStateMachineTest {
         when(mWifiConfigManager.enableNetwork(eq(0), eq(true), anyInt())).thenReturn(true);
         when(mWifiConfigManager.updateLastConnectUid(eq(0), anyInt())).thenReturn(true);
 
-        verify(mWifiNative).removeAllNetworks();
+        verify(mWifiNative).removeAllNetworks(WIFI_IFACE_NAME);
+        verify(mScanRequestProxy).enableScanningForHiddenNetworks(true);
 
         mLooper.startAutoDispatch();
         assertTrue(mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true));
@@ -1827,14 +1791,14 @@ public class WifiStateMachineTest {
     public void wpsPbcConnectFailure() throws Exception {
         loadComponentsInStaMode();
 
-        when(mWifiNative.startWpsPbc(eq(sBSSID))).thenReturn(false);
+        when(mWifiNative.startWpsPbc(eq(WIFI_IFACE_NAME), eq(sBSSID))).thenReturn(false);
         WpsInfo wpsInfo = new WpsInfo();
         wpsInfo.setup = WpsInfo.PBC;
         wpsInfo.BSSID = sBSSID;
 
         mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
         mLooper.dispatchAll();
-        verify(mWifiNative).startWpsPbc(eq(sBSSID));
+        verify(mWifiNative).startWpsPbc(eq(WIFI_IFACE_NAME), eq(sBSSID));
         verify(mWifiMetrics).incrementWpsAttemptCount();
         verify(mWifiMetrics, never()).incrementWpsSuccessCount();
         verify(mWifiMetrics).incrementWpsStartFailureCount();
@@ -1850,13 +1814,14 @@ public class WifiStateMachineTest {
         setupMockWpsPbc();
         setupMocksForWpsNetworkMigration();
         doAnswer(new AnswerWithArguments() {
-            public boolean answer(Map<String, WifiConfiguration> configs,
+            public boolean answer(String ifaceName, Map<String, WifiConfiguration> configs,
                                   SparseArray<Map<String, String>> networkExtras) throws Exception {
                 configs.put("dummy1", new WifiConfiguration());
                 configs.put("dummy2", new WifiConfiguration());
                 return true;
             }
-        }).when(mWifiNative).migrateNetworksFromSupplicant(any(Map.class), any(SparseArray.class));
+        }).when(mWifiNative).migrateNetworksFromSupplicant(
+                eq(WIFI_IFACE_NAME), any(Map.class), any(SparseArray.class));
         mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, null);
         mLooper.dispatchAll();
         verify(mWifiMetrics).incrementWpsAttemptCount();
@@ -1875,7 +1840,8 @@ public class WifiStateMachineTest {
     public void wpsPbcConnectFailure_migrateNetworksFailure() throws Exception {
         setupMockWpsPbc();
         setupMocksForWpsNetworkMigration();
-        when(mWifiNative.migrateNetworksFromSupplicant(any(Map.class), any(SparseArray.class)))
+        when(mWifiNative.migrateNetworksFromSupplicant(
+                eq(WIFI_IFACE_NAME), any(Map.class), any(SparseArray.class)))
                 .thenReturn(false);
         mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, null);
         mLooper.dispatchAll();
@@ -1947,14 +1913,15 @@ public class WifiStateMachineTest {
     public void wpsPinDisplayConnectSuccess() throws Exception {
         loadComponentsInStaMode();
 
-        when(mWifiNative.startWpsPinDisplay(eq(sBSSID))).thenReturn("34545434");
+        when(mWifiNative.startWpsPinDisplay(eq(WIFI_IFACE_NAME), eq(sBSSID)))
+                .thenReturn("34545434");
         WpsInfo wpsInfo = new WpsInfo();
         wpsInfo.setup = WpsInfo.DISPLAY;
         wpsInfo.BSSID = sBSSID;
 
         mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
         mLooper.dispatchAll();
-        verify(mWifiNative).startWpsPinDisplay(eq(sBSSID));
+        verify(mWifiNative).startWpsPinDisplay(eq(WIFI_IFACE_NAME), eq(sBSSID));
 
         assertEquals("WpsRunningState", getCurrentState().getName());
 
@@ -1975,14 +1942,14 @@ public class WifiStateMachineTest {
     public void wpsPinDisplayConnectFailure() throws Exception {
         loadComponentsInStaMode();
 
-        when(mWifiNative.startWpsPinDisplay(eq(sBSSID))).thenReturn(null);
+        when(mWifiNative.startWpsPinDisplay(eq(WIFI_IFACE_NAME), eq(sBSSID))).thenReturn(null);
         WpsInfo wpsInfo = new WpsInfo();
         wpsInfo.setup = WpsInfo.DISPLAY;
         wpsInfo.BSSID = sBSSID;
 
         mWsm.sendMessage(WifiManager.START_WPS, 0, 0, wpsInfo);
         mLooper.dispatchAll();
-        verify(mWifiNative).startWpsPinDisplay(eq(sBSSID));
+        verify(mWifiNative).startWpsPinDisplay(eq(WIFI_IFACE_NAME), eq(sBSSID));
         verify(mWifiMetrics).incrementWpsAttemptCount();
         verify(mWifiMetrics).incrementWpsStartFailureCount();
 
@@ -1990,46 +1957,18 @@ public class WifiStateMachineTest {
     }
 
     @Test
-    public void handleVendorHalDeath() throws Exception {
-        ArgumentCaptor<WifiNative.VendorHalDeathEventHandler> deathHandlerCapturer =
-                ArgumentCaptor.forClass(WifiNative.VendorHalDeathEventHandler.class);
-        when(mWifiNative.initializeVendorHal(deathHandlerCapturer.capture())).thenReturn(true);
-
-        // Trigger initialize to capture the death handler registration.
-        mLooper.startAutoDispatch();
-        assertTrue(mWsm.syncInitialize(mWsmAsyncChannel));
-        mLooper.stopAutoDispatch();
-
-        verify(mWifiNative).initializeVendorHal(any(WifiNative.VendorHalDeathEventHandler.class));
-        WifiNative.VendorHalDeathEventHandler deathHandler = deathHandlerCapturer.getValue();
-
-        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
-        mLooper.dispatchAll();
-
-        // Now trigger the death notification.
-        deathHandler.onDeath();
-        mLooper.dispatchAll();
-
-        verify(mWifiMetrics).incrementNumHalCrashes();
-        verify(mSelfRecovery).trigger(eq(SelfRecovery.REASON_HAL_CRASH));
-        verify(mWifiDiagnostics).captureBugReportData(WifiDiagnostics.REPORT_REASON_HAL_CRASH);
-    }
-
-    @Test
-    public void handleWificondDeath() throws Exception {
-        ArgumentCaptor<WifiNative.WificondDeathEventHandler> deathHandlerCapturer =
-                ArgumentCaptor.forClass(WifiNative.WificondDeathEventHandler.class);
+    public void handleWifiNativeFailure() throws Exception {
+        ArgumentCaptor<WifiNative.StatusListener> statusListenerCaptor =
+                ArgumentCaptor.forClass(WifiNative.StatusListener.class);
 
         // Trigger initialize to capture the death handler registration.
         loadComponentsInStaMode();
 
-        verify(mWifiNative).registerWificondDeathHandler(deathHandlerCapturer.capture());
+        verify(mWifiNative).registerStatusListener(statusListenerCaptor.capture());
 
         // Now trigger the death notification.
-        deathHandlerCapturer.getValue().onDeath();
+        statusListenerCaptor.getValue().onStatusChanged(false);
         mLooper.dispatchAll();
-
-        verify(mWifiMetrics).incrementNumWificondCrashes();
         verify(mSelfRecovery).trigger(eq(SelfRecovery.REASON_WIFICOND_CRASH));
         verify(mWifiDiagnostics).captureBugReportData(WifiDiagnostics.REPORT_REASON_WIFICOND_CRASH);
     }
@@ -2039,12 +1978,13 @@ public class WifiStateMachineTest {
         config.networkId = WPS_SUPPLICANT_NETWORK_ID;
         config.SSID = DEFAULT_TEST_SSID;
         doAnswer(new AnswerWithArguments() {
-            public boolean answer(Map<String, WifiConfiguration> configs,
+            public boolean answer(String ifaceName, Map<String, WifiConfiguration> configs,
                                   SparseArray<Map<String, String>> networkExtras) throws Exception {
                 configs.put("dummy", config);
                 return true;
             }
-        }).when(mWifiNative).migrateNetworksFromSupplicant(any(Map.class), any(SparseArray.class));
+        }).when(mWifiNative).migrateNetworksFromSupplicant(
+                eq(WIFI_IFACE_NAME), any(Map.class), any(SparseArray.class));
         when(mWifiConfigManager.addOrUpdateNetwork(any(WifiConfiguration.class), anyInt()))
                 .thenReturn(new NetworkUpdateResult(WPS_FRAMEWORK_NETWORK_ID));
         when(mWifiConfigManager.enableNetwork(eq(WPS_FRAMEWORK_NETWORK_ID), anyBoolean(), anyInt()))
@@ -2367,42 +2307,6 @@ public class WifiStateMachineTest {
     }
 
     /**
-     * Test that failure to start HAL in client mode increments the corresponding metrics.
-     */
-    @Test
-    public void testSetupForClientModeHalFailureIncrementsMetrics() throws Exception {
-        when(mWifiNative.setupForClientMode(WIFI_IFACE_NAME))
-                .thenReturn(Pair.create(WifiNative.SETUP_FAILURE_HAL, null));
-
-        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
-        mLooper.dispatchAll();
-
-        mWsm.sendMessage(WifiMonitor.SUP_CONNECTION_EVENT);
-        mLooper.dispatchAll();
-
-        verify(mWifiNative).setupForClientMode(WIFI_IFACE_NAME);
-        verify(mWifiMetrics).incrementNumWifiOnFailureDueToHal();
-    }
-
-    /**
-     * Test that failure to start HAL in client mode increments the corresponding metrics.
-     */
-    @Test
-    public void testSetupForClientModeWificondFailureIncrementsMetrics() throws Exception {
-        when(mWifiNative.setupForClientMode(WIFI_IFACE_NAME))
-                .thenReturn(Pair.create(WifiNative.SETUP_FAILURE_WIFICOND, null));
-
-        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
-        mLooper.dispatchAll();
-
-        mWsm.sendMessage(WifiMonitor.SUP_CONNECTION_EVENT);
-        mLooper.dispatchAll();
-
-        verify(mWifiNative).setupForClientMode(WIFI_IFACE_NAME);
-        verify(mWifiMetrics).incrementNumWifiOnFailureDueToWificond();
-    }
-
-    /**
      * Test that we don't register the telephony call state listener on devices which do not support
      * setting/resetting Tx power limit.
      */
@@ -2686,39 +2590,5 @@ public class WifiStateMachineTest {
         PrintWriter writer = new PrintWriter(stream);
         mWsm.dump(null, writer, null);
         verify(mWakeupController).dump(null, writer, null);
-    }
-
-    /**
-     * Verify that entering and exiting scan mode state correctly triggers Wakeup lifecycle events.
-     */
-    @Test
-    public void verifyScanModeStateTransitionsTriggerWakeupLifecycleEvents() throws Exception {
-        loadComponentsInStaMode();
-
-        // enter scan mode
-        mWsm.setOperationalMode(WifiStateMachine.SCAN_ONLY_MODE);
-        mLooper.dispatchAll();
-
-        // exit scan mode
-        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE);
-        mLooper.dispatchAll();
-
-        InOrder inOrder = inOrder(mWakeupController);
-        inOrder.verify(mWakeupController).start();
-        inOrder.verify(mWakeupController).stop();
-    }
-
-    /**
-     * Verify that entering connect mode state resets WakeupController events.
-     */
-    @Test
-    public void verifyConnectModeStateTransitionsTriggerWakeupLifecycleEvents() throws Exception {
-        loadComponentsInStaMode();
-
-        //  enter connect mode
-        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
-        mLooper.dispatchAll();
-
-        verify(mWakeupController).reset();
     }
 }

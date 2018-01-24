@@ -67,7 +67,6 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiManager.LocalOnlyHotspotCallback;
-import android.net.wifi.WifiScanner;
 import android.net.wifi.hotspot2.IProvisioningCallback;
 import android.net.wifi.hotspot2.OsuProvider;
 import android.net.wifi.hotspot2.PasspointConfiguration;
@@ -148,6 +147,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE;
 
     final WifiStateMachine mWifiStateMachine;
+    final ScanRequestProxy mScanRequestProxy;
 
     private final Context mContext;
     private final FrameworkFacade mFacade;
@@ -177,7 +177,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     // Map of package name of background scan apps and last scan timestamp.
     private final ArrayMap<String, Long> mLastScanTimestamps;
 
-    private WifiScanner mWifiScanner;
     private WifiLog mLog;
 
     /**
@@ -452,6 +451,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mCountryCode = mWifiInjector.getWifiCountryCode();
         mWifiStateMachine = mWifiInjector.getWifiStateMachine();
         mWifiStateMachine.enableRssiPolling(true);
+        mScanRequestProxy = mWifiInjector.getScanRequestProxy();
         mSettingsStore = mWifiInjector.getWifiSettingsStore();
         mPowerManager = mContext.getSystemService(PowerManager.class);
         mAppOps = (AppOpsManager) mContext.getSystemService(Context.APP_OPS_SERVICE);
@@ -607,12 +607,14 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      * @param settings If null, use default parameter, i.e. full scan.
      * @param workSource If null, all blame is given to the calling uid.
      * @param packageName Package name of the app that requests wifi scan.
+     * TODO(b/68388459): Remove |settings| & |worksource|
      */
     @Override
     public void startScan(ScanSettings settings, WorkSource workSource, String packageName) {
         enforceChangePermission();
+        int callingUid = Binder.getCallingUid();
 
-        mLog.info("startScan uid=%").c(Binder.getCallingUid()).flush();
+        mLog.info("startScan uid=%").c(callingUid).flush();
         // Check and throttle background apps for wifi scan.
         if (isRequestFromBackground(packageName)) {
             long lastScanMs = mLastScanTimestamps.getOrDefault(packageName, 0L);
@@ -626,9 +628,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             mLastScanTimestamps.put(packageName, elapsedRealtime);
         }
         synchronized (this) {
-            if (mWifiScanner == null) {
-                mWifiScanner = mWifiInjector.getWifiScanner();
-            }
             if (mInIdleMode) {
                 // Need to send an immediate scan result broadcast in case the
                 // caller is waiting for a result ..
@@ -642,24 +641,15 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 return;
             }
         }
-        if (settings != null) {
-            settings = new ScanSettings(settings);
-            if (!settings.isValid()) {
-                Slog.e(TAG, "invalid scan setting");
-                return;
+        boolean success = mWifiInjector.getWifiStateMachineHandler().runWithScissors(() -> {
+            if (!mScanRequestProxy.startScan(callingUid)) {
+                Log.e(TAG, "Failed to start scan");
             }
+        }, 0);
+        if (!success) {
+            Log.e(TAG, "Failed to post runnable to start scan");
+            sendFailedScanBroadcast();
         }
-        if (workSource != null) {
-            enforceWorkSourcePermission();
-            // WifiManager currently doesn't use names, so need to clear names out of the
-            // supplied WorkSource to allow future WorkSource combining.
-            workSource.clearNames();
-        }
-        if (workSource == null && Binder.getCallingUid() >= 0) {
-            workSource = new WorkSource(Binder.getCallingUid());
-        }
-        mWifiStateMachine.startScan(Binder.getCallingUid(), scanRequestCounter++,
-                settings, workSource);
     }
 
     // Send a failed scan broadcast to indicate the current scan request failed.
@@ -1929,14 +1919,19 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         int uid = Binder.getCallingUid();
         long ident = Binder.clearCallingIdentity();
         try {
+            // TODO: Remove the bypass for apps targeting older SDK's (< M).
             if (!mWifiPermissionsUtil.canAccessScanResults(callingPackage,
                       uid, Build.VERSION_CODES.M)) {
                 return new ArrayList<ScanResult>();
             }
-            if (mWifiScanner == null) {
-                mWifiScanner = mWifiInjector.getWifiScanner();
+            final List<ScanResult> scanResults = new ArrayList<>();
+            boolean success = mWifiInjector.getWifiStateMachineHandler().runWithScissors(() -> {
+                scanResults.addAll(mScanRequestProxy.getScanResults());
+            }, 0);
+            if (!success) {
+                Log.e(TAG, "Failed to post runnable to fetch scan results");
             }
-            return mWifiScanner.getSingleScanResults();
+            return scanResults;
         } finally {
             Binder.restoreCallingIdentity(ident);
         }

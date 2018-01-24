@@ -160,7 +160,7 @@ public class RttServiceTest {
     private Message sendEnableResponder(BidirectionalAsyncChannel channel, Handler handler,
             int clientKey, ResponderConfig config) {
         when(mWifiNative.enableRttResponder(anyInt())).thenReturn(config);
-        when(mWifiNative.getMacAddress()).thenReturn(MAC);
+        when(mWifiNative.getMacAddress(any())).thenReturn(MAC);
         Message message = new Message();
         message.what = RttManager.CMD_OP_ENABLE_RESPONDER;
         message.arg2 = clientKey;
@@ -260,7 +260,8 @@ public class RttServiceTest {
         sendEnableResponderSucceed(channel, handler, CLIENT_KEY2);
         // Two clients enabled, one client disabled.
         sendDisableResponder(channel, CLIENT_KEY1, true);
-        verify(mWifiNative, times(1)).getMacAddress();
+        verify(mWifiNative, times(1)).getMacAddress(any());
+        verify(mWifiNative, times(1)).getClientInterfaceName();
         verifyNoMoreInteractions(mWifiNative);
     }
 

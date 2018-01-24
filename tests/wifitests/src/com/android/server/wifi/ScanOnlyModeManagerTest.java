@@ -27,20 +27,14 @@ import static org.mockito.Mockito.*;
 
 import android.content.Context;
 import android.content.Intent;
-import android.net.wifi.IClientInterface;
-import android.os.IBinder;
-import android.os.INetworkManagementService;
-import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
-import android.util.Pair;
-
-import com.android.server.net.BaseNetworkObserver;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -56,25 +50,24 @@ public class ScanOnlyModeManagerTest {
     TestLooper mLooper;
 
     ScanOnlyModeManager mScanOnlyModeManager;
-    BaseNetworkObserver mNetworkObserver;
 
     @Mock Context mContext;
-    @Mock IClientInterface mClientInterface;
-    @Mock IBinder mClientInterfaceBinder;
     @Mock WifiMetrics mWifiMetrics;
     @Mock WifiNative mWifiNative;
-    @Mock INetworkManagementService mNmService;
     @Mock ScanOnlyModeManager.Listener mListener;
     @Mock WifiMonitor mWifiMonitor;
+    @Mock ScanRequestProxy mScanRequestProxy;
+    @Mock WakeupController mWakeupController;
 
-    final ArgumentCaptor<BaseNetworkObserver> mNetworkObserverCaptor =
-            ArgumentCaptor.forClass(BaseNetworkObserver.class);
+    final ArgumentCaptor<WifiNative.StatusListener> mStatusListenerCaptor =
+            ArgumentCaptor.forClass(WifiNative.StatusListener.class);
+    final ArgumentCaptor<WifiNative.InterfaceCallback> mInterfaceCallbackCaptor =
+            ArgumentCaptor.forClass(WifiNative.InterfaceCallback.class);
 
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
         mLooper = new TestLooper();
-        when(mClientInterface.asBinder()).thenReturn(mClientInterfaceBinder);
 
         mScanOnlyModeManager = createScanOnlyModeManager();
         mLooper.dispatchAll();
@@ -82,24 +75,19 @@ public class ScanOnlyModeManagerTest {
 
     private ScanOnlyModeManager createScanOnlyModeManager() {
         return new ScanOnlyModeManager(mContext, mLooper.getLooper(), mWifiNative, mListener,
-                mNmService, mWifiMetrics, mWifiMonitor);
+                mWifiMetrics, mScanRequestProxy, mWakeupController);
     }
 
     private void startScanOnlyModeAndVerifyEnabled() throws Exception {
-        when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mClientInterface.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mWifiNative.setupForClientMode(eq(TEST_INTERFACE_NAME)))
-                .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mClientInterface));
-        when(mWifiNative.enableSupplicant()).thenReturn(true);
+        when(mWifiNative.setupInterfaceForClientMode(any())).thenReturn(TEST_INTERFACE_NAME);
         mScanOnlyModeManager.start();
         mLooper.dispatchAll();
 
-        verify(mWifiNative).setupForClientMode(eq(TEST_INTERFACE_NAME));
-        verify(mNmService).registerObserver(mNetworkObserverCaptor.capture());
-        mNetworkObserver = (BaseNetworkObserver) mNetworkObserverCaptor.getValue();
+        verify(mWifiNative).registerStatusListener(mStatusListenerCaptor.capture());
+        verify(mWifiNative).setupInterfaceForClientMode(mInterfaceCallbackCaptor.capture());
 
         // now mark the interface as up
-        mNetworkObserver.interfaceLinkStateChanged(TEST_INTERFACE_NAME, true);
+        mInterfaceCallbackCaptor.getValue().onUp(TEST_INTERFACE_NAME);
         mLooper.dispatchAll();
 
         ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
@@ -108,6 +96,7 @@ public class ScanOnlyModeManagerTest {
 
         checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_ENABLED);
         checkWifiStateChangeListenerUpdate(WIFI_STATE_ENABLED);
+        verify(mScanRequestProxy, atLeastOnce()).enableScanningForHiddenNetworks(false);
     }
 
     private void checkWifiScanStateChangedBroadcast(Intent intent, int expectedCurrentState) {
@@ -130,95 +119,11 @@ public class ScanOnlyModeManagerTest {
     }
 
     /**
-     * ScanMode increments failure metrics when failing to setup client mode interface due to hal
-     * error.
+     * ScanMode increments failure metrics when failing to setup client mode.
      */
     @Test
-    public void detectAndReportErrorWhenSetupForClientModeHalFailure() throws Exception {
-        when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mWifiNative.setupForClientMode(eq(TEST_INTERFACE_NAME)))
-                .thenReturn(Pair.create(WifiNative.SETUP_FAILURE_HAL, null));
-        mScanOnlyModeManager.start();
-        mLooper.dispatchAll();
-
-        verify(mWifiMetrics).incrementNumWifiOnFailureDueToHal();
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext, atLeastOnce()).sendStickyBroadcastAsUser(intentCaptor.capture(),
-                eq(UserHandle.ALL));
-        checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
-        checkWifiStateChangeListenerUpdate(WIFI_STATE_UNKNOWN);
-    }
-
-    /**
-     * ScanMode increments failure metrics when failing to setup client mode interface due to
-     * wificond error.
-     */
-    @Test
-    public void detectAndReportErrorWhenSetupForClientModeWificondFailure() throws Exception {
-        when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mWifiNative.setupForClientMode(eq(TEST_INTERFACE_NAME)))
-              .thenReturn(Pair.create(WifiNative.SETUP_FAILURE_WIFICOND, null));
-        mScanOnlyModeManager.start();
-        mLooper.dispatchAll();
-
-        verify(mWifiMetrics).incrementNumWifiOnFailureDueToWificond();
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext, atLeastOnce()).sendStickyBroadcastAsUser(intentCaptor.capture(),
-                eq(UserHandle.ALL));
-        checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
-        checkWifiStateChangeListenerUpdate(WIFI_STATE_UNKNOWN);
-    }
-
-    /**
-     * ScanMode start does not report scan mode as available to WifiScanningService when
-     * interface creation reports success but returns a null interface.
-     */
-    @Test
-    public void scanModeStartDoesNotActivateScannerWhenClientInterfaceIsNull() throws Exception {
-        when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mWifiNative.setupForClientMode(eq(TEST_INTERFACE_NAME)))
-                .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, null));
-        mScanOnlyModeManager.start();
-        mLooper.dispatchAll();
-
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext, atLeastOnce()).sendStickyBroadcastAsUser(intentCaptor.capture(),
-                eq(UserHandle.ALL));
-        checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
-        checkWifiStateChangeListenerUpdate(WIFI_STATE_UNKNOWN);
-    }
-
-    /**
-     * ScanMode start does not report scan mode as available to WifiScanningService
-     * when the call to get the interface name throws a RemoteException.
-     */
-    @Test
-    public void scanModeStartDoesNotActivateScannerWhenGetClientInterfaceNameThrowsException()
-            throws Exception {
-        when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        doThrow(new RemoteException()).when(mClientInterface).getInterfaceName();
-        when(mWifiNative.setupForClientMode(eq(TEST_INTERFACE_NAME)))
-                .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mClientInterface));
-        mScanOnlyModeManager.start();
-        mLooper.dispatchAll();
-
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext, atLeastOnce()).sendStickyBroadcastAsUser(intentCaptor.capture(),
-                eq(UserHandle.ALL));
-        checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
-        checkWifiStateChangeListenerUpdate(WIFI_STATE_UNKNOWN);
-    }
-
-    /**
-     * ScanMode start does not report scan mode as available to WifiScanningService
-     * when the interface name is null.
-     */
-    @Test
-    public void scanModeStartDoesNotActivateScannerWhenClientInterfaceNameNull() throws Exception {
-        when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mClientInterface.getInterfaceName()).thenReturn(null);
-        when(mWifiNative.setupForClientMode(eq(TEST_INTERFACE_NAME)))
-                .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mClientInterface));
+    public void detectAndReportErrorWhenSetupForClientWifiNativeFailure() throws Exception {
+        when(mWifiNative.setupInterfaceForClientMode(any())).thenReturn(null);
         mScanOnlyModeManager.start();
         mLooper.dispatchAll();
 
@@ -235,10 +140,7 @@ public class ScanOnlyModeManagerTest {
     @Test
     public void scanModeStartDoesNotSendScanningActiveWhenClientInterfaceNameIsEmpty()
             throws Exception {
-        when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mClientInterface.getInterfaceName()).thenReturn("");
-        when(mWifiNative.setupForClientMode(eq(TEST_INTERFACE_NAME)))
-                .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mClientInterface));
+        when(mWifiNative.setupInterfaceForClientMode(any())).thenReturn("");
         mScanOnlyModeManager.start();
         mLooper.dispatchAll();
 
@@ -270,12 +172,13 @@ public class ScanOnlyModeManagerTest {
         reset(mContext);
         mScanOnlyModeManager.stop();
         mLooper.dispatchAll();
-        verify(mNmService).unregisterObserver(eq(mNetworkObserver));
+        verify(mWifiNative).teardownInterface(TEST_INTERFACE_NAME);
         ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
         verify(mContext, atLeastOnce()).sendStickyBroadcastAsUser(intentCaptor.capture(),
                 eq(UserHandle.ALL));
         checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
         checkWifiStateChangeListenerUpdate(WIFI_STATE_DISABLED);
+        verify(mScanRequestProxy).clearScanResults();
     }
 
     /**
@@ -286,7 +189,7 @@ public class ScanOnlyModeManagerTest {
         startScanOnlyModeAndVerifyEnabled();
         mScanOnlyModeManager.stop();
         mLooper.dispatchAll();
-        reset(mNmService, mContext, mListener);
+        reset(mContext, mListener);
 
         // now call stop again
         mScanOnlyModeManager.stop();
@@ -302,9 +205,8 @@ public class ScanOnlyModeManagerTest {
     public void scanModeStartedStopsWhenInterfaceDown() throws Exception {
         startScanOnlyModeAndVerifyEnabled();
         reset(mContext);
-        mNetworkObserver.interfaceLinkStateChanged(TEST_INTERFACE_NAME, false);
+        mInterfaceCallbackCaptor.getValue().onDown(TEST_INTERFACE_NAME);
         mLooper.dispatchAll();
-        verify(mNmService).unregisterObserver(eq(mNetworkObserver));
         ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
         verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(), eq(UserHandle.ALL));
         checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
@@ -312,113 +214,43 @@ public class ScanOnlyModeManagerTest {
     }
 
     /**
-     * Test that failing to start supplicant cleans up any set state and does not proceed to the
-     * active state.
+     * Testing the handling of a wifinative failure status change notification.
      */
     @Test
-    public void startScanModeSupplicantStartFails() throws Exception {
-        when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mClientInterface.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mWifiNative.setupForClientMode(eq(TEST_INTERFACE_NAME)))
-                .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mClientInterface));
-        when(mWifiNative.enableSupplicant()).thenReturn(false);
-
-        mScanOnlyModeManager.start();
+    public void scanModeStartedStopsOnNativeFailure() throws Exception {
+        startScanOnlyModeAndVerifyEnabled();
+        reset(mContext);
+        mStatusListenerCaptor.getValue().onStatusChanged(false);
         mLooper.dispatchAll();
         ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
         verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(), eq(UserHandle.ALL));
         checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
-        checkWifiStateChangeListenerUpdate(WIFI_STATE_UNKNOWN);
+        checkWifiStateChangeListenerUpdate(WIFI_STATE_DISABLED);
     }
 
     /**
-     * This is a basic test that will be enhanced as functionality is added to the class.
-     * Test that failing to register the Networkobserver for the interface does not crash.  Later
-     * CLs will expand the test to verify proper failure reporting and other error signals.
+     * Entering StartedState starts the WakeupController.
      */
     @Test
-    public void startScanModeNetworkObserverFailureReportsError() throws Exception {
-        when(mWifiNative.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mClientInterface.getInterfaceName()).thenReturn(TEST_INTERFACE_NAME);
-        when(mWifiNative.setupForClientMode(eq(TEST_INTERFACE_NAME)))
-                .thenReturn(Pair.create(WifiNative.SETUP_SUCCESS, mClientInterface));
-        when(mWifiNative.enableSupplicant()).thenReturn(true);
-        doThrow(new RemoteException()).when(mNmService).registerObserver(any());
-
-        mScanOnlyModeManager.start();
-        mLooper.dispatchAll();
-        verify(mNmService).unregisterObserver(any());
-        verify(mWifiNative).disableSupplicant();
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(), eq(UserHandle.ALL));
-        checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
-        checkWifiStateChangeListenerUpdate(WIFI_STATE_UNKNOWN);
-    }
-
-
-    /**
-     * Triggering interface down for a different interface when ScanOnlyMode is active dows not exit
-     * the active state.
-     */
-    @Test
-    public void scanModeStartedDoesNotStopForDifferentInterfaceDown() throws Exception {
+    public void scanModeEnterStartsWakeupController() throws Exception {
         startScanOnlyModeAndVerifyEnabled();
-        reset(mContext, mListener);
-        mNetworkObserver.interfaceLinkStateChanged(OTHER_INTERFACE_NAME, false);
-        mLooper.dispatchAll();
-        verify(mNmService, never()).unregisterObserver(eq(mNetworkObserver));
-        verify(mContext, never()).sendStickyBroadcastAsUser(any(), eq(UserHandle.ALL));
-        verify(mListener, never()).onStateChanged(anyInt());
+
+        verify(mWakeupController).start();
     }
 
     /**
-     * Triggering an interface up for a different interface does not trigger a notification to
-     * Scanning service that ScanOnlyMode is ready.
-     * This test will be enhanced when the broadcast is added.
+     * Exiting StartedState stops the WakeupController.
      */
     @Test
-    public void scanModeStartDoesNotNotifyScanningServiceForDifferentInterfaceUp()
-            throws Exception {
+    public void scanModeExitStopsWakeupController() throws Exception {
         startScanOnlyModeAndVerifyEnabled();
-        reset(mContext, mListener);
-
-        // now mark a different interface as up
-        mNetworkObserver.interfaceLinkStateChanged(OTHER_INTERFACE_NAME, true);
-        mLooper.dispatchAll();
-
-        verify(mContext, never()).sendStickyBroadcastAsUser(any(), any());
-        verify(mListener, never()).onStateChanged(anyInt());
-    }
-
-    /**
-     * Callbacks from an old NetworkObserver do not trigger changes with a current NetworkObserver.
-     */
-    @Test
-    public void scanModeNetworkObserverCallbacksOnlyForCurrentObserver() throws Exception {
-        startScanOnlyModeAndVerifyEnabled();
-        BaseNetworkObserver firstObserver = mNetworkObserver;
 
         mScanOnlyModeManager.stop();
         mLooper.dispatchAll();
 
-        reset(mNmService, mWifiNative, mContext, mListener);
-        startScanOnlyModeAndVerifyEnabled();
+        InOrder inOrder = inOrder(mWakeupController);
 
-        // trigger ScanOnlyMode to repeat setup
-        mScanOnlyModeManager.start();
-        mLooper.dispatchAll();
-        verify(mNmService).registerObserver(mNetworkObserverCaptor.capture());
-        mNetworkObserver = (BaseNetworkObserver) mNetworkObserverCaptor.getValue();
-        // now mark the interface as up
-        mNetworkObserver.interfaceLinkStateChanged(TEST_INTERFACE_NAME, true);
-        mLooper.dispatchAll();
-
-        reset(mNmService, mWifiNative, mContext, mListener);
-
-        firstObserver.interfaceLinkStateChanged(TEST_INTERFACE_NAME, false);
-        mLooper.dispatchAll();
-        verify(mNmService, never()).unregisterObserver(eq(mNetworkObserver));
-        verify(mContext, never()).sendStickyBroadcastAsUser(any(), any());
-        verify(mListener, never()).onStateChanged(anyInt());
+        inOrder.verify(mWakeupController).start();
+        inOrder.verify(mWakeupController).stop();
     }
 }

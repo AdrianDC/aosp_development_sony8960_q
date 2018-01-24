@@ -68,14 +68,14 @@ public class WifiTrafficPoller {
     // the first time
     private AtomicBoolean mScreenOn = new AtomicBoolean(true);
     private final TrafficHandler mTrafficHandler;
+    private final WifiNative mWifiNative;
     private NetworkInfo mNetworkInfo;
-    private final String mInterface;
 
     private boolean mVerboseLoggingEnabled = false;
 
-    WifiTrafficPoller(Context context, Looper looper, String iface) {
-        mInterface = iface;
+    WifiTrafficPoller(Context context, Looper looper, WifiNative wifiNative) {
         mTrafficHandler = new TrafficHandler(looper);
+        mWifiNative = wifiNative;
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
@@ -186,8 +186,8 @@ public class WifiTrafficPoller {
         long preTxPkts = mTxPkts, preRxPkts = mRxPkts;
         int dataActivity = WifiManager.DATA_ACTIVITY_NONE;
 
-        mTxPkts = TrafficStats.getTxPackets(mInterface);
-        mRxPkts = TrafficStats.getRxPackets(mInterface);
+        mTxPkts = TrafficStats.getTxPackets(mWifiNative.getClientInterfaceName());
+        mRxPkts = TrafficStats.getRxPackets(mWifiNative.getClientInterfaceName());
 
         if (DBG) {
             Log.d(TAG, " packet count Tx="

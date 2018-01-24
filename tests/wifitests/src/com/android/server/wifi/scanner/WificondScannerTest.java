@@ -81,7 +81,7 @@ public class WificondScannerTest extends BaseWifiScannerImplTest {
         mLooper.dispatchAll();
 
         // No scan is issued to WifiNative.
-        verify(mWifiNative, never()).scan(any(), any(Set.class));
+        verify(mWifiNative, never()).scan(any(), anyInt(), any(), any(Set.class));
         // A scan failed event must be reported.
         verify(eventHandler).onScanStatus(WifiNative.WIFI_SCAN_FAILED);
     }

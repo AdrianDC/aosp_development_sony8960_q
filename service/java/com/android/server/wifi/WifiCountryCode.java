@@ -213,7 +213,7 @@ public class WifiCountryCode {
     }
 
     private boolean setCountryCodeNative(String country) {
-        if (mWifiNative.setCountryCode(country)) {
+        if (mWifiNative.setCountryCode(mWifiNative.getClientInterfaceName(), country)) {
             Log.d(TAG, "Succeeded to set country code to: " + country);
             mCurrentCountryCode = country;
             return true;

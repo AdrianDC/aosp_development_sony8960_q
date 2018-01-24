@@ -121,10 +121,22 @@ public class WifiApConfigStoreTest {
         String[] splitSsid = config.SSID.split("_");
         assertEquals(2, splitSsid.length);
         assertEquals(expectedSsid, splitSsid[0]);
+        assertEquals(WifiConfiguration.AP_BAND_ANY, config.apBand);
         int randomPortion = Integer.parseInt(splitSsid[1]);
         assertTrue(randomPortion >= RAND_SSID_INT_MIN && randomPortion <= RAND_SSID_INT_MAX);
         assertTrue(config.allowedKeyManagement.get(KeyMgmt.WPA2_PSK));
     }
+
+    private void verifyDefaultLocalOnlyApConfig(WifiConfiguration config, String expectedSsid) {
+        String[] splitSsid = config.SSID.split("_");
+        assertEquals(2, splitSsid.length);
+        assertEquals(expectedSsid, splitSsid[0]);
+        assertEquals(WifiConfiguration.AP_BAND_2GHZ, config.apBand);
+        int randomPortion = Integer.parseInt(splitSsid[1]);
+        assertTrue(randomPortion >= RAND_SSID_INT_MIN && randomPortion <= RAND_SSID_INT_MAX);
+        assertTrue(config.allowedKeyManagement.get(KeyMgmt.WPA2_PSK));
+    }
+
 
     /**
      * AP Configuration is not specified in the config file,
@@ -219,7 +231,7 @@ public class WifiApConfigStoreTest {
     @Test
     public void generateLocalOnlyHotspotConfigIsValid() {
         WifiConfiguration config = WifiApConfigStore.generateLocalOnlyHotspotConfig(mContext);
-        verifyDefaultApConfig(config, TEST_DEFAULT_HOTSPOT_SSID);
+        verifyDefaultLocalOnlyApConfig(config, TEST_DEFAULT_HOTSPOT_SSID);
         // The LOHS config should also have a specific network id set - check that as well.
         assertEquals(WifiConfiguration.LOCAL_ONLY_NETWORK_ID, config.networkId);
 

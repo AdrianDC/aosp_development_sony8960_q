@@ -126,7 +126,7 @@ public class WifiConfigStoreLegacyTest {
 
         // Return the config data with passwords masked from wpa_supplicant control interface.
         doAnswer(new AnswerWithArguments() {
-            public boolean answer(Map<String, WifiConfiguration> configs,
+            public boolean answer(String ifaceName, Map<String, WifiConfiguration> configs,
                     SparseArray<Map<String, String>> networkExtras) {
                 for (Map.Entry<String, WifiConfiguration> entry:
                         createWpaSupplicantLoadData(networks).entrySet()) {
@@ -136,7 +136,8 @@ public class WifiConfigStoreLegacyTest {
                 networkExtras.put(passpointNetworkId, createNetworkExtrasForPasspointConfig(fqdn));
                 return true;
             }
-        }).when(mWifiNative).migrateNetworksFromSupplicant(any(Map.class), any(SparseArray.class));
+        }).when(mWifiNative).migrateNetworksFromSupplicant(
+                any(), any(Map.class), any(SparseArray.class));
 
         when(mPasspointConfigParser.parseConfig(anyString())).thenReturn(passpointConfigs);
         WifiConfigStoreLegacy.WifiConfigStoreDataLegacy storeData = mWifiConfigStore.read();

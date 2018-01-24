@@ -65,7 +65,8 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
 
     @Override
     public boolean getScanCapabilities(WifiNative.ScanCapabilities capabilities) {
-        return mWifiNative.getBgScanCapabilities(capabilities);
+        return mWifiNative.getBgScanCapabilities(
+                mWifiNative.getClientInterfaceName(), capabilities);
     }
 
     @Override
@@ -91,27 +92,28 @@ public class HalWifiScannerImpl extends WifiScannerImpl implements Handler.Callb
                     + ",eventHandler=" + eventHandler);
             return false;
         }
-        return mWifiNative.startBgScan(settings, eventHandler);
+        return mWifiNative.startBgScan(
+                mWifiNative.getClientInterfaceName(), settings, eventHandler);
     }
 
     @Override
     public void stopBatchedScan() {
-        mWifiNative.stopBgScan();
+        mWifiNative.stopBgScan(mWifiNative.getClientInterfaceName());
     }
 
     @Override
     public void pauseBatchedScan() {
-        mWifiNative.pauseBgScan();
+        mWifiNative.pauseBgScan(mWifiNative.getClientInterfaceName());
     }
 
     @Override
     public void restartBatchedScan() {
-        mWifiNative.restartBgScan();
+        mWifiNative.restartBgScan(mWifiNative.getClientInterfaceName());
     }
 
     @Override
     public WifiScanner.ScanData[] getLatestBatchedScanResults(boolean flush) {
-        return mWifiNative.getBgScanResults();
+        return mWifiNative.getBgScanResults(mWifiNative.getClientInterfaceName());
     }
 
     @Override

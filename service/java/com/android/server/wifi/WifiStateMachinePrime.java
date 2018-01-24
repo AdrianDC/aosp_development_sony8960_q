@@ -19,7 +19,6 @@ package com.android.server.wifi;
 import android.annotation.NonNull;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
-import android.os.INetworkManagementService;
 import android.os.Looper;
 import android.os.Message;
 import android.util.Log;
@@ -45,11 +44,8 @@ public class WifiStateMachinePrime {
     private final WifiInjector mWifiInjector;
     private final Looper mLooper;
     private final WifiNative mWifiNative;
-    private final INetworkManagementService mNMService;
 
     private Queue<SoftApModeConfiguration> mApConfigQueue = new ConcurrentLinkedQueue<>();
-
-    private String mInterfaceName;
 
     // The base for wifi message types
     static final int BASE = Protocol.BASE_WIFI;
@@ -84,19 +80,11 @@ public class WifiStateMachinePrime {
         mSoftApCallback = callback;
     }
 
-    WifiStateMachinePrime(WifiInjector wifiInjector,
-                          Looper looper,
-                          WifiNative wifiNative,
-                          INetworkManagementService nmService) {
+    WifiStateMachinePrime(WifiInjector wifiInjector, Looper looper, WifiNative wifiNative) {
         mWifiInjector = wifiInjector;
         mLooper = looper;
         mWifiNative = wifiNative;
-        mNMService = nmService;
-
-        mInterfaceName = mWifiNative.getInterfaceName();
-
-        // make sure we do not have leftover state in the event of a restart
-        mWifiNative.tearDown();
+        mModeStateMachine = new ModeStateMachine();
     }
 
     /**
@@ -149,15 +137,6 @@ public class WifiStateMachinePrime {
     }
 
     private void changeMode(int newMode) {
-        if (mModeStateMachine == null) {
-            if (newMode == ModeStateMachine.CMD_DISABLE_WIFI) {
-                // command is to disable wifi, but it is already disabled.
-                Log.e(TAG, "Received call to disable wifi when it is already disabled.");
-                return;
-            }
-            // state machine was not initialized yet, we must be starting up.
-            mModeStateMachine = new ModeStateMachine();
-        }
         mModeStateMachine.sendMessage(newMode);
     }
 
@@ -226,8 +205,8 @@ public class WifiStateMachinePrime {
         }
 
         private void cleanup() {
-            mWifiNative.disableSupplicant();
-            mWifiNative.tearDown();
+            // TODO: Remove this big hammer. We cannot support concurrent interfaces with this!
+            mWifiNative.teardownAllInterfaces();
         }
 
         class ClientModeState extends State {
@@ -245,7 +224,8 @@ public class WifiStateMachinePrime {
 
             @Override
             public void exit() {
-                cleanup();
+                // TODO: Activate this when client mode is handled here.
+                // cleanup();
             }
         }
 
@@ -404,7 +384,7 @@ public class WifiStateMachinePrime {
                 Log.d(TAG, "Entering ScanOnlyModeActiveState");
 
                 this.mActiveModeManager = mWifiInjector.makeScanOnlyModeManager(
-                        new ScanOnlyListener(), mNMService);
+                        new ScanOnlyListener());
                 this.mActiveModeManager.start();
             }
 
@@ -467,7 +447,7 @@ public class WifiStateMachinePrime {
                 } else {
                     config = null;
                 }
-                this.mActiveModeManager = mWifiInjector.makeSoftApManager(mNMService,
+                this.mActiveModeManager = mWifiInjector.makeSoftApManager(
                         new SoftApCallbackImpl(), softApModeConfig);
                 this.mActiveModeManager.start();
             }

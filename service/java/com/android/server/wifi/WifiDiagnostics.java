@@ -158,7 +158,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
             startLoggingAllExceptPerPacketBuffers();
         }
 
-        if (!mWifiNative.startPktFateMonitoring()) {
+        if (!mWifiNative.startPktFateMonitoring(mWifiNative.getClientInterfaceName())) {
             mLog.wC("Failed to start packet fate monitoring");
         }
     }
@@ -622,7 +622,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
         ArrayList<WifiNative.FateReport> mergedFates = new ArrayList<WifiNative.FateReport>();
         WifiNative.TxFateReport[] txFates =
                 new WifiNative.TxFateReport[WifiLoggerHal.MAX_FATE_LOG_LEN];
-        if (mWifiNative.getTxPktFates(txFates)) {
+        if (mWifiNative.getTxPktFates(mWifiNative.getClientInterfaceName(), txFates)) {
             for (int i = 0; i < txFates.length && txFates[i] != null; i++) {
                 mergedFates.add(txFates[i]);
             }
@@ -630,7 +630,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
 
         WifiNative.RxFateReport[] rxFates =
                 new WifiNative.RxFateReport[WifiLoggerHal.MAX_FATE_LOG_LEN];
-        if (mWifiNative.getRxPktFates(rxFates)) {
+        if (mWifiNative.getRxPktFates(mWifiNative.getClientInterfaceName(), rxFates)) {
             for (int i = 0; i < rxFates.length && rxFates[i] != null; i++) {
                 mergedFates.add(rxFates[i]);
             }

@@ -50,7 +50,7 @@ import javax.annotation.concurrent.NotThreadSafe;
  */
 @NotThreadSafe
 public class ScanRequestProxy {
-    private static final String TAG = "ScanRequestProxy";
+    private static final String TAG = "WifiScanRequestProxy";
 
     private final Context mContext;
     private final WifiInjector mWifiInjector;

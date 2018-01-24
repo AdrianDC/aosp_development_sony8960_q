@@ -2106,9 +2106,6 @@ public class WifiVendorHalTest {
         scanResult.frequency = staScanResult.frequency;
         scanResult.level = staScanResult.rssi;
         scanResult.timestamp = staScanResult.timeStampInUs;
-        scanResult.bytes = new byte[57];
-        scanResult.bytes[0] = ie1.id;
-        System.arraycopy(ie1_data, 0, scanResult.bytes, 1, ie1_data.length);
 
         return Pair.create(staScanResult, scanResult);
     }
@@ -2143,7 +2140,6 @@ public class WifiVendorHalTest {
         assertEquals(expected.frequency, actual.frequency);
         assertEquals(expected.level, actual.level);
         assertEquals(expected.timestamp, actual.timestamp);
-        assertArrayEquals(expected.bytes, actual.bytes);
     }
 
     private void assertScanResultsEqual(ScanResult[] expected, ScanResult[] actual) {

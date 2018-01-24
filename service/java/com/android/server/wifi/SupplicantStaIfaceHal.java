@@ -452,7 +452,6 @@ public class SupplicantStaIfaceHal {
     public boolean registerDeathHandler(@NonNull SupplicantDeathEventHandler handler) {
         if (mDeathEventHandler != null) {
             Log.e(TAG, "Death handler already present");
-            return false;
         }
         mDeathEventHandler = handler;
         return true;
@@ -465,7 +464,6 @@ public class SupplicantStaIfaceHal {
     public boolean deregisterDeathHandler() {
         if (mDeathEventHandler == null) {
             Log.e(TAG, "No Death handler present");
-            return false;
         }
         mDeathEventHandler = null;
         return true;

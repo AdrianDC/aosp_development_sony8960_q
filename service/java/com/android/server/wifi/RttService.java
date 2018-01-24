@@ -479,7 +479,9 @@ public final class RttService extends SystemService {
 
                             if (mResponderConfig != null) {
                                 // TODO: remove once mac address is added when enabling responder.
-                                mResponderConfig.macAddress = mWifiNative.getMacAddress();
+                                mResponderConfig.macAddress =
+                                        mWifiNative.getMacAddress(
+                                                mWifiNative.getClientInterfaceName());
                                 ci.addResponderRequest(key);
                                 ci.reportResponderEnableSucceed(key, mResponderConfig);
                                 transitionTo(mResponderEnabledState);

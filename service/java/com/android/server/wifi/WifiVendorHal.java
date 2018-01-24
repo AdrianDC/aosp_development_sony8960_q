@@ -2592,7 +2592,6 @@ public class WifiVendorHal {
         frameworkScanResult.level = scanResult.rssi;
         frameworkScanResult.frequency = scanResult.frequency;
         frameworkScanResult.timestamp = scanResult.timeStampInUs;
-        frameworkScanResult.bytes = hidlIeArrayToFrameworkIeBlob(scanResult.informationElements);
         return frameworkScanResult;
     }
 
