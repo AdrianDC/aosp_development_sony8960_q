@@ -260,7 +260,7 @@ public class HostapdHal {
             nwParams.ssid.addAll(NativeUtil.stringToByteArrayList(config.SSID));
             nwParams.isHidden = config.hiddenSSID;
             nwParams.encryptionType = getEncryptionType(config);
-            nwParams.pskPassphrase = config.preSharedKey;
+            nwParams.pskPassphrase = (config.preSharedKey != null) ? config.preSharedKey : "";
             if (!checkHostapdAndLogFailure(methodStr)) return false;
             try {
                 HostapdStatus status = mIHostapd.addAccessPoint(ifaceParams, nwParams);
