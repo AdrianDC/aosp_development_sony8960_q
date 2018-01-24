@@ -49,8 +49,9 @@ public class WificondScannerTest extends BaseWifiScannerImplTest {
                 new int[]{2400, 2450},
                 new int[]{5150, 5175},
                 new int[]{5600, 5650});
-        mScanner = new WificondScannerImpl(mContext, mWifiNative, mWifiMonitor,
-                new WificondChannelHelper(mWifiNative), mLooper.getLooper(), mClock);
+        mScanner = new WificondScannerImpl(mContext, BaseWifiScannerImplTest.IFACE_NAME,
+                mWifiNative, mWifiMonitor, new WificondChannelHelper(mWifiNative),
+                mLooper.getLooper(), mClock);
     }
 
     /**
@@ -66,8 +67,8 @@ public class WificondScannerTest extends BaseWifiScannerImplTest {
         when(channelHelper.createChannelCollection()).thenReturn(channelCollection);
         when(channelCollection.isEmpty()).thenReturn(true);
 
-        mScanner = new WificondScannerImpl(mContext, mWifiNative, mWifiMonitor,
-                channelHelper, mLooper.getLooper(), mClock);
+        mScanner = new WificondScannerImpl(mContext, BaseWifiScannerImplTest.IFACE_NAME,
+                mWifiNative, mWifiMonitor, channelHelper, mLooper.getLooper(), mClock);
 
         WifiNative.ScanSettings settings = new NativeScanSettingsBuilder()
                 .withBasePeriod(10000) // ms
