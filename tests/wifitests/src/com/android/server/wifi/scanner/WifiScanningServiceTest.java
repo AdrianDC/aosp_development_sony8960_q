@@ -547,6 +547,22 @@ public class WifiScanningServiceTest {
         verifyFailedResponse(order, handler, 122, WifiScanner.REASON_UNSPECIFIED, "not available");
     }
 
+    @Test
+    public void rejectBackgroundScanRequestWhenScannerImplCreateFails() throws Exception {
+        // Fail scanner impl creation.
+        when(mWifiScannerImplFactory.create(any(), any(), any())).thenReturn(null);
+
+        startServiceAndLoadDriver();
+        mWifiScanningServiceImpl.setWifiHandlerLogForTest(mLog);
+
+        Handler handler = mock(Handler.class);
+        BidirectionalAsyncChannel controlChannel = connectChannel(handler);
+        InOrder order = inOrder(handler);
+        sendBackgroundScanRequest(controlChannel, 122, generateValidScanSettings(), null);
+        mLooper.dispatchAll();
+        verifyFailedResponse(order, handler, 122, WifiScanner.REASON_UNSPECIFIED, "not available");
+    }
+
     private void doSuccessfulSingleScan(WifiScanner.ScanSettings requestSettings,
             WifiNative.ScanSettings nativeSettings, ScanResults results) throws RemoteException {
         int requestId = 12;
@@ -1928,6 +1944,22 @@ public class WifiScanningServiceTest {
                 "results=" + results2and3.getRawScanResults().length);
     }
 
+    @Test
+    public void rejectSingleScanRequestWhenScannerImplCreateFails() throws Exception {
+        // Fail scanner impl creation.
+        when(mWifiScannerImplFactory.create(any(), any(), any())).thenReturn(null);
+
+        startServiceAndLoadDriver();
+        mWifiScanningServiceImpl.setWifiHandlerLogForTest(mLog);
+
+        Handler handler = mock(Handler.class);
+        BidirectionalAsyncChannel controlChannel = connectChannel(handler);
+        InOrder order = inOrder(handler);
+        sendSingleScanRequest(controlChannel, 122, generateValidScanSettings(), null);
+        mLooper.dispatchAll();
+        verifyFailedResponse(order, handler, 122, WifiScanner.REASON_UNSPECIFIED, "not available");
+    }
+
 
     private void doSuccessfulBackgroundScan(WifiScanner.ScanSettings requestSettings,
             WifiNative.ScanSettings nativeSettings) {
@@ -2128,6 +2160,29 @@ public class WifiScanningServiceTest {
         sendPnoScanRequest(controlChannel, requestId, scanSettings.first, pnoSettings.first);
         expectHwPnoScan(order, handler, requestId, pnoSettings.second, scanResults);
         verifyPnoNetworkFoundReceived(order, handler, requestId, scanResults.getRawScanResults());
+    }
+
+    @Test
+    public void rejectHwPnoScanRequestWhenScannerImplCreateFails() throws Exception {
+        // Fail scanner impl creation.
+        when(mWifiScannerImplFactory.create(any(), any(), any())).thenReturn(null);
+
+        startServiceAndLoadDriver();
+        mWifiScanningServiceImpl.setWifiHandlerLogForTest(mLog);
+
+        Handler handler = mock(Handler.class);
+        BidirectionalAsyncChannel controlChannel = connectChannel(handler);
+        InOrder order = inOrder(handler, mWifiScannerImpl);
+
+        ScanResults scanResults = createScanResultsForPno();
+        Pair<WifiScanner.ScanSettings, WifiNative.ScanSettings> scanSettings =
+                createScanSettingsForHwPno();
+        Pair<WifiScanner.PnoSettings, WifiNative.PnoSettings> pnoSettings =
+                createPnoSettings(scanResults);
+
+        sendPnoScanRequest(controlChannel, 122, scanSettings.first, pnoSettings.first);
+        mLooper.dispatchAll();
+        verifyFailedResponse(order, handler, 122, WifiScanner.REASON_UNSPECIFIED, "not available");
     }
 
     /**
