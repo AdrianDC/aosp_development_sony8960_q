@@ -1161,6 +1161,7 @@ public class WifiMetricsTest {
         }
     }
     private void verifyDeserializedStaEvents(WifiMetricsProto.WifiLog wifiLog) {
+        assertNotNull(mTestWifiConfig);
         assertEquals(NUM_TEST_STA_EVENTS, wifiLog.staEventList.length);
         int j = 0; // De-serialized event index
         for (int i = 0; i < mTestStaMessageInts.length; i++) {
@@ -1180,6 +1181,21 @@ public class WifiMetricsTest {
                 j++;
             }
         }
+        for (int i = 0; i < mTestStaLogInts.length; i++) {
+            StaEvent event = wifiLog.staEventList[j];
+            int[] evs = mExpectedValues[j];
+            assertEquals(evs[0], event.type);
+            assertEquals(evs[1], event.reason);
+            assertEquals(evs[2], event.status);
+            assertEquals(evs[3] == 1 ? true : false, event.localGen);
+            assertEquals(evs[4], event.authFailureReason);
+            assertEquals(evs[5] == 1 ? true : false, event.associationTimedOut);
+            assertEquals(evs[6], event.supplicantStateChangesBitmask);
+            assertConfigInfoEqualsWifiConfig(
+                    evs[7] == 1 ? mTestWifiConfig : null, event.configInfo);
+            j++;
+        }
+        assertEquals(mExpectedValues.length, j);
     }
 
     /**
@@ -1360,6 +1376,7 @@ public class WifiMetricsTest {
      * Test Open Network Notification blacklist size and feature state are not cleared when proto
      * is dumped.
      */
+    @Test
     public void testOpenNetworkNotificationBlacklistSizeAndFeatureStateNotCleared()
             throws Exception {
         mWifiMetrics.setOpenNetworkRecommenderBlacklistSize(
