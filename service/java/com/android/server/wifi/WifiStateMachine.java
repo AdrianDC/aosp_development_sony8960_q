@@ -3484,16 +3484,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             // Tell the framework whether the newly connected network is trusted or untrusted.
             updateCapabilities(c);
         }
-        if (c != null) {
-            ScanResult result = getCurrentScanResult();
-            if (result == null) {
-                logd("WifiStateMachine: handleSuccessfulIpConfiguration and no scan results" +
-                        c.configKey());
-            } else {
-                // Clear the per BSSID failure count
-                result.numIpConfigFailures = 0;
-            }
-        }
     }
 
     private void handleIPv4Failure() {
