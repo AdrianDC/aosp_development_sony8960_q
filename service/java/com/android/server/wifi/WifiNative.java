@@ -20,6 +20,7 @@ import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.net.InterfaceConfiguration;
+import android.net.MacAddress;
 import android.net.apf.ApfCapabilities;
 import android.net.wifi.RttManager;
 import android.net.wifi.RttManager.ResponderConfig;
@@ -544,6 +545,7 @@ public class WifiNative {
                             + ifaceName);
                     return;
                 }
+
                 if (isUp) {
                     iface.externalListener.onUp(ifaceName);
                 } else {
@@ -1157,6 +1159,17 @@ public class WifiNative {
             Log.e(TAG, "Failed to remove access point");
         }
         return mWificondControl.stopHostapd(ifaceName);
+    }
+
+    /**
+     * Set MAC address of the given interface
+     * @param interfaceName Name of the interface
+     * @param mac Mac address to change into
+     * @return true on success
+     */
+    public boolean setMacAddress(String interfaceName, MacAddress mac) {
+        // TODO(b/72459123): Suppress interface down/up events from this call
+        return mWificondControl.setMacAddress(interfaceName, mac);
     }
 
     /********************************************************
