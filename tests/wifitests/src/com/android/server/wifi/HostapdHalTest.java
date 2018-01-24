@@ -213,7 +213,7 @@ public class HostapdHalTest {
                 mNetworkParamsCaptor.getValue().ssid);
         assertTrue(mNetworkParamsCaptor.getValue().isHidden);
         assertEquals(IHostapd.EncryptionType.NONE, mNetworkParamsCaptor.getValue().encryptionType);
-        assertNull(mNetworkParamsCaptor.getValue().pskPassphrase);
+        assertNotNull(mNetworkParamsCaptor.getValue().pskPassphrase);
     }
 
     /**
