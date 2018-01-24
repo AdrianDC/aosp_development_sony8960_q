@@ -31,6 +31,7 @@ import android.util.Log;
 import android.util.Pair;
 import android.util.SparseIntArray;
 
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.wifi.aware.WifiAwareMetrics;
 import com.android.server.wifi.hotspot2.ANQPNetworkKey;
 import com.android.server.wifi.hotspot2.NetworkDetail;
@@ -80,6 +81,8 @@ public class WifiMetrics {
     public static final long TIMEOUT_RSSI_DELTA_MILLIS =  3000;
     private static final int MIN_WIFI_SCORE = 0;
     private static final int MAX_WIFI_SCORE = NetworkAgent.WIFI_BASE_SCORE;
+    @VisibleForTesting
+    static final int LOW_WIFI_SCORE = 50; // Mobile data score
     private final Object mLock = new Object();
     private static final int MAX_CONNECTION_EVENTS = 256;
     // Largest bucket in the NumConnectableNetworkCount histogram,
@@ -1055,10 +1058,14 @@ public class WifiMetrics {
         }
     }
 
+    private boolean mWifiWins = false; // Based on scores, use wifi instead of mobile data?
+
     /**
      * Increments occurence of a particular wifi score calculated
      * in WifiScoreReport by current connected network. Scores are bounded
-     * within  [MIN_WIFI_SCORE, MAX_WIFI_SCORE] to limit size of SparseArray
+     * within  [MIN_WIFI_SCORE, MAX_WIFI_SCORE] to limit size of SparseArray.
+     *
+     * Also records events when the current score breaches significant thresholds.
      */
     public void incrementWifiScoreCount(int score) {
         if (score < MIN_WIFI_SCORE || score > MAX_WIFI_SCORE) {
@@ -1067,6 +1074,20 @@ public class WifiMetrics {
         synchronized (mLock) {
             int count = mWifiScoreCounts.get(score);
             mWifiScoreCounts.put(score, count + 1);
+
+            boolean wifiWins = mWifiWins;
+            if (mWifiWins && score < LOW_WIFI_SCORE) {
+                wifiWins = false;
+            } else if (!mWifiWins && score > LOW_WIFI_SCORE) {
+                wifiWins = true;
+            }
+            mLastScore = score;
+            if (wifiWins != mWifiWins) {
+                mWifiWins = wifiWins;
+                StaEvent event = new StaEvent();
+                event.type = StaEvent.TYPE_SCORE_BREACH;
+                addStaEvent(event);
+            }
         }
     }
 
@@ -1984,6 +2005,7 @@ public class WifiMetrics {
     public void setWifiState(int wifiState) {
         synchronized (mLock) {
             mWifiState = wifiState;
+            mWifiWins = (wifiState == WifiMetricsProto.WifiLog.WIFI_ASSOCIATED);
         }
     }
 
@@ -2089,6 +2111,7 @@ public class WifiMetrics {
             case StaEvent.TYPE_CONNECT_NETWORK:
             case StaEvent.TYPE_NETWORK_AGENT_VALID_NETWORK:
             case StaEvent.TYPE_FRAMEWORK_DISCONNECT:
+            case StaEvent.TYPE_SCORE_BREACH:
                 break;
             default:
                 Log.e(TAG, "Unknown StaEvent:" + type);
@@ -2109,10 +2132,12 @@ public class WifiMetrics {
         staEvent.lastFreq = mLastPollFreq;
         staEvent.lastLinkSpeed = mLastPollLinkSpeed;
         staEvent.supplicantStateChangesBitmask = mSupplicantStateChangeBitmask;
+        staEvent.lastScore = mLastScore;
         mSupplicantStateChangeBitmask = 0;
         mLastPollRssi = -127;
         mLastPollFreq = -1;
         mLastPollLinkSpeed = -1;
+        mLastScore = -1;
         mStaEventList.add(new StaEventWithTime(staEvent, mClock.getWallClockMillis()));
         // Prune StaEventList if it gets too long
         if (mStaEventList.size() > MAX_STA_EVENTS) mStaEventList.remove();
@@ -2268,6 +2293,9 @@ public class WifiMetrics {
                         .append(" reason=")
                         .append(frameworkDisconnectReasonToString(event.frameworkDisconnectReason));
                 break;
+            case StaEvent.TYPE_SCORE_BREACH:
+                sb.append("SCORE_BREACH");
+                break;
             default:
                 sb.append("UNKNOWN " + event.type + ":");
                 break;
@@ -2275,6 +2303,7 @@ public class WifiMetrics {
         if (event.lastRssi != -127) sb.append(" lastRssi=").append(event.lastRssi);
         if (event.lastFreq != -1) sb.append(" lastFreq=").append(event.lastFreq);
         if (event.lastLinkSpeed != -1) sb.append(" lastLinkSpeed=").append(event.lastLinkSpeed);
+        if (event.lastScore != -1) sb.append(" lastScore=").append(event.lastScore);
         if (event.supplicantStateChangesBitmask != 0) {
             sb.append(", ").append(supplicantStateChangesBitmaskToString(
                     event.supplicantStateChangesBitmask));
@@ -2337,11 +2366,12 @@ public class WifiMetrics {
         return sb.toString();
     }
 
-    public static final int MAX_STA_EVENTS = 512;
+    public static final int MAX_STA_EVENTS = 768;
     private LinkedList<StaEventWithTime> mStaEventList = new LinkedList<StaEventWithTime>();
     private int mLastPollRssi = -127;
     private int mLastPollLinkSpeed = -1;
     private int mLastPollFreq = -1;
+    private int mLastScore = -1;
 
     /**
      * Converts the first 31 bits of a BitSet to a little endian int

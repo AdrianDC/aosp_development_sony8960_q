@@ -782,6 +782,31 @@ public class WifiMetricsTest {
         // pending their implementation</TODO>
     }
 
+    /**
+     * Test that score breach events are properly generated
+     */
+    @Test
+    public void testScoreBeachEvents() throws Exception {
+        int upper = WifiMetrics.LOW_WIFI_SCORE + 7;
+        int mid = WifiMetrics.LOW_WIFI_SCORE;
+        int lower = WifiMetrics.LOW_WIFI_SCORE - 8;
+        mWifiMetrics.setWifiState(WifiMetricsProto.WifiLog.WIFI_ASSOCIATED);
+        for (int score = upper; score >= mid; score--) mWifiMetrics.incrementWifiScoreCount(score);
+        mWifiMetrics.incrementWifiScoreCount(mid + 1);
+        mWifiMetrics.incrementWifiScoreCount(lower); // First breach
+        for (int score = lower; score <= mid; score++) mWifiMetrics.incrementWifiScoreCount(score);
+        mWifiMetrics.incrementWifiScoreCount(mid - 1);
+        mWifiMetrics.incrementWifiScoreCount(upper); // Second breach
+
+        dumpProtoAndDeserialize();
+
+        assertEquals(2, mDecodedProto.staEventList.length);
+        assertEquals(StaEvent.TYPE_SCORE_BREACH, mDecodedProto.staEventList[0].type);
+        assertEquals(lower, mDecodedProto.staEventList[0].lastScore);
+        assertEquals(StaEvent.TYPE_SCORE_BREACH, mDecodedProto.staEventList[1].type);
+        assertEquals(upper, mDecodedProto.staEventList[1].lastScore);
+    }
+
     private static final String SSID = "red";
     private static final int CONFIG_DTIM = 3;
     private static final int NETWORK_DETAIL_WIFIMODE = 5;
@@ -1060,7 +1085,7 @@ public class WifiMetricsTest {
     private static final int ASSOC_TIMEOUT = 1;
     private static final int LOCAL_GEN = 1;
     private static final int AUTH_FAILURE_REASON = WifiManager.ERROR_AUTH_FAILURE_WRONG_PSWD;
-    private static final int NUM_TEST_STA_EVENTS = 14;
+    private static final int NUM_TEST_STA_EVENTS = 15;
     private static final String   sSSID = "\"SomeTestSsid\"";
     private static final WifiSsid sWifiSsid = WifiSsid.createFromAsciiEncoded(sSSID);
     private static final String   sBSSID = "01:02:03:04:05:06";
@@ -1108,7 +1133,8 @@ public class WifiMetricsTest {
         {StaEvent.TYPE_CMD_START_ROAM,                  0,                          1},
         {StaEvent.TYPE_CONNECT_NETWORK,                 0,                          1},
         {StaEvent.TYPE_NETWORK_AGENT_VALID_NETWORK,     0,                          0},
-        {StaEvent.TYPE_FRAMEWORK_DISCONNECT,            StaEvent.DISCONNECT_API,    0}
+        {StaEvent.TYPE_FRAMEWORK_DISCONNECT,            StaEvent.DISCONNECT_API,    0},
+        {StaEvent.TYPE_SCORE_BREACH,                    0,                          0}
     };
     // Values used to generate the StaEvent log calls from WifiMonitor
     // <type>, <reason>, <status>, <local_gen>,
@@ -1141,6 +1167,8 @@ public class WifiMetricsTest {
         {StaEvent.TYPE_NETWORK_AGENT_VALID_NETWORK,     -1,            -1,         0,
             /**/                               0,             0,        0, 0},    /**/
         {StaEvent.TYPE_FRAMEWORK_DISCONNECT,            -1,            -1,         0,
+            /**/                               0,             0,        0, 0},    /**/
+        {StaEvent.TYPE_SCORE_BREACH,                    -1,            -1,         0,
             /**/                               0,             0,        0, 0}     /**/
     };
 
