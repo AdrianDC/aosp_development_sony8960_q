@@ -2180,6 +2180,27 @@ public class WifiServiceImplTest {
         assertEquals(requestMsgWhat, messageArgumentCaptor.getValue().what);
     }
 
+     /**
+     * Helper to test handling of async messages by wifi service when the message comes from an
+     * app with {@link android.Manifest.permission#CHANGE_WIFI_STATE} permission where we
+     * immediately return an error for deprecated functionality.
+     */
+    private void verifyAsyncChannelDeprecatedMessageHandlingNotSentToWSMWithChangePermisson(
+            int requestMsgWhat, Object requestMsgObj) throws Exception {
+        WifiAsyncChannelTester tester = verifyAsyncChannelHalfConnected();
+
+        when(mWifiPermissionsUtil.checkChangePermission(anyInt())).thenReturn(true);
+
+        Message request = Message.obtain();
+        request.what = requestMsgWhat;
+        request.obj = requestMsgObj;
+
+        tester.sendMessage(request);
+        mLooper.dispatchAll();
+
+        verify(mWifiStateMachine, never()).sendMessage(any());
+    }
+
     /**
      * Verify that the CONNECT_NETWORK message received from an app with
      * {@link android.Manifest.permission#CHANGE_WIFI_STATE} permission is forwarded to
@@ -2209,7 +2230,7 @@ public class WifiServiceImplTest {
      */
     @Test
     public void testStartWpsWithChangePermission() throws Exception {
-        verifyAsyncChannelMessageHandlingWithChangePermisson(
+        verifyAsyncChannelDeprecatedMessageHandlingNotSentToWSMWithChangePermisson(
                 WifiManager.START_WPS, new Object());
     }
 
@@ -2220,7 +2241,7 @@ public class WifiServiceImplTest {
      */
     @Test
     public void testCancelWpsWithChangePermission() throws Exception {
-        verifyAsyncChannelMessageHandlingWithChangePermisson(
+        verifyAsyncChannelDeprecatedMessageHandlingNotSentToWSMWithChangePermisson(
                 WifiManager.CANCEL_WPS, new Object());
     }
 

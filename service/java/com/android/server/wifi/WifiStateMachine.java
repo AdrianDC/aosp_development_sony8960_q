@@ -70,9 +70,6 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
-import android.net.wifi.WpsInfo;
-import android.net.wifi.WpsResult;
-import android.net.wifi.WpsResult.Status;
 import android.net.wifi.hotspot2.IProvisioningCallback;
 import android.net.wifi.hotspot2.OsuProvider;
 import android.net.wifi.hotspot2.PasspointConfiguration;
@@ -96,7 +93,6 @@ import android.telephony.PhoneStateListener;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
-import android.util.Pair;
 import android.util.SparseArray;
 
 import com.android.internal.R;
@@ -137,11 +133,9 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -853,8 +847,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private State mDisconnectingState = new DisconnectingState();
     /* Network is not connected, supplicant assoc+auth is not complete */
     private State mDisconnectedState = new DisconnectedState();
-    /* Waiting for WPS to be completed*/
-    private State mWpsRunningState = new WpsRunningState();
     /* Soft ap state */
     private State mSoftApState = new SoftApState();
 
@@ -1092,7 +1084,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             addState(mRoamingState, mL2ConnectedState);
                         addState(mDisconnectingState, mConnectModeState);
                         addState(mDisconnectedState, mConnectModeState);
-                        addState(mWpsRunningState, mConnectModeState);
             addState(mScanModeState, mDefaultState);
             addState(mSoftApState, mDefaultState);
         // CHECKSTYLE:ON IndentationCheck
@@ -1148,11 +1139,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 getHandler());
         mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.SUP_REQUEST_SIM_AUTH,
                 getHandler());
-        mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.WPS_FAIL_EVENT, getHandler());
-        mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.WPS_OVERLAP_EVENT, getHandler());
-        mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.WPS_SUCCESS_EVENT, getHandler());
-        mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.WPS_TIMEOUT_EVENT, getHandler());
-
         mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.ASSOCIATION_REJECTION_EVENT,
                 mWifiMetrics.getHandler());
         mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.AUTHENTICATION_FAILURE_EVENT,
@@ -2146,15 +2132,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         boolean result = (resultMsg.what != WifiManager.DISABLE_NETWORK_FAILED);
         resultMsg.recycle();
         return result;
-    }
-
-    /**
-     * Retrieves a WPS-NFC configuration token for the specified network
-     *
-     * @return a hex string representation of the WPS-NFC configuration token
-     */
-    public String syncGetCurrentNetworkWpsNfcConfigurationToken() {
-        return mWifiNative.getCurrentNetworkWpsNfcConfigurationToken(mInterfaceName);
     }
 
     public void enableRssiPolling(boolean enabled) {
@@ -3977,7 +3954,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
                 case WifiMonitor.AUTHENTICATION_FAILURE_EVENT:
                 case WifiMonitor.ASSOCIATION_REJECTION_EVENT:
-                case WifiMonitor.WPS_OVERLAP_EVENT:
                 case CMD_RSSI_POLL:
                 case DhcpClient.CMD_PRE_DHCP_ACTION:
                 case DhcpClient.CMD_PRE_DHCP_ACTION_COMPLETE:
@@ -4041,14 +4017,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     break;
                 case WifiManager.SAVE_NETWORK:
                     saveNetworkConfigAndSendReply(message);
-                    break;
-                case WifiManager.START_WPS:
-                    replyToMessage(message, WifiManager.WPS_FAILED,
-                            WifiManager.BUSY);
-                    break;
-                case WifiManager.CANCEL_WPS:
-                    replyToMessage(message, WifiManager.CANCEL_WPS_FAILED,
-                            WifiManager.BUSY);
                     break;
                 case WifiManager.DISABLE_NETWORK:
                     replyToMessage(message, WifiManager.DISABLE_NETWORK_FAILED,
@@ -4658,12 +4626,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
             case WifiMonitor.AUTHENTICATION_FAILURE_EVENT:
                 s = "AUTHENTICATION_FAILURE_EVENT";
                 break;
-            case WifiMonitor.WPS_SUCCESS_EVENT:
-                s = "WPS_SUCCESS_EVENT";
-                break;
-            case WifiMonitor.WPS_FAIL_EVENT:
-                s = "WPS_FAIL_EVENT";
-                break;
             case WifiMonitor.SUP_REQUEST_IDENTITY:
                 s = "SUP_REQUEST_IDENTITY";
                 break;
@@ -4705,27 +4667,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 break;
             case WifiP2pServiceImpl.BLOCK_DISCOVERY:
                 s = "P2P.BLOCK_DISCOVERY";
-                break;
-            case WifiManager.CANCEL_WPS:
-                s = "CANCEL_WPS";
-                break;
-            case WifiManager.CANCEL_WPS_FAILED:
-                s = "CANCEL_WPS_FAILED";
-                break;
-            case WifiManager.CANCEL_WPS_SUCCEDED:
-                s = "CANCEL_WPS_SUCCEDED";
-                break;
-            case WifiManager.START_WPS:
-                s = "START_WPS";
-                break;
-            case WifiManager.START_WPS_SUCCEEDED:
-                s = "START_WPS_SUCCEEDED";
-                break;
-            case WifiManager.WPS_FAILED:
-                s = "WPS_FAILED";
-                break;
-            case WifiManager.WPS_COMPLETED:
-                s = "WPS_COMPLETED";
                 break;
             case WifiManager.RSSI_PKTCNT_FETCH:
                 s = "RSSI_PKTCNT_FETCH";
@@ -5269,63 +5210,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     if (netId == mTargetNetworkId || netId == mLastNetworkId) {
                         // Disconnect and let autojoin reselect a new network
                         sendMessage(CMD_DISCONNECT);
-                    }
-                    break;
-                case WifiManager.START_WPS:
-                    mWifiMetrics.incrementWpsAttemptCount();
-                    WpsInfo wpsInfo = (WpsInfo) message.obj;
-                    if (wpsInfo == null) {
-                        mWifiMetrics.incrementWpsStartFailureCount();
-                        loge("Cannot start WPS with null WpsInfo object");
-                        replyToMessage(message, WifiManager.WPS_FAILED, WifiManager.ERROR);
-                        break;
-                    }
-                    WpsResult wpsResult = new WpsResult();
-                    // TODO(b/32898136): Not needed when we start deleting networks from supplicant
-                    // on disconnect.
-                    if (!mWifiNative.removeAllNetworks(mInterfaceName)) {
-                        loge("Failed to remove networks before WPS");
-                    }
-                    switch (wpsInfo.setup) {
-                        case WpsInfo.PBC:
-                            if (mWifiNative.startWpsPbc(mInterfaceName, wpsInfo.BSSID)) {
-                                wpsResult.status = WpsResult.Status.SUCCESS;
-                            } else {
-                                Log.e(TAG, "Failed to start WPS push button configuration");
-                                wpsResult.status = WpsResult.Status.FAILURE;
-                            }
-                            break;
-                        case WpsInfo.KEYPAD:
-                            if (mWifiNative.startWpsRegistrar(
-                                    mInterfaceName, wpsInfo.BSSID, wpsInfo.pin)) {
-                                wpsResult.status = WpsResult.Status.SUCCESS;
-                            } else {
-                                Log.e(TAG, "Failed to start WPS push button configuration");
-                                wpsResult.status = WpsResult.Status.FAILURE;
-                            }
-                            break;
-                        case WpsInfo.DISPLAY:
-                            wpsResult.pin = mWifiNative.startWpsPinDisplay(
-                                    mInterfaceName, wpsInfo.BSSID);
-                            if (!TextUtils.isEmpty(wpsResult.pin)) {
-                                wpsResult.status = WpsResult.Status.SUCCESS;
-                            } else {
-                                Log.e(TAG, "Failed to start WPS pin method configuration");
-                                wpsResult.status = WpsResult.Status.FAILURE;
-                            }
-                            break;
-                        default:
-                            wpsResult = new WpsResult(Status.FAILURE);
-                            loge("Invalid setup for WPS");
-                            break;
-                    }
-                    if (wpsResult.status == Status.SUCCESS) {
-                        replyToMessage(message, WifiManager.START_WPS_SUCCEEDED, wpsResult);
-                        transitionTo(mWpsRunningState);
-                    } else {
-                        mWifiMetrics.incrementWpsStartFailureCount();
-                        loge("Failed to start WPS with config " + wpsInfo.toString());
-                        replyToMessage(message, WifiManager.WPS_FAILED, WifiManager.ERROR);
                     }
                     break;
                 case CMD_ASSOCIATED_BSSID:
@@ -6667,177 +6551,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         public void exit() {
             mWifiConnectivityManager.handleConnectionStateChanged(
                      WifiConnectivityManager.WIFI_STATE_TRANSITIONING);
-        }
-    }
-
-    /**
-     * WPS connection flow:
-     * 1. WifiStateMachine receive WPS_START message from WifiManager API.
-     * 2. WifiStateMachine initiates the appropriate WPS operation using WifiNative methods:
-     * {@link WifiNative#startWpsPbc(String)}, {@link WifiNative#startWpsPinDisplay(String)}, etc.
-     * 3. WifiStateMachine then transitions to this WpsRunningState.
-     * 4a. Once WifiStateMachine receive the connected event:
-     * {@link WifiMonitor#NETWORK_CONNECTION_EVENT},
-     * 4a.1 Load the network params out of wpa_supplicant.
-     * 4a.2 Add the network with params to WifiConfigManager.
-     * 4a.3 Enable the network with |disableOthers| set to true.
-     * 4a.4 Send a response to the original source of WifiManager API using {@link #mSourceMessage}.
-     * 4b. Any failures are notified to the original source of WifiManager API
-     * using {@link #mSourceMessage}.
-     * 5. We then transition to disconnected state and let network selection reconnect to the newly
-     * added network.
-     */
-    class WpsRunningState extends State {
-        // Tracks the source to provide a reply
-        private Message mSourceMessage;
-        @Override
-        public void enter() {
-            mSourceMessage = Message.obtain(getCurrentMessage());
-        }
-        @Override
-        public boolean processMessage(Message message) {
-            logStateAndMessage(message, this);
-
-            switch (message.what) {
-                case WifiMonitor.WPS_SUCCESS_EVENT:
-                    // Ignore intermediate success, wait for full connection
-                    break;
-                case WifiMonitor.NETWORK_CONNECTION_EVENT:
-                    Pair<Boolean, Integer> loadResult = loadNetworksFromSupplicantAfterWps();
-                    boolean success = loadResult.first;
-                    int netId = loadResult.second;
-                    if (success) {
-                        message.arg1 = netId;
-                        mWifiMetrics.incrementWpsSuccessCount();
-                        replyToMessage(mSourceMessage, WifiManager.WPS_COMPLETED);
-                    } else {
-                        mWifiMetrics.incrementWpsSupplicantFailureCount();
-                        replyToMessage(mSourceMessage, WifiManager.WPS_FAILED,
-                                WifiManager.ERROR);
-                    }
-                    mSourceMessage.recycle();
-                    mSourceMessage = null;
-                    deferMessage(message);
-                    transitionTo(mDisconnectedState);
-                    break;
-                case WifiMonitor.WPS_OVERLAP_EVENT:
-                    mWifiMetrics.incrementWpsOverlapFailureCount();
-                    replyToMessage(mSourceMessage, WifiManager.WPS_FAILED,
-                            WifiManager.WPS_OVERLAP_ERROR);
-                    mSourceMessage.recycle();
-                    mSourceMessage = null;
-                    transitionTo(mDisconnectedState);
-                    break;
-                case WifiMonitor.WPS_FAIL_EVENT:
-                    // Arg1 has the reason for the failure
-                    if ((message.arg1 != WifiManager.ERROR) || (message.arg2 != 0)) {
-                        mWifiMetrics.incrementWpsOtherConnectionFailureCount();
-                        replyToMessage(mSourceMessage, WifiManager.WPS_FAILED, message.arg1);
-                        mSourceMessage.recycle();
-                        mSourceMessage = null;
-                        transitionTo(mDisconnectedState);
-                    } else {
-                        if (mVerboseLoggingEnabled) {
-                            log("Ignore unspecified fail event during WPS connection");
-                        }
-                    }
-                    break;
-                case WifiMonitor.WPS_TIMEOUT_EVENT:
-                    mWifiMetrics.incrementWpsTimeoutFailureCount();
-                    replyToMessage(mSourceMessage, WifiManager.WPS_FAILED,
-                            WifiManager.WPS_TIMED_OUT);
-                    mSourceMessage.recycle();
-                    mSourceMessage = null;
-                    transitionTo(mDisconnectedState);
-                    break;
-                case WifiManager.START_WPS:
-                    replyToMessage(message, WifiManager.WPS_FAILED, WifiManager.IN_PROGRESS);
-                    break;
-                case WifiManager.CANCEL_WPS:
-                    mWifiMetrics.incrementWpsCancellationCount();
-                    if (mWifiNative.cancelWps(mInterfaceName)) {
-                        replyToMessage(message, WifiManager.CANCEL_WPS_SUCCEDED);
-                    } else {
-                        replyToMessage(message, WifiManager.CANCEL_WPS_FAILED, WifiManager.ERROR);
-                    }
-                    transitionTo(mDisconnectedState);
-                    break;
-                /**
-                 * Defer all commands that can cause connections to a different network
-                 * or put the state machine out of connect mode
-                 */
-                case WifiManager.CONNECT_NETWORK:
-                case CMD_ENABLE_NETWORK:
-                case CMD_REASSOCIATE:
-                    deferMessage(message);
-                    break;
-                case CMD_RECONNECT:
-                case CMD_START_CONNECT:
-                case CMD_START_ROAM:
-                case CMD_START_SCAN:
-                    messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
-                    return HANDLED;
-                case WifiMonitor.NETWORK_DISCONNECTION_EVENT:
-                    if (mVerboseLoggingEnabled) log("Network connection lost");
-                    handleNetworkDisconnect();
-                    break;
-                case WifiMonitor.ASSOCIATION_REJECTION_EVENT:
-                    if (mVerboseLoggingEnabled) {
-                        log("Ignore Assoc reject event during WPS Connection");
-                    }
-                    break;
-                case WifiMonitor.AUTHENTICATION_FAILURE_EVENT:
-                    // Disregard auth failure events during WPS connection. The
-                    // EAP sequence is retried several times, and there might be
-                    // failures (especially for wps pin). We will get a WPS_XXX
-                    // event at the end of the sequence anyway.
-                    if (mVerboseLoggingEnabled) log("Ignore auth failure during WPS connection");
-                    break;
-                case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
-                    // Throw away supplicant state changes when WPS is running.
-                    // We will start getting supplicant state changes once we get
-                    // a WPS success or failure
-                    break;
-                default:
-                    return NOT_HANDLED;
-            }
-            return HANDLED;
-        }
-
-        /**
-         * Load network config from wpa_supplicant after WPS is complete.
-         * @return a boolean (true if load was successful) and integer (Network Id of currently
-         *          connected network, can be {@link WifiConfiguration#INVALID_NETWORK_ID} despite
-         *          successful loading, if multiple networks in supplicant) pair.
-         */
-        private Pair<Boolean, Integer> loadNetworksFromSupplicantAfterWps() {
-            Map<String, WifiConfiguration> configs = new HashMap<>();
-            SparseArray<Map<String, String>> extras = new SparseArray<>();
-            int netId = WifiConfiguration.INVALID_NETWORK_ID;
-            if (!mWifiNative.migrateNetworksFromSupplicant(mInterfaceName, configs, extras)) {
-                loge("Failed to load networks from wpa_supplicant after Wps");
-                return Pair.create(false, WifiConfiguration.INVALID_NETWORK_ID);
-            }
-            for (Map.Entry<String, WifiConfiguration> entry : configs.entrySet()) {
-                WifiConfiguration config = entry.getValue();
-                // Reset the network ID retrieved from wpa_supplicant, since we want to treat
-                // this as a new network addition in framework.
-                config.networkId = WifiConfiguration.INVALID_NETWORK_ID;
-                NetworkUpdateResult result = mWifiConfigManager.addOrUpdateNetwork(
-                        config, mSourceMessage.sendingUid);
-                if (!result.isSuccess()) {
-                    loge("Failed to add network after WPS: " + entry.getValue());
-                    return Pair.create(false, WifiConfiguration.INVALID_NETWORK_ID);
-                }
-                if (!mWifiConfigManager.enableNetwork(
-                        result.getNetworkId(), true, mSourceMessage.sendingUid)) {
-                    Log.wtf(TAG, "Failed to enable network after WPS: " + entry.getValue());
-                    return Pair.create(false, WifiConfiguration.INVALID_NETWORK_ID);
-                }
-                netId = result.getNetworkId();
-            }
-            return Pair.create(true,
-                    configs.size() == 1 ? netId : WifiConfiguration.INVALID_NETWORK_ID);
         }
     }
 
