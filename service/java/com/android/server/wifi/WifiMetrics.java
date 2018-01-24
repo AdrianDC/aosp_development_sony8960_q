@@ -1283,6 +1283,16 @@ public class WifiMetrics {
     }
 
     /**
+     * Increment number of times the hostapd crashed.
+     */
+    public void incrementNumHostapdCrashes() {
+        synchronized (mLock) {
+            // TODO(b/71720421): Add metrics for hostapd crashes.
+            mWifiLogProto.numHalCrashes++;
+        }
+    }
+
+    /**
      * Increment number of times the wifi on failed due to an error in HAL.
      */
     public void incrementNumWifiOnFailureDueToHal() {

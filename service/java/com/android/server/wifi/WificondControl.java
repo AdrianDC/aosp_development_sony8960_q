@@ -184,7 +184,6 @@ public class WificondControl implements IBinder.DeathRecipient {
     public boolean registerDeathHandler(@NonNull WifiNative.WificondDeathEventHandler handler) {
         if (mDeathEventHandler != null) {
             Log.e(TAG, "Death handler already present");
-            return false;
         }
         mDeathEventHandler = handler;
         return true;
@@ -197,7 +196,6 @@ public class WificondControl implements IBinder.DeathRecipient {
     public boolean deregisterDeathHandler() {
         if (mDeathEventHandler == null) {
             Log.e(TAG, "No Death handler present");
-            return false;
         }
         mDeathEventHandler = null;
         return true;

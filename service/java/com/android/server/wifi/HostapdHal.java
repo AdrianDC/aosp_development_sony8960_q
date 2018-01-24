@@ -299,7 +299,6 @@ public class HostapdHal {
     public boolean registerDeathHandler(@NonNull HostapdDeathEventHandler handler) {
         if (mDeathEventHandler != null) {
             Log.e(TAG, "Death handler already present");
-            return false;
         }
         mDeathEventHandler = handler;
         return true;
@@ -312,7 +311,6 @@ public class HostapdHal {
     public boolean deregisterDeathHandler() {
         if (mDeathEventHandler == null) {
             Log.e(TAG, "No Death handler present");
-            return false;
         }
         mDeathEventHandler = null;
         return true;
