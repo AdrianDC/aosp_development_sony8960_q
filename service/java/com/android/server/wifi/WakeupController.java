@@ -56,6 +56,7 @@ public class WakeupController {
     private final ContentObserver mContentObserver;
     private final WakeupLock mWakeupLock;
     private final WakeupEvaluator mWakeupEvaluator;
+    private final WakeupOnboarding mWakeupOnboarding;
     private final WifiConfigManager mWifiConfigManager;
     private final WifiInjector mWifiInjector;
 
@@ -99,6 +100,7 @@ public class WakeupController {
             Looper looper,
             WakeupLock wakeupLock,
             WakeupEvaluator wakeupEvaluator,
+            WakeupOnboarding wakeupOnboarding,
             WifiConfigManager wifiConfigManager,
             WifiConfigStore wifiConfigStore,
             WifiInjector wifiInjector,
@@ -107,6 +109,7 @@ public class WakeupController {
         mHandler = new Handler(looper);
         mWakeupLock = wakeupLock;
         mWakeupEvaluator = wakeupEvaluator;
+        mWakeupOnboarding = wakeupOnboarding;
         mWifiConfigManager = wifiConfigManager;
         mFrameworkFacade = frameworkFacade;
         mWifiInjector = wifiInjector;
@@ -123,8 +126,10 @@ public class WakeupController {
 
         // registering the store data here has the effect of reading the persisted value of the
         // data sources after system boot finishes
-        WakeupConfigStoreData wakeupConfigStoreData =
-                new WakeupConfigStoreData(new IsActiveDataSource(), mWakeupLock.getDataSource());
+        WakeupConfigStoreData wakeupConfigStoreData = new WakeupConfigStoreData(
+                new IsActiveDataSource(),
+                mWakeupOnboarding.getDataSource(),
+                mWakeupLock.getDataSource());
         wifiConfigStore.registerStoreData(wakeupConfigStoreData);
     }
 
@@ -154,6 +159,7 @@ public class WakeupController {
         setActive(true);
 
         if (isEnabled()) {
+            mWakeupOnboarding.maybeShowNotification();
             mWakeupLock.initialize(getMostRecentSavedScanResults());
         }
     }
@@ -167,6 +173,7 @@ public class WakeupController {
     public void stop() {
         Log.d(TAG, "stop()");
         mWifiInjector.getWifiScanner().deregisterScanListener(mScanListener);
+        mWakeupOnboarding.onStop();
     }
 
     /** Resets the WakeupController, setting {@link #mIsActive} to false. */
@@ -224,6 +231,12 @@ public class WakeupController {
      */
     private void handleScanResults(Collection<ScanResult> scanResults) {
         if (!isEnabled()) {
+            return;
+        }
+
+        // need to show notification here in case user enables Wifi Wake when Wifi is off
+        mWakeupOnboarding.maybeShowNotification();
+        if (!mWakeupOnboarding.isOnboarded()) {
             return;
         }
 

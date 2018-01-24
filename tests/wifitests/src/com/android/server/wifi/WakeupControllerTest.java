@@ -55,6 +55,7 @@ public class WakeupControllerTest {
     @Mock private Context mContext;
     @Mock private WakeupLock mWakeupLock;
     @Mock private WakeupEvaluator mWakeupEvaluator;
+    @Mock private WakeupOnboarding mWakeupOnboarding;
     @Mock private WifiConfigStore mWifiConfigStore;
     @Mock private WifiInjector mWifiInjector;
     @Mock private WifiScanner mWifiScanner;
@@ -78,10 +79,12 @@ public class WakeupControllerTest {
         int settingsValue = enabled ? 1 : 0;
         when(mFrameworkFacade.getIntegerSetting(mContext,
                 Settings.Global.WIFI_WAKEUP_ENABLED, 0)).thenReturn(settingsValue);
+        when(mWakeupOnboarding.isOnboarded()).thenReturn(true);
         mWakeupController = new WakeupController(mContext,
                 mLooper.getLooper(),
                 mWakeupLock,
                 mWakeupEvaluator,
+                mWakeupOnboarding,
                 mWifiConfigManager,
                 mWifiConfigStore,
                 mWifiInjector,
@@ -309,5 +312,37 @@ public class WakeupControllerTest {
 
         scanListener.onResults(scanDatas);
         verify(mWakeupEvaluator).findViableNetwork(any(), any());
+    }
+
+    /**
+     * Verify that the controller only updates the WakeupLock if the user is onboarded.
+     */
+    @Test
+    public void onResultsDoesNotUpdateIfNotOnboarded() {
+        ScanResult scanResult = new ScanResult();
+        scanResult.SSID = "open ssid 1";
+        scanResult.capabilities = "";
+        ScanResult[] scanResults = new ScanResult[1];
+        scanResults[0] = scanResult;
+
+        // scanlistener input
+        WifiScanner.ScanData[] scanDatas = new WifiScanner.ScanData[1];
+        scanDatas[0] = new WifiScanner.ScanData(0 /* id */, 0 /* flags */, 0 /* bucketsScanned */,
+                true /* allChannelsScanned */, scanResults);
+
+        initializeWakeupController(true /* enabled */);
+        when(mWakeupOnboarding.isOnboarded()).thenReturn(false);
+        mWakeupController.start();
+
+        ArgumentCaptor<WifiScanner.ScanListener> scanListenerArgumentCaptor =
+                ArgumentCaptor.forClass(WifiScanner.ScanListener.class);
+
+        verify(mWifiScanner).registerScanListener(scanListenerArgumentCaptor.capture());
+        WifiScanner.ScanListener scanListener = scanListenerArgumentCaptor.getValue();
+
+        scanListener.onResults(scanDatas);
+
+        verify(mWakeupLock, never()).isEmpty();
+        verify(mWakeupLock, never()).update(any());
     }
 }

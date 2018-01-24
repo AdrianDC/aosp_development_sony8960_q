@@ -46,6 +46,7 @@ import java.util.Set;
 public class WakeupConfigStoreDataTest {
 
     @Mock private WakeupConfigStoreData.DataSource<Boolean> mActiveDataSource;
+    @Mock private WakeupConfigStoreData.DataSource<Boolean> mIsOnboardedDataSource;
     @Mock private WakeupConfigStoreData.DataSource<Set<ScanResultMatchInfo>> mNetworkDataSource;
 
     private WakeupConfigStoreData mWakeupConfigData;
@@ -54,7 +55,8 @@ public class WakeupConfigStoreDataTest {
     public void setUp() {
         MockitoAnnotations.initMocks(this);
 
-        mWakeupConfigData = new WakeupConfigStoreData(mActiveDataSource, mNetworkDataSource);
+        mWakeupConfigData = new WakeupConfigStoreData(mActiveDataSource, mIsOnboardedDataSource,
+                mNetworkDataSource);
     }
 
     /**
@@ -110,14 +112,17 @@ public class WakeupConfigStoreDataTest {
     public void deserializeSerializedData_emptySet() throws Exception {
         Set<ScanResultMatchInfo> networks = Collections.emptySet();
         boolean isActive = false;
+        boolean isOnboarded = false;
 
         when(mActiveDataSource.getData()).thenReturn(isActive);
+        when(mIsOnboardedDataSource.getData()).thenReturn(isOnboarded);
         when(mNetworkDataSource.getData()).thenReturn(networks);
 
         byte[] bytes = serializeData(false /* shared */);
         deserializeData(bytes, false /* shared */);
 
         verify(mActiveDataSource).setData(eq(isActive));
+        verify(mIsOnboardedDataSource).setData(eq(isOnboarded));
         verify(mNetworkDataSource).setData(eq(networks));
     }
 
@@ -140,14 +145,17 @@ public class WakeupConfigStoreDataTest {
 
         Set<ScanResultMatchInfo> networks = Sets.newArraySet(network1, network2, network3);
         boolean isActive = true;
+        boolean isOnboarded = false;
 
         when(mActiveDataSource.getData()).thenReturn(isActive);
+        when(mIsOnboardedDataSource.getData()).thenReturn(isOnboarded);
         when(mNetworkDataSource.getData()).thenReturn(networks);
 
         byte[] bytes = serializeData(false /* shared */);
         deserializeData(bytes, false /* shared */);
 
         verify(mActiveDataSource).setData(eq(isActive));
+        verify(mIsOnboardedDataSource).setData(eq(isOnboarded));
         verify(mNetworkDataSource).setData(eq(networks));
     }
 
@@ -159,6 +167,7 @@ public class WakeupConfigStoreDataTest {
         mWakeupConfigData.resetData(false /* shared */);
 
         verify(mActiveDataSource).setData(false);
+        verify(mIsOnboardedDataSource).setData(false);
         verify(mNetworkDataSource).setData(eq(Collections.emptySet()));
     }
 }
