@@ -2643,12 +2643,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         }
 
         if (!mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_WIFI)) {
-            // Enable wifi
-            try {
-                setWifiEnabled(packageName, true);
-            } catch (RemoteException e) {
-                /* ignore - local call */
-            }
             // Delete all Wifi SSIDs
             if (mWifiStateMachineChannel != null) {
                 List<WifiConfiguration> networks = mWifiStateMachine.syncGetConfiguredNetworks(
