@@ -44,6 +44,7 @@ import android.net.DhcpResults;
 import android.net.IpConfiguration;
 import android.net.KeepalivePacketData;
 import android.net.LinkProperties;
+import android.net.MacAddress;
 import android.net.Network;
 import android.net.NetworkAgent;
 import android.net.NetworkCapabilities;
@@ -800,6 +801,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     /* Tracks if user has enabled suspend optimizations through settings */
     private AtomicBoolean mUserWantsSuspendOpt = new AtomicBoolean(true);
 
+    /* Tracks if user has enabled Connected Mac Randomization through settings */
+    private AtomicBoolean mEnableConnectedMacRandomization = new AtomicBoolean(false);
+
     /**
      * Scan period for the NO_NETWORKS_PERIIDOC_SCAN_FEATURE
      */
@@ -985,6 +989,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mUserWantsSuspendOpt.set(mFacade.getIntegerSetting(mContext,
                 Settings.Global.WIFI_SUSPEND_OPTIMIZATIONS_ENABLED, 1) == 1);
 
+        mEnableConnectedMacRandomization.set(mFacade.getIntegerSetting(mContext,
+                Settings.Global.WIFI_CONNECTED_MAC_RANDOMIZATION_ENABLED, 0) == 1);
+
         mNetworkCapabilitiesFilter.addTransportType(NetworkCapabilities.TRANSPORT_WIFI);
         mNetworkCapabilitiesFilter.addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
         mNetworkCapabilitiesFilter.addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
@@ -1020,6 +1027,18 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     public void onChange(boolean selfChange) {
                         mUserWantsSuspendOpt.set(mFacade.getIntegerSetting(mContext,
                                 Settings.Global.WIFI_SUSPEND_OPTIMIZATIONS_ENABLED, 1) == 1);
+                    }
+                });
+
+        mContext.getContentResolver().registerContentObserver(Settings.Global.getUriFor(
+                        Settings.Global.WIFI_CONNECTED_MAC_RANDOMIZATION_ENABLED), false,
+                new ContentObserver(getHandler()) {
+                    @Override
+                    public void onChange(boolean selfChange) {
+                        mEnableConnectedMacRandomization.set(mFacade.getIntegerSetting(mContext,
+                                Settings.Global.WIFI_CONNECTED_MAC_RANDOMIZATION_ENABLED, 0) == 1);
+                        Log.i(TAG, "EnableConnectedMacRandomization Setting changed to "
+                                + mEnableConnectedMacRandomization);
                     }
                 });
 
@@ -3812,6 +3831,34 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
     }
 
+     /**
+     * Dynamically change the MAC address to use the locally randomized
+     * MAC address generated for each network.
+     * @param config WifiConfiguration with mRandomizedMacAddress to change into. If the address
+     * is masked out or not set, it will generate a new random MAC address.
+     */
+    private void configureRandomizedMacAddress(WifiConfiguration config) {
+        if (config == null) {
+            Log.e(TAG, "No config to change MAC address to");
+            return;
+        }
+        MacAddress currentMac = MacAddress.fromString(mWifiNative.getMacAddress(mInterfaceName));
+        MacAddress newMac = config.getOrCreateRandomizedMacAddress();
+
+        if (currentMac.equals(newMac)) {
+            Log.i(TAG, "No changes in MAC address");
+        } else {
+            Log.i(TAG, "ConnectedMacRandomization SSID(" + config.getPrintableSsid()
+                    + "). setMacAddress(" + newMac.toString() + ") from "
+                    + currentMac.toString());
+            boolean setMacSuccess =
+                    mWifiNative.setMacAddress(mInterfaceName, newMac);
+            Log.i(TAG, "ConnectedMacRandomization  ...setMacAddress("
+                    + newMac.toString() + ") = " + setMacSuccess);
+        }
+    }
+
+
     /********************************************************
      * HSM states
      *******************************************************/
@@ -5114,6 +5161,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mTargetNetworkId = netId;
                     setTargetBssid(config, bssid);
 
+                    if (mEnableConnectedMacRandomization.get()) {
+                        configureRandomizedMacAddress(config);
+                    } else {
+                        Log.i(TAG, "EnableConnectedMacRandomization setting is off");
+                    }
+
+                    Log.i(TAG, "Connecting with "
+                            + mWifiNative.getMacAddress(mInterfaceName) + " as the mac address");
+
                     reportConnectionAttemptStart(config, mTargetRoamBSSID,
                             WifiMetricsProto.ConnectionEvent.ROAM_UNRELATED);
                     if (mWifiNative.connectToNetwork(mInterfaceName, config)) {
@@ -5977,6 +6033,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             .withApfCapabilities(mWifiNative.getApfCapabilities(mInterfaceName))
                             .withNetwork(getCurrentNetwork())
                             .withDisplayName(currentConfig.SSID)
+                            .withRandomMacAddress()
                             .build();
             } else {
                 StaticIpConfiguration staticIpConfig = currentConfig.getStaticIpConfiguration();
