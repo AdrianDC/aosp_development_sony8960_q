@@ -207,7 +207,7 @@ public class RttServiceImplTest {
                 BroadcastReceiver.class);
         verify(mockContext, times(2)).registerReceiver(bcastRxCaptor.capture(),
                 any(IntentFilter.class));
-        verify(mockNative).start();
+        verify(mockNative).start(any());
         mPowerBcastReceiver = bcastRxCaptor.getAllValues().get(0);
         mLocationModeReceiver = bcastRxCaptor.getAllValues().get(1);
 

@@ -176,7 +176,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         }, intentFilter);
 
         mRttServiceSynchronized.mHandler.post(() -> {
-            rttNative.start();
+            rttNative.start(mRttServiceSynchronized.mHandler);
         });
     }
 

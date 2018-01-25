@@ -88,7 +88,7 @@ public class RttNativeTest {
         when(mockRttController.rangeCancel(anyInt(), any(ArrayList.class))).thenReturn(status);
 
         mDut = new RttNative(mockRttServiceImpl, mockHalDeviceManager);
-        mDut.start();
+        mDut.start(null);
         verify(mockHalDeviceManager).registerStatusListener(mHdmStatusListener.capture(), any());
         verify(mockRttController).registerEventCallback(any());
         verify(mockRttServiceImpl).enableIfPossible();
