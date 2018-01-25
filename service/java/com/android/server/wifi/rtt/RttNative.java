@@ -30,6 +30,7 @@ import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.net.wifi.rtt.RangingRequest;
 import android.net.wifi.rtt.RangingResult;
 import android.net.wifi.rtt.ResponderConfig;
+import android.os.Handler;
 import android.os.RemoteException;
 import android.util.Log;
 
@@ -63,13 +64,13 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
     /**
      * Initialize the object - registering with the HAL device manager.
      */
-    public void start() {
+    public void start(Handler handler) {
         synchronized (mLock) {
             mHalDeviceManager.initialize();
             mHalDeviceManager.registerStatusListener(() -> {
                 if (VDBG) Log.d(TAG, "hdm.onStatusChanged");
                 updateController();
-            }, null);
+            }, handler);
             updateController();
         }
     }
