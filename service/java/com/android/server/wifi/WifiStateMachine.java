@@ -1614,6 +1614,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     private boolean startScanNative(final Set<Integer> freqs,
             List<WifiScanner.ScanSettings.HiddenNetwork> hiddenNetworkList,
             WorkSource workSource) {
+        if (mWifiScanner == null) {
+            Log.e(TAG, "startScanNative is called when mWifiScanner is null");
+            return false;
+        }
         WifiScanner.ScanSettings settings = new WifiScanner.ScanSettings();
         if (freqs == null) {
             settings.band = WifiScanner.WIFI_BAND_BOTH_WITH_DFS;
@@ -4528,11 +4532,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         public void enter() {
             logd("entering ScanModeState");
             mWifiStateTracker.updateState(WifiStateTracker.SCAN_MODE);
-            // We can't do this in the constructor because WifiStateMachine is created before the
-            // wifi scanning service is initialized
-            if (mWifiScanner == null) {
-                mWifiScanner = mWifiInjector.getWifiScanner();
-            }
         }
 
         @Override
