@@ -730,7 +730,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         if (doScan) {
             // Someone requested a scan while we were idle; do a full scan now.
             // A security check of the caller's identity was made when the request arrived via
-            // Binder.
+            // Binder. Now we'll pass the current process's identity to startScan().
             startScan(null, null, mContext.getOpPackageName());
         }
     }
@@ -1451,10 +1451,10 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      */
     @Override
     public void stopLocalOnlyHotspot() {
-        // don't do a permission check here. if the app has their permission to change the wifi
-        // state revoked, we still want them to be able to stop a previously created hotspot
-        // (otherwise it could cost the user money). When the app created the hotspot, its
-        // permission was checked.
+        // don't do a permission check here. if the app's permission to change the wifi state is
+        // revoked, we still want them to be able to stop a previously created hotspot (otherwise
+        // it could cost the user money). When the app created the hotspot, its permission was
+        // checked.
         final int uid = Binder.getCallingUid();
         final int pid = Binder.getCallingPid();
 
