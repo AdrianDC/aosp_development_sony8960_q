@@ -74,6 +74,7 @@ import android.hardware.wifi.V1_0.WifiDebugTxPacketFateReport;
 import android.hardware.wifi.V1_0.WifiInformationElement;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
+import android.net.KeepalivePacketData;
 import android.net.apf.ApfCapabilities;
 import android.net.wifi.RttManager;
 import android.net.wifi.ScanResult;
@@ -85,9 +86,9 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.RemoteException;
 import android.os.test.TestLooper;
+import android.system.OsConstants;
 import android.util.Pair;
 
-import com.android.server.connectivity.KeepalivePacketData;
 import com.android.server.wifi.HalDeviceManager.InterfaceDestroyedListener;
 import com.android.server.wifi.util.NativeUtil;
 
@@ -1079,6 +1080,7 @@ public class WifiVendorHalTest {
     @Test
     public void testStartSendingOffloadedPacket() throws Exception {
         byte[] srcMac = NativeUtil.macAddressToByteArray("4007b2088c81");
+        byte[] dstMac = NativeUtil.macAddressToByteArray("4007b8675309");
         InetAddress src = InetAddress.parseNumericAddress("192.168.13.13");
         InetAddress dst = InetAddress.parseNumericAddress("93.184.216.34");
         int slot = 13;
@@ -1092,7 +1094,8 @@ public class WifiVendorHalTest {
 
         assertTrue(mWifiVendorHal.startVendorHalSta());
         assertTrue(0 == mWifiVendorHal.startSendingOffloadedPacket(
-                TEST_IFACE_NAME, slot, srcMac, kap, millis));
+                TEST_IFACE_NAME, slot, srcMac, dstMac, kap.getPacket(),
+                OsConstants.ETH_P_IPV6, millis));
 
         verify(mIWifiStaIface).startSendingKeepAlivePackets(
                 eq(slot), any(), anyShort(), any(), any(), eq(millis));
