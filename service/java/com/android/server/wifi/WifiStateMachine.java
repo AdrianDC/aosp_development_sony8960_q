@@ -42,7 +42,9 @@ import android.database.ContentObserver;
 import android.net.ConnectivityManager;
 import android.net.DhcpResults;
 import android.net.IpConfiguration;
+import android.net.KeepalivePacketData;
 import android.net.LinkProperties;
+import android.net.MacAddress;
 import android.net.Network;
 import android.net.NetworkAgent;
 import android.net.NetworkCapabilities;
@@ -89,6 +91,7 @@ import android.os.UserHandle;
 import android.os.UserManager;
 import android.os.WorkSource;
 import android.provider.Settings;
+import android.system.OsConstants;
 import android.telephony.PhoneStateListener;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
@@ -105,7 +108,6 @@ import com.android.internal.util.MessageUtils;
 import com.android.internal.util.Protocol;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
-import com.android.server.connectivity.KeepalivePacketData;
 import com.android.server.wifi.WifiNative.InterfaceCallback;
 import com.android.server.wifi.WifiNative.StatusListener;
 import com.android.server.wifi.hotspot2.AnqpEvent;
@@ -131,6 +133,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.Inet4Address;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -798,6 +801,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     /* Tracks if user has enabled suspend optimizations through settings */
     private AtomicBoolean mUserWantsSuspendOpt = new AtomicBoolean(true);
 
+    /* Tracks if user has enabled Connected Mac Randomization through settings */
+    private AtomicBoolean mEnableConnectedMacRandomization = new AtomicBoolean(false);
+
     /**
      * Scan period for the NO_NETWORKS_PERIIDOC_SCAN_FEATURE
      */
@@ -983,6 +989,9 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         mUserWantsSuspendOpt.set(mFacade.getIntegerSetting(mContext,
                 Settings.Global.WIFI_SUSPEND_OPTIMIZATIONS_ENABLED, 1) == 1);
 
+        mEnableConnectedMacRandomization.set(mFacade.getIntegerSetting(mContext,
+                Settings.Global.WIFI_CONNECTED_MAC_RANDOMIZATION_ENABLED, 0) == 1);
+
         mNetworkCapabilitiesFilter.addTransportType(NetworkCapabilities.TRANSPORT_WIFI);
         mNetworkCapabilitiesFilter.addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
         mNetworkCapabilitiesFilter.addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
@@ -1018,6 +1027,18 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     public void onChange(boolean selfChange) {
                         mUserWantsSuspendOpt.set(mFacade.getIntegerSetting(mContext,
                                 Settings.Global.WIFI_SUSPEND_OPTIMIZATIONS_ENABLED, 1) == 1);
+                    }
+                });
+
+        mContext.getContentResolver().registerContentObserver(Settings.Global.getUriFor(
+                        Settings.Global.WIFI_CONNECTED_MAC_RANDOMIZATION_ENABLED), false,
+                new ContentObserver(getHandler()) {
+                    @Override
+                    public void onChange(boolean selfChange) {
+                        mEnableConnectedMacRandomization.set(mFacade.getIntegerSetting(mContext,
+                                Settings.Global.WIFI_CONNECTED_MAC_RANDOMIZATION_ENABLED, 0) == 1);
+                        Log.i(TAG, "EnableConnectedMacRandomization Setting changed to "
+                                + mEnableConnectedMacRandomization);
                     }
                 });
 
@@ -1467,9 +1488,46 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         return stats;
     }
 
+    private byte[] getDstMacForKeepalive(KeepalivePacketData packetData)
+            throws KeepalivePacketData.InvalidPacketException {
+        try {
+            InetAddress gateway = RouteInfo.selectBestRoute(
+                    mLinkProperties.getRoutes(), packetData.dstAddress).getGateway();
+            String dstMacStr = macAddressFromRoute(gateway.getHostAddress());
+            return NativeUtil.macAddressToByteArray(dstMacStr);
+        } catch (NullPointerException | IllegalArgumentException e) {
+            throw new KeepalivePacketData.InvalidPacketException(
+                    ConnectivityManager.PacketKeepalive.ERROR_INVALID_IP_ADDRESS);
+        }
+    }
+
+    private static int getEtherProtoForKeepalive(KeepalivePacketData packetData)
+            throws KeepalivePacketData.InvalidPacketException {
+        if (packetData.dstAddress instanceof Inet4Address) {
+            return OsConstants.ETH_P_IP;
+        } else if (packetData.dstAddress instanceof Inet6Address) {
+            return OsConstants.ETH_P_IPV6;
+        } else {
+            throw new KeepalivePacketData.InvalidPacketException(
+                    ConnectivityManager.PacketKeepalive.ERROR_INVALID_IP_ADDRESS);
+        }
+    }
+
     int startWifiIPPacketOffload(int slot, KeepalivePacketData packetData, int intervalSeconds) {
+        byte[] packet = null;
+        byte[] dstMac = null;
+        int proto = 0;
+
+        try {
+            packet = packetData.getPacket();
+            dstMac = getDstMacForKeepalive(packetData);
+            proto = getEtherProtoForKeepalive(packetData);
+        } catch (KeepalivePacketData.InvalidPacketException e) {
+            return e.error;
+        }
+
         int ret = mWifiNative.startSendingOffloadedPacket(
-                mInterfaceName, slot, packetData, intervalSeconds * 1000);
+                mInterfaceName, slot, dstMac, packet, proto, intervalSeconds * 1000);
         if (ret != 0) {
             loge("startWifiIPPacketOffload(" + slot + ", " + intervalSeconds +
                     "): hardware error " + ret);
@@ -1792,6 +1850,13 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         if (mVerboseLoggingEnabled) log("setting operational mode to " + String.valueOf(mode));
         mModeChange = true;
         sendMessage(CMD_SET_OPERATIONAL_MODE, mode, 0);
+    }
+
+    /**
+     * Initiates a system-level bugreport, in a non-blocking fashion.
+     */
+    public void takeBugReport() {
+        mWifiDiagnostics.takeBugReport();
     }
 
     /**
@@ -3766,6 +3831,34 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
     }
 
+     /**
+     * Dynamically change the MAC address to use the locally randomized
+     * MAC address generated for each network.
+     * @param config WifiConfiguration with mRandomizedMacAddress to change into. If the address
+     * is masked out or not set, it will generate a new random MAC address.
+     */
+    private void configureRandomizedMacAddress(WifiConfiguration config) {
+        if (config == null) {
+            Log.e(TAG, "No config to change MAC address to");
+            return;
+        }
+        MacAddress currentMac = MacAddress.fromString(mWifiNative.getMacAddress(mInterfaceName));
+        MacAddress newMac = config.getOrCreateRandomizedMacAddress();
+
+        if (currentMac.equals(newMac)) {
+            Log.i(TAG, "No changes in MAC address");
+        } else {
+            Log.i(TAG, "ConnectedMacRandomization SSID(" + config.getPrintableSsid()
+                    + "). setMacAddress(" + newMac.toString() + ") from "
+                    + currentMac.toString());
+            boolean setMacSuccess =
+                    mWifiNative.setMacAddress(mInterfaceName, newMac);
+            Log.i(TAG, "ConnectedMacRandomization  ...setMacAddress("
+                    + newMac.toString() + ") = " + setMacSuccess);
+        }
+    }
+
+
     /********************************************************
      * HSM states
      *******************************************************/
@@ -5068,6 +5161,15 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     mTargetNetworkId = netId;
                     setTargetBssid(config, bssid);
 
+                    if (mEnableConnectedMacRandomization.get()) {
+                        configureRandomizedMacAddress(config);
+                    } else {
+                        Log.i(TAG, "EnableConnectedMacRandomization setting is off");
+                    }
+
+                    Log.i(TAG, "Connecting with "
+                            + mWifiNative.getMacAddress(mInterfaceName) + " as the mac address");
+
                     reportConnectionAttemptStart(config, mTargetRoamBSSID,
                             WifiMetricsProto.ConnectionEvent.ROAM_UNRELATED);
                     if (mWifiNative.connectToNetwork(mInterfaceName, config)) {
@@ -5931,6 +6033,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             .withApfCapabilities(mWifiNative.getApfCapabilities(mInterfaceName))
                             .withNetwork(getCurrentNetwork())
                             .withDisplayName(currentConfig.SSID)
+                            .withRandomMacAddress()
                             .build();
             } else {
                 StaticIpConfiguration staticIpConfig = currentConfig.getStaticIpConfiguration();
@@ -6376,21 +6479,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     int slot = message.arg1;
                     int intervalSeconds = message.arg2;
                     KeepalivePacketData pkt = (KeepalivePacketData) message.obj;
-                    byte[] dstMac;
-                    try {
-                        InetAddress gateway = RouteInfo.selectBestRoute(
-                                mLinkProperties.getRoutes(), pkt.dstAddress).getGateway();
-                        String dstMacStr = macAddressFromRoute(gateway.getHostAddress());
-                        dstMac = NativeUtil.macAddressToByteArray(dstMacStr);
-                    } catch (NullPointerException | IllegalArgumentException e) {
-                        loge("Can't find MAC address for next hop to " + pkt.dstAddress);
-                        if (mNetworkAgent != null) {
-                            mNetworkAgent.onPacketKeepaliveEvent(slot,
-                                    ConnectivityManager.PacketKeepalive.ERROR_INVALID_IP_ADDRESS);
-                        }
-                        break;
-                    }
-                    pkt.dstMac = dstMac;
                     int result = startWifiIPPacketOffload(slot, pkt, intervalSeconds);
                     if (mNetworkAgent != null) {
                         mNetworkAgent.onPacketKeepaliveEvent(slot, result);

@@ -286,6 +286,8 @@ public class WifiMetricsTest {
     private static final boolean IS_WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON = true;
     private static final int NUM_OPEN_NETWORK_CONNECT_MESSAGE_FAILED_TO_SEND = 5;
     private static final int NUM_OPEN_NETWORK_RECOMMENDATION_UPDATES = 8;
+    private static final String OPEN_NET_NOTIFIER_TAG = OpenNetworkNotifier.TAG;
+
     private static final int NUM_SOFT_AP_EVENT_ENTRIES = 3;
     private static final int NUM_SOFT_AP_ASSOCIATED_STATIONS = 3;
 
@@ -549,7 +551,7 @@ public class WifiMetricsTest {
         for (int i = 0; i < NUM_CONNECT_TO_NETWORK_NOTIFICATIONS.length; i++) {
             int count = NUM_CONNECT_TO_NETWORK_NOTIFICATIONS[i];
             for (int j = 0; j < count; j++) {
-                mWifiMetrics.incrementConnectToNetworkNotification(i);
+                mWifiMetrics.incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG, i);
             }
         }
         for (int i = 0; i < NUM_CONNECT_TO_NETWORK_NOTIFICATION_ACTIONS.length; i++) {
@@ -557,19 +559,20 @@ public class WifiMetricsTest {
             for (int j = 0; j < actions.length; j++) {
                 int count = actions[j];
                 for (int k = 0; k < count; k++) {
-                    mWifiMetrics.incrementConnectToNetworkNotificationAction(i, j);
+                    mWifiMetrics.incrementConnectToNetworkNotificationAction(OPEN_NET_NOTIFIER_TAG,
+                            i, j);
                 }
             }
         }
-        mWifiMetrics.setOpenNetworkRecommenderBlacklistSize(
+        mWifiMetrics.setNetworkRecommenderBlacklistSize(OPEN_NET_NOTIFIER_TAG,
                 SIZE_OPEN_NETWORK_RECOMMENDER_BLACKLIST);
-        mWifiMetrics.setIsWifiNetworksAvailableNotificationEnabled(
+        mWifiMetrics.setIsWifiNetworksAvailableNotificationEnabled(OPEN_NET_NOTIFIER_TAG,
                 IS_WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON);
         for (int i = 0; i < NUM_OPEN_NETWORK_RECOMMENDATION_UPDATES; i++) {
-            mWifiMetrics.incrementNumOpenNetworkRecommendationUpdates();
+            mWifiMetrics.incrementNumNetworkRecommendationUpdates(OPEN_NET_NOTIFIER_TAG);
         }
         for (int i = 0; i < NUM_OPEN_NETWORK_CONNECT_MESSAGE_FAILED_TO_SEND; i++) {
-            mWifiMetrics.incrementNumOpenNetworkConnectMessageFailedToSend();
+            mWifiMetrics.incrementNumNetworkConnectMessageFailedToSend(OPEN_NET_NOTIFIER_TAG);
         }
 
         addSoftApEventsToMetrics();
@@ -1505,12 +1508,12 @@ public class WifiMetricsTest {
     @Test
     public void testOpenNetworkNotificationBlacklistSizeAndFeatureStateNotCleared()
             throws Exception {
-        mWifiMetrics.setOpenNetworkRecommenderBlacklistSize(
+        mWifiMetrics.setNetworkRecommenderBlacklistSize(OPEN_NET_NOTIFIER_TAG,
                 SIZE_OPEN_NETWORK_RECOMMENDER_BLACKLIST);
-        mWifiMetrics.setIsWifiNetworksAvailableNotificationEnabled(
+        mWifiMetrics.setIsWifiNetworksAvailableNotificationEnabled(OPEN_NET_NOTIFIER_TAG,
                 IS_WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON);
         for (int i = 0; i < NUM_OPEN_NETWORK_RECOMMENDATION_UPDATES; i++) {
-            mWifiMetrics.incrementNumOpenNetworkRecommendationUpdates();
+            mWifiMetrics.incrementNumNetworkRecommendationUpdates(OPEN_NET_NOTIFIER_TAG);
         }
 
         // This should clear most metrics in mWifiMetrics

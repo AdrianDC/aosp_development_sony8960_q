@@ -98,7 +98,7 @@ public class WifiController extends StateMachine {
     private EcmState mEcmState = new EcmState();
 
     WifiController(Context context, WifiStateMachine wsm, WifiSettingsStore wss,
-            Looper looper, FrameworkFacade f, WifiStateMachinePrime wsmp) {
+                   Looper looper, FrameworkFacade f, WifiStateMachinePrime wsmp) {
         super(TAG, looper);
         mFacade = f;
         mContext = context;
@@ -627,6 +627,9 @@ public class WifiController extends StateMachine {
                 mFirstUserSignOnSeen = true;
                 return HANDLED;
             } else if (msg.what == CMD_RESTART_WIFI) {
+                mWifiStateMachine.getHandler().post(() -> {
+                    mWifiStateMachine.takeBugReport();
+                });
                 deferMessage(obtainMessage(CMD_RESTART_WIFI_CONTINUE));
                 transitionTo(mApStaDisabledState);
                 return HANDLED;

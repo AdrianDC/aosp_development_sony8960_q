@@ -1487,8 +1487,12 @@ public class WifiMetrics {
         }
     }
 
+    /**
+     * TODO: (b/72443859) Use notifierTag param to separate metrics for OpenNetworkNotifier and
+     * CarrierNetworkNotifier, for this method and all other related metrics.
+     */
     /** Increments the occurence of a "Connect to Network" notification. */
-    public void incrementConnectToNetworkNotification(int notificationType) {
+    public void incrementConnectToNetworkNotification(String notifierTag, int notificationType) {
         synchronized (mLock) {
             int count = mConnectToNetworkNotificationCount.get(notificationType);
             mConnectToNetworkNotificationCount.put(notificationType, count + 1);
@@ -1496,7 +1500,8 @@ public class WifiMetrics {
     }
 
     /** Increments the occurence of an "Connect to Network" notification user action. */
-    public void incrementConnectToNetworkNotificationAction(int notificationType, int actionType) {
+    public void incrementConnectToNetworkNotificationAction(String notifierTag,
+            int notificationType, int actionType) {
         synchronized (mLock) {
             int key = notificationType * CONNECT_TO_NETWORK_NOTIFICATION_ACTION_KEY_MULTIPLIER
                     + actionType;
@@ -1509,28 +1514,28 @@ public class WifiMetrics {
      * Sets the number of SSIDs blacklisted from recommendation by the open network notification
      * recommender.
      */
-    public void setOpenNetworkRecommenderBlacklistSize(int size) {
+    public void setNetworkRecommenderBlacklistSize(String notifierTag, int size) {
         synchronized (mLock) {
             mOpenNetworkRecommenderBlacklistSize = size;
         }
     }
 
     /** Sets if the available network notification feature is enabled. */
-    public void setIsWifiNetworksAvailableNotificationEnabled(boolean enabled) {
+    public void setIsWifiNetworksAvailableNotificationEnabled(String notifierTag, boolean enabled) {
         synchronized (mLock) {
             mIsWifiNetworksAvailableNotificationOn = enabled;
         }
     }
 
     /** Increments the occurence of connection attempts that were initiated unsuccessfully */
-    public void incrementNumOpenNetworkRecommendationUpdates() {
+    public void incrementNumNetworkRecommendationUpdates(String notifierTag) {
         synchronized (mLock) {
             mNumOpenNetworkRecommendationUpdates++;
         }
     }
 
     /** Increments the occurence of connection attempts that were initiated unsuccessfully */
-    public void incrementNumOpenNetworkConnectMessageFailedToSend() {
+    public void incrementNumNetworkConnectMessageFailedToSend(String notifierTag) {
         synchronized (mLock) {
             mNumOpenNetworkConnectMessageFailedToSend++;
         }

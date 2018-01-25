@@ -17,6 +17,7 @@
 package com.android.server.wifi;
 
 import android.annotation.NonNull;
+import android.net.MacAddress;
 import android.net.wifi.IApInterface;
 import android.net.wifi.IApInterfaceEventCallback;
 import android.net.wifi.IClientInterface;
@@ -823,6 +824,29 @@ public class WificondControl implements IBinder.DeathRecipient {
             return false;
         }
         mApInterfaceListeners.remove(ifaceName);
+        return true;
+    }
+
+    /**
+     * Set Mac address on the given interface
+     * @param interfaceName Name of the interface.
+     * @param mac Mac address to change into
+     * @return true on success, false otherwise.
+     */
+    public boolean setMacAddress(@NonNull String interfaceName, @NonNull MacAddress mac) {
+        IClientInterface mClientInterface = getClientInterface(interfaceName);
+        if (mClientInterface == null) {
+            Log.e(TAG, "No valid wificond client interface handler");
+            return false;
+        }
+        byte[] macByteArray = mac.toByteArray();
+
+        try {
+            mClientInterface.setMacAddress(macByteArray);
+        } catch (RemoteException e) {
+            Log.e(TAG, "Failed to setMacAddress due to remote exception");
+            return false;
+        }
         return true;
     }
 

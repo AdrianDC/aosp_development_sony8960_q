@@ -2591,4 +2591,10 @@ public class WifiStateMachineTest {
         mWsm.dump(null, writer, null);
         verify(mWakeupController).dump(null, writer, null);
     }
+
+    @Test
+    public void takeBugReportCallsWifiDiagnostics() {
+        mWsm.takeBugReport();
+        verify(mWifiDiagnostics).takeBugReport();
+    }
 }

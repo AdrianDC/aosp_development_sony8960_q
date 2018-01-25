@@ -23,6 +23,7 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
+import android.os.PowerManager;
 
 import java.util.ArrayList;
 
@@ -108,6 +109,11 @@ public class TestUtil {
         Intent intent = new Intent(ConnectivityManager.ACTION_TETHER_STATE_CHANGED);
         intent.putExtra(ConnectivityManager.EXTRA_AVAILABLE_TETHER, available);
         intent.putExtra(ConnectivityManager.EXTRA_ACTIVE_TETHER, active);
+        broadcastReceiver.onReceive(context, intent);
+    }
+
+    public static void sendIdleModeChanged(BroadcastReceiver broadcastReceiver, Context context) {
+        Intent intent = new Intent(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED);
         broadcastReceiver.onReceive(context, intent);
     }
 }

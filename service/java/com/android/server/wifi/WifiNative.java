@@ -20,6 +20,7 @@ import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.net.InterfaceConfiguration;
+import android.net.MacAddress;
 import android.net.apf.ApfCapabilities;
 import android.net.wifi.RttManager;
 import android.net.wifi.RttManager.ResponderConfig;
@@ -36,9 +37,9 @@ import android.util.SparseArray;
 
 import com.android.internal.annotations.Immutable;
 import com.android.internal.util.HexDump;
-import com.android.server.connectivity.KeepalivePacketData;
 import com.android.server.net.BaseNetworkObserver;
 import com.android.server.wifi.util.FrameParser;
+import com.android.server.wifi.util.NativeUtil;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -544,6 +545,7 @@ public class WifiNative {
                             + ifaceName);
                     return;
                 }
+
                 if (isUp) {
                     iface.externalListener.onUp(ifaceName);
                 } else {
@@ -1157,6 +1159,17 @@ public class WifiNative {
             Log.e(TAG, "Failed to remove access point");
         }
         return mWificondControl.stopHostapd(ifaceName);
+    }
+
+    /**
+     * Set MAC address of the given interface
+     * @param interfaceName Name of the interface
+     * @param mac Mac address to change into
+     * @return true on success
+     */
+    public boolean setMacAddress(String interfaceName, MacAddress mac) {
+        // TODO(b/72459123): Suppress interface down/up events from this call
+        return mWificondControl.setMacAddress(interfaceName, mac);
     }
 
     /********************************************************
@@ -2470,20 +2483,17 @@ public class WifiNative {
      *
      * @param ifaceName Name of the interface.
      * @param slot Integer used to identify each request.
-     * @param keepAlivePacket Raw packet contents to send.
+     * @param dstMac Destination MAC Address
+     * @param packet Raw packet contents to send.
+     * @param protocol The ethernet protocol type
      * @param period Period to use for sending these packets.
      * @return 0 for success, -1 for error
      */
-    public int startSendingOffloadedPacket(
-            @NonNull String ifaceName, int slot, KeepalivePacketData keepAlivePacket, int period) {
-        String[] macAddrStr = getMacAddress(ifaceName).split(":");
-        byte[] srcMac = new byte[6];
-        for (int i = 0; i < 6; i++) {
-            Integer hexVal = Integer.parseInt(macAddrStr[i], 16);
-            srcMac[i] = hexVal.byteValue();
-        }
-        return mWifiVendorHal.startSendingOffloadedPacket(ifaceName,
-                slot, srcMac, keepAlivePacket, period);
+    public int startSendingOffloadedPacket(@NonNull String ifaceName, int slot,
+            byte[] dstMac, byte[] packet, int protocol, int period) {
+        byte[] srcMac = NativeUtil.macAddressToByteArray(getMacAddress(ifaceName));
+        return mWifiVendorHal.startSendingOffloadedPacket(
+                ifaceName, slot, srcMac, dstMac, packet, protocol, period);
     }
 
     /**

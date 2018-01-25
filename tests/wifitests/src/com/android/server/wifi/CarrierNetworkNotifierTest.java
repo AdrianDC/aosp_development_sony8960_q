@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,12 @@
 
 package com.android.server.wifi;
 
+import static com.android.server.wifi.CarrierNetworkNotifier.DEFAULT_REPEAT_DELAY_SEC;
 import static com.android.server.wifi.ConnectToNetworkNotificationBuilder.ACTION_CONNECT_TO_NETWORK;
 import static com.android.server.wifi.ConnectToNetworkNotificationBuilder.ACTION_PICK_WIFI_NETWORK;
 import static com.android.server.wifi.ConnectToNetworkNotificationBuilder.ACTION_PICK_WIFI_NETWORK_AFTER_CONNECT_FAILURE;
 import static com.android.server.wifi.ConnectToNetworkNotificationBuilder.ACTION_USER_DISMISSED_NOTIFICATION;
 import static com.android.server.wifi.ConnectToNetworkNotificationBuilder.AVAILABLE_NETWORK_NOTIFIER_TAG;
-import static com.android.server.wifi.OpenNetworkNotifier.DEFAULT_REPEAT_DELAY_SEC;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -50,6 +50,7 @@ import android.os.test.TestLooper;
 import android.provider.Settings;
 import android.util.ArraySet;
 
+
 import com.android.server.wifi.nano.WifiMetricsProto.ConnectToNetworkNotificationAndActionCount;
 
 import org.junit.Before;
@@ -63,14 +64,14 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Unit tests for {@link OpenNetworkNotifier}.
+ * Unit tests for {@link CarrierNetworkNotifier}.
  */
-public class OpenNetworkNotifierTest {
+public class CarrierNetworkNotifierTest {
 
     private static final String TEST_SSID_1 = "Test SSID 1";
     private static final String TEST_SSID_2 = "Test SSID 2";
     private static final int MIN_RSSI_LEVEL = -127;
-    private static final String OPEN_NET_NOTIFIER_TAG = OpenNetworkNotifier.TAG;
+    private static final String CARRIER_NET_NOTIFIER_TAG = CarrierNetworkNotifier.TAG;
 
     @Mock private Context mContext;
     @Mock private Resources mResources;
@@ -83,12 +84,12 @@ public class OpenNetworkNotifierTest {
     @Mock private WifiStateMachine mWifiStateMachine;
     @Mock private ConnectToNetworkNotificationBuilder mNotificationBuilder;
     @Mock private UserManager mUserManager;
-    private OpenNetworkNotifier mNotificationController;
+    private CarrierNetworkNotifier mNotificationController;
     private TestLooper mLooper;
     private BroadcastReceiver mBroadcastReceiver;
     private ContentObserver mContentObserver;
     private ScanResult mDummyNetwork;
-    private List<ScanDetail> mOpenNetworks;
+    private List<ScanDetail> mCarrierNetworks;
     private Set<String> mBlacklistedSsids;
 
 
@@ -99,7 +100,7 @@ public class OpenNetworkNotifierTest {
         when(mContext.getSystemService(Context.NOTIFICATION_SERVICE))
                 .thenReturn(mNotificationManager);
         when(mFrameworkFacade.getIntegerSetting(mContext,
-                Settings.Global.WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON, 1)).thenReturn(1);
+                Settings.Global.WIFI_CARRIER_NETWORKS_AVAILABLE_NOTIFICATION_ON, 1)).thenReturn(1);
         when(mFrameworkFacade.getIntegerSetting(mContext,
                 Settings.Global.WIFI_NETWORKS_AVAILABLE_REPEAT_DELAY, DEFAULT_REPEAT_DELAY_SEC))
                 .thenReturn(DEFAULT_REPEAT_DELAY_SEC);
@@ -110,12 +111,12 @@ public class OpenNetworkNotifierTest {
         mDummyNetwork.SSID = TEST_SSID_1;
         mDummyNetwork.capabilities = "[ESS]";
         mDummyNetwork.level = MIN_RSSI_LEVEL;
-        mOpenNetworks = new ArrayList<>();
-        mOpenNetworks.add(new ScanDetail(mDummyNetwork, null /* networkDetail */));
+        mCarrierNetworks = new ArrayList<>();
+        mCarrierNetworks.add(new ScanDetail(mDummyNetwork, null /* networkDetail */));
         mBlacklistedSsids = new ArraySet<>();
 
         mLooper = new TestLooper();
-        mNotificationController = new OpenNetworkNotifier(
+        mNotificationController = new CarrierNetworkNotifier(
                 mContext, mLooper.getLooper(), mFrameworkFacade, mClock, mWifiMetrics,
                 mWifiConfigManager, mWifiConfigStore, mWifiStateMachine, mNotificationBuilder);
         ArgumentCaptor<BroadcastReceiver> broadcastReceiverCaptor =
@@ -131,11 +132,11 @@ public class OpenNetworkNotifierTest {
     }
 
     /**
-     * On {@link OpenNetworkNotifier} construction, WifiMetrics should track setting state.
+     * On {@link CarrierNetworkNotifier} construction, WifiMetrics should track setting state.
      */
     @Test
     public void onCreate_setWifiNetworksAvailableNotificationSettingState() {
-        verify(mWifiMetrics).setIsWifiNetworksAvailableNotificationEnabled(OPEN_NET_NOTIFIER_TAG,
+        verify(mWifiMetrics).setIsWifiNetworksAvailableNotificationEnabled(CARRIER_NET_NOTIFIER_TAG,
                 true);
     }
 
@@ -145,29 +146,29 @@ public class OpenNetworkNotifierTest {
     @Test
     public void onFeatureDisable_setWifiNetworksAvailableNotificationSettingDisabled() {
         when(mFrameworkFacade.getIntegerSetting(mContext,
-                Settings.Global.WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON, 1)).thenReturn(0);
+                Settings.Global.WIFI_CARRIER_NETWORKS_AVAILABLE_NOTIFICATION_ON, 1)).thenReturn(0);
         mContentObserver.onChange(false);
 
-        verify(mWifiMetrics).setIsWifiNetworksAvailableNotificationEnabled(OPEN_NET_NOTIFIER_TAG,
+        verify(mWifiMetrics).setIsWifiNetworksAvailableNotificationEnabled(CARRIER_NET_NOTIFIER_TAG,
                 false);
     }
 
     /**
-     * When scan results with open networks are handled, a notification is posted.
+     * When scan results with carrier networks are handled, a notification is posted.
      */
     @Test
-    public void handleScanResults_hasOpenNetworks_notificationDisplayed() {
-        mNotificationController.handleScanResults(mOpenNetworks);
+    public void handleScanResults_hasCarrierNetworks_notificationDisplayed() {
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         verify(mNotificationBuilder).createConnectToAvailableNetworkNotification(
-                OPEN_NET_NOTIFIER_TAG, mDummyNetwork);
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+                CARRIER_NET_NOTIFIER_TAG, mDummyNetwork);
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK);
         verify(mNotificationManager).notify(anyInt(), any());
     }
 
     /**
-     * When scan results with no open networks are handled, a notification is not posted.
+     * When scan results with no carrier networks are handled, a notification is not posted.
      */
     @Test
     public void handleScanResults_emptyList_notificationNotDisplayed() {
@@ -182,7 +183,7 @@ public class OpenNetworkNotifierTest {
     @Test
     public void handleScanResults_featureDisabled_notificationNotDisplayed() {
         when(mFrameworkFacade.getIntegerSetting(mContext,
-                Settings.Global.WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON, 1)).thenReturn(0);
+                Settings.Global.WIFI_CARRIER_NETWORKS_AVAILABLE_NOTIFICATION_ON, 1)).thenReturn(0);
         mContentObserver.onChange(false);
         mNotificationController.handleScanResults(new ArrayList<>());
 
@@ -190,16 +191,16 @@ public class OpenNetworkNotifierTest {
     }
 
     /**
-     * When a notification is showing and scan results with no open networks are handled, the
+     * When a notification is showing and scan results with no carrier networks are handled, the
      * notification is cleared.
      */
     @Test
     public void handleScanResults_notificationShown_emptyList_notificationCleared() {
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         verify(mNotificationBuilder).createConnectToAvailableNetworkNotification(
-                OPEN_NET_NOTIFIER_TAG, mDummyNetwork);
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+                CARRIER_NET_NOTIFIER_TAG, mDummyNetwork);
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK);
         verify(mNotificationManager).notify(anyInt(), any());
 
@@ -214,31 +215,31 @@ public class OpenNetworkNotifierTest {
      */
     @Test
     public void handleScanResults_notificationShown_noRecommendation_notificationCleared() {
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         verify(mNotificationBuilder).createConnectToAvailableNetworkNotification(
-                OPEN_NET_NOTIFIER_TAG, mDummyNetwork);
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+                CARRIER_NET_NOTIFIER_TAG, mDummyNetwork);
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK);
         verify(mNotificationManager).notify(anyInt(), any());
 
-        mOpenNetworks.clear();
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mCarrierNetworks.clear();
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         verify(mNotificationManager).cancel(anyInt());
     }
 
     /**
-     * When a notification is showing, screen is off, and scan results with no open networks are
+     * When a notification is showing, screen is off, and scan results with no carrier networks are
      * handled, the notification is cleared.
      */
     @Test
     public void handleScanResults_notificationShown_screenOff_emptyList_notificationCleared() {
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         verify(mNotificationBuilder).createConnectToAvailableNetworkNotification(
-                OPEN_NET_NOTIFIER_TAG, mDummyNetwork);
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+                CARRIER_NET_NOTIFIER_TAG, mDummyNetwork);
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK);
         verify(mNotificationManager).notify(anyInt(), any());
 
@@ -249,16 +250,16 @@ public class OpenNetworkNotifierTest {
     }
 
     /**
-     * When {@link OpenNetworkNotifier#clearPendingNotification(boolean)} is called and a
+     * When {@link CarrierNetworkNotifier#clearPendingNotification(boolean)} is called and a
      * notification is shown, clear the notification.
      */
     @Test
     public void clearPendingNotification_clearsNotificationIfOneIsShowing() {
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         verify(mNotificationBuilder).createConnectToAvailableNetworkNotification(
-                OPEN_NET_NOTIFIER_TAG, mDummyNetwork);
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+                CARRIER_NET_NOTIFIER_TAG, mDummyNetwork);
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK);
         verify(mNotificationManager).notify(anyInt(), any());
 
@@ -268,7 +269,7 @@ public class OpenNetworkNotifierTest {
     }
 
     /**
-     * When {@link OpenNetworkNotifier#clearPendingNotification(boolean)} is called and a
+     * When {@link CarrierNetworkNotifier#clearPendingNotification(boolean)} is called and a
      * notification was not previously shown, do not clear the notification.
      */
     @Test
@@ -280,12 +281,12 @@ public class OpenNetworkNotifierTest {
 
     /**
      * When screen is off and notification is not displayed, notification is not posted on handling
-     * new scan results with open networks.
+     * new scan results with carrier networks.
      */
     @Test
     public void screenOff_notificationNotShowing_handleScanResults_notificationNotDisplayed() {
         mNotificationController.handleScreenStateChanged(false);
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         verify(mNotificationManager, never()).notify(anyInt(), any());
     }
@@ -296,11 +297,11 @@ public class OpenNetworkNotifierTest {
      */
     @Test
     public void screenOff_notificationShowing_handleScanResults_recommendationCanBeUpdated() {
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         verify(mNotificationBuilder).createConnectToAvailableNetworkNotification(
-                OPEN_NET_NOTIFIER_TAG, mDummyNetwork);
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+                CARRIER_NET_NOTIFIER_TAG, mDummyNetwork);
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK);
         verify(mNotificationManager).notify(anyInt(), any());
 
@@ -308,29 +309,29 @@ public class OpenNetworkNotifierTest {
         newNetwork.SSID = TEST_SSID_2;
         mDummyNetwork.capabilities = "[ESS]";
         mDummyNetwork.level = MIN_RSSI_LEVEL + 1;
-        mOpenNetworks.add(new ScanDetail(newNetwork, null /* networkDetail */));
+        mCarrierNetworks.add(new ScanDetail(newNetwork, null /* networkDetail */));
 
         mNotificationController.handleScreenStateChanged(false);
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         // Recommendation changed
         verify(mNotificationBuilder).createConnectToAvailableNetworkNotification(
-                OPEN_NET_NOTIFIER_TAG, newNetwork);
-        verify(mWifiMetrics).incrementNumNetworkRecommendationUpdates(OPEN_NET_NOTIFIER_TAG);
+                CARRIER_NET_NOTIFIER_TAG, newNetwork);
+        verify(mWifiMetrics).incrementNumNetworkRecommendationUpdates(CARRIER_NET_NOTIFIER_TAG);
         verify(mNotificationManager, times(2)).notify(anyInt(), any());
     }
 
     /**
-     * When a notification is posted and cleared without resetting delay, the next scan with open
+     * When a notification is posted and cleared without resetting delay, the next scan with carrier
      * networks should not post another notification.
      */
     @Test
     public void postNotification_clearNotificationWithoutDelayReset_shouldNotPostNotification() {
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         verify(mNotificationBuilder).createConnectToAvailableNetworkNotification(
-                OPEN_NET_NOTIFIER_TAG, mDummyNetwork);
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+                CARRIER_NET_NOTIFIER_TAG, mDummyNetwork);
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK);
         verify(mNotificationManager).notify(anyInt(), any());
 
@@ -338,39 +339,41 @@ public class OpenNetworkNotifierTest {
 
         verify(mNotificationManager).cancel(anyInt());
 
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         // no new notification posted
         verify(mNotificationManager).notify(anyInt(), any());
     }
 
     /**
-     * When a notification is posted and cleared without resetting delay, the next scan with open
+     * When a notification is posted and cleared without resetting delay, the next scan with carrier
      * networks should post a notification.
      */
     @Test
     public void postNotification_clearNotificationWithDelayReset_shouldPostNotification() {
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         verify(mNotificationBuilder).createConnectToAvailableNetworkNotification(
-                OPEN_NET_NOTIFIER_TAG, mDummyNetwork);
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+                CARRIER_NET_NOTIFIER_TAG, mDummyNetwork);
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK);
         verify(mNotificationManager).notify(anyInt(), any());
 
         mNotificationController.clearPendingNotification(true);
 
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         verify(mNotificationBuilder, times(2)).createConnectToAvailableNetworkNotification(
-                OPEN_NET_NOTIFIER_TAG, mDummyNetwork);
-        verify(mWifiMetrics, times(2)).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+                CARRIER_NET_NOTIFIER_TAG, mDummyNetwork);
+        verify(mWifiMetrics, times(2)).incrementConnectToNetworkNotification(
+                CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK);
         verify(mNotificationManager, times(2)).notify(anyInt(), any());
     }
 
     private Intent createIntent(String action) {
-        return new Intent(action).putExtra(AVAILABLE_NETWORK_NOTIFIER_TAG, OPEN_NET_NOTIFIER_TAG);
+        return new Intent(action).putExtra(AVAILABLE_NETWORK_NOTIFIER_TAG,
+                CARRIER_NET_NOTIFIER_TAG);
     }
 
     /**
@@ -379,11 +382,11 @@ public class OpenNetworkNotifierTest {
      */
     @Test
     public void userDismissedNotification_shouldBlacklistNetwork() {
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         verify(mNotificationBuilder).createConnectToAvailableNetworkNotification(
-                OPEN_NET_NOTIFIER_TAG, mDummyNetwork);
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+                CARRIER_NET_NOTIFIER_TAG, mDummyNetwork);
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK);
         verify(mNotificationManager).notify(anyInt(), any());
 
@@ -392,26 +395,26 @@ public class OpenNetworkNotifierTest {
         verify(mWifiConfigManager).saveToStore(false /* forceWrite */);
 
         mNotificationController.clearPendingNotification(true);
-        List<ScanDetail> scanResults = mOpenNetworks;
+        List<ScanDetail> scanResults = mCarrierNetworks;
         mNotificationController.handleScanResults(scanResults);
 
         Set<String> expectedBlacklist = new ArraySet<>();
         expectedBlacklist.add(mDummyNetwork.SSID);
-        verify(mWifiMetrics).setNetworkRecommenderBlacklistSize(OPEN_NET_NOTIFIER_TAG,
+        verify(mWifiMetrics).setNetworkRecommenderBlacklistSize(CARRIER_NET_NOTIFIER_TAG,
                 expectedBlacklist.size());
     }
 
     /**
      * When a notification is posted and cleared without resetting delay, after the delay has passed
-     * the next scan with open networks should post a notification.
+     * the next scan with carrier networks should post a notification.
      */
     @Test
     public void delaySet_delayPassed_shouldPostNotification() {
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         verify(mNotificationBuilder).createConnectToAvailableNetworkNotification(
-                OPEN_NET_NOTIFIER_TAG, mDummyNetwork);
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+                CARRIER_NET_NOTIFIER_TAG, mDummyNetwork);
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK);
         verify(mNotificationManager).notify(anyInt(), any());
 
@@ -420,11 +423,12 @@ public class OpenNetworkNotifierTest {
         // twice the delay time passed
         when(mClock.getWallClockMillis()).thenReturn(DEFAULT_REPEAT_DELAY_SEC * 1000L * 2);
 
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         verify(mNotificationBuilder, times(2)).createConnectToAvailableNetworkNotification(
-                OPEN_NET_NOTIFIER_TAG, mDummyNetwork);
-        verify(mWifiMetrics, times(2)).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+                CARRIER_NET_NOTIFIER_TAG, mDummyNetwork);
+        verify(mWifiMetrics, times(2)).incrementConnectToNetworkNotification(
+                CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK);
         verify(mNotificationManager, times(2)).notify(anyInt(), any());
     }
@@ -435,7 +439,7 @@ public class OpenNetworkNotifierTest {
         when(mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_WIFI, UserHandle.CURRENT))
                 .thenReturn(true);
 
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         verify(mNotificationManager, never()).notify(anyInt(), any());
     }
@@ -443,18 +447,18 @@ public class OpenNetworkNotifierTest {
     /** Verifies that {@link UserManager#DISALLOW_CONFIG_WIFI} clears the showing notification. */
     @Test
     public void userHasDisallowConfigWifiRestriction_showingNotificationIsCleared() {
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         verify(mNotificationBuilder).createConnectToAvailableNetworkNotification(
-                OPEN_NET_NOTIFIER_TAG, mDummyNetwork);
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+                CARRIER_NET_NOTIFIER_TAG, mDummyNetwork);
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK);
         verify(mNotificationManager).notify(anyInt(), any());
 
         when(mUserManager.hasUserRestriction(UserManager.DISALLOW_CONFIG_WIFI, UserHandle.CURRENT))
                 .thenReturn(true);
 
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         verify(mNotificationManager).cancel(anyInt());
     }
@@ -476,12 +480,12 @@ public class OpenNetworkNotifierTest {
      */
     @Test
     public void actionConnectToNetwork_currentRecommendationExists_connectsAndPostsNotification() {
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         // Initial Notification
         verify(mNotificationBuilder).createConnectToAvailableNetworkNotification(
-                OPEN_NET_NOTIFIER_TAG, mDummyNetwork);
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+                CARRIER_NET_NOTIFIER_TAG, mDummyNetwork);
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK);
         verify(mNotificationManager).notify(anyInt(), any());
 
@@ -490,9 +494,9 @@ public class OpenNetworkNotifierTest {
         verify(mWifiStateMachine).sendMessage(any(Message.class));
         // Connecting Notification
         verify(mNotificationBuilder).createNetworkConnectingNotification(mDummyNetwork);
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_CONNECTING_TO_NETWORK);
-        verify(mWifiMetrics).incrementConnectToNetworkNotificationAction(OPEN_NET_NOTIFIER_TAG,
+        verify(mWifiMetrics).incrementConnectToNetworkNotificationAction(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK,
                 ConnectToNetworkNotificationAndActionCount.ACTION_CONNECT_TO_NETWORK);
         verify(mNotificationManager, times(2)).notify(anyInt(), any());
@@ -504,12 +508,12 @@ public class OpenNetworkNotifierTest {
      */
     @Test
     public void actionPickWifiNetwork_currentRecommendationExists_opensWifiSettings() {
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         // Initial Notification
         verify(mNotificationBuilder).createConnectToAvailableNetworkNotification(
-                OPEN_NET_NOTIFIER_TAG, mDummyNetwork);
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+                CARRIER_NET_NOTIFIER_TAG, mDummyNetwork);
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK);
         verify(mNotificationManager).notify(anyInt(), any());
 
@@ -518,13 +522,13 @@ public class OpenNetworkNotifierTest {
         ArgumentCaptor<Intent> pickerIntentCaptor = ArgumentCaptor.forClass(Intent.class);
         verify(mContext).startActivity(pickerIntentCaptor.capture());
         assertEquals(pickerIntentCaptor.getValue().getAction(), Settings.ACTION_WIFI_SETTINGS);
-        verify(mWifiMetrics).incrementConnectToNetworkNotificationAction(OPEN_NET_NOTIFIER_TAG,
+        verify(mWifiMetrics).incrementConnectToNetworkNotificationAction(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK,
                 ConnectToNetworkNotificationAndActionCount.ACTION_PICK_WIFI_NETWORK);
     }
 
     /**
-     * {@link OpenNetworkNotifier#handleWifiConnected()} does not post connected notification if
+     * {@link CarrierNetworkNotifier#handleWifiConnected()} does not post connected notification if
      * the connecting notification is not showing
      */
     @Test
@@ -533,21 +537,22 @@ public class OpenNetworkNotifierTest {
 
         verify(mNotificationManager, never()).notify(anyInt(), any());
         verify(mWifiMetrics, never()).incrementConnectToNetworkNotification(
-                OPEN_NET_NOTIFIER_TAG,
+                CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_CONNECTED_TO_NETWORK);
     }
 
     /**
-     * {@link OpenNetworkNotifier#handleWifiConnected()} clears notification that is not connecting.
+     * {@link CarrierNetworkNotifier#handleWifiConnected()} clears notification that is not
+     * connecting.
      */
     @Test
     public void networkConnectionSuccess_wasShowingNotification_clearsNotification() {
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         // Initial Notification
         verify(mNotificationBuilder).createConnectToAvailableNetworkNotification(
-                OPEN_NET_NOTIFIER_TAG, mDummyNetwork);
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+                CARRIER_NET_NOTIFIER_TAG, mDummyNetwork);
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK);
         verify(mNotificationManager).notify(anyInt(), any());
 
@@ -557,17 +562,17 @@ public class OpenNetworkNotifierTest {
     }
 
     /**
-     * {@link OpenNetworkNotifier#handleWifiConnected()} posts the connected notification if
+     * {@link CarrierNetworkNotifier#handleWifiConnected()} posts the connected notification if
      * the connecting notification is showing.
      */
     @Test
     public void networkConnectionSuccess_wasInConnectingFlow_postsConnectedNotification() {
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         // Initial Notification
         verify(mNotificationBuilder).createConnectToAvailableNetworkNotification(
-                OPEN_NET_NOTIFIER_TAG, mDummyNetwork);
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+                CARRIER_NET_NOTIFIER_TAG, mDummyNetwork);
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK);
         verify(mNotificationManager).notify(anyInt(), any());
 
@@ -575,9 +580,9 @@ public class OpenNetworkNotifierTest {
 
         // Connecting Notification
         verify(mNotificationBuilder).createNetworkConnectingNotification(mDummyNetwork);
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_CONNECTING_TO_NETWORK);
-        verify(mWifiMetrics).incrementConnectToNetworkNotificationAction(OPEN_NET_NOTIFIER_TAG,
+        verify(mWifiMetrics).incrementConnectToNetworkNotificationAction(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK,
                 ConnectToNetworkNotificationAndActionCount.ACTION_CONNECT_TO_NETWORK);
         verify(mNotificationManager, times(2)).notify(anyInt(), any());
@@ -586,13 +591,13 @@ public class OpenNetworkNotifierTest {
 
         // Connected Notification
         verify(mNotificationBuilder).createNetworkConnectedNotification(mDummyNetwork);
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_CONNECTED_TO_NETWORK);
         verify(mNotificationManager, times(3)).notify(anyInt(), any());
     }
 
     /**
-     * {@link OpenNetworkNotifier#handleConnectionFailure()} posts the Failed to Connect
+     * {@link CarrierNetworkNotifier#handleConnectionFailure()} posts the Failed to Connect
      * notification if the connecting notification is showing.
      */
     @Test
@@ -600,22 +605,23 @@ public class OpenNetworkNotifierTest {
         mNotificationController.handleConnectionFailure();
 
         verify(mNotificationManager, never()).notify(anyInt(), any());
-        verify(mWifiMetrics, never()).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+        verify(mWifiMetrics, never()).incrementConnectToNetworkNotification(
+                CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_FAILED_TO_CONNECT);
     }
 
     /**
-     * {@link OpenNetworkNotifier#handleConnectionFailure()} posts the Failed to Connect
+     * {@link CarrierNetworkNotifier#handleConnectionFailure()} posts the Failed to Connect
      * notification if the connecting notification is showing.
      */
     @Test
     public void networkConnectionFailure_wasInConnectingFlow_postsFailedToConnectNotification() {
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         // Initial Notification
         verify(mNotificationBuilder).createConnectToAvailableNetworkNotification(
-                OPEN_NET_NOTIFIER_TAG, mDummyNetwork);
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+                CARRIER_NET_NOTIFIER_TAG, mDummyNetwork);
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK);
         verify(mNotificationManager).notify(anyInt(), any());
 
@@ -623,9 +629,9 @@ public class OpenNetworkNotifierTest {
 
         // Connecting Notification
         verify(mNotificationBuilder).createNetworkConnectingNotification(mDummyNetwork);
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_CONNECTING_TO_NETWORK);
-        verify(mWifiMetrics).incrementConnectToNetworkNotificationAction(OPEN_NET_NOTIFIER_TAG,
+        verify(mWifiMetrics).incrementConnectToNetworkNotificationAction(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK,
                 ConnectToNetworkNotificationAndActionCount.ACTION_CONNECT_TO_NETWORK);
         verify(mNotificationManager, times(2)).notify(anyInt(), any());
@@ -634,7 +640,7 @@ public class OpenNetworkNotifierTest {
 
         // Failed to Connect Notification
         verify(mNotificationBuilder).createNetworkFailedNotification();
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_FAILED_TO_CONNECT);
         verify(mNotificationManager, times(3)).notify(anyInt(), any());
     }
@@ -646,12 +652,12 @@ public class OpenNetworkNotifierTest {
      */
     @Test
     public void connectionFailedCallback_postsFailedToConnectNotification() throws RemoteException {
-        mNotificationController.handleScanResults(mOpenNetworks);
+        mNotificationController.handleScanResults(mCarrierNetworks);
 
         // Initial Notification
         verify(mNotificationBuilder).createConnectToAvailableNetworkNotification(
-                OPEN_NET_NOTIFIER_TAG, mDummyNetwork);
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+                CARRIER_NET_NOTIFIER_TAG, mDummyNetwork);
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK);
         verify(mNotificationManager).notify(anyInt(), any());
 
@@ -663,9 +669,9 @@ public class OpenNetworkNotifierTest {
 
         // Connecting Notification
         verify(mNotificationBuilder).createNetworkConnectingNotification(mDummyNetwork);
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_CONNECTING_TO_NETWORK);
-        verify(mWifiMetrics).incrementConnectToNetworkNotificationAction(OPEN_NET_NOTIFIER_TAG,
+        verify(mWifiMetrics).incrementConnectToNetworkNotificationAction(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_RECOMMEND_NETWORK,
                 ConnectToNetworkNotificationAndActionCount.ACTION_CONNECT_TO_NETWORK);
         verify(mNotificationManager, times(2)).notify(anyInt(), any());
@@ -677,9 +683,10 @@ public class OpenNetworkNotifierTest {
 
         // Failed to Connect Notification
         verify(mNotificationBuilder).createNetworkFailedNotification();
-        verify(mWifiMetrics).incrementConnectToNetworkNotification(OPEN_NET_NOTIFIER_TAG,
+        verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_FAILED_TO_CONNECT);
-        verify(mWifiMetrics).incrementNumNetworkConnectMessageFailedToSend(OPEN_NET_NOTIFIER_TAG);
+        verify(mWifiMetrics).incrementNumNetworkConnectMessageFailedToSend(
+                CARRIER_NET_NOTIFIER_TAG);
         verify(mNotificationManager, times(3)).notify(anyInt(), any());
 
         mBroadcastReceiver.onReceive(mContext,
@@ -688,13 +695,13 @@ public class OpenNetworkNotifierTest {
         ArgumentCaptor<Intent> pickerIntentCaptor = ArgumentCaptor.forClass(Intent.class);
         verify(mContext).startActivity(pickerIntentCaptor.capture());
         assertEquals(pickerIntentCaptor.getValue().getAction(), Settings.ACTION_WIFI_SETTINGS);
-        verify(mWifiMetrics).incrementConnectToNetworkNotificationAction(OPEN_NET_NOTIFIER_TAG,
+        verify(mWifiMetrics).incrementConnectToNetworkNotificationAction(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_FAILED_TO_CONNECT,
                 ConnectToNetworkNotificationAndActionCount
                         .ACTION_PICK_WIFI_NETWORK_AFTER_CONNECT_FAILURE);
     }
 
-    private List<ScanDetail> createOpenScanResults(String... ssids) {
+    private List<ScanDetail> createCarrierScanResults(String... ssids) {
         List<ScanDetail> scanResults = new ArrayList<>();
         for (String ssid : ssids) {
             ScanResult scanResult = new ScanResult();
@@ -705,10 +712,10 @@ public class OpenNetworkNotifierTest {
         return scanResults;
     }
 
-    /** If list of open networks contain only one network, that network should be returned. */
+    /** If list of carrier networks contain only one network, that network should be returned. */
     @Test
     public void onlyNetworkIsRecommended() {
-        List<ScanDetail> scanResults = createOpenScanResults(TEST_SSID_1);
+        List<ScanDetail> scanResults = createCarrierScanResults(TEST_SSID_1);
         scanResults.get(0).getScanResult().level = MIN_RSSI_LEVEL;
 
         ScanResult actual = mNotificationController.recommendNetwork(
@@ -720,7 +727,7 @@ public class OpenNetworkNotifierTest {
     /** Verifies that the network with the highest rssi is recommended. */
     @Test
     public void networkWithHighestRssiIsRecommended() {
-        List<ScanDetail> scanResults = createOpenScanResults(TEST_SSID_1, TEST_SSID_2);
+        List<ScanDetail> scanResults = createCarrierScanResults(TEST_SSID_1, TEST_SSID_2);
         scanResults.get(0).getScanResult().level = MIN_RSSI_LEVEL;
         scanResults.get(1).getScanResult().level = MIN_RSSI_LEVEL + 1;
 
@@ -731,11 +738,11 @@ public class OpenNetworkNotifierTest {
     }
 
     /**
-     * If the best available open network is blacklisted, no network should be recommended.
+     * If the best available carrier network is blacklisted, no network should be recommended.
      */
     @Test
     public void blacklistBestNetworkSsid_shouldNeverRecommendNetwork() {
-        List<ScanDetail> scanResults = createOpenScanResults(TEST_SSID_1, TEST_SSID_2);
+        List<ScanDetail> scanResults = createCarrierScanResults(TEST_SSID_1, TEST_SSID_2);
         scanResults.get(0).getScanResult().level = MIN_RSSI_LEVEL + 1;
         scanResults.get(1).getScanResult().level = MIN_RSSI_LEVEL;
         mBlacklistedSsids.add(TEST_SSID_1);

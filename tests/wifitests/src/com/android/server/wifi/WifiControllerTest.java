@@ -27,6 +27,7 @@ import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.*;
 
 import android.content.Context;
+import android.os.Handler;
 import android.os.test.TestLooper;
 import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Log;
@@ -81,6 +82,7 @@ public class WifiControllerTest {
     @Mock WifiStateMachinePrime mWifiStateMachinePrime;
 
     WifiController mWifiController;
+    Handler mWifiStateMachineHandler;
 
     @Before
     public void setUp() throws Exception {
@@ -92,7 +94,8 @@ public class WifiControllerTest {
 
         mWifiController = new WifiController(mContext, mWifiStateMachine,
                 mSettingsStore, mLooper.getLooper(), mFacade, mWifiStateMachinePrime);
-
+        mWifiStateMachineHandler = new Handler(mLooper.getLooper());
+        when(mWifiStateMachine.getHandler()).thenReturn(mWifiStateMachineHandler);
         mWifiController.start();
         mLooper.dispatchAll();
     }
@@ -287,6 +290,14 @@ public class WifiControllerTest {
         assertEquals("DeviceActiveState", getCurrentState().getName());
     }
 
+    @Test
+    public void testRestartWifiStackInStaEnabledStateTriggersBugReport() throws Exception {
+        enableWifi();
+        mWifiController.sendMessage(CMD_RESTART_WIFI);
+        mLooper.dispatchAll();
+        verify(mWifiStateMachine).takeBugReport();
+    }
+
     /**
      * The command to trigger a WiFi reset should not trigger any action by WifiController if we
      * are not in STA mode.
@@ -349,6 +360,7 @@ public class WifiControllerTest {
         enableWifi();
 
         reset(mWifiStateMachine);
+        when(mWifiStateMachine.getHandler()).thenReturn(mWifiStateMachineHandler);
         assertEquals("DeviceActiveState", getCurrentState().getName());
         mWifiController.sendMessage(CMD_RESTART_WIFI);
         mLooper.dispatchAll();

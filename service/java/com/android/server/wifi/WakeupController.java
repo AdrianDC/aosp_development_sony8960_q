@@ -16,6 +16,8 @@
 
 package com.android.server.wifi;
 
+import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
+
 import android.content.Context;
 import android.database.ContentObserver;
 import android.net.wifi.ScanResult;
@@ -261,14 +263,27 @@ public class WakeupController {
 
         if (network != null) {
             Log.d(TAG, "Found viable network: " + network.SSID);
-            enableWifi(network);
+            onNetworkFound(network);
         }
     }
 
-    private void enableWifi(ScanResult scanResult) {
-        if (isEnabled() && USE_PLATFORM_WIFI_WAKE) {
-            //TODO(b/69055696) enable wifi (and update log statement) once path exists
-            Log.d(TAG, "Enabling wifi not yet implemented. Network: " + scanResult.SSID);
+    private void onNetworkFound(ScanResult scanResult) {
+        if (isEnabled() && mIsActive && USE_PLATFORM_WIFI_WAKE) {
+            Log.d(TAG, "Enabling wifi for network: " + scanResult.SSID);
+            enableWifi();
+        }
+    }
+
+    /**
+     * Enables wifi.
+     *
+     * <p>This method ignores all checks and assumes that {@link WifiStateMachine} is currently
+     * in ScanModeState.
+     */
+    private void enableWifi() {
+        // TODO(b/72180295): ensure that there is no race condition with WifiServiceImpl here
+        if (mWifiInjector.getWifiSettingsStore().handleWifiToggled(true /* wifiEnabled */)) {
+            mWifiInjector.getWifiController().sendMessage(CMD_WIFI_TOGGLED);
         }
     }
 

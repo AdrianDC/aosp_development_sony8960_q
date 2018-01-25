@@ -22,6 +22,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
 import android.net.wifi.ScanResult;
+import android.util.Log;
 
 import com.android.internal.R;
 import com.android.internal.notification.SystemNotificationChannels;
@@ -47,6 +48,10 @@ public class ConnectToNetworkNotificationBuilder {
     public static final String ACTION_PICK_WIFI_NETWORK_AFTER_CONNECT_FAILURE =
             "com.android.server.wifi.ConnectToNetworkNotification.PICK_NETWORK_AFTER_FAILURE";
 
+    /** Extra data added to the Intent to specify the registering network notifier. */
+    public static final String AVAILABLE_NETWORK_NOTIFIER_TAG =
+            "com.android.server.wifi.ConnectToNetworkNotification.AVAILABLE_NETWORK_NOTIFIER_TAG";
+
     private Context mContext;
     private Resources mResources;
     private FrameworkFacade mFrameworkFacade;
@@ -66,22 +71,37 @@ public class ConnectToNetworkNotificationBuilder {
      * There are two actions - "Options" link to the Wi-Fi picker activity, and "Connect" prompts
      * the connection to the recommended network.
      *
+     * @param notifierTag Unique tag of calling network notifier
      * @param network The network to be recommended
      */
-    public Notification createConnectToNetworkNotification(ScanResult network) {
-        Notification.Action connectAction = new Notification.Action.Builder(
-                null /* icon */,
+    public Notification createConnectToAvailableNetworkNotification(String notifierTag,
+            ScanResult network) {
+        CharSequence title;
+        int requestCode = 0;  // Makes the different kinds of notifications distinguishable
+
+        switch (notifierTag) {
+            case OpenNetworkNotifier.TAG:
+                title = mContext.getText(R.string.wifi_available_title);
+                requestCode = 1;
+                break;
+            case CarrierNetworkNotifier.TAG:
+                title = mContext.getText(R.string.wifi_available_carrier_network_title);
+                requestCode = 2;
+                break;
+            default:
+                Log.wtf("ConnectToNetworkNotificationBuilder", "Unknown network notifier."
+                        + notifierTag);
+                return null;
+        }
+
+        Notification.Action connectAction = new Notification.Action.Builder(null /* icon */,
                 mResources.getText(R.string.wifi_available_action_connect),
-                getPrivateBroadcast(ACTION_CONNECT_TO_NETWORK)).build();
-        Notification.Action allNetworksAction = new Notification.Action.Builder(
-                null /* icon */,
+                getPrivateBroadcast(ACTION_CONNECT_TO_NETWORK, notifierTag, requestCode)).build();
+        Notification.Action allNetworksAction = new Notification.Action.Builder(null /* icon */,
                 mResources.getText(R.string.wifi_available_action_all_networks),
-                getPrivateBroadcast(ACTION_PICK_WIFI_NETWORK)).build();
-        return createNotificationBuilder(
-                mContext.getText(R.string.wifi_available_title), network.SSID)
-                .addAction(connectAction)
-                .addAction(allNetworksAction)
-                .build();
+                getPrivateBroadcast(ACTION_PICK_WIFI_NETWORK, notifierTag, requestCode)).build();
+        return createNotificationBuilder(title, network.SSID, notifierTag, requestCode)
+                .addAction(connectAction).addAction(allNetworksAction).build();
     }
 
     /**
@@ -125,22 +145,35 @@ public class ConnectToNetworkNotificationBuilder {
 
     private Notification.Builder createNotificationBuilder(
             CharSequence title, CharSequence content) {
+        return createNotificationBuilder(title, content, null, 0);
+    }
+
+    private PendingIntent getPrivateBroadcast(String action) {
+        return getPrivateBroadcast(action, null, 0);
+    }
+
+    private Notification.Builder createNotificationBuilder(
+            CharSequence title, CharSequence content, String extraData, int requestCode) {
         return mFrameworkFacade.makeNotificationBuilder(mContext,
                 SystemNotificationChannels.NETWORK_AVAILABLE)
                 .setSmallIcon(R.drawable.stat_notify_wifi_in_range)
                 .setTicker(title)
                 .setContentTitle(title)
                 .setContentText(content)
-                .setDeleteIntent(getPrivateBroadcast(ACTION_USER_DISMISSED_NOTIFICATION))
+                .setDeleteIntent(getPrivateBroadcast(
+                        ACTION_USER_DISMISSED_NOTIFICATION, extraData, requestCode))
                 .setShowWhen(false)
                 .setLocalOnly(true)
                 .setColor(mResources.getColor(R.color.system_notification_accent_color,
                         mContext.getTheme()));
     }
 
-    private PendingIntent getPrivateBroadcast(String action) {
+    private PendingIntent getPrivateBroadcast(String action, String extraData, int requestCode) {
         Intent intent = new Intent(action).setPackage("android");
-        return mFrameworkFacade.getBroadcast(
-                mContext, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        if (extraData != null) {
+            intent.putExtra(AVAILABLE_NETWORK_NOTIFIER_TAG, extraData);
+        }
+        return mFrameworkFacade.getBroadcast(mContext, requestCode, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT);
     }
 }

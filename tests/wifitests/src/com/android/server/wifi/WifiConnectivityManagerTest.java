@@ -65,6 +65,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Unit tests for {@link com.android.server.wifi.WifiConnectivityManager}.
@@ -125,6 +126,8 @@ public class WifiConnectivityManagerTest {
     @Mock private Clock mClock;
     @Mock private WifiLastResortWatchdog mWifiLastResortWatchdog;
     @Mock private OpenNetworkNotifier mOpenNetworkNotifier;
+    @Mock private CarrierNetworkNotifier mCarrierNetworkNotifier;
+    @Mock private CarrierNetworkConfig mCarrierNetworkConfig;
     @Mock private WifiMetrics mWifiMetrics;
     @Mock private WifiNetworkScoreCache mScoreCache;
     @Captor ArgumentCaptor<ScanResult> mCandidateScanResultCaptor;
@@ -201,6 +204,14 @@ public class WifiConnectivityManagerTest {
             public void answer(ScanSettings settings, ScanListener listener,
                     WorkSource workSource) throws Exception {
                 listener.onResults(scanDatas);
+                // WCM processes scan results received via onFullResult (even though they're the
+                // same as onResult for single scans).
+                if (mScanData != null && mScanData.getResults() != null) {
+                    for (int i = 0; i < mScanData.getResults().length; i++) {
+                        allSingleScanListenerCaptor.getValue().onFullResult(
+                                mScanData.getResults()[i]);
+                    }
+                }
                 allSingleScanListenerCaptor.getValue().onResults(scanDatas);
             }}).when(scanner).startScan(anyObject(), anyObject(), anyObject());
 
@@ -295,8 +306,9 @@ public class WifiConnectivityManagerTest {
     WifiConnectivityManager createConnectivityManager() {
         return new WifiConnectivityManager(mContext, mWifiStateMachine, mWifiScanner,
                 mWifiConfigManager, mWifiInfo, mWifiNS, mWifiConnectivityHelper,
-                mWifiLastResortWatchdog, mOpenNetworkNotifier, mWifiMetrics,
-                mLooper.getLooper(), mClock, mLocalLog, true, mFrameworkFacade, null, null, null);
+                mWifiLastResortWatchdog, mOpenNetworkNotifier, mCarrierNetworkNotifier,
+                mCarrierNetworkConfig, mWifiMetrics, mLooper.getLooper(), mClock, mLocalLog, true,
+                mFrameworkFacade, null, null, null);
     }
 
     /**
@@ -722,6 +734,120 @@ public class WifiConnectivityManagerTest {
         mWifiConnectivityManager.handleScreenStateChanged(true);
 
         verify(mOpenNetworkNotifier).handleScreenStateChanged(true);
+    }
+
+    /**
+     * {@link CarrierNetworkNotifier} handles scan results on network selection.
+     *
+     * Expected behavior: CarrierNetworkNotifier handles scan results
+     */
+    @Test
+    public void wifiDisconnected_noConnectionCandidate_CarrierNetworkNotifierScanResultsHandled() {
+        // no connection candidate selected
+        when(mWifiNS.selectNetwork(anyObject(), anyObject(), anyObject(), anyBoolean(),
+                anyBoolean(), anyBoolean())).thenReturn(null);
+
+        List<ScanDetail> expectedCarrierNetworks = new ArrayList<>();
+        expectedCarrierNetworks.add(
+                new ScanDetail(
+                        new ScanResult(WifiSsid.createFromAsciiEncoded(CANDIDATE_SSID),
+                                CANDIDATE_SSID, CANDIDATE_BSSID, 1245, 0, "[EAP][ESS]", -78, 2450,
+                                1025, 22, 33, 20, 0, 0, true), null));
+
+        when(mWifiNS.getFilteredScanDetailsForCarrierUnsavedNetworks(any()))
+                .thenReturn(expectedCarrierNetworks);
+
+        // Set WiFi to disconnected state to trigger PNO scan
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+
+        verify(mCarrierNetworkNotifier).handleScanResults(expectedCarrierNetworks);
+    }
+
+    /**
+     * When wifi is connected, {@link CarrierNetworkNotifier} handles the Wi-Fi connected behavior.
+     *
+     * Expected behavior: CarrierNetworkNotifier handles connected behavior
+     */
+    @Test
+    public void wifiConnected_carrierNetworkNotifierHandlesConnection() {
+        // Set WiFi to connected state
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_CONNECTED);
+
+        verify(mCarrierNetworkNotifier).handleWifiConnected();
+    }
+
+    /**
+     * When wifi is connected, {@link CarrierNetworkNotifier} handles connection state
+     * change.
+     *
+     * Expected behavior: CarrierNetworkNotifer does not clear pending notification.
+     */
+    @Test
+    public void wifiDisconnected_carrierNetworkNotifierDoesNotClearPendingNotification() {
+        // Set WiFi to disconnected state
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+
+        verify(mCarrierNetworkNotifier, never()).clearPendingNotification(anyBoolean());
+    }
+
+    /**
+     * When a Wi-Fi connection attempt ends, {@link CarrierNetworkNotifier} handles the connection
+     * failure. A failure code that is not {@link WifiMetrics.ConnectionEvent#FAILURE_NONE}
+     * represents a connection failure.
+     *
+     * Expected behavior: CarrierNetworkNotifier handles connection failure.
+     */
+    @Test
+    public void wifiConnectionEndsWithFailure_carrierNetworkNotifierHandlesConnectionFailure() {
+        mWifiConnectivityManager.handleConnectionAttemptEnded(
+                WifiMetrics.ConnectionEvent.FAILURE_CONNECT_NETWORK_FAILED);
+
+        verify(mCarrierNetworkNotifier).handleConnectionFailure();
+    }
+
+    /**
+     * When a Wi-Fi connection attempt ends, {@link CarrierNetworkNotifier} does not handle
+     * connection failure after a successful connection.
+     * {@link WifiMetrics.ConnectionEvent#FAILURE_NONE} represents a successful connection.
+     *
+     * Expected behavior: CarrierNetworkNotifier does nothing.
+     */
+    @Test
+    public void
+            wifiConnectionEndsWithSuccess_carrierNetworkNotifierDoesNotHandleConnectionFailure() {
+        mWifiConnectivityManager.handleConnectionAttemptEnded(
+                WifiMetrics.ConnectionEvent.FAILURE_NONE);
+
+        verify(mCarrierNetworkNotifier, never()).handleConnectionFailure();
+    }
+
+    /**
+     * When Wi-Fi is disabled, clear the pending notification and reset notification repeat delay.
+     *
+     * Expected behavior: clear pending notification and reset notification repeat delay
+     * */
+    @Test
+    public void carrierNetworkNotifierClearsPendingNotificationOnWifiDisabled() {
+        mWifiConnectivityManager.setWifiEnabled(false);
+
+        verify(mCarrierNetworkNotifier).clearPendingNotification(true /* resetRepeatDelay */);
+    }
+
+    /**
+     * Verify that the CarrierNetworkNotifier tracks screen state changes.
+     */
+    @Test
+    public void carrierNetworkNotifierTracksScreenStateChanges() {
+        mWifiConnectivityManager.handleScreenStateChanged(false);
+
+        verify(mCarrierNetworkNotifier).handleScreenStateChanged(false);
+
+        mWifiConnectivityManager.handleScreenStateChanged(true);
+
+        verify(mCarrierNetworkNotifier).handleScreenStateChanged(true);
     }
 
     /**
@@ -1748,4 +1874,70 @@ public class WifiConnectivityManagerTest {
 
         verify(mOpenNetworkNotifier).dump(any(), any(), any());
     }
+
+    /**
+     * WifiConnectivityManager should filter scan results which contain scans from a single radio
+     * chain (i.e DBS scan).
+     * Note:
+     * a) ScanResult with no radio chain indicates a lack of DBS support on the device.
+     * b) ScanResult with 2 radio chain info indicates a scan done using both the radio chains
+     * on a DBS supported device.
+     *
+     * Expected behavior: WifiConnectivityManager invokes
+     * {@link WifiNetworkSelector#selectNetwork(List, HashSet, WifiInfo, boolean, boolean, boolean)}
+     * after filtering out the scan results obtained via DBS scan.
+     */
+    @Test
+    public void filterScanResultsWithOneRadioChainInfoForNetworkSelection() {
+        when(mWifiNS.selectNetwork(any(), any(), any(), anyBoolean(), anyBoolean(), anyBoolean()))
+                .thenReturn(null);
+
+        // Create 4 scan results.
+        ScanData[] scanDatas =
+                ScanTestUtil.createScanDatas(new int[][]{{5150, 5175, 2412, 2400}}, new int[]{0});
+        mScanData = scanDatas[0];
+        // WCM barfs if the scan result does not have an IE.
+        mScanData.getResults()[0].informationElements = new InformationElement[0];
+        mScanData.getResults()[1].informationElements = new InformationElement[0];
+        mScanData.getResults()[2].informationElements = new InformationElement[0];
+        mScanData.getResults()[3].informationElements = new InformationElement[0];
+        // First scan result has null radio chain info (No DBS support).
+        mScanData.getResults()[0].radioChainInfos = null;
+        // Second scan result has empty radio chain info (No DBS support).
+        mScanData.getResults()[1].radioChainInfos = new ScanResult.RadioChainInfo[0];
+        // Third scan result has 1 radio chain info (DBS scan).
+        mScanData.getResults()[2].radioChainInfos = new ScanResult.RadioChainInfo[1];
+        // Fourth scan result has 2 radio chain info (non-DBS scan).
+        mScanData.getResults()[3].radioChainInfos = new ScanResult.RadioChainInfo[2];
+
+        // Capture scan details which were sent to network selector.
+        final List<ScanDetail> capturedScanDetails = new ArrayList<>();
+        doAnswer(new AnswerWithArguments() {
+            public WifiConfiguration answer(
+                    List<ScanDetail> scanDetails, HashSet<String> bssidBlacklist, WifiInfo wifiInfo,
+                    boolean connected, boolean disconnected, boolean untrustedNetworkAllowed)
+                    throws Exception {
+                capturedScanDetails.addAll(scanDetails);
+                return null;
+            }}).when(mWifiNS).selectNetwork(
+                    any(), any(), any(), anyBoolean(), anyBoolean(), anyBoolean());
+
+        // Set WiFi to disconnected state with screen on which triggers a scan immediately.
+        mWifiConnectivityManager.handleScreenStateChanged(true);
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+
+        // We should have filtered out the 3rd scan result.
+        assertEquals(3, capturedScanDetails.size());
+        List<ScanResult> capturedScanResults =
+                capturedScanDetails.stream().map(ScanDetail::getScanResult)
+                        .collect(Collectors.toList());
+
+        assertEquals(3, capturedScanResults.size());
+        assertTrue(capturedScanResults.contains(mScanData.getResults()[0]));
+        assertTrue(capturedScanResults.contains(mScanData.getResults()[1]));
+        assertFalse(capturedScanResults.contains(mScanData.getResults()[2]));
+        assertTrue(capturedScanResults.contains(mScanData.getResults()[3]));
+    }
+
 }

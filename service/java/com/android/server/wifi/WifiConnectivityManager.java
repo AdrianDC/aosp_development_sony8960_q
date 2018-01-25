@@ -37,6 +37,7 @@ import android.util.Log;
 
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.util.ArrayUtils;
 import com.android.server.wifi.hotspot2.PasspointNetworkEvaluator;
 import com.android.server.wifi.util.ScanResultUtil;
 
@@ -136,6 +137,8 @@ public class WifiConnectivityManager {
     private final WifiNetworkSelector mNetworkSelector;
     private final WifiLastResortWatchdog mWifiLastResortWatchdog;
     private final OpenNetworkNotifier mOpenNetworkNotifier;
+    private final CarrierNetworkNotifier mCarrierNetworkNotifier;
+    private final CarrierNetworkConfig mCarrierNetworkConfig;
     private final WifiMetrics mWifiMetrics;
     private final AlarmManager mAlarmManager;
     private final Handler mEventHandler;
@@ -274,6 +277,8 @@ public class WifiConnectivityManager {
             if (mWifiState == WIFI_STATE_DISCONNECTED) {
                 mOpenNetworkNotifier.handleScanResults(
                         mNetworkSelector.getFilteredScanDetailsForOpenUnsavedNetworks());
+                mCarrierNetworkNotifier.handleScanResults(mNetworkSelector
+                        .getFilteredScanDetailsForCarrierUnsavedNetworks(mCarrierNetworkConfig));
             }
             return false;
         }
@@ -286,9 +291,11 @@ public class WifiConnectivityManager {
     //       other modules.
     private class AllSingleScanListener implements WifiScanner.ScanListener {
         private List<ScanDetail> mScanDetails = new ArrayList<ScanDetail>();
+        private int mNumScanResultsIgnoredDueToSingleRadioChain = 0;
 
         public void clearScanDetails() {
             mScanDetails.clear();
+            mNumScanResultsIgnoredDueToSingleRadioChain = 0;
         }
 
         @Override
@@ -327,6 +334,10 @@ public class WifiConnectivityManager {
                 mWifiMetrics.incrementAvailableNetworksHistograms(mScanDetails,
                         results[0].isAllChannelsScanned());
             }
+            if (mNumScanResultsIgnoredDueToSingleRadioChain > 0) {
+                Log.i(TAG, "Number of scan results ignored due to single radio chain scan: "
+                        + mNumScanResultsIgnoredDueToSingleRadioChain);
+            }
             boolean wasConnectAttempted = handleScanResults(mScanDetails, "AllSingleScanListener");
             clearScanDetails();
 
@@ -352,6 +363,14 @@ public class WifiConnectivityManager {
             if (mDbg) {
                 localLog("AllSingleScanListener onFullResult: " + fullScanResult.SSID
                         + " capabilities " + fullScanResult.capabilities);
+            }
+
+            // When the scan result has radio chain info, ensure we throw away scan results
+            // not received with both radio chains.
+            if (ArrayUtils.size(fullScanResult.radioChainInfos) == 1) {
+                // Keep track of the number of dropped scan results for logging.
+                mNumScanResultsIgnoredDueToSingleRadioChain++;
+                return;
             }
 
             mScanDetails.add(ScanResultUtil.toScanDetail(fullScanResult));
@@ -543,10 +562,10 @@ public class WifiConnectivityManager {
     WifiConnectivityManager(Context context, WifiStateMachine stateMachine,
             WifiScanner scanner, WifiConfigManager configManager, WifiInfo wifiInfo,
             WifiNetworkSelector networkSelector, WifiConnectivityHelper connectivityHelper,
-            WifiLastResortWatchdog wifiLastResortWatchdog,
-            OpenNetworkNotifier openNetworkNotifier, WifiMetrics wifiMetrics,
-            Looper looper, Clock clock, LocalLog localLog, boolean enable,
-            FrameworkFacade frameworkFacade,
+            WifiLastResortWatchdog wifiLastResortWatchdog, OpenNetworkNotifier openNetworkNotifier,
+            CarrierNetworkNotifier carrierNetworkNotifier,
+            CarrierNetworkConfig carrierNetworkConfig, WifiMetrics wifiMetrics, Looper looper,
+            Clock clock, LocalLog localLog, boolean enable, FrameworkFacade frameworkFacade,
             SavedNetworkEvaluator savedNetworkEvaluator,
             ScoredNetworkEvaluator scoredNetworkEvaluator,
             PasspointNetworkEvaluator passpointNetworkEvaluator) {
@@ -559,6 +578,8 @@ public class WifiConnectivityManager {
         mLocalLog = localLog;
         mWifiLastResortWatchdog = wifiLastResortWatchdog;
         mOpenNetworkNotifier = openNetworkNotifier;
+        mCarrierNetworkNotifier = carrierNetworkNotifier;
+        mCarrierNetworkConfig = carrierNetworkConfig;
         mWifiMetrics = wifiMetrics;
         mAlarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         mEventHandler = new Handler(looper);
@@ -879,6 +900,7 @@ public class WifiConnectivityManager {
                 isFullBandScan = true;
             }
         }
+        settings.type = WifiScanner.TYPE_HIGH_ACCURACY; // always do high accuracy scans.
         settings.band = getScanBand(isFullBandScan);
         settings.reportEvents = WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT
                             | WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN;
@@ -1060,6 +1082,7 @@ public class WifiConnectivityManager {
         mScreenOn = screenOn;
 
         mOpenNetworkNotifier.handleScreenStateChanged(screenOn);
+        mCarrierNetworkNotifier.handleScreenStateChanged(screenOn);
 
         startConnectivityScan(SCAN_ON_SCHEDULE);
     }
@@ -1090,6 +1113,7 @@ public class WifiConnectivityManager {
 
         if (mWifiState == WIFI_STATE_CONNECTED) {
             mOpenNetworkNotifier.handleWifiConnected();
+            mCarrierNetworkNotifier.handleWifiConnected();
         }
 
         // Reset BSSID of last connection attempt and kick off
@@ -1111,6 +1135,7 @@ public class WifiConnectivityManager {
     public void handleConnectionAttemptEnded(int failureCode) {
         if (failureCode != WifiMetrics.ConnectionEvent.FAILURE_NONE) {
             mOpenNetworkNotifier.handleConnectionFailure();
+            mCarrierNetworkNotifier.handleConnectionFailure();
         }
     }
 
@@ -1337,6 +1362,7 @@ public class WifiConnectivityManager {
         clearBssidBlacklist();
         resetLastPeriodicSingleScanTimeStamp();
         mOpenNetworkNotifier.clearPendingNotification(true /* resetRepeatDelay */);
+        mCarrierNetworkNotifier.clearPendingNotification(true /* resetRepeatDelay */);
         mLastConnectionAttemptBssid = null;
         mWaitForFullBandScanResults = false;
     }
@@ -1397,5 +1423,6 @@ public class WifiConnectivityManager {
         mLocalLog.dump(fd, pw, args);
         pw.println("WifiConnectivityManager - Log End ----");
         mOpenNetworkNotifier.dump(fd, pw, args);
+        mCarrierNetworkNotifier.dump(fd, pw, args);
     }
 }
