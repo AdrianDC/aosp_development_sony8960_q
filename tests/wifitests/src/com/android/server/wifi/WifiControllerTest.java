@@ -92,10 +92,8 @@ public class WifiControllerTest {
 
         initializeSettingsStore();
 
-        mWifiController = new WifiController(mContext, mWifiStateMachine,
+        mWifiController = new WifiController(mContext, mWifiStateMachine, mLooper.getLooper(),
                 mSettingsStore, mLooper.getLooper(), mFacade, mWifiStateMachinePrime);
-        mWifiStateMachineHandler = new Handler(mLooper.getLooper());
-        when(mWifiStateMachine.getHandler()).thenReturn(mWifiStateMachineHandler);
         mWifiController.start();
         mLooper.dispatchAll();
     }
@@ -314,7 +312,7 @@ public class WifiControllerTest {
         when(mSettingsStore.isWifiToggleEnabled()).thenReturn(false);
         when(mSettingsStore.isScanAlwaysAvailable()).thenReturn(false);
 
-        mWifiController = new WifiController(mContext, mWifiStateMachine,
+        mWifiController = new WifiController(mContext, mWifiStateMachine, mLooper.getLooper(),
                 mSettingsStore, mLooper.getLooper(), mFacade, mWifiStateMachinePrime);
 
         mWifiController.start();
@@ -360,7 +358,6 @@ public class WifiControllerTest {
         enableWifi();
 
         reset(mWifiStateMachine);
-        when(mWifiStateMachine.getHandler()).thenReturn(mWifiStateMachineHandler);
         assertEquals("DeviceActiveState", getCurrentState().getName());
         mWifiController.sendMessage(CMD_RESTART_WIFI);
         mLooper.dispatchAll();
