@@ -39,7 +39,6 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
-import android.os.UserHandle;
 import android.os.WorkSource;
 import android.util.ArrayMap;
 import android.util.LocalLog;
@@ -702,7 +701,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                     case CMD_SCAN_FAILED:
                         mWifiMetrics.incrementScanReturnEntry(
                                 WifiMetricsProto.WifiLog.SCAN_UNKNOWN, mActiveScans.size());
-                        sendScanResultBroadcast(false);
                         sendOpFailedToAllAndClear(mActiveScans, WifiScanner.REASON_UNSPECIFIED,
                                 "Scan failed");
                         transitionTo(mIdleState);
@@ -946,13 +944,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             }
         }
 
-        private void sendScanResultBroadcast(boolean scanSucceeded) {
-            Intent intent = new Intent(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
-            intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
-            intent.putExtra(WifiManager.EXTRA_RESULTS_UPDATED, scanSucceeded);
-            mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
-        }
-
         void reportScanResults(ScanData results) {
             if (results != null && results.getResults() != null) {
                 if (results.getResults().length > 0) {
@@ -985,7 +976,6 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             if (results.isAllChannelsScanned()) {
                 mCachedScanResults.clear();
                 mCachedScanResults.addAll(Arrays.asList(results.getResults()));
-                sendScanResultBroadcast(true);
             }
         }
 

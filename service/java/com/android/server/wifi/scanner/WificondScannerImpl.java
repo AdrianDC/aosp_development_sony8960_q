@@ -184,8 +184,7 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
             if (!allFreqs.isEmpty()) {
                 freqs = allFreqs.getScanFreqs();
                 success = mWifiNative.scan(
-                        mWifiNative.getClientInterfaceName(), settings.scanType, freqs,
-                        hiddenNetworkSSIDSet);
+                        mIfaceName, settings.scanType, freqs, hiddenNetworkSSIDSet);
                 if (!success) {
                     Log.e(TAG, "Failed to start scan, freqs=" + freqs);
                 }
@@ -298,8 +297,7 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
                  // got a scan before we started scanning or after scan was canceled
                 return;
             }
-            mNativePnoScanResults =
-                    mWifiNative.getPnoScanResults(mWifiNative.getClientInterfaceName());
+            mNativePnoScanResults = mWifiNative.getPnoScanResults(mIfaceName);
             List<ScanResult> hwPnoScanResults = new ArrayList<>();
             int numFilteredScanResults = 0;
             for (int i = 0; i < mNativePnoScanResults.size(); ++i) {
@@ -342,7 +340,7 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
                 return;
             }
 
-            mNativeScanResults = mWifiNative.getScanResults(mWifiNative.getClientInterfaceName());
+            mNativeScanResults = mWifiNative.getScanResults(mIfaceName);
             List<ScanResult> singleScanResults = new ArrayList<>();
             int numFilteredScanResults = 0;
             for (int i = 0; i < mNativeScanResults.size(); ++i) {
@@ -388,11 +386,11 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
     }
 
     private boolean startHwPnoScan(WifiNative.PnoSettings pnoSettings) {
-        return mWifiNative.startPnoScan(mWifiNative.getClientInterfaceName(), pnoSettings);
+        return mWifiNative.startPnoScan(mIfaceName, pnoSettings);
     }
 
     private void stopHwPnoScan() {
-        mWifiNative.stopPnoScan(mWifiNative.getClientInterfaceName());
+        mWifiNative.stopPnoScan(mIfaceName);
     }
 
     /**
