@@ -18,6 +18,7 @@ package com.android.server.wifi;
 
 import static android.net.NetworkInfo.DetailedState.CONNECTED;
 
+import android.annotation.NonNull;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -30,6 +31,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
+import android.text.TextUtils;
 import android.util.Log;
 
 import java.io.FileDescriptor;
@@ -127,6 +129,7 @@ public class WifiTrafficPoller {
         }
 
         public void handleMessage(Message msg) {
+            String ifaceName;
             switch (msg.what) {
                 case ENABLE_TRAFFIC_STATS_POLL:
                     mEnableTrafficStatsPoll = (msg.arg1 == 1);
@@ -136,8 +139,9 @@ public class WifiTrafficPoller {
                                 + Integer.toString(mTrafficStatsPollToken));
                     }
                     mTrafficStatsPollToken++;
-                    if (mEnableTrafficStatsPoll) {
-                        notifyOnDataActivity();
+                    ifaceName = mWifiNative.getClientInterfaceName();
+                    if (mEnableTrafficStatsPoll && !TextUtils.isEmpty(ifaceName)) {
+                        notifyOnDataActivity(ifaceName);
                         sendMessageDelayed(Message.obtain(this, TRAFFIC_STATS_POLL,
                                 mTrafficStatsPollToken, 0), POLL_TRAFFIC_STATS_INTERVAL_MSECS);
                     }
@@ -150,9 +154,12 @@ public class WifiTrafficPoller {
                                 + " num clients " + mClients.size());
                     }
                     if (msg.arg1 == mTrafficStatsPollToken) {
-                        notifyOnDataActivity();
-                        sendMessageDelayed(Message.obtain(this, TRAFFIC_STATS_POLL,
-                                mTrafficStatsPollToken, 0), POLL_TRAFFIC_STATS_INTERVAL_MSECS);
+                        ifaceName = mWifiNative.getClientInterfaceName();
+                        if (!TextUtils.isEmpty(ifaceName)) {
+                            notifyOnDataActivity(ifaceName);
+                            sendMessageDelayed(Message.obtain(this, TRAFFIC_STATS_POLL,
+                                    mTrafficStatsPollToken, 0), POLL_TRAFFIC_STATS_INTERVAL_MSECS);
+                        }
                     }
                     break;
                 case ADD_CLIENT:
@@ -183,13 +190,13 @@ public class WifiTrafficPoller {
         msg.sendToTarget();
     }
 
-    private void notifyOnDataActivity() {
+    private void notifyOnDataActivity(@NonNull String ifaceName) {
         long sent, received;
         long preTxPkts = mTxPkts, preRxPkts = mRxPkts;
         int dataActivity = WifiManager.DATA_ACTIVITY_NONE;
 
-        mTxPkts = TrafficStats.getTxPackets(mWifiNative.getClientInterfaceName());
-        mRxPkts = TrafficStats.getRxPackets(mWifiNative.getClientInterfaceName());
+        mTxPkts = TrafficStats.getTxPackets(ifaceName);
+        mRxPkts = TrafficStats.getRxPackets(ifaceName);
 
         if (DBG) {
             Log.d(TAG, " packet count Tx="
