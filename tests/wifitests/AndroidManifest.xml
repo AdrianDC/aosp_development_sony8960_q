@@ -19,9 +19,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.android.server.wifi.test">
 
-    <application
-        android:debuggable="true"
-        android:largeHeap="true">
+    <application>
         <uses-library android:name="android.test.runner" />
         <activity android:label="WifiTestDummyLabel"
                   android:name="WifiTestDummyName">
