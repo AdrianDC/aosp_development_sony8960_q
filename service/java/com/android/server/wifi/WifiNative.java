@@ -653,7 +653,7 @@ public class WifiNative {
                 Log.e(TAG, "Failed to initialize vendor HAL");
                 return false;
             }
-            if (!mWificondControl.registerDeathHandler(new WificondDeathHandlerInternal())) {
+            if (!mWificondControl.initialize(new WificondDeathHandlerInternal())) {
                 Log.e(TAG, "Failed to initialize wificond");
                 return false;
             }
