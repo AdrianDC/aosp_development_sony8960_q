@@ -180,26 +180,17 @@ public class WificondControl implements IBinder.DeathRecipient {
     }
 
     /**
-     * Registers a death notification for wificond.
+     * Initializes wificond & registers a death notification for wificond.
+     * This method clears any existing state in wificond daemon.
+     *
      * @return Returns true on success.
      */
-    public boolean registerDeathHandler(@NonNull WifiNative.WificondDeathEventHandler handler) {
+    public boolean initialize(@NonNull WifiNative.WificondDeathEventHandler handler) {
         if (mDeathEventHandler != null) {
             Log.e(TAG, "Death handler already present");
         }
         mDeathEventHandler = handler;
-        return true;
-    }
-
-    /**
-     * Deregisters a death notification for wificond.
-     * @return Returns true on success.
-     */
-    public boolean deregisterDeathHandler() {
-        if (mDeathEventHandler == null) {
-            Log.e(TAG, "No Death handler present");
-        }
-        mDeathEventHandler = null;
+        tearDownInterfaces();
         return true;
     }
 
@@ -209,7 +200,9 @@ public class WificondControl implements IBinder.DeathRecipient {
      */
     private boolean retrieveWificondAndRegisterForDeath() {
         if (mWificond != null) {
-            Log.d(TAG, "Wificond handle already retrieved");
+            if (mVerboseLoggingEnabled) {
+                Log.d(TAG, "Wificond handle already retrieved");
+            }
             // We already have a wificond handle.
             return true;
         }

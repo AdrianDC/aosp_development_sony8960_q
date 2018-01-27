@@ -101,7 +101,7 @@ public class WifiNativeInterfaceManagementTest {
         when(mWifiVendorHal.removeStaIface(any())).thenReturn(true);
         when(mWifiVendorHal.removeApIface(any())).thenReturn(true);
 
-        when(mWificondControl.registerDeathHandler(mWificondDeathHandlerCaptor.capture()))
+        when(mWificondControl.initialize(mWificondDeathHandlerCaptor.capture()))
             .thenReturn(true);
         when(mWificondControl.enableSupplicant()).thenReturn(true);
         when(mWificondControl.disableSupplicant()).thenReturn(true);
@@ -143,7 +143,7 @@ public class WifiNativeInterfaceManagementTest {
         mWifiNative.registerStatusListener(mStatusListener);
 
         mInOrder.verify(mWifiVendorHal).initialize(any());
-        mInOrder.verify(mWificondControl).registerDeathHandler(any());
+        mInOrder.verify(mWificondControl).initialize(any());
     }
 
     /**
