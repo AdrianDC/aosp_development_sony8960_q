@@ -2243,20 +2243,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         sendMessage(CMD_REMOVE_USER_CONFIGURATIONS, userId);
     }
 
-    /**
-     * Save configuration on supplicant
-     *
-     * @return {@code true} if the operation succeeds, {@code false} otherwise
-     * <p/>
-     * TODO: deprecate this
-     */
-    public boolean syncSaveConfig(AsyncChannel channel) {
-        Message resultMsg = channel.sendMessageSynchronously(CMD_SAVE_CONFIG);
-        boolean result = (resultMsg.arg1 != FAILURE);
-        resultMsg.recycle();
-        return result;
-    }
-
     public void updateBatteryWorkSource(WorkSource newSource) {
         synchronized (mRunningWifiUids) {
             try {

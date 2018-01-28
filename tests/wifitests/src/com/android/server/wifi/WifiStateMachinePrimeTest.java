@@ -22,7 +22,7 @@ import static org.mockito.Mockito.*;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
 import android.os.test.TestLooper;
-import android.test.suitebuilder.annotation.SmallTest;
+import android.support.test.filters.SmallTest;
 import android.util.Log;
 
 import org.junit.After;

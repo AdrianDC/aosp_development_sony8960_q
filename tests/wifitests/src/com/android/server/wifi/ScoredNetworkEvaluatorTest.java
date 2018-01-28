@@ -34,7 +34,7 @@ import android.net.wifi.WifiNetworkScoreCache;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.provider.Settings;
-import android.test.suitebuilder.annotation.SmallTest;
+import android.support.test.filters.SmallTest;
 import android.util.LocalLog;
 
 import com.android.server.wifi.WifiNetworkSelectorTestUtil.ScanDetailsAndWifiConfigs;

@@ -22,9 +22,9 @@ import static org.mockito.Mockito.*;
 
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
+import android.support.test.filters.SmallTest;
 import android.telephony.ImsiEncryptionInfo;
 import android.telephony.TelephonyManager;
-import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Base64;
 
 import com.android.server.wifi.WifiConfigurationTestUtil;

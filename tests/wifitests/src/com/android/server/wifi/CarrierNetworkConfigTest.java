@@ -26,10 +26,10 @@ import android.content.IntentFilter;
 import android.net.wifi.EAPConstants;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.os.PersistableBundle;
+import android.support.test.filters.SmallTest;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
-import android.test.suitebuilder.annotation.SmallTest;
 import android.util.Base64;
 
 import org.junit.Before;

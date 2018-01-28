@@ -27,7 +27,7 @@ import android.content.Context;
 import android.net.wifi.WifiScanner;
 import android.os.SystemClock;
 import android.os.test.TestLooper;
-import android.test.suitebuilder.annotation.SmallTest;
+import android.support.test.filters.SmallTest;
 
 import com.android.internal.R;
 import com.android.server.wifi.Clock;

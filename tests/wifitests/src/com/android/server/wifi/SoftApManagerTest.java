@@ -44,7 +44,7 @@ import android.net.wifi.WifiManager;
 import android.os.UserHandle;
 import android.os.test.TestLooper;
 import android.provider.Settings;
-import android.test.suitebuilder.annotation.SmallTest;
+import android.support.test.filters.SmallTest;
 
 import com.android.internal.R;
 import com.android.internal.util.WakeupMessage;

@@ -56,7 +56,7 @@ public abstract class WifiScannerImpl {
                     return null;
                 }
                 if (wifiNative.getBgScanCapabilities(
-                        wifiNative.getClientInterfaceName(), new WifiNative.ScanCapabilities())) {
+                        ifaceName, new WifiNative.ScanCapabilities())) {
                     return new HalWifiScannerImpl(context, ifaceName, wifiNative, wifiMonitor,
                             looper, clock);
                 } else {

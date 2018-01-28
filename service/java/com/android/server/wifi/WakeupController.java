@@ -49,8 +49,7 @@ public class WakeupController {
 
     private static final String TAG = "WakeupController";
 
-    // TODO(b/69624403) flip to true when feature is complete
-    private static final boolean USE_PLATFORM_WIFI_WAKE = false;
+    private static final boolean USE_PLATFORM_WIFI_WAKE = true;
 
     private final Context mContext;
     private final Handler mHandler;

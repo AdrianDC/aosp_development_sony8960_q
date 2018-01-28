@@ -35,7 +35,7 @@ import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiScanner;
 import android.os.IBinder;
 import android.os.RemoteException;
-import android.test.suitebuilder.annotation.SmallTest;
+import android.support.test.filters.SmallTest;
 
 import com.android.server.wifi.util.NativeUtil;
 import com.android.server.wifi.wificond.ChannelSettings;
@@ -1020,22 +1020,10 @@ public class WificondControlTest {
     public void testRegisterDeathHandler() throws Exception {
         WifiNative.WificondDeathEventHandler handler =
                 mock(WifiNative.WificondDeathEventHandler.class);
-        assertTrue(mWificondControl.registerDeathHandler(handler));
+        assertTrue(mWificondControl.initialize(handler));
+        verify(mWificond).tearDownInterfaces();
         mWificondControl.binderDied();
         verify(handler).onDeath();
-    }
-
-    /**
-     * Verifies de-registration of wificond death handler.
-     */
-    @Test
-    public void testDeregisterDeathHandler() throws Exception {
-        WifiNative.WificondDeathEventHandler handler =
-                mock(WifiNative.WificondDeathEventHandler.class);
-        assertTrue(mWificondControl.registerDeathHandler(handler));
-        assertTrue(mWificondControl.deregisterDeathHandler());
-        mWificondControl.binderDied();
-        verify(handler, never()).onDeath();
     }
 
     /**
@@ -1046,7 +1034,7 @@ public class WificondControlTest {
     public void testDeathHandling() throws Exception {
         WifiNative.WificondDeathEventHandler handler =
                 mock(WifiNative.WificondDeathEventHandler.class);
-        assertTrue(mWificondControl.registerDeathHandler(handler));
+        assertTrue(mWificondControl.initialize(handler));
 
         testSetupInterfaceForClientMode();
 

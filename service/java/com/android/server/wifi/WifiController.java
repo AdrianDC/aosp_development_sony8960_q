@@ -23,6 +23,7 @@ import android.content.IntentFilter;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
+import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.os.SystemClock;
@@ -58,6 +59,7 @@ public class WifiController extends StateMachine {
 
     /* References to values tracked in WifiService */
     private final WifiStateMachine mWifiStateMachine;
+    private final Looper mWifiStateMachineLooper;
     private final WifiStateMachinePrime mWifiStateMachinePrime;
     private final WifiSettingsStore mSettingsStore;
 
@@ -97,12 +99,14 @@ public class WifiController extends StateMachine {
     private DeviceActiveState mDeviceActiveState = new DeviceActiveState();
     private EcmState mEcmState = new EcmState();
 
-    WifiController(Context context, WifiStateMachine wsm, WifiSettingsStore wss,
-                   Looper looper, FrameworkFacade f, WifiStateMachinePrime wsmp) {
-        super(TAG, looper);
+    WifiController(Context context, WifiStateMachine wsm, Looper wifiStateMachineLooper,
+                   WifiSettingsStore wss, Looper wifiServiceLooper, FrameworkFacade f,
+                   WifiStateMachinePrime wsmp) {
+        super(TAG, wifiServiceLooper);
         mFacade = f;
         mContext = context;
         mWifiStateMachine = wsm;
+        mWifiStateMachineLooper = wifiStateMachineLooper;
         mWifiStateMachinePrime = wsmp;
         mSettingsStore = wss;
 
@@ -627,7 +631,7 @@ public class WifiController extends StateMachine {
                 mFirstUserSignOnSeen = true;
                 return HANDLED;
             } else if (msg.what == CMD_RESTART_WIFI) {
-                mWifiStateMachine.getHandler().post(() -> {
+                (new Handler(mWifiStateMachineLooper)).post(() -> {
                     mWifiStateMachine.takeBugReport();
                 });
                 deferMessage(obtainMessage(CMD_RESTART_WIFI_CONTINUE));
