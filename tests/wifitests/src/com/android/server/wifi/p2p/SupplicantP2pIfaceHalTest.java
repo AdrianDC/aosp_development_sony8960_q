@@ -177,7 +177,7 @@ public class SupplicantP2pIfaceHalTest {
         mStatusFailure = createSupplicantStatus(SupplicantStatusCode.FAILURE_UNKNOWN);
         mRemoteException = new RemoteException("Test Remote Exception");
         mStaIface = createIfaceInfo(IfaceType.STA, "wlan0");
-        mP2pIface = createIfaceInfo(IfaceType.P2P, "p2p0");
+        mP2pIface = createIfaceInfo(IfaceType.P2P, mIfaceName);
 
         mIfaceInfoList = new ArrayList<ISupplicant.IfaceInfo>();
         mIfaceInfoList.add(mStaIface);
@@ -260,6 +260,22 @@ public class SupplicantP2pIfaceHalTest {
     public void testInitialize_nullInterfaceFailureV1_1() throws Exception {
         mISupplicantMockV1_1 = mock(android.hardware.wifi.supplicant.V1_1.ISupplicant.class);
         executeAndValidateInitializationSequenceV1_1(false, true);
+    }
+
+    /**
+     * Sunny day scenario for SupplicantStaIfaceHal teardown.
+     * Asserts successful teardown.
+     * Note: Only applicable for 1.1 supplicant HAL.
+     */
+    @Test
+    public void testTeardown_successV1_1() throws Exception {
+        mISupplicantMockV1_1 = mock(android.hardware.wifi.supplicant.V1_1.ISupplicant.class);
+        executeAndValidateInitializationSequenceV1_1(false, false);
+
+        when(mISupplicantMockV1_1.removeInterface(any(ISupplicant.IfaceInfo.class)))
+                .thenReturn(mStatusSuccess);
+        assertTrue(mDut.teardownIface(mIfaceName));
+        verify(mISupplicantMockV1_1).removeInterface(any());
     }
 
     /**
@@ -2575,8 +2591,11 @@ public class SupplicantP2pIfaceHalTest {
         mServiceNotificationCaptor.getValue().onRegistration(ISupplicant.kInterfaceName, "", true);
         mInOrder.verify(mISupplicantMock).linkToDeath(
                 any(IHwBinder.DeathRecipient.class), anyLong());
+        assertEquals(true, mDut.isInitializationComplete());
 
-        assertEquals(shouldSucceed, mDut.isInitializationComplete());
+        // Now setup the iface.
+        assertTrue(mDut.setupIface(mIfaceName) == shouldSucceed);
+
         // verify: listInterfaces is called
         mInOrder.verify(mISupplicantMock).listInterfaces(
                 any(ISupplicant.listInterfacesCallback.class));
@@ -2626,8 +2645,11 @@ public class SupplicantP2pIfaceHalTest {
         mServiceNotificationCaptor.getValue().onRegistration(ISupplicant.kInterfaceName, "", true);
         mInOrder.verify(mISupplicantMock).linkToDeath(
                 any(IHwBinder.DeathRecipient.class), anyLong());
+        assertEquals(true, mDut.isInitializationComplete());
 
-        assertEquals(shouldSucceed, mDut.isInitializationComplete());
+        // Now setup the iface.
+        assertTrue(mDut.setupIface(mIfaceName) == shouldSucceed);
+
         // verify: addInterface is called
         mInOrder.verify(mISupplicantMockV1_1)
                 .addInterface(any(ISupplicant.IfaceInfo.class),
