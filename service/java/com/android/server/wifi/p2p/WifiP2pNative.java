@@ -16,10 +16,16 @@
 
 package com.android.server.wifi.p2p;
 
+import android.annotation.NonNull;
+import android.hardware.wifi.V1_0.IWifiP2pIface;
 import android.net.wifi.p2p.WifiP2pConfig;
 import android.net.wifi.p2p.WifiP2pGroup;
 import android.net.wifi.p2p.WifiP2pGroupList;
 import android.net.wifi.p2p.nsd.WifiP2pServiceInfo;
+import android.os.Handler;
+import android.util.Log;
+
+import com.android.server.wifi.HalDeviceManager;
 
 /**
  * Native calls for bring up/shut down of the supplicant daemon and for
@@ -31,15 +37,15 @@ public class WifiP2pNative {
     private final String mTAG;
     private final String mInterfaceName;
     private final SupplicantP2pIfaceHal mSupplicantP2pIfaceHal;
+    private final HalDeviceManager mHalDeviceManager;
+    private IWifiP2pIface mIWifiP2pIface;
 
-    public WifiP2pNative(String interfaceName, SupplicantP2pIfaceHal p2pIfaceHal) {
+    public WifiP2pNative(String interfaceName, SupplicantP2pIfaceHal p2pIfaceHal,
+                         HalDeviceManager halDeviceManager) {
         mTAG = "WifiP2pNative-" + interfaceName;
         mInterfaceName = interfaceName;
         mSupplicantP2pIfaceHal = p2pIfaceHal;
-    }
-
-    public String getInterfaceName() {
-        return mInterfaceName;
+        mHalDeviceManager = halDeviceManager;
     }
 
     /**
@@ -48,23 +54,31 @@ public class WifiP2pNative {
     public void enableVerboseLogging(int verbose) {
     }
 
-    /********************************************************
-     * Supplicant operations
-     ********************************************************/
+    private static final int CONNECT_TO_SUPPLICANT_SAMPLING_INTERVAL_MS = 100;
+    private static final int CONNECT_TO_SUPPLICANT_MAX_SAMPLES = 50;
     /**
-     * This method is called repeatedly until the connection to wpa_supplicant is established.
+     * This method is called to wait for establishing connection to wpa_supplicant.
      *
      * @return true if connection is established, false otherwise.
-     * TODO: Add unit tests for these once we remove the legacy code.
      */
-    public boolean connectToSupplicant() {
+    private boolean waitForSupplicantConnection() {
         // Start initialization if not already started.
         if (!mSupplicantP2pIfaceHal.isInitializationStarted()
                 && !mSupplicantP2pIfaceHal.initialize()) {
             return false;
         }
-        // Check if the initialization is complete.
-        return mSupplicantP2pIfaceHal.isInitializationComplete();
+        int connectTries = 0;
+        while (connectTries++ < CONNECT_TO_SUPPLICANT_MAX_SAMPLES) {
+            // Check if the initialization is complete.
+            if (mSupplicantP2pIfaceHal.isInitializationComplete()) {
+                return true;
+            }
+            try {
+                Thread.sleep(CONNECT_TO_SUPPLICANT_SAMPLING_INTERVAL_MS);
+            } catch (InterruptedException ignore) {
+            }
+        }
+        return false;
     }
 
     /**
@@ -72,6 +86,50 @@ public class WifiP2pNative {
      */
     public void closeSupplicantConnection() {
         // Nothing to do for HIDL.
+    }
+
+    /**
+     * Setup Interface for P2p mode.
+     *
+     * @param destroyedListener Listener to be invoked when the interface is destroyed.
+     * @param handler Handler to be used for invoking the destroyedListener.
+     */
+    public String setupInterface(
+            @NonNull HalDeviceManager.InterfaceDestroyedListener destroyedListener,
+            Handler handler) {
+        if (mIWifiP2pIface == null) {
+            mIWifiP2pIface = mHalDeviceManager.createP2pIface((@NonNull String ifaceName) -> {
+                Log.i(mTAG, "IWifiP2pIface destroyedListener");
+                mSupplicantP2pIfaceHal.teardownIface(ifaceName);
+                mIWifiP2pIface = null;
+                destroyedListener.onDestroyed(ifaceName);
+            }, handler);
+            if (mIWifiP2pIface == null) {
+                Log.e(mTAG, "Failed to create P2p iface in HalDeviceManager");
+                return null;
+            }
+            if (!waitForSupplicantConnection()) {
+                Log.e(mTAG, "Failed to connect to supplicant");
+                teardownInterface();
+                return null;
+            }
+            if (!mSupplicantP2pIfaceHal.setupIface(HalDeviceManager.getName(mIWifiP2pIface))) {
+                Log.e(mTAG, "Failed to setup P2p iface in supplicant");
+                teardownInterface();
+                return null;
+            }
+        }
+        return HalDeviceManager.getName(mIWifiP2pIface);
+    }
+
+    /**
+     * Teardown P2p interface.
+     */
+    public void teardownInterface() {
+        if (mIWifiP2pIface != null) {
+            mHalDeviceManager.removeIface(mIWifiP2pIface);
+            mIWifiP2pIface = null;
+        }
     }
 
     /**
