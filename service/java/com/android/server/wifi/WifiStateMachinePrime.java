@@ -21,9 +21,11 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
 import android.os.Looper;
 import android.os.Message;
+import android.os.RemoteException;
 import android.util.ArraySet;
 import android.util.Log;
 
+import com.android.internal.app.IBatteryStats;
 import com.android.internal.util.Protocol;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
@@ -50,6 +52,7 @@ public class WifiStateMachinePrime {
     private final WifiInjector mWifiInjector;
     private final Looper mLooper;
     private final WifiNative mWifiNative;
+    private final IBatteryStats mBatteryStats;
 
     private Queue<SoftApModeConfiguration> mApConfigQueue = new ConcurrentLinkedQueue<>();
 
@@ -89,12 +92,14 @@ public class WifiStateMachinePrime {
     WifiStateMachinePrime(WifiInjector wifiInjector,
                           Looper looper,
                           WifiNative wifiNative,
-                          DefaultModeManager defaultModeManager) {
+                          DefaultModeManager defaultModeManager,
+                          IBatteryStats batteryStats) {
         mWifiInjector = wifiInjector;
         mLooper = looper;
         mWifiNative = wifiNative;
         mActiveModeManagers = new ArraySet();
         mDefaultModeManager = defaultModeManager;
+        mBatteryStats = batteryStats;
         mModeStateMachine = new ModeStateMachine();
     }
 
@@ -223,8 +228,9 @@ public class WifiStateMachinePrime {
                 // in the future
                 if (mManager != null) {
                     mManager.stop();
+                    mActiveModeManagers.remove(mManager);
                 }
-                mActiveModeManagers.remove(mManager);
+                updateBatteryStatsWifiState(false);
             }
         }
 
@@ -255,8 +261,22 @@ public class WifiStateMachinePrime {
         class ClientModeActiveState extends ModeActiveState {
             @Override
             public void enter() {
+                Log.d(TAG, "Entering ClientModeActiveState");
                 mManager = new ClientModeManager();
+                // DO NOT CALL START YET
+                // mActiveModemanager.start();
                 mActiveModeManagers.add(mManager);
+
+                updateBatteryStatsWifiState(true);
+            }
+
+            @Override
+            public void exit() {
+                Log.d(TAG, "Exiting ClientModeActiveState");
+
+                // OVERRIDE exit() SO WE DO NOT CALL STOP (but we do need to report wifi off)
+
+                updateBatteryStatsWifiState(false);
             }
 
             @Override
@@ -298,6 +318,7 @@ public class WifiStateMachinePrime {
                 mManager = mWifiInjector.makeScanOnlyModeManager(new ScanOnlyListener());
                 mManager.start();
                 mActiveModeManagers.add(mManager);
+                updateBatteryStatsWifiState(true);
             }
 
             @Override
@@ -371,6 +392,7 @@ public class WifiStateMachinePrime {
                         new SoftApCallbackImpl(), softApModeConfig);
                 mManager.start();
                 mActiveModeManagers.add(mManager);
+                updateBatteryStatsWifiState(true);
             }
 
             @Override
@@ -401,4 +423,23 @@ public class WifiStateMachinePrime {
             }
         }
     }  // class ModeStateMachine
+
+
+    /**
+     *  Helper method to report wifi state as on/off (doesn't matter which mode).
+     *
+     *  @param enabled boolean indicating if wifi is on or off
+     */
+    private void updateBatteryStatsWifiState(boolean enabled) {
+        try {
+            if (enabled) {
+                mBatteryStats.noteWifiOn();
+            } else {
+                mBatteryStats.noteWifiOff();
+            }
+        } catch (RemoteException e) {
+            Log.e(TAG, "Failed to note battery stats in wifi");
+        }
+    }
+
 }

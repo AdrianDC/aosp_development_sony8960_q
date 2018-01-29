@@ -25,6 +25,8 @@ import android.os.test.TestLooper;
 import android.support.test.filters.SmallTest;
 import android.util.Log;
 
+import com.android.internal.app.IBatteryStats;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -53,6 +55,7 @@ public class WifiStateMachinePrimeTest {
     @Mock ScanOnlyModeManager mScanOnlyModeManager;
     @Mock SoftApManager mSoftApManager;
     @Mock DefaultModeManager mDefaultModeManager;
+    @Mock IBatteryStats mBatteryStats;
     ScanOnlyModeManager.Listener mScanOnlyListener;
     WifiManager.SoftApCallback mSoftApManagerCallback;
     @Mock WifiManager.SoftApCallback mSoftApStateMachineCallback;
@@ -78,7 +81,8 @@ public class WifiStateMachinePrimeTest {
         return new WifiStateMachinePrime(mWifiInjector,
                                          mLooper.getLooper(),
                                          mWifiNative,
-                                         mDefaultModeManager);
+                                         mDefaultModeManager,
+                                         mBatteryStats);
     }
 
     /**
@@ -112,6 +116,7 @@ public class WifiStateMachinePrimeTest {
         mLooper.dispatchAll();
         assertEquals(SCAN_ONLY_MODE_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
         verify(mScanOnlyModeManager).start();
+        verify(mBatteryStats).noteWifiOn();
     }
 
     /**
@@ -135,6 +140,7 @@ public class WifiStateMachinePrimeTest {
         mLooper.dispatchAll();
         assertEquals(SOFT_AP_MODE_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
         verify(mSoftApManager).start();
+        verify(mBatteryStats).noteWifiOn();
     }
 
     private void verifyCleanupCalled() {
@@ -181,6 +187,7 @@ public class WifiStateMachinePrimeTest {
         mWifiStateMachinePrime.enterClientMode();
         mLooper.dispatchAll();
         assertEquals(CLIENT_MODE_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
+        reset(mBatteryStats);
         enterSoftApActiveMode();
         // still only two times since we do not control the interface yet in client mode
         verify(mWifiNative, times(2)).teardownAllInterfaces();
@@ -196,6 +203,7 @@ public class WifiStateMachinePrimeTest {
         mWifiStateMachinePrime.disableWifi();
         mLooper.dispatchAll();
         verify(mScanOnlyModeManager).stop();
+        verify(mBatteryStats).noteWifiOff();
         assertEquals(WIFI_DISABLED_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
         verify(mWifiNative, times(3)).teardownAllInterfaces();
     }
@@ -210,6 +218,7 @@ public class WifiStateMachinePrimeTest {
         mWifiStateMachinePrime.disableWifi();
         mLooper.dispatchAll();
         verify(mSoftApManager).stop();
+        verify(mBatteryStats).noteWifiOff();
         assertEquals(WIFI_DISABLED_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
         verify(mWifiNative, times(3)).teardownAllInterfaces();
     }
@@ -227,6 +236,8 @@ public class WifiStateMachinePrimeTest {
 
         mWifiStateMachinePrime.disableWifi();
         mLooper.dispatchAll();
+        verify(mBatteryStats).noteWifiOff();
+
         assertEquals(WIFI_DISABLED_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
         verify(mWifiNative, times(4)).teardownAllInterfaces();
     }
@@ -276,7 +287,7 @@ public class WifiStateMachinePrimeTest {
         mLooper.dispatchAll();
         assertEquals(WIFI_DISABLED_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
         // clear the first call to start SoftApManager
-        reset(mSoftApManager);
+        reset(mSoftApManager, mBatteryStats);
 
         enterSoftApActiveMode();
         verify(mWifiNative, times(4)).teardownAllInterfaces();
@@ -296,6 +307,7 @@ public class WifiStateMachinePrimeTest {
         assertEquals(WIFI_DISABLED_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
         verify(mScanOnlyModeManager).stop();
         verify(mWifiNative, times(3)).teardownAllInterfaces();
+        verify(mBatteryStats).noteWifiOff();
     }
 
     /**
@@ -312,6 +324,7 @@ public class WifiStateMachinePrimeTest {
         assertEquals(WIFI_DISABLED_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
         verify(mSoftApManager).stop();
         verify(mWifiNative, times(3)).teardownAllInterfaces();
+        verify(mBatteryStats).noteWifiOff();
     }
 
     /**
@@ -328,7 +341,7 @@ public class WifiStateMachinePrimeTest {
         assertEquals(WIFI_DISABLED_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
         verify(mScanOnlyModeManager).stop();
         verify(mWifiNative, times(3)).teardownAllInterfaces();
-
+        verify(mBatteryStats).noteWifiOff();
     }
 
     /**
@@ -345,6 +358,7 @@ public class WifiStateMachinePrimeTest {
         assertEquals(WIFI_DISABLED_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
         verify(mSoftApManager).stop();
         verify(mWifiNative, times(3)).teardownAllInterfaces();
+        verify(mBatteryStats).noteWifiOff();
     }
 
     /**
@@ -421,7 +435,6 @@ public class WifiStateMachinePrimeTest {
         mLooper.dispatchAll();
         assertEquals(SCAN_ONLY_MODE_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
         verify(mScanOnlyModeManager, never()).stop();
-        // two teardowns, one for startup and one for entering scan mode
         verify(mWifiNative, times(2)).teardownAllInterfaces();
     }
 
@@ -497,6 +510,7 @@ public class WifiStateMachinePrimeTest {
         mWifiStateMachinePrime.enterSoftAPMode(softApConfig2);
         mLooper.dispatchAll();
         assertEquals(SOFT_AP_MODE_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
+        verify(mBatteryStats).noteWifiOff();
     }
 
     /**
@@ -511,6 +525,7 @@ public class WifiStateMachinePrimeTest {
         mLooper.dispatchAll();
         assertEquals(WIFI_DISABLED_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
         verify(mWifiNative, times(3)).teardownAllInterfaces();
+        verify(mBatteryStats).noteWifiOff();
     }
 
     /**
