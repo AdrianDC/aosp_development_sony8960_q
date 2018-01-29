@@ -1275,16 +1275,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 enableVerbose ? LOGD_LEVEL_VERBOSE : LOGD_LEVEL_DEBUG);
     }
 
-    private int mAggressiveHandover = 0;
-
-    int getAggressiveHandover() {
-        return mAggressiveHandover;
-    }
-
-    void enableAggressiveHandover(int enabled) {
-        mAggressiveHandover = enabled;
-    }
-
     public void clearANQPCache() {
         // TODO(b/31065385)
         // mWifiConfigManager.trimANQPCache(true);
@@ -5738,8 +5728,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                             fetchRssiLinkSpeedAndFrequencyNative();
                             // Send the update score to network agent.
                             mWifiScoreReport.calculateAndReportScore(
-                                    mWifiInfo, mNetworkAgent, mAggressiveHandover,
-                                    mWifiMetrics);
+                                    mWifiInfo, mNetworkAgent, mWifiMetrics);
                         }
                         sendMessageDelayed(obtainMessage(CMD_RSSI_POLL, mRssiPollToken, 0),
                                 mPollRssiIntervalMsecs);

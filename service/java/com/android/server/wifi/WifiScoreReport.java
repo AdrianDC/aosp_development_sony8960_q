@@ -109,11 +109,10 @@ public class WifiScoreReport {
      *
      * @param wifiInfo WifiInfo instance pointing to the currently connected network.
      * @param networkAgent NetworkAgent to be notified of new score.
-     * @param aggressiveHandover int current aggressiveHandover setting.
      * @param wifiMetrics for reporting our scores.
      */
     public void calculateAndReportScore(WifiInfo wifiInfo, NetworkAgent networkAgent,
-                                        int aggressiveHandover, WifiMetrics wifiMetrics) {
+                                        WifiMetrics wifiMetrics) {
         int score;
 
         long millis = mClock.getWallClockMillis();
@@ -126,11 +125,7 @@ public class WifiScoreReport {
         int s1 = mAggressiveConnectedScore.generateScore();
         int s2 = mFancyConnectedScore.generateScore();
 
-        if (aggressiveHandover == 0) {
-            score = s2;
-        } else {
-            score = s2; // TODO Remove aggressive handover plumbing (b/27877641)
-        }
+        score = s2;
 
         //sanitize boundaries
         if (score > NetworkAgent.WIFI_BASE_SCORE) {
