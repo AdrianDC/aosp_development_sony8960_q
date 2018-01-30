@@ -2133,8 +2133,7 @@ public class SupplicantStaIfaceHal {
             final String methodStr) {
         synchronized (mLock) {
             if (status.code != SupplicantStatusCode.SUCCESS) {
-                Log.e(TAG, "ISupplicantStaIface." + methodStr + " failed: "
-                        + supplicantStatusCodeToString(status.code) + ", " + status.debugMessage);
+                Log.e(TAG, "ISupplicantStaIface." + methodStr + " failed: " + status);
                 return false;
             } else {
                 if (mVerboseLoggingEnabled) {
@@ -2163,38 +2162,6 @@ public class SupplicantStaIfaceHal {
             Log.e(TAG, "ISupplicantStaIface." + methodStr + " failed with exception", e);
         }
     }
-
-    /**
-     * Converts SupplicantStatus code values to strings for debug logging
-     * TODO(b/34811152) Remove this, or make it more break resistance
-     */
-    public static String supplicantStatusCodeToString(int code) {
-        switch (code) {
-            case 0:
-                return "SUCCESS";
-            case 1:
-                return "FAILURE_UNKNOWN";
-            case 2:
-                return "FAILURE_ARGS_INVALID";
-            case 3:
-                return "FAILURE_IFACE_INVALID";
-            case 4:
-                return "FAILURE_IFACE_UNKNOWN";
-            case 5:
-                return "FAILURE_IFACE_EXISTS";
-            case 6:
-                return "FAILURE_IFACE_DISABLED";
-            case 7:
-                return "FAILURE_IFACE_NOT_DISCONNECTED";
-            case 8:
-                return "FAILURE_NETWORK_INVALID";
-            case 9:
-                return "FAILURE_NETWORK_UNKNOWN";
-            default:
-                return "??? UNKNOWN_CODE";
-        }
-    }
-
 
     /**
      * Converts the Wps config method string to the equivalent enum value.
