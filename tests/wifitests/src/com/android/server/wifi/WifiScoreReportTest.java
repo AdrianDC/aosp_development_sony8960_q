@@ -67,7 +67,6 @@ public class WifiScoreReportTest {
     WifiScoreReport mWifiScoreReport;
     ScanDetailCache mScanDetailCache;
     WifiInfo mWifiInfo;
-    int mAggr; // Aggressive handover
     @Mock Context mContext;
     @Mock NetworkAgent mNetworkAgent;
     @Mock Resources mResources;
@@ -126,7 +125,6 @@ public class WifiScoreReportTest {
         config.hiddenSSID = false;
         mWifiInfo = new WifiInfo();
         mWifiInfo.setFrequency(2412);
-        mAggr = 0;
         when(mWifiConfigManager.getSavedNetworks()).thenReturn(Arrays.asList(config));
         when(mWifiConfigManager.getConfiguredNetwork(anyInt())).thenReturn(config);
         mWifiConfiguration = config;
@@ -162,7 +160,7 @@ public class WifiScoreReportTest {
     public void calculateAndReportScoreSucceeds() throws Exception {
         mWifiInfo.setRssi(-77);
         mWifiScoreReport.calculateAndReportScore(mWifiInfo,
-                mNetworkAgent, mAggr, mWifiMetrics);
+                mNetworkAgent, mWifiMetrics);
         verify(mNetworkAgent).sendNetworkScore(anyInt());
         verify(mWifiMetrics).incrementWifiScoreCount(anyInt());
     }
@@ -176,7 +174,7 @@ public class WifiScoreReportTest {
     public void networkAgentMayBeNull() throws Exception {
         mWifiInfo.setRssi(-33);
         mWifiScoreReport.enableVerboseLogging(true);
-        mWifiScoreReport.calculateAndReportScore(mWifiInfo, null, mAggr, mWifiMetrics);
+        mWifiScoreReport.calculateAndReportScore(mWifiInfo, null, mWifiMetrics);
         verify(mWifiMetrics).incrementWifiScoreCount(anyInt());
     }
 
@@ -195,7 +193,7 @@ public class WifiScoreReportTest {
         mWifiInfo.txSuccessRate = 5.1; // proportional to pps
         mWifiInfo.rxSuccessRate = 5.1;
         for (int i = 0; i < 10; i++) {
-            mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mAggr, mWifiMetrics);
+            mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mWifiMetrics);
         }
         int score = mWifiInfo.score;
         assertTrue(score > CELLULAR_THRESHOLD_SCORE);
@@ -218,54 +216,11 @@ public class WifiScoreReportTest {
         mWifiInfo.txSuccessRate = 0.1;
         mWifiInfo.rxSuccessRate = 0.1;
         for (int i = 0; i < 10; i++) {
-            mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mAggr, mWifiMetrics);
+            mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mWifiMetrics);
         }
         int score = mWifiInfo.score;
         assertTrue(score < CELLULAR_THRESHOLD_SCORE);
         verify(mNetworkAgent, atLeast(1)).sendNetworkScore(score);
-    }
-
-    /**
-     * Test reporting with aggressive handover
-     */
-    @Test
-    public void calculateAndReportScoreSucceedsAggressively() throws Exception {
-        mAggr = 1;
-        mWifiInfo.setRssi(-77);
-        mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mAggr, mWifiMetrics);
-        verify(mNetworkAgent).sendNetworkScore(anyInt());
-        verify(mWifiMetrics).incrementWifiScoreCount(anyInt());
-    }
-
-    /**
-     * Test low rssi with aggressive handover
-     */
-    @Test
-    public void giveUpOnBadRssiAggressively() throws Exception {
-        mAggr = 1;
-        String oops = "giveUpOnBadRssiAggressively";
-        for (int rssi = -60; rssi >= -83; rssi -= 1) {
-            mWifiInfo.setRssi(rssi);
-            oops += " " + mClock.mWallClockMillis + "," + rssi;
-            mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mAggr, mWifiMetrics);
-            oops += ":" + mWifiInfo.score;
-        }
-        int score = mWifiInfo.score;
-        verify(mNetworkAgent, atLeast(1)).sendNetworkScore(score);
-        assertTrue(oops, score < CELLULAR_THRESHOLD_SCORE);
-    }
-
-    /**
-     * Test high rssi with aggressive handover
-     */
-    @Test
-    public void allowGoodRssiAggressively() throws Exception {
-        mAggr = 1;
-        mWifiInfo.setRssi(-65);
-        mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mAggr, mWifiMetrics);
-        int score = mWifiInfo.score;
-        verify(mNetworkAgent, atLeast(1)).sendNetworkScore(score);
-        assertTrue(score > CELLULAR_THRESHOLD_SCORE);
     }
 
     /**
@@ -278,7 +233,7 @@ public class WifiScoreReportTest {
         doAnswer(answerVoid((String line) -> {
             if (counter[0]++ < 3) {
                 mWifiScoreReport.calculateAndReportScore(
-                        mWifiInfo, mNetworkAgent, mAggr, mWifiMetrics);
+                        mWifiInfo, mNetworkAgent, mWifiMetrics);
             }
         })).when(mPrintWriter).println(anyString());
     }
@@ -288,7 +243,6 @@ public class WifiScoreReportTest {
      */
     @Test
     public void testDataLogging() throws Exception {
-        mAggr = 1;
         for (int i = 0; i < 10; i++) {
             mWifiInfo.setRssi(-65 + i);
             mWifiInfo.setLinkSpeed(300);
@@ -297,7 +251,7 @@ public class WifiScoreReportTest {
             mWifiInfo.txRetriesRate = 0.2 + i;
             mWifiInfo.txBadRate = 0.01 * i;
             mWifiInfo.rxSuccessRate = 0.3 + i;
-            mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mAggr, mWifiMetrics);
+            mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mWifiMetrics);
         }
         setupToGenerateAReportWhenPrintlnIsCalled();
         mWifiScoreReport.dump(null, mPrintWriter, null);
@@ -319,7 +273,7 @@ public class WifiScoreReportTest {
             mWifiInfo.txRetriesRate = 0.2 + i % 100;
             mWifiInfo.txBadRate = 0.0001 * i;
             mWifiInfo.rxSuccessRate = 0.3 + i % 200;
-            mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mAggr, mWifiMetrics);
+            mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mWifiMetrics);
         }
         mWifiScoreReport.dump(null, mPrintWriter, null);
         verify(mPrintWriter, atMost(14401)).println(anyString());

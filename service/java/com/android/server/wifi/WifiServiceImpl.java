@@ -334,13 +334,15 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                     break;
                 case WifiManager.START_WPS:
                     if (checkChangePermissionAndReplyIfNotAuthorized(msg, WifiManager.WPS_FAILED)) {
-                        mWifiStateMachine.sendMessage(Message.obtain(msg));
+                        // WPS support is deprecated, return an error
+                        replyFailed(msg, WifiManager.WPS_FAILED, WifiManager.ERROR);
                     }
                     break;
                 case WifiManager.CANCEL_WPS:
                     if (checkChangePermissionAndReplyIfNotAuthorized(
                             msg, WifiManager.CANCEL_WPS_FAILED)) {
-                        mWifiStateMachine.sendMessage(Message.obtain(msg));
+                        // WPS support is deprecated, return an error
+                        replyFailed(msg, WifiManager.CANCEL_WPS_FAILED, WifiManager.ERROR);
                     }
                     break;
                 case WifiManager.DISABLE_NETWORK:
@@ -695,13 +697,16 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         }
     }
 
+    /**
+     * WPS support in Client mode is deprecated.  Return null.
+     */
     @Override
     public String getCurrentNetworkWpsNfcConfigurationToken() {
+        // while CLs are in flight, return null here, will be removed (b/72423090)
         enforceConnectivityInternalPermission();
         mLog.info("getCurrentNetworkWpsNfcConfigurationToken uid=%")
                 .c(Binder.getCallingUid()).flush();
-        // TODO Add private logging for netId b/33807876
-        return mWifiStateMachine.syncGetCurrentNetworkWpsNfcConfigurationToken();
+        return null;
     }
 
     boolean mInIdleMode;
@@ -2586,23 +2591,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mLog.info("getVerboseLoggingLevel uid=%").c(Binder.getCallingUid()).flush();
         return mFacade.getIntegerSetting(
                 mContext, Settings.Global.WIFI_VERBOSE_LOGGING_ENABLED, 0);
-    }
-
-    @Override
-    public void enableAggressiveHandover(int enabled) {
-        enforceAccessPermission();
-        mLog.info("enableAggressiveHandover uid=% enabled=%")
-            .c(Binder.getCallingUid())
-            .c(enabled)
-            .flush();
-        mWifiStateMachine.enableAggressiveHandover(enabled);
-    }
-
-    @Override
-    public int getAggressiveHandover() {
-        enforceAccessPermission();
-        mLog.info("getAggressiveHandover uid=%").c(Binder.getCallingUid()).flush();
-        return mWifiStateMachine.getAggressiveHandover();
     }
 
     @Override
