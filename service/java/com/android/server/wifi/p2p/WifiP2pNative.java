@@ -18,6 +18,7 @@ package com.android.server.wifi.p2p;
 
 import android.annotation.NonNull;
 import android.hardware.wifi.V1_0.IWifiP2pIface;
+import android.hardware.wifi.V1_0.IfaceType;
 import android.net.wifi.p2p.WifiP2pConfig;
 import android.net.wifi.p2p.WifiP2pGroup;
 import android.net.wifi.p2p.WifiP2pGroupList;
@@ -38,6 +39,33 @@ public class WifiP2pNative {
     private final SupplicantP2pIfaceHal mSupplicantP2pIfaceHal;
     private final HalDeviceManager mHalDeviceManager;
     private IWifiP2pIface mIWifiP2pIface;
+    private InterfaceAvailableListenerInternal mInterfaceAvailableListener;
+
+    // Internal callback registered to HalDeviceManager.
+    private class InterfaceAvailableListenerInternal implements
+            HalDeviceManager.InterfaceAvailableForRequestListener {
+        private final HalDeviceManager.InterfaceAvailableForRequestListener mExternalListener;
+
+        InterfaceAvailableListenerInternal(
+                HalDeviceManager.InterfaceAvailableForRequestListener externalListener) {
+            mExternalListener = externalListener;
+        }
+
+        @Override
+        public void onAvailabilityChanged(boolean isAvailable) {
+            // We need another level of abstraction here. When a P2P interface is created,
+            // we should mask the availability change callback from WifiP2pService.
+            // This is because when the P2P interface is created, we'll get a callback
+            // indicating that we can no longer create a new P2P interface. We don't need to
+            // propagate this internal state to WifiP2pServiceImpl.
+            if (mIWifiP2pIface != null && !isAvailable) {
+                Log.i(TAG, "Masking interface non-availability callback because "
+                        + "we created a P2P iface");
+                return;
+            }
+            mExternalListener.onAvailabilityChanged(isAvailable);
+        }
+    }
 
     public WifiP2pNative(SupplicantP2pIfaceHal p2pIfaceHal, HalDeviceManager halDeviceManager) {
         mSupplicantP2pIfaceHal = p2pIfaceHal;
@@ -85,6 +113,30 @@ public class WifiP2pNative {
     }
 
     /**
+     * Register for an interface available callbacks from HalDeviceManager.
+     *
+     * @param listener callback to be invoked when the interface is available/not available.
+     */
+    public void registerInterfaceAvailableListener(
+            @NonNull HalDeviceManager.InterfaceAvailableForRequestListener listener,
+            Handler handler) {
+        mInterfaceAvailableListener = new InterfaceAvailableListenerInternal(listener);
+        // The interface available callbacks are cleared on every HAL stop, so need to
+        // re-register these callbacks on every start.
+        mHalDeviceManager.registerStatusListener(() -> {
+            if (mHalDeviceManager.isStarted()) {
+                Log.i(TAG, "Registering for interface available listener");
+                mHalDeviceManager.registerInterfaceAvailableForRequestListener(
+                        IfaceType.P2P, mInterfaceAvailableListener, handler);
+            }
+        }, handler);
+        if (mHalDeviceManager.isStarted()) {
+            mHalDeviceManager.registerInterfaceAvailableForRequestListener(
+                    IfaceType.P2P, mInterfaceAvailableListener, handler);
+        }
+    }
+
+    /**
      * Setup Interface for P2p mode.
      *
      * @param destroyedListener Listener to be invoked when the interface is destroyed.
@@ -94,12 +146,14 @@ public class WifiP2pNative {
             @NonNull HalDeviceManager.InterfaceDestroyedListener destroyedListener,
             Handler handler) {
         if (mIWifiP2pIface == null) {
-            mIWifiP2pIface = mHalDeviceManager.createP2pIface((@NonNull String ifaceName) -> {
-                Log.i(TAG, "IWifiP2pIface destroyedListener");
-                mSupplicantP2pIfaceHal.teardownIface(ifaceName);
-                mIWifiP2pIface = null;
-                destroyedListener.onDestroyed(ifaceName);
-            }, handler);
+            HalDeviceManager.InterfaceDestroyedListener internalDestroyedListener =
+                    (@NonNull String ifaceName) -> {
+                        Log.i(TAG, "IWifiP2pIface destroyedListener");
+                        mSupplicantP2pIfaceHal.teardownIface(ifaceName);
+                        mIWifiP2pIface = null;
+                        destroyedListener.onDestroyed(ifaceName);
+                    };
+            mIWifiP2pIface = mHalDeviceManager.createP2pIface(internalDestroyedListener, handler);
             if (mIWifiP2pIface == null) {
                 Log.e(TAG, "Failed to create P2p iface in HalDeviceManager");
                 return null;

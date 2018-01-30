@@ -715,6 +715,14 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             }
             setLogRecSize(50);
             setLogOnlyTransitions(true);
+
+            if (p2pSupported) {
+                // Register for interface availability from HalDeviceManager
+                mWifiNative.registerInterfaceAvailableListener((boolean isAvailable) -> {
+                    Log.i(TAG, "P2P Interface availability = " + isAvailable);
+                    sendP2pStateChangedBroadcast(isAvailable);
+                }, getHandler());
+            }
         }
 
         public void registerForWifiMonitorEvents() {
@@ -1149,7 +1157,6 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             @Override
             public void enter() {
                 if (DBG) logd(getName());
-                sendP2pStateChangedBroadcast(true);
                 mNetworkInfo.setIsAvailable(true);
                 sendP2pConnectionChangedBroadcast();
                 initializeP2pSettings();
@@ -1408,7 +1415,6 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             @Override
             public void exit() {
                 sendP2pDiscoveryChangedBroadcast(false);
-                sendP2pStateChangedBroadcast(false);
                 mNetworkInfo.setIsAvailable(false);
             }
         }
