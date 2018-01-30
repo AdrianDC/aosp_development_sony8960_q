@@ -268,6 +268,143 @@ public class ScanRequestProxyTest {
     }
 
     /**
+     * Verify processing of a new scan request while there was a previous scan request being
+     * processed.
+     * Verify that we don't send a second broadcast.
+     */
+    @Test
+    public void testScanRequestWhilePeviousScanRunning() {
+        WifiScanner.ScanListener listener1;
+        WifiScanner.ScanListener listener2;
+        // Make scan request 1.
+        assertTrue(mScanRequestProxy.startScan(TEST_UID));
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+        listener1 = mScanListenerArgumentCaptor.getValue();
+
+        // Make scan request 2.
+        assertTrue(mScanRequestProxy.startScan(TEST_UID));
+        // Ensure that we did send a second scan request to scanner.
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+        listener2 = mScanListenerArgumentCaptor.getValue();
+
+        // Now send the scan results for request 1.
+        listener1.onResults(mTestScanDatas1);
+        validateScanResultsAvailableBroadcastSent(true);
+        // Validate the scan results in the cache.
+        ScanTestUtil.assertScanResultsEquals(
+                mTestScanDatas1[0].getResults(),
+                mScanRequestProxy.getScanResults().stream().toArray(ScanResult[]::new));
+
+        // Now send the scan results for request 2.
+        listener2.onResults(mTestScanDatas2);
+        // Ensure that we did not send out another broadcast.
+
+        // Validate the scan results in the cache.
+        ScanTestUtil.assertScanResultsEquals(
+                mTestScanDatas2[0].getResults(),
+                mScanRequestProxy.getScanResults().stream().toArray(ScanResult[]::new));
+
+        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+    }
+
+    /**
+     * Verify processing of a new scan request after a previous scan success.
+     * Verify that we send out two broadcasts (two successes).
+     */
+    @Test
+    public void testNewScanRequestAfterPreviousScanSucceeds() {
+        // Make scan request 1.
+        assertTrue(mScanRequestProxy.startScan(TEST_UID));
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+        // Now send the scan results for request 1.
+        mScanListenerArgumentCaptor.getValue().onResults(mTestScanDatas1);
+        validateScanResultsAvailableBroadcastSent(true);
+        // Validate the scan results in the cache.
+        ScanTestUtil.assertScanResultsEquals(
+                mTestScanDatas1[0].getResults(),
+                mScanRequestProxy.getScanResults().stream().toArray(ScanResult[]::new));
+
+        // Make scan request 2.
+        assertTrue(mScanRequestProxy.startScan(TEST_UID));
+        // Ensure that we did send a second scan request to scanner.
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+        // Now send the scan results for request 2.
+        mScanListenerArgumentCaptor.getValue().onResults(mTestScanDatas2);
+        validateScanResultsAvailableBroadcastSent(true);
+        // Validate the scan results in the cache.
+        ScanTestUtil.assertScanResultsEquals(
+                mTestScanDatas2[0].getResults(),
+                mScanRequestProxy.getScanResults().stream().toArray(ScanResult[]::new));
+
+        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+    }
+
+    /**
+     * Verify processing of a new scan request after a previous scan success, but with bad scan
+     * data.
+     * Verify that we send out two broadcasts (one failure & one success).
+     */
+    @Test
+    public void testNewScanRequestAfterPreviousScanSucceedsWithInvalidScanDatas() {
+        // Make scan request 1.
+        assertTrue(mScanRequestProxy.startScan(TEST_UID));
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+
+        // Now send scan success for request 1, but with invalid scan datas.
+        mScanListenerArgumentCaptor.getValue().onResults(
+                new WifiScanner.ScanData[] {mTestScanDatas1[0], mTestScanDatas2[0]});
+        validateScanResultsAvailableBroadcastSent(false);
+        // Validate the scan results in the cache.
+        assertTrue(mScanRequestProxy.getScanResults().isEmpty());
+
+        // Make scan request 2.
+        assertTrue(mScanRequestProxy.startScan(TEST_UID));
+        // Ensure that we did send a second scan request to scanner.
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+        // Now send the scan results for request 2.
+        mScanListenerArgumentCaptor.getValue().onResults(mTestScanDatas2);
+        validateScanResultsAvailableBroadcastSent(true);
+        // Validate the scan results in the cache.
+        ScanTestUtil.assertScanResultsEquals(
+                mTestScanDatas2[0].getResults(),
+                mScanRequestProxy.getScanResults().stream().toArray(ScanResult[]::new));
+
+        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+    }
+
+
+    /**
+     * Verify processing of a new scan request after a previous scan failure.
+     * Verify that we send out two broadcasts (one failure & one success).
+     */
+    @Test
+    public void testNewScanRequestAfterPreviousScanFailure() {
+        // Make scan request 1.
+        assertTrue(mScanRequestProxy.startScan(TEST_UID));
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+
+        // Now send scan failure for request 1.
+        mScanListenerArgumentCaptor.getValue().onFailure(0, "failed");
+        validateScanResultsAvailableBroadcastSent(false);
+        // Validate the scan results in the cache.
+        assertTrue(mScanRequestProxy.getScanResults().isEmpty());
+
+        // Make scan request 2.
+        assertTrue(mScanRequestProxy.startScan(TEST_UID));
+        // Ensure that we did send a second scan request to scanner.
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+        // Now send the scan results for request 2.
+        mScanListenerArgumentCaptor.getValue().onResults(mTestScanDatas2);
+        validateScanResultsAvailableBroadcastSent(true);
+        // Validate the scan results in the cache.
+        ScanTestUtil.assertScanResultsEquals(
+                mTestScanDatas2[0].getResults(),
+                mScanRequestProxy.getScanResults().stream().toArray(ScanResult[]::new));
+
+        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+    }
+
+    /**
      * Verify that clear scan results invocation clears all stored scan results.
      */
     @Test
