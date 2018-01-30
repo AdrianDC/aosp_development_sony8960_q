@@ -34,16 +34,12 @@ import com.android.server.wifi.HalDeviceManager;
  * {@hide}
  */
 public class WifiP2pNative {
-    private final String mTAG;
-    private final String mInterfaceName;
+    private static final String TAG = "WifiP2pNative";
     private final SupplicantP2pIfaceHal mSupplicantP2pIfaceHal;
     private final HalDeviceManager mHalDeviceManager;
     private IWifiP2pIface mIWifiP2pIface;
 
-    public WifiP2pNative(String interfaceName, SupplicantP2pIfaceHal p2pIfaceHal,
-                         HalDeviceManager halDeviceManager) {
-        mTAG = "WifiP2pNative-" + interfaceName;
-        mInterfaceName = interfaceName;
+    public WifiP2pNative(SupplicantP2pIfaceHal p2pIfaceHal, HalDeviceManager halDeviceManager) {
         mSupplicantP2pIfaceHal = p2pIfaceHal;
         mHalDeviceManager = halDeviceManager;
     }
@@ -99,22 +95,22 @@ public class WifiP2pNative {
             Handler handler) {
         if (mIWifiP2pIface == null) {
             mIWifiP2pIface = mHalDeviceManager.createP2pIface((@NonNull String ifaceName) -> {
-                Log.i(mTAG, "IWifiP2pIface destroyedListener");
+                Log.i(TAG, "IWifiP2pIface destroyedListener");
                 mSupplicantP2pIfaceHal.teardownIface(ifaceName);
                 mIWifiP2pIface = null;
                 destroyedListener.onDestroyed(ifaceName);
             }, handler);
             if (mIWifiP2pIface == null) {
-                Log.e(mTAG, "Failed to create P2p iface in HalDeviceManager");
+                Log.e(TAG, "Failed to create P2p iface in HalDeviceManager");
                 return null;
             }
             if (!waitForSupplicantConnection()) {
-                Log.e(mTAG, "Failed to connect to supplicant");
+                Log.e(TAG, "Failed to connect to supplicant");
                 teardownInterface();
                 return null;
             }
             if (!mSupplicantP2pIfaceHal.setupIface(HalDeviceManager.getName(mIWifiP2pIface))) {
-                Log.e(mTAG, "Failed to setup P2p iface in supplicant");
+                Log.e(TAG, "Failed to setup P2p iface in supplicant");
                 teardownInterface();
                 return null;
             }
