@@ -24,8 +24,10 @@ import android.net.wifi.WifiScanner;
 import android.os.Binder;
 import android.os.UserHandle;
 import android.os.WorkSource;
+import android.util.ArrayMap;
 import android.util.Log;
 
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.wifi.util.WifiPermissionsUtil;
 
 import java.util.ArrayList;
@@ -47,17 +49,18 @@ import javax.annotation.concurrent.NotThreadSafe;
  * c) Will send out the {@link WifiManager#SCAN_RESULTS_AVAILABLE_ACTION} broadcast when new
  * scan results are available.
  * Note: This class is not thread-safe. It needs to be invoked from WifiStateMachine thread only.
- * TODO (b/68987915): Port over scan throttling logic from WifiService for all apps.
- * TODO: Port over idle mode handling from WifiService.
  */
 @NotThreadSafe
 public class ScanRequestProxy {
     private static final String TAG = "WifiScanRequestProxy";
+    @VisibleForTesting
+    public static final int SCAN_REQUEST_THROTTLE_INTERVAL_MS = 30 * 1000;
 
     private final Context mContext;
     private final WifiInjector mWifiInjector;
     private final WifiConfigManager mWifiConfigManager;
     private final WifiPermissionsUtil mWifiPermissionsUtil;
+    private final Clock mClock;
     private WifiScanner mWifiScanner;
 
     // Verbose logging flag.
@@ -66,6 +69,8 @@ public class ScanRequestProxy {
     private boolean mScanningForHiddenNetworksEnabled = false;
     // Flag to indicate that we're waiting for scan results from an existing request.
     private boolean mIsScanProcessingComplete = true;
+    // Timestamps for the last scan requested by each app.
+    private final ArrayMap<String, Long> mLastScanTimestampsForApps = new ArrayMap();
     // Scan results cached from the last full single scan request.
     private final List<ScanResult> mLastScanResults = new ArrayList<>();
     // Common scan listener for scan requests.
@@ -118,11 +123,12 @@ public class ScanRequestProxy {
     };
 
     ScanRequestProxy(Context context, WifiInjector wifiInjector, WifiConfigManager configManager,
-            WifiPermissionsUtil wifiPermissionUtil) {
+            WifiPermissionsUtil wifiPermissionUtil, Clock clock) {
         mContext = context;
         mWifiInjector = wifiInjector;
         mWifiConfigManager = configManager;
         mWifiPermissionsUtil = wifiPermissionUtil;
+        mClock = clock;
     }
 
     /**
@@ -184,15 +190,55 @@ public class ScanRequestProxy {
     }
 
     /**
+     * Helper method to send the scan request failure broadcast to specified package.
+     */
+    private void sendScanResultFailureBroadcastToPackage(String packageName) {
+        // clear calling identity to send broadcast
+        long callingIdentity = Binder.clearCallingIdentity();
+        try {
+            Intent intent = new Intent(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
+            intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
+            intent.putExtra(WifiManager.EXTRA_RESULTS_UPDATED, false);
+            intent.setPackage(packageName);
+            mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
+        } finally {
+            // restore calling identity
+            Binder.restoreCallingIdentity(callingIdentity);
+        }
+    }
+
+    /**
+     * Checks if the scan request from the app (specified by packageName) needs
+     * to be throttled.
+     */
+    private boolean shouldScanRequestBeThrottledForApp(String packageName) {
+        long lastScanMs = mLastScanTimestampsForApps.getOrDefault(packageName, 0L);
+        long elapsedRealtime = mClock.getElapsedSinceBootMillis();
+        if (lastScanMs != 0 && (elapsedRealtime - lastScanMs) < SCAN_REQUEST_THROTTLE_INTERVAL_MS) {
+            return true;
+        }
+        // Proceed with the scan request and record the time.
+        mLastScanTimestampsForApps.put(packageName, elapsedRealtime);
+        return false;
+    }
+
+    /**
      * Initiate a wifi scan.
      *
      * @param callingUid The uid initiating the wifi scan. Blame will be given to this uid.
      * @return true if the scan request was placed or a scan is already ongoing, false otherwise.
      */
-    public boolean startScan(int callingUid) {
+    public boolean startScan(int callingUid, String packageName) {
         if (!retrieveWifiScannerIfNecessary()) {
             Log.e(TAG, "Failed to retrieve wifiscanner");
-            sendScanResultBroadcast(false);
+            sendScanResultFailureBroadcastToPackage(packageName);
+            return false;
+        }
+        boolean fromSettings = mWifiPermissionsUtil.checkNetworkSettingsPermission(callingUid);
+        // Check and throttle scan request from apps without NETWORK_SETTINGS permission.
+        if (!fromSettings && shouldScanRequestBeThrottledForApp(packageName)) {
+            Log.i(TAG, "Scan request from " + packageName + " throttled");
+            sendScanResultFailureBroadcastToPackage(packageName);
             return false;
         }
         // Create a worksource using the caller's UID.
@@ -201,7 +247,7 @@ public class ScanRequestProxy {
         // Create the scan settings.
         WifiScanner.ScanSettings settings = new WifiScanner.ScanSettings();
         // Scan requests from apps with network settings will be of high accuracy type.
-        if (mWifiPermissionsUtil.checkNetworkSettingsPermission(callingUid)) {
+        if (fromSettings) {
             settings.type = WifiScanner.TYPE_HIGH_ACCURACY;
         }
         // always do full scans
@@ -234,5 +280,6 @@ public class ScanRequestProxy {
      */
     public void clearScanResults() {
         mLastScanResults.clear();
+        mLastScanTimestampsForApps.clear();
     }
 }
