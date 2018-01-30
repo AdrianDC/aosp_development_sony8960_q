@@ -16,7 +16,6 @@
 
 package com.android.server.wifi;
 
-import android.app.ActivityManager;
 import android.content.Context;
 import android.util.Base64;
 
@@ -252,14 +251,14 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
     /**
      * Initiates a system-level bugreport, in a non-blocking fashion.
      */
-    public void takeBugReport() {
+    public void takeBugReport(String bugTitle, String bugDetail) {
         if (mBuildProperties.isUserBuild()) {
             return;
         }
 
         try {
-            mWifiInjector.getActivityManagerService().requestBugReport(
-                    ActivityManager.BUGREPORT_OPTION_WIFI);
+            mWifiInjector.getActivityManagerService().requestWifiBugReport(
+                    bugTitle, bugDetail);
         } catch (Exception e) {  // diagnostics should never crash system_server
             mLog.err("error taking bugreport: %").c(e.getClass().getName()).flush();
         }
