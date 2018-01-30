@@ -425,6 +425,29 @@ public class ScanRequestProxyTest {
         verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
     }
 
+    /**
+     * Verify that we don't use the same listener for multiple scan requests.
+     */
+    @Test
+    public void testSuccessiveScanRequestsDontUseSameListener() {
+        WifiScanner.ScanListener listener1;
+        WifiScanner.ScanListener listener2;
+        // Make scan request 1.
+        assertTrue(mScanRequestProxy.startScan(TEST_UID));
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+        listener1 = mScanListenerArgumentCaptor.getValue();
+
+        // Make scan request 2.
+        assertTrue(mScanRequestProxy.startScan(TEST_UID));
+        // Ensure that we did send a second scan request to scanner.
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+        listener2 = mScanListenerArgumentCaptor.getValue();
+
+        assertNotEquals(listener1, listener2);
+
+        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+    }
+
     private void validateScanSettings(WifiScanner.ScanSettings scanSettings,
                                       boolean expectHiddenNetworks) {
         validateScanSettings(scanSettings, expectHiddenNetworks, false);

@@ -69,7 +69,7 @@ public class ScanRequestProxy {
     // Scan results cached from the last full single scan request.
     private final List<ScanResult> mLastScanResults = new ArrayList<>();
     // Common scan listener for scan requests.
-    private final WifiScanner.ScanListener mScanListener = new WifiScanner.ScanListener() {
+    private class ScanRequestProxyScanListener implements WifiScanner.ScanListener {
         @Override
         public void onSuccess() {
             // Scan request succeeded, wait for results to report to external clients.
@@ -215,7 +215,7 @@ public class ScanRequestProxy {
             settings.hiddenNetworks = hiddenNetworkList.toArray(
                     new WifiScanner.ScanSettings.HiddenNetwork[hiddenNetworkList.size()]);
         }
-        mWifiScanner.startScan(settings, mScanListener, workSource);
+        mWifiScanner.startScan(settings, new ScanRequestProxyScanListener(), workSource);
         mIsScanProcessingComplete = false;
         return true;
     }
