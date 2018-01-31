@@ -562,9 +562,6 @@ public class WifiStateMachine extends StateMachine {
     static final int CMD_SET_SUSPEND_OPT_ENABLED                        = BASE + 86;
     /* Delayed NETWORK_DISCONNECT */
     static final int CMD_DELAYED_NETWORK_DISCONNECT                     = BASE + 87;
-    /* When there are no saved networks, we do a periodic scan to notify user of
-     * an open network */
-    static final int CMD_NO_NETWORKS_PERIODIC_SCAN                      = BASE + 88;
     /* Test network Disconnection NETWORK_DISCONNECT */
     static final int CMD_TEST_NETWORK_DISCONNECT                        = BASE + 89;
 
@@ -792,11 +789,6 @@ public class WifiStateMachine extends StateMachine {
     private AtomicBoolean mEnableConnectedMacRandomization = new AtomicBoolean(false);
 
     /**
-     * Scan period for the NO_NETWORKS_PERIIDOC_SCAN_FEATURE
-     */
-    private final int mNoNetworksPeriodicScan;
-
-    /**
      * Supplicant scan interval in milliseconds.
      * Comes from {@link Settings.Global#WIFI_SUPPLICANT_SCAN_INTERVAL_MS} or
      * from the default config if the setting is not set
@@ -956,13 +948,6 @@ public class WifiStateMachine extends StateMachine {
         mLastBssid = null;
         mLastNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
         mLastSignalLevel = -1;
-
-        mNoNetworksPeriodicScan = mContext.getResources().getInteger(
-                R.integer.config_wifi_no_network_periodic_scan_interval);
-
-        // TODO: remove these settings from the config file since we no longer obey them
-        // mContext.getResources().getInteger(R.integer.config_wifi_framework_scan_interval);
-        // mContext.getResources().getBoolean(R.bool.config_wifi_background_scan_support);
 
         mCountryCode = countryCode;
 
@@ -3918,7 +3903,6 @@ public class WifiStateMachine extends StateMachine {
                 case DhcpClient.CMD_PRE_DHCP_ACTION:
                 case DhcpClient.CMD_PRE_DHCP_ACTION_COMPLETE:
                 case DhcpClient.CMD_POST_DHCP_ACTION:
-                case CMD_NO_NETWORKS_PERIODIC_SCAN:
                 case CMD_ENABLE_P2P:
                 case CMD_DISABLE_P2P_RSP:
                 case WifiMonitor.SUP_REQUEST_IDENTITY:
@@ -6398,17 +6382,6 @@ public class WifiStateMachine extends StateMachine {
             mWifiConnectivityManager.handleConnectionStateChanged(
                     WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
 
-            /**
-             * If we have no networks saved, the supplicant stops doing the periodic scan.
-             * The scans are useful to notify the user of the presence of an open network.
-             * Note that these are not wake up scans.
-             */
-            if (mNoNetworksPeriodicScan != 0 && !mP2pConnected.get()
-                    && mWifiConfigManager.getSavedNetworks().size() == 0) {
-                sendMessageDelayed(obtainMessage(CMD_NO_NETWORKS_PERIODIC_SCAN,
-                        ++mPeriodicScanToken, 0), mNoNetworksPeriodicScan);
-            }
-
             mDisconnectedTimeStamp = mClock.getWallClockMillis();
             mWifiStateTracker.updateState(WifiStateTracker.DISCONNECTED);
         }
@@ -6419,26 +6392,6 @@ public class WifiStateMachine extends StateMachine {
             logStateAndMessage(message, this);
 
             switch (message.what) {
-                case CMD_NO_NETWORKS_PERIODIC_SCAN:
-                    if (mP2pConnected.get()) break;
-                    if (mNoNetworksPeriodicScan != 0 && message.arg1 == mPeriodicScanToken &&
-                            mWifiConfigManager.getSavedNetworks().size() == 0) {
-                        startScan(UNKNOWN_SCAN_SOURCE, -1, null, WIFI_WORK_SOURCE);
-                        sendMessageDelayed(obtainMessage(CMD_NO_NETWORKS_PERIODIC_SCAN,
-                                    ++mPeriodicScanToken, 0), mNoNetworksPeriodicScan);
-                    }
-                    break;
-                case WifiManager.FORGET_NETWORK:
-                case CMD_REMOVE_NETWORK:
-                case CMD_REMOVE_APP_CONFIGURATIONS:
-                case CMD_REMOVE_USER_CONFIGURATIONS:
-                    // Set up a delayed message here. After the forget/remove is handled
-                    // the handled delayed message will determine if there is a need to
-                    // scan and continue
-                    sendMessageDelayed(obtainMessage(CMD_NO_NETWORKS_PERIODIC_SCAN,
-                                ++mPeriodicScanToken, 0), mNoNetworksPeriodicScan);
-                    ret = NOT_HANDLED;
-                    break;
                 case CMD_DISCONNECT:
                     mWifiMetrics.logStaEvent(StaEvent.TYPE_FRAMEWORK_DISCONNECT,
                             StaEvent.DISCONNECT_GENERIC);
@@ -6471,11 +6424,6 @@ public class WifiStateMachine extends StateMachine {
                 case WifiP2pServiceImpl.P2P_CONNECTION_CHANGED:
                     NetworkInfo info = (NetworkInfo) message.obj;
                     mP2pConnected.set(info.isConnected());
-                    if (!mP2pConnected.get() && mWifiConfigManager.getSavedNetworks().size() == 0) {
-                        if (mVerboseLoggingEnabled) log("Turn on scanning after p2p disconnected");
-                        sendMessageDelayed(obtainMessage(CMD_NO_NETWORKS_PERIODIC_SCAN,
-                                    ++mPeriodicScanToken, 0), mNoNetworksPeriodicScan);
-                    }
                     break;
                 case CMD_RECONNECT:
                 case CMD_REASSOCIATE:
