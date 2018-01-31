@@ -39,6 +39,7 @@ import android.net.wifi.aware.WifiAwareAgentNetworkSpecifier;
 import android.net.wifi.aware.WifiAwareManager;
 import android.net.wifi.aware.WifiAwareNetworkSpecifier;
 import android.net.wifi.aware.WifiAwareUtils;
+import android.os.Build;
 import android.os.IBinder;
 import android.os.INetworkManagementService;
 import android.os.Looper;
@@ -49,6 +50,7 @@ import android.util.ArrayMap;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.wifi.util.WifiPermissionsUtil;
 import com.android.server.wifi.util.WifiPermissionsWrapper;
 
 import libcore.util.HexEncoding;
@@ -97,10 +99,14 @@ public class WifiAwareDataPathStateManager {
             mNetworkRequestsCache = new ArrayMap<>();
     private Context mContext;
     private WifiAwareMetrics mAwareMetrics;
+    private WifiPermissionsUtil mWifiPermissionsUtil;
     private WifiPermissionsWrapper mPermissionsWrapper;
     private Looper mLooper;
     private WifiAwareNetworkFactory mNetworkFactory;
     public INetworkManagementService mNwService;
+
+    // internal debug flag to override API check
+    /* package */ boolean mAllowNdpResponderFromAnyOverride = false;
 
     public WifiAwareDataPathStateManager(WifiAwareStateManager mgr) {
         mMgr = mgr;
@@ -111,11 +117,12 @@ public class WifiAwareDataPathStateManager {
      * connectivity service.
      */
     public void start(Context context, Looper looper, WifiAwareMetrics awareMetrics,
-            WifiPermissionsWrapper permissionsWrapper) {
+            WifiPermissionsUtil wifiPermissionsUtil, WifiPermissionsWrapper permissionsWrapper) {
         if (VDBG) Log.v(TAG, "start");
 
         mContext = context;
         mAwareMetrics = awareMetrics;
+        mWifiPermissionsUtil = wifiPermissionsUtil;
         mPermissionsWrapper = permissionsWrapper;
         mLooper = looper;
 
@@ -712,7 +719,7 @@ public class WifiAwareDataPathStateManager {
             }
 
             nnri = AwareNetworkRequestInformation.processNetworkSpecifier(networkSpecifier, mMgr,
-                    mPermissionsWrapper);
+                    mWifiPermissionsUtil, mPermissionsWrapper, mAllowNdpResponderFromAnyOverride);
             if (nnri == null) {
                 Log.e(TAG, "WifiAwareNetworkFactory.acceptRequest: request=" + request
                         + " - can't parse network specifier");
@@ -1051,7 +1058,9 @@ public class WifiAwareDataPathStateManager {
         }
 
         static AwareNetworkRequestInformation processNetworkSpecifier(WifiAwareNetworkSpecifier ns,
-                WifiAwareStateManager mgr, WifiPermissionsWrapper permissionWrapper) {
+                WifiAwareStateManager mgr, WifiPermissionsUtil wifiPermissionsUtil,
+                WifiPermissionsWrapper permissionWrapper,
+                boolean allowNdpResponderFromAnyOverride) {
             int uid, pubSubId = 0;
             int peerInstanceId = 0;
             byte[] peerMac = ns.peerMac;
@@ -1093,6 +1102,20 @@ public class WifiAwareDataPathStateManager {
                 return null;
             }
             uid = client.getUid();
+
+            // API change post 27: no longer allow "ANY"-style responders (initiators were never
+            // permitted).
+            // Note: checks are done on the manager. This is a backup for apps which bypass the
+            // check.
+            if (!allowNdpResponderFromAnyOverride && !wifiPermissionsUtil.isLegacyVersion(
+                    client.getCallingPackage(), Build.VERSION_CODES.P)) {
+                if (ns.type != WifiAwareNetworkSpecifier.NETWORK_SPECIFIER_TYPE_IB
+                        && ns.type != WifiAwareNetworkSpecifier.NETWORK_SPECIFIER_TYPE_OOB) {
+                    Log.e(TAG, "processNetworkSpecifier: networkSpecifier=" + ns
+                            + " -- no ANY specifications allowed for this API level");
+                    return null;
+                }
+            }
 
             // validate the role (if session ID provided: i.e. session 1xx)
             if (ns.type == WifiAwareNetworkSpecifier.NETWORK_SPECIFIER_TYPE_IB
