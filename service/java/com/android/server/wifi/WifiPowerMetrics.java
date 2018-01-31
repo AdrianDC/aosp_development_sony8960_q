@@ -33,7 +33,7 @@ import java.io.PrintWriter;
  */
 public class WifiPowerMetrics {
 
-    private static final String TAG = WifiPowerMetrics.class.getSimpleName();
+    private static final String TAG = "WifiPowerMetrics";
 
     /* BatteryStats API */
     private final IBatteryStats mBatteryStats;
