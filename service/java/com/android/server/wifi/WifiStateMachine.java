@@ -157,8 +157,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * @hide
  */
-public class WifiStateMachine extends StateMachine
-        implements WifiMulticastLockManager.FilterController {
+public class WifiStateMachine extends StateMachine {
 
     private static final String NETWORKTYPE = "WIFI";
     private static final String NETWORKTYPE_UNTRUSTED = "WIFI_UT";
@@ -224,6 +223,8 @@ public class WifiStateMachine extends StateMachine
         return mWifiScoreReport;
     }
     private final PasspointManager mPasspointManager;
+
+    private final McastLockManagerFilterController mMcastLockManagerFilterController;
 
     /* Scan results handling */
     private List<ScanDetail> mScanResults = new ArrayList<>();
@@ -950,6 +951,7 @@ public class WifiStateMachine extends StateMachine
 
         mLinkProperties = new LinkProperties();
         mPhoneStateListener = new WifiPhoneStateListener(looper);
+        mMcastLockManagerFilterController = new McastLockManagerFilterController();
 
         mNetworkInfo.setIsAvailable(false);
         mLastBssid = null;
@@ -1145,6 +1147,29 @@ public class WifiStateMachine extends StateMachine
                 mWifiMetrics.getHandler());
         mWifiMonitor.registerHandler(mInterfaceName, CMD_TARGET_BSSID,
                 mWifiMetrics.getHandler());
+    }
+
+    /**
+     * Class to implement the MulticastLockManager.FilterController callback.
+     */
+    class McastLockManagerFilterController implements WifiMulticastLockManager.FilterController {
+        /**
+         * Start filtering Multicast v4 packets
+         */
+        public void startFilteringMulticastPackets() {
+            if (mIpClient != null) {
+                mIpClient.setMulticastFilter(true);
+            }
+        }
+
+        /**
+         * Stop filtering Multicast v4 packets
+         */
+        public void stopFilteringMulticastPackets() {
+            if (mIpClient != null) {
+                mIpClient.setMulticastFilter(false);
+            }
+        }
     }
 
     class IpClientCallback extends IpClient.Callback {
@@ -1803,6 +1828,13 @@ public class WifiStateMachine extends StateMachine
     }
 
     /**
+     * Retrieve the WifiMulticastLockManager.FilterController callback for registration.
+     */
+    protected WifiMulticastLockManager.FilterController getMcastLockManagerFilterController() {
+        return mMcastLockManagerFilterController;
+    }
+
+    /**
      * TODO: doc
      */
     public List<ScanResult> syncGetScanResultsList() {
@@ -2085,24 +2117,6 @@ public class WifiStateMachine extends StateMachine
 
     public void enableRssiPolling(boolean enabled) {
         sendMessage(CMD_ENABLE_RSSI_POLL, enabled ? 1 : 0, 0);
-    }
-
-    /**
-     * Start filtering Multicast v4 packets
-     */
-    public void startFilteringMulticastPackets() {
-        if (mIpClient != null) {
-            mIpClient.setMulticastFilter(true);
-        }
-    }
-
-    /**
-     * Stop filtering Multicast v4 packets
-     */
-    public void stopFilteringMulticastPackets() {
-        if (mIpClient != null) {
-            mIpClient.setMulticastFilter(false);
-        }
     }
 
     /**

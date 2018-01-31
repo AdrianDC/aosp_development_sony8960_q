@@ -2365,4 +2365,20 @@ public class WifiStateMachineTest {
         mLooper.dispatchAll();
         assertEquals(RSSI_THRESHOLD_BREACH_MAX, wifiInfo.getRssi());
     }
+
+    /**
+     * Verify that calls to start and stop filtering multicast packets are passed on to the IpClient
+     * instance.
+     */
+    @Test
+    public void verifyMcastLockManagerFilterControllerCallsUpdateIpClient() throws Exception {
+        loadComponentsInStaMode();
+        reset(mIpClient);
+        WifiMulticastLockManager.FilterController filterController =
+                mWsm.getMcastLockManagerFilterController();
+        filterController.startFilteringMulticastPackets();
+        verify(mIpClient).setMulticastFilter(eq(true));
+        filterController.stopFilteringMulticastPackets();
+        verify(mIpClient).setMulticastFilter(eq(false));
+    }
 }
