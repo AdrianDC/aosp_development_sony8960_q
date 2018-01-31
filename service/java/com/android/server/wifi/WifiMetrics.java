@@ -187,6 +187,9 @@ public class WifiMetrics {
     private final SparseIntArray mObservedHotspotR1ApsPerEssInScanHistogram = new SparseIntArray();
     private final SparseIntArray mObservedHotspotR2ApsPerEssInScanHistogram = new SparseIntArray();
 
+    /** Wifi power metrics*/
+    private WifiPowerMetrics mWifiPowerMetrics = new WifiPowerMetrics();
+
     class RouterFingerPrint {
         private WifiMetricsProto.RouterFingerPrint mRouterFingerPrintProto;
         RouterFingerPrint() {
@@ -1852,6 +1855,8 @@ public class WifiMetrics {
                         + mWpsMetrics.numWpsSupplicantFailure);
                 pw.println("mWpsMetrics.numWpsCancellation="
                         + mWpsMetrics.numWpsCancellation);
+
+                mWifiPowerMetrics.dump(pw);
             }
         }
     }
@@ -2137,6 +2142,7 @@ public class WifiMetrics {
             }
 
             mWifiLogProto.wpsMetrics = mWpsMetrics;
+            mWifiLogProto.wifiPowerStats = mWifiPowerMetrics.buildProto();
         }
     }
 
