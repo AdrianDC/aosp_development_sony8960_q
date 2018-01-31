@@ -108,9 +108,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
@@ -919,68 +917,6 @@ public class WifiStateMachineTest {
             }
         }
         return null;
-    }
-
-    private void verifyScan(int band, int reportEvents, Set<String> hiddenNetworkSSIDSet) {
-        ArgumentCaptor<WifiScanner.ScanSettings> scanSettingsCaptor =
-                ArgumentCaptor.forClass(WifiScanner.ScanSettings.class);
-        ArgumentCaptor<WifiScanner.ScanListener> scanListenerCaptor =
-                ArgumentCaptor.forClass(WifiScanner.ScanListener.class);
-        verify(mWifiScanner).startScan(scanSettingsCaptor.capture(), scanListenerCaptor.capture(),
-                eq(null));
-        WifiScanner.ScanSettings actualSettings = scanSettingsCaptor.getValue();
-        assertEquals("band", band, actualSettings.band);
-        assertEquals("reportEvents", reportEvents, actualSettings.reportEvents);
-
-        if (hiddenNetworkSSIDSet == null) {
-            hiddenNetworkSSIDSet = new HashSet<>();
-        }
-        Set<String> actualHiddenNetworkSSIDSet = new HashSet<>();
-        if (actualSettings.hiddenNetworks != null) {
-            for (int i = 0; i < actualSettings.hiddenNetworks.length; ++i) {
-                actualHiddenNetworkSSIDSet.add(actualSettings.hiddenNetworks[i].ssid);
-            }
-        }
-        assertEquals("hidden networks", hiddenNetworkSSIDSet, actualHiddenNetworkSSIDSet);
-
-        when(mWifiNative.getScanResults(WIFI_IFACE_NAME)).thenReturn(getMockScanResults());
-        mWsm.sendMessage(WifiMonitor.SCAN_RESULTS_EVENT);
-
-        mLooper.dispatchAll();
-
-        List<ScanResult> reportedResults = mWsm.syncGetScanResultsList();
-        assertEquals(8, reportedResults.size());
-    }
-
-    @Test
-    public void scan() throws Exception {
-        initializeAndAddNetworkAndVerifySuccess();
-
-        mWsm.startScan(-1, 0, null, null);
-        mLooper.dispatchAll();
-
-        verifyScan(WifiScanner.WIFI_BAND_BOTH_WITH_DFS,
-                WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN
-                | WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT, null);
-    }
-
-    @Test
-    public void scanWithHiddenNetwork() throws Exception {
-        initializeAndAddNetworkAndVerifySuccess(true);
-
-        Set<String> hiddenNetworkSet = new HashSet<>();
-        hiddenNetworkSet.add(sSSID);
-        List<WifiScanner.ScanSettings.HiddenNetwork> hiddenNetworkList = new ArrayList<>();
-        hiddenNetworkList.add(new WifiScanner.ScanSettings.HiddenNetwork(sSSID));
-        when(mWifiConfigManager.retrieveHiddenNetworkList()).thenReturn(hiddenNetworkList);
-
-        mWsm.startScan(-1, 0, null, null);
-        mLooper.dispatchAll();
-
-        verifyScan(WifiScanner.WIFI_BAND_BOTH_WITH_DFS,
-                WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN
-                | WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT,
-                hiddenNetworkSet);
     }
 
     private void setupAndStartConnectSequence(WifiConfiguration config) throws Exception {
