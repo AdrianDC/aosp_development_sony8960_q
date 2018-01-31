@@ -253,9 +253,9 @@ public class WifiConnectivityManager {
         // Check if any blacklisted BSSIDs can be freed.
         refreshBssidBlacklist();
 
-        if (mStateMachine.isLinkDebouncing() || mStateMachine.isSupplicantTransientState()) {
-            localLog(listenerName + " onResults: No network selection because linkDebouncing is "
-                    + mStateMachine.isLinkDebouncing() + " and supplicantTransient is "
+        if (mStateMachine.isSupplicantTransientState()) {
+            localLog(listenerName
+                    + " onResults: No network selection because supplicantTransientState is "
                     + mStateMachine.isSupplicantTransientState());
             return false;
         }
