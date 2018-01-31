@@ -212,7 +212,6 @@ public class WifiStateMachine extends StateMachine {
     private final boolean mP2pSupported;
     private final AtomicBoolean mP2pConnected = new AtomicBoolean(false);
     private boolean mTemporarilyDisconnectWifi = false;
-    private final String mPrimaryDeviceType;
     private final Clock mClock;
     private final PropertyService mPropertyService;
     private final BuildProperties mBuildProperties;
@@ -964,9 +963,6 @@ public class WifiStateMachine extends StateMachine {
         // TODO: remove these settings from the config file since we no longer obey them
         // mContext.getResources().getInteger(R.integer.config_wifi_framework_scan_interval);
         // mContext.getResources().getBoolean(R.bool.config_wifi_background_scan_support);
-
-        mPrimaryDeviceType = mContext.getResources().getString(
-                R.string.config_wifi_p2p_device_type);
 
         mCountryCode = countryCode;
 
@@ -4197,36 +4193,6 @@ public class WifiStateMachine extends StateMachine {
     }
 
     class SupplicantStartingState extends State {
-        private void initializeWpsDetails() {
-            String detail;
-            detail = mPropertyService.get("ro.product.name", "");
-            if (!mWifiNative.setDeviceName(mInterfaceName, detail)) {
-                loge("Failed to set device name " + detail);
-            }
-            detail = mPropertyService.get("ro.product.manufacturer", "");
-            if (!mWifiNative.setManufacturer(mInterfaceName, detail)) {
-                loge("Failed to set manufacturer " + detail);
-            }
-            detail = mPropertyService.get("ro.product.model", "");
-            if (!mWifiNative.setModelName(mInterfaceName, detail)) {
-                loge("Failed to set model name " + detail);
-            }
-            detail = mPropertyService.get("ro.product.model", "");
-            if (!mWifiNative.setModelNumber(mInterfaceName, detail)) {
-                loge("Failed to set model number " + detail);
-            }
-            detail = mPropertyService.get("ro.serialno", "");
-            if (!mWifiNative.setSerialNumber(mInterfaceName, detail)) {
-                loge("Failed to set serial number " + detail);
-            }
-            if (!mWifiNative.setConfigMethods(
-                    mInterfaceName, "physical_display virtual_push_button")) {
-                loge("Failed to set WPS config methods");
-            }
-            if (!mWifiNative.setDeviceType(mInterfaceName, mPrimaryDeviceType)) {
-                loge("Failed to set primary device type " + mPrimaryDeviceType);
-            }
-        }
 
         @Override
         public boolean processMessage(Message message) {
@@ -4249,7 +4215,6 @@ public class WifiStateMachine extends StateMachine {
                     if (!mWifiConfigManager.migrateFromLegacyStore()) {
                         Log.e(TAG, "Failed to migrate from legacy config store");
                     }
-                    initializeWpsDetails();
                     sendSupplicantConnectionChangedBroadcast(true);
                     transitionTo(mSupplicantStartedState);
                     break;
