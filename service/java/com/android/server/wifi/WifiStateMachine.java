@@ -6266,14 +6266,16 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
                         sendMessageDelayed(obtainMessage(CMD_DELAYED_NETWORK_DISCONNECT,
                                 0, mLastNetworkId), LINK_FLAPPING_DEBOUNCE_MSEC);
-                        if (mVerboseLoggingEnabled) {
-                            log("NETWORK_DISCONNECTION_EVENT in connected state"
+
+                        Log.d(TAG, "NETWORK_DISCONNECTION_EVENT in connected state"
                                     + " BSSID=" + mWifiInfo.getBSSID()
                                     + " RSSI=" + mWifiInfo.getRssi()
                                     + " freq=" + mWifiInfo.getFrequency()
                                     + " reason=" + message.arg2
                                     + " -> debounce");
-                        }
+
+                        // While evaluating the impact of this code, trigger wtf
+                        Log.wtf(TAG, "LinkDebouncing is activated.");
                         return HANDLED;
                     } else {
                         if (mVerboseLoggingEnabled) {
