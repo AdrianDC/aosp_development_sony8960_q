@@ -60,6 +60,7 @@ public class WakeupController {
     private final WakeupOnboarding mWakeupOnboarding;
     private final WifiConfigManager mWifiConfigManager;
     private final WifiInjector mWifiInjector;
+    private final WakeupConfigStoreData mWakeupConfigStoreData;
 
     private final WifiScanner.ScanListener mScanListener = new WifiScanner.ScanListener() {
         @Override
@@ -127,11 +128,11 @@ public class WakeupController {
 
         // registering the store data here has the effect of reading the persisted value of the
         // data sources after system boot finishes
-        WakeupConfigStoreData wakeupConfigStoreData = new WakeupConfigStoreData(
+        mWakeupConfigStoreData = new WakeupConfigStoreData(
                 new IsActiveDataSource(),
                 mWakeupOnboarding.getDataSource(),
                 mWakeupLock.getDataSource());
-        wifiConfigStore.registerStoreData(wakeupConfigStoreData);
+        wifiConfigStore.registerStoreData(mWakeupConfigStoreData);
     }
 
     private void setActive(boolean isActive) {
@@ -159,6 +160,7 @@ public class WakeupController {
         }
         setActive(true);
 
+        // ensure feature is enabled and store data has been read before performing work
         if (isEnabled()) {
             mWakeupOnboarding.maybeShowNotification();
             mWakeupLock.initialize(getMostRecentSavedScanResults());
@@ -228,6 +230,9 @@ public class WakeupController {
      * empty, it evaluates scan results for a match with saved networks. If a match exists, it
      * enables wifi.
      *
+     * <p>The feature must be enabled and the store data must be loaded in order for the controller
+     * to handle scan results.
+     *
      * @param scanResults The scan results with which to update the controller
      */
     private void handleScanResults(Collection<ScanResult> scanResults) {
@@ -286,10 +291,15 @@ public class WakeupController {
         }
     }
 
-    /** Whether the feature is enabled in settings. */
+    /**
+     * Whether the feature is currently enabled.
+     *
+     * <p>This method checks both the Settings value and the store data to ensure that it has been
+     * read.
+     */
     @VisibleForTesting
     boolean isEnabled() {
-        return mWifiWakeupEnabled;
+        return mWifiWakeupEnabled && mWakeupConfigStoreData.hasBeenRead();
     }
 
     /** Dumps wakeup controller state. */
