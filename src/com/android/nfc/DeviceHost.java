@@ -246,4 +246,8 @@ public interface DeviceHost {
     public void enableDtaMode();
 
     public void disableDtaMode();
+
+    public void factoryReset();
+
+    public void shutdown();
 }

@@ -459,6 +459,7 @@ public class NfcService implements DeviceHostListener {
 
         IntentFilter ownerFilter = new IntentFilter(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE);
         ownerFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE);
+        ownerFilter.addAction(Intent.ACTION_SHUTDOWN);
         mContext.registerReceiver(mOwnerReceiver, ownerFilter);
 
         ownerFilter = new IntentFilter();
@@ -586,6 +587,12 @@ public class NfcService implements DeviceHostListener {
                     disableInternal();
                     break;
                 case TASK_BOOT:
+                    if (mPrefs.getBoolean(PREF_FIRST_BOOT, true)) {
+                        Log.i(TAG, "First Boot");
+                        mPrefsEditor.putBoolean(PREF_FIRST_BOOT, false);
+                        mPrefsEditor.apply();
+                        mDeviceHost.factoryReset();
+                    }
                     Log.d(TAG, "checking on firmware download");
                     if (mPrefs.getBoolean(PREF_NFC_ON, NFC_ON_DEFAULT)) {
                         Log.d(TAG, "NFC is on. Doing normal stuff");
@@ -593,11 +600,6 @@ public class NfcService implements DeviceHostListener {
                     } else {
                         Log.d(TAG, "NFC is off.  Checking firmware version");
                         mDeviceHost.checkFirmware();
-                    }
-                    if (mPrefs.getBoolean(PREF_FIRST_BOOT, true)) {
-                        Log.i(TAG, "First Boot");
-                        mPrefsEditor.putBoolean(PREF_FIRST_BOOT, false);
-                        mPrefsEditor.apply();
                     }
                     SystemProperties.set("nfc.initialized", "true");
                     break;
@@ -2433,6 +2435,11 @@ public class NfcService implements DeviceHostListener {
                 if (action.equals(Intent.ACTION_PACKAGE_REMOVED)) {
                     // Clear the NFCEE access cache in case a UID gets recycled
                     mNfceeAccessControl.invalidateCache();
+                }
+            } else if (action.equals(Intent.ACTION_SHUTDOWN)) {
+                if (DBG) Log.d(TAG, "Device is shutting down.");
+                if (isNfcEnabled()) {
+                    mDeviceHost.shutdown();
                 }
             }
         }
