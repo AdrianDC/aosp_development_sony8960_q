@@ -517,6 +517,23 @@ public class SupplicantStaIfaceHal {
     }
 
     /**
+     * Terminate the supplicant daemon.
+     */
+    public void terminate() {
+        synchronized (mLock) {
+            final String methodStr = "terminate";
+            if (!checkSupplicantAndLogFailure(methodStr)) return;
+            try {
+                if (isV1_1()) {
+                    getSupplicantMockableV1_1().terminate();
+                }
+            } catch (RemoteException e) {
+                handleRemoteException(e, methodStr);
+            }
+        }
+    }
+
+    /**
      * Wrapper functions to access static HAL methods, created to be mockable in unit tests
      */
     protected IServiceManager getServiceManagerMockable() throws RemoteException {
