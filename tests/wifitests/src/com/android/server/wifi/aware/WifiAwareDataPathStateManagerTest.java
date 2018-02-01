@@ -60,6 +60,7 @@ import android.net.wifi.aware.SubscribeDiscoverySession;
 import android.net.wifi.aware.WifiAwareManager;
 import android.net.wifi.aware.WifiAwareNetworkSpecifier;
 import android.net.wifi.aware.WifiAwareSession;
+import android.os.Build;
 import android.os.Handler;
 import android.os.INetworkManagementService;
 import android.os.IPowerManager;
@@ -71,6 +72,7 @@ import android.os.test.TestLooper;
 import android.support.test.filters.SmallTest;
 
 import com.android.internal.util.AsyncChannel;
+import com.android.server.wifi.util.WifiPermissionsUtil;
 import com.android.server.wifi.util.WifiPermissionsWrapper;
 
 import libcore.util.HexEncoding;
@@ -107,6 +109,7 @@ public class WifiAwareDataPathStateManagerTest {
     @Mock private IWifiAwareEventCallback mMockCallback;
     @Mock IWifiAwareDiscoverySessionCallback mMockSessionCallback;
     @Mock private WifiAwareMetrics mAwareMetricsMock;
+    @Mock private WifiPermissionsUtil mWifiPermissionsUtil;
     @Mock private WifiPermissionsWrapper mPermissionsWrapperMock;
     TestAlarmManager mAlarmManager;
     private PowerManager mMockPowerManager;
@@ -137,10 +140,14 @@ public class WifiAwareDataPathStateManagerTest {
                 Context.POWER_SERVICE);
         when(mMockContext.getSystemService(PowerManager.class)).thenReturn(mMockPowerManager);
 
+        // by default pretend to be an old API: i.e. allow Responders configured as *ANY*. This
+        // allows older (more extrensive) tests to run.
+        when(mWifiPermissionsUtil.isLegacyVersion(anyString(), anyInt())).thenReturn(true);
+
         mDut = new WifiAwareStateManager();
         mDut.setNative(mMockNativeManager, mMockNative);
         mDut.start(mMockContext, mMockLooper.getLooper(), mAwareMetricsMock,
-                mPermissionsWrapperMock);
+                mWifiPermissionsUtil, mPermissionsWrapperMock);
         mDut.startLate();
         mMockLooper.dispatchAll();
 
@@ -648,52 +655,26 @@ public class WifiAwareDataPathStateManagerTest {
 
     /**
      * Validate the success flow of the Initiator: using session network specifier with a non-null
-     * token.
+     * PMK.
      */
     @Test
-    public void testDataPathInitiatorMacTokenSuccess() throws Exception {
+    public void testDataPathInitiatorMacPmkSuccess() throws Exception {
         testDataPathInitiatorUtility(false, true, true, false, true, false);
     }
 
     /**
-     * Validate the fail flow of the Initiator: using session network specifier with a 0
-     * peer ID.
-     */
-    @Test(expected = IllegalArgumentException.class)
-    public void testDataPathInitiatorNoMacFail() throws Exception {
-        testDataPathInitiatorUtility(false, false, false, true, true, false);
-    }
-
-    /**
      * Validate the success flow of the Initiator: using a direct network specifier with a non-null
-     * peer mac and non-null token.
+     * peer mac and non-null PMK.
      */
     @Test
-    public void testDataPathInitiatorDirectMacTokenSuccess() throws Exception {
+    public void testDataPathInitiatorDirectMacPmkSuccess() throws Exception {
         testDataPathInitiatorUtility(true, true, true, false, true, false);
     }
 
-    /**
-     * Validate the fail flow of the Initiator: using a direct network specifier with a null peer
-     * mac and non-null token.
-     */
-    @Test(expected = IllegalArgumentException.class)
-    public void testDataPathInitiatorDirectNoMacTokenFail() throws Exception {
-        testDataPathInitiatorUtility(true, false, false, true, true, false);
-    }
-
-    /**
-     * Validate the fail flow of the Initiator: using a direct network specifier with a null peer
-     * mac and null token.
-     */
-    @Test(expected = IllegalArgumentException.class)
-    public void testDataPathInitiatorDirectNoMacNoTokenFail() throws Exception {
-        testDataPathInitiatorUtility(true, false, false, false, true, false);
-    }
 
     /**
      * Validate the fail flow of the Initiator: use a session network specifier with a non-null
-     * token, but don't get a confirmation.
+     * PMK, but don't get a confirmation.
      */
     @Test
     public void testDataPathInitiatorNoConfirmationTimeoutFail() throws Exception {
@@ -702,7 +683,7 @@ public class WifiAwareDataPathStateManagerTest {
 
     /**
      * Validate the fail flow of the Initiator: use a session network specifier with a non-null
-     * token, but get an immediate failure
+     * Passphrase, but get an immediate failure
      */
     @Test
     public void testDataPathInitiatorNoConfirmationHalFail() throws Exception {
@@ -739,80 +720,121 @@ public class WifiAwareDataPathStateManagerTest {
      */
 
     /**
-     * Validate the success flow of the Responder: using session network specifier with a non-null
-     * token.
+     * Validate the success flow of the Responder: using session network specifier with a
+     * PMK.
      */
     @Test
-    public void testDataPathResonderMacTokenSuccess() throws Exception {
+    public void testDataPathResonderMacPmkSuccess() throws Exception {
         testDataPathResponderUtility(false, true, true, false, true);
     }
 
     /**
-     * Validate the success flow of the Responder: using session network specifier with a null
-     * token.
+     * Validate the success flow of the Responder: using session network specifier with a
+     * Passphrase.
      */
     @Test
-    public void testDataPathResonderMacNoTokenSuccess() throws Exception {
+    public void testDataPathResonderMacPassphraseSuccess() throws Exception {
         testDataPathResponderUtility(false, true, false, false, true);
     }
 
     /**
      * Validate the success flow of the Responder: using session network specifier with a
-     * token and no peer ID (i.e. 0).
+     * Passphrase and no peer ID (i.e. 0).
      */
     @Test
-    public void testDataPathResonderMacTokenNoPeerIdSuccess() throws Exception {
+    public void testDataPathResonderMacPassphraseNoPeerIdSuccess() throws Exception {
         testDataPathResponderUtility(false, false, false, true, true);
     }
 
     /**
      * Validate the success flow of the Responder: using session network specifier with a null
-     * token and no peer ID (i.e. 0).
+     * PMK/Passphrase and no peer ID (i.e. 0).
      */
     @Test
-    public void testDataPathResonderMacTokenNoPeerIdNoTokenSuccess() throws Exception {
+    public void testDataPathResonderMacOpenNoPeerIdNoPmkPassphraseSuccess() throws Exception {
+        testDataPathResponderUtility(false, false, false, false, true);
+    }
+
+    /**
+     * Validate the failure flow of the Responder: using session network specifier with a
+     * Passphrase and no peer ID (i.e. 0) on a NON-LEGACY device.
+     */
+    @Test
+    public void testDataPathResonderMacPassphraseNoPeerIdSuccessNonLegacy() throws Exception {
+        when(mWifiPermissionsUtil.isLegacyVersion(anyString(), anyInt())).thenReturn(false);
+        testDataPathResponderUtility(false, false, false, true, true);
+    }
+
+    /**
+     * Validate the failure flow of the Responder: using session network specifier with a null
+     * PMK/Passphrase and no peer ID (i.e. 0) on a NON-LEGACY device.
+     */
+    @Test
+    public void testDataPathResonderMacOpenNoPeerIdNoPmkPassphraseSuccessNonLegacy()
+            throws Exception {
+        when(mWifiPermissionsUtil.isLegacyVersion(anyString(), anyInt())).thenReturn(false);
         testDataPathResponderUtility(false, false, false, false, true);
     }
 
     /**
      * Validate the success flow of the Responder: using a direct network specifier with a non-null
-     * peer mac and non-null token.
+     * peer mac and non-null PMK.
      */
     @Test
-    public void testDataPathResonderDirectMacTokenSuccess() throws Exception {
+    public void testDataPathResonderDirectMacPmkSuccess() throws Exception {
         testDataPathResponderUtility(true, true, true, false, true);
     }
 
     /**
      * Validate the success flow of the Responder: using a direct network specifier with a non-null
-     * peer mac and null token.
+     * peer mac and null PMK/Passphrase.
      */
     @Test
-    public void testDataPathResonderDirectMacNoTokenSuccess() throws Exception {
+    public void testDataPathResonderDirectMacNoPmkPassphraseSuccess() throws Exception {
         testDataPathResponderUtility(true, true, false, false, true);
     }
 
     /**
      * Validate the success flow of the Responder: using a direct network specifier with a null peer
-     * mac and non-null token.
+     * mac and non-null Passphrase.
      */
     @Test
-    public void testDataPathResonderDirectNoMacTokenSuccess() throws Exception {
+    public void testDataPathResonderDirectNoMacPassphraseSuccess() throws Exception {
         testDataPathResponderUtility(true, false, false, true, true);
     }
 
     /**
      * Validate the success flow of the Responder: using a direct network specifier with a null peer
-     * mac and null token.
+     * mac and null Pmk/Passphrase.
      */
     @Test
-    public void testDataPathResonderDirectNoMacNoTokenSuccess() throws Exception {
+    public void testDataPathResonderDirectNoMacNoPmkPassphraseSuccess() throws Exception {
+        testDataPathResponderUtility(true, false, false, false, true);
+    }
+
+    /**
+     * Validate the failure flow of the Responder: using a direct network specifier with a null peer
+     * mac and non-null Passphrase on a NON-LEGACY device.
+     */
+    @Test
+    public void testDataPathResonderDirectNoMacPassphraseSuccessNonLegacy() throws Exception {
+        when(mWifiPermissionsUtil.isLegacyVersion(anyString(), anyInt())).thenReturn(false);
+        testDataPathResponderUtility(true, false, false, true, true);
+    }
+
+    /**
+     * Validate the failure flow of the Responder: using a direct network specifier with a null peer
+     * mac and null Pmk/Passphrase on a NON-LEGACY device.
+     */
+    @Test
+    public void testDataPathResonderDirectNoMacNoPmkPassphraseSuccessNonLegacy() throws Exception {
+        when(mWifiPermissionsUtil.isLegacyVersion(anyString(), anyInt())).thenReturn(false);
         testDataPathResponderUtility(true, false, false, false, true);
     }
 
     /**
      * Validate the fail flow of the Responder: use a session network specifier with a non-null
-     * token, but don't get a confirmation.
+     * PMK, but don't get a confirmation.
      */
     @Test
     public void testDataPathResponderNoConfirmationTimeoutFail() throws Exception {
@@ -1094,6 +1116,8 @@ public class WifiAwareDataPathStateManagerTest {
                 mMockNwMgt);
         InOrder inOrderM = inOrder(mAwareMetricsMock);
 
+        boolean isLegacy = mWifiPermissionsUtil.isLegacyVersion("anything", Build.VERSION_CODES.P);
+
         if (providePmk) {
             when(mPermissionsWrapperMock.getUidPermission(
                     eq(Manifest.permission.CONNECTIVITY_INTERNAL), anyInt())).thenReturn(
@@ -1124,56 +1148,63 @@ public class WifiAwareDataPathStateManagerTest {
         res.mMessenger.send(reqNetworkMsg);
         mMockLooper.dispatchAll();
 
-        // (2) get request & respond
+        // (2) get request & respond (if legacy)
         mDut.onDataPathRequestNotification(pubSubId, peerDiscoveryMac, ndpId);
         mMockLooper.dispatchAll();
-        inOrder.verify(mMockNative).respondToDataPathRequest(transactionId.capture(), eq(true),
-                eq(ndpId), eq(sAwareInterfacePrefix + "0"), eq(providePmk ? pmk : null),
-                eq(providePassphrase ? passphrase : null), eq(useDirect), any());
-        mDut.onRespondToDataPathSetupRequestResponse(transactionId.getValue(), true, 0);
-        mMockLooper.dispatchAll();
-
-        // (3) get confirmation OR timeout
-        if (getConfirmation) {
-            mDut.onDataPathConfirmNotification(ndpId, peerDataPathMac, true, 0,
-                    peerToken.getBytes(), null);
+        if (isLegacy) {
+            inOrder.verify(mMockNative).respondToDataPathRequest(transactionId.capture(), eq(true),
+                    eq(ndpId), eq(sAwareInterfacePrefix + "0"), eq(providePmk ? pmk : null),
+                    eq(providePassphrase ? passphrase : null), eq(useDirect), any());
+            mDut.onRespondToDataPathSetupRequestResponse(transactionId.getValue(), true, 0);
             mMockLooper.dispatchAll();
-            inOrder.verify(mMockNwMgt).setInterfaceUp(anyString());
-            inOrder.verify(mMockNwMgt).enableIpv6(anyString());
-            inOrder.verify(mMockCm).registerNetworkAgent(messengerCaptor.capture(), any(), any(),
-                    any(), anyInt(), any());
-            inOrderM.verify(mAwareMetricsMock).recordNdpStatus(eq(NanStatusType.SUCCESS),
-                    eq(useDirect), anyLong());
-            inOrderM.verify(mAwareMetricsMock).recordNdpCreation(anyInt(), any());
+
+            // (3) get confirmation OR timeout
+            if (getConfirmation) {
+                mDut.onDataPathConfirmNotification(ndpId, peerDataPathMac, true, 0,
+                        peerToken.getBytes(), null);
+                mMockLooper.dispatchAll();
+                inOrder.verify(mMockNwMgt).setInterfaceUp(anyString());
+                inOrder.verify(mMockNwMgt).enableIpv6(anyString());
+                inOrder.verify(mMockCm).registerNetworkAgent(messengerCaptor.capture(), any(),
+                        any(), any(), anyInt(), any());
+                inOrderM.verify(mAwareMetricsMock).recordNdpStatus(eq(NanStatusType.SUCCESS),
+                        eq(useDirect), anyLong());
+                inOrderM.verify(mAwareMetricsMock).recordNdpCreation(anyInt(), any());
+            } else {
+                assertTrue(mAlarmManager.dispatch(
+                        WifiAwareStateManager.HAL_DATA_PATH_CONFIRM_TIMEOUT_TAG));
+                mMockLooper.dispatchAll();
+                inOrder.verify(mMockNative).endDataPath(transactionId.capture(), eq(ndpId));
+                mDut.onEndDataPathResponse(transactionId.getValue(), true, 0);
+                mMockLooper.dispatchAll();
+                inOrderM.verify(mAwareMetricsMock).recordNdpStatus(
+                        eq(NanStatusType.INTERNAL_FAILURE), eq(useDirect), anyLong());
+            }
+
+            // (4) end data-path (unless didn't get confirmation)
+            if (getConfirmation) {
+                Message endNetworkMsg = Message.obtain();
+                endNetworkMsg.what = NetworkFactory.CMD_CANCEL_REQUEST;
+                endNetworkMsg.obj = nr;
+                res.mMessenger.send(endNetworkMsg);
+
+                Message endNetworkUsageMsg = Message.obtain();
+                endNetworkUsageMsg.what = AsyncChannel.CMD_CHANNEL_DISCONNECTED;
+                messengerCaptor.getValue().send(endNetworkUsageMsg);
+
+                mDut.onEndDataPathResponse(transactionId.getValue(), true, 0);
+                mDut.onDataPathEndNotification(ndpId);
+                mMockLooper.dispatchAll();
+
+                inOrder.verify(mMockNwMgt).setInterfaceDown(anyString());
+                inOrder.verify(mMockNative).endDataPath(transactionId.capture(), eq(ndpId));
+                inOrderM.verify(mAwareMetricsMock).recordNdpSessionDuration(anyLong());
+            }
         } else {
-            assertTrue(mAlarmManager.dispatch(
-                    WifiAwareStateManager.HAL_DATA_PATH_CONFIRM_TIMEOUT_TAG));
+            inOrder.verify(mMockNative).respondToDataPathRequest(transactionId.capture(), eq(false),
+                    eq(ndpId), eq(""), eq(null), eq(null), eq(false), any());
+            mDut.onRespondToDataPathSetupRequestResponse(transactionId.getValue(), true, 0);
             mMockLooper.dispatchAll();
-            inOrder.verify(mMockNative).endDataPath(transactionId.capture(), eq(ndpId));
-            mDut.onEndDataPathResponse(transactionId.getValue(), true, 0);
-            mMockLooper.dispatchAll();
-            inOrderM.verify(mAwareMetricsMock).recordNdpStatus(eq(NanStatusType.INTERNAL_FAILURE),
-                    eq(useDirect), anyLong());
-        }
-
-        // (4) end data-path (unless didn't get confirmation)
-        if (getConfirmation) {
-            Message endNetworkMsg = Message.obtain();
-            endNetworkMsg.what = NetworkFactory.CMD_CANCEL_REQUEST;
-            endNetworkMsg.obj = nr;
-            res.mMessenger.send(endNetworkMsg);
-
-            Message endNetworkUsageMsg = Message.obtain();
-            endNetworkUsageMsg.what = AsyncChannel.CMD_CHANNEL_DISCONNECTED;
-            messengerCaptor.getValue().send(endNetworkUsageMsg);
-
-            mDut.onEndDataPathResponse(transactionId.getValue(), true, 0);
-            mDut.onDataPathEndNotification(ndpId);
-            mMockLooper.dispatchAll();
-
-            inOrder.verify(mMockNwMgt).setInterfaceDown(anyString());
-            inOrder.verify(mMockNative).endDataPath(transactionId.capture(), eq(ndpId));
-            inOrderM.verify(mAwareMetricsMock).recordNdpSessionDuration(anyLong());
         }
 
         verifyNoMoreInteractions(mMockNative, mMockCm, mAwareMetricsMock, mMockNwMgt);
@@ -1233,12 +1264,20 @@ public class WifiAwareDataPathStateManagerTest {
 
         NetworkSpecifier ns;
         if (pmk == null && passphrase == null) {
-            ns = discoverySession.getValue().createNetworkSpecifierOpen(peerHandle);
+            ns = createNetworkSpecifier(clientId,
+                    doPublish ? WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_RESPONDER
+                            : WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_INITIATOR, sessionId,
+                    peerHandle, null, null);
         } else if (passphrase == null) {
-            ns = discoverySession.getValue().createNetworkSpecifierPmk(peerHandle, pmk);
+            ns = createNetworkSpecifier(clientId,
+                    doPublish ? WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_RESPONDER
+                            : WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_INITIATOR, sessionId,
+                    peerHandle, pmk, null);
         } else {
-            ns = discoverySession.getValue().createNetworkSpecifierPassphrase(peerHandle,
-                    passphrase);
+            ns = createNetworkSpecifier(clientId,
+                    doPublish ? WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_RESPONDER
+                            : WifiAwareManager.WIFI_AWARE_DATA_PATH_ROLE_INITIATOR, sessionId,
+                    peerHandle, null, passphrase);
         }
 
         NetworkCapabilities nc = new NetworkCapabilities();
@@ -1276,11 +1315,11 @@ public class WifiAwareDataPathStateManagerTest {
 
         NetworkSpecifier ns;
         if (pmk == null && passphrase == null) {
-            ns = sessionCaptor.getValue().createNetworkSpecifierOpen(role, peer);
+            ns = createNetworkSpecifier(clientId, role, peer, null, null);
         } else if (passphrase == null) {
-            ns = sessionCaptor.getValue().createNetworkSpecifierPmk(role, peer, pmk);
+            ns = createNetworkSpecifier(clientId, role, peer, pmk, null);
         } else {
-            ns = sessionCaptor.getValue().createNetworkSpecifierPassphrase(role, peer, passphrase);
+            ns = createNetworkSpecifier(clientId, role, peer, null, passphrase);
         }
         NetworkCapabilities nc = new NetworkCapabilities();
         nc.clearAll();
@@ -1408,6 +1447,44 @@ public class WifiAwareDataPathStateManagerTest {
         }
 
         return null;
+    }
+
+    /**
+     * Copy of DiscoverySession.createNetworkSpecifier - but without any checks! Allows creating
+     * network requests which may not be valid (e.g. for the API level).
+     */
+    public NetworkSpecifier createNetworkSpecifier(int clientId, int role, int sessionId,
+            PeerHandle peerHandle, byte[] pmk, String passphrase) {
+        return new WifiAwareNetworkSpecifier(
+                (peerHandle == null) ? WifiAwareNetworkSpecifier.NETWORK_SPECIFIER_TYPE_IB_ANY_PEER
+                        : WifiAwareNetworkSpecifier.NETWORK_SPECIFIER_TYPE_IB,
+                role,
+                clientId,
+                sessionId,
+                peerHandle != null ? peerHandle.peerId : 0, // 0 is an invalid peer ID
+                null, // peerMac (not used in this method)
+                pmk,
+                passphrase,
+                Process.myUid());
+    }
+
+    /**
+     * Copy of WifiAwareSession.createNetworkSpecifier - but without any checks! Allows creating
+     * network requests which may not be valid (e.g. for the API level).
+     */
+    private NetworkSpecifier createNetworkSpecifier(int clientId, int role, byte[] peer, byte[] pmk,
+            String passphrase) {
+        return new WifiAwareNetworkSpecifier(
+                (peer == null) ? WifiAwareNetworkSpecifier.NETWORK_SPECIFIER_TYPE_OOB_ANY_PEER
+                        : WifiAwareNetworkSpecifier.NETWORK_SPECIFIER_TYPE_OOB,
+                role,
+                clientId,
+                0, // 0 is an invalid session ID
+                0, // 0 is an invalid peer ID
+                peer,
+                pmk,
+                passphrase,
+                Process.myUid());
     }
 
     private static class DataPathEndPointInfo {

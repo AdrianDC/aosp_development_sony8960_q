@@ -106,6 +106,10 @@ public class WifiAwareClientState {
         return mUid;
     }
 
+    public String getCallingPackage() {
+        return mCallingPackage;
+    }
+
     public boolean getNotifyIdentityChange() {
         return mNotifyIdentityChange;
     }
