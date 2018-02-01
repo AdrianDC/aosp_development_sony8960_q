@@ -26,6 +26,7 @@ import android.os.Message;
 import android.util.Log;
 
 import com.android.internal.R;
+import com.android.internal.util.ArrayUtils;
 import com.android.server.wifi.Clock;
 import com.android.server.wifi.ScanDetail;
 import com.android.server.wifi.WifiMonitor;
@@ -461,7 +462,7 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
         synchronized (mSettingsLock) {
             if (scanResults != null && scanResults.size() != 0) {
                 long nowMs = mClock.getElapsedSinceBootMillis();
-                pw.println("    BSSID              Frequency  RSSI  Age(sec)   SSID "
+                pw.println("    BSSID              Frequency      RSSI           Age(sec)     SSID "
                         + "                                Flags");
                 for (ScanDetail scanDetail : scanResults) {
                     ScanResult r = scanDetail.getScanResult();
@@ -477,13 +478,21 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
                         age = String.format("%3.3f", (nowMs - timeStampMs) / 1000.0);
                     }
                     String ssid = r.SSID == null ? "" : r.SSID;
-                    pw.printf("  %17s  %9d  %5d   %7s    %-32s  %s\n",
-                              r.BSSID,
-                              r.frequency,
-                              r.level,
-                              age,
-                              String.format("%1.32s", ssid),
-                              r.capabilities);
+                    String rssiInfo;
+                    if (ArrayUtils.size(r.radioChainInfos) != 2) {
+                        rssiInfo = String.format("%9d         ", r.level);
+                    } else {
+                        rssiInfo = String.format("%5d(%1d:%3d/%1d:%3d)", r.level,
+                                r.radioChainInfos[0].id, r.radioChainInfos[0].level,
+                                r.radioChainInfos[1].id, r.radioChainInfos[1].level);
+                    }
+                    pw.printf("  %17s  %9d  %18s   %7s    %-32s  %s\n",
+                            r.BSSID,
+                            r.frequency,
+                            rssiInfo,
+                            age,
+                            String.format("%1.32s", ssid),
+                            r.capabilities);
                 }
             }
         }
