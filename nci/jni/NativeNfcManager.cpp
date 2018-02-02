@@ -1109,6 +1109,12 @@ static void nfcManager_doEnableDtaMode(JNIEnv*, jobject) {
 static void nfcManager_doDisableDtaMode(JNIEnv*, jobject) {
   gIsDtaEnabled = false;
 }
+
+static void nfcManager_doFactoryReset(JNIEnv*, jobject) {
+  NfcAdaptation& theInstance = NfcAdaptation::GetInstance();
+  theInstance.FactoryReset();
+}
+
 /*******************************************************************************
 **
 ** Function:        nfcManager_enableDiscovery
@@ -1959,6 +1965,7 @@ static JNINativeMethod gMethods[] = {
     {"getNciVersion", "()I", (void*)nfcManager_doGetNciVersion},
     {"doEnableDtaMode", "()V", (void*)nfcManager_doEnableDtaMode},
     {"doDisableDtaMode", "()V", (void*)nfcManager_doDisableDtaMode},
+    {"doFactoryReset", "()V", (void*)nfcManager_doFactoryReset},
 
     {"getIsoDepMaxTransceiveLength", "()I",
      (void*)nfcManager_getIsoDepMaxTransceiveLength}
