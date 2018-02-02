@@ -2098,7 +2098,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             List<ScanResult> scanResults = mSingleScanStateMachine.getCachedScanResultsAsList();
             long nowMs = mClock.getElapsedSinceBootMillis();
             if (scanResults != null && scanResults.size() != 0) {
-                pw.println("    BSSID              Frequency  RSSI  Age(sec)   SSID "
+                pw.println("    BSSID              Frequency      RSSI           Age(sec)     SSID "
                         + "                                Flags");
                 for (ScanResult r : scanResults) {
                     long timeStampMs = r.timestamp / 1000;
@@ -2113,13 +2113,21 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                         age = String.format("%3.3f", (nowMs - timeStampMs) / 1000.0);
                     }
                     String ssid = r.SSID == null ? "" : r.SSID;
-                    pw.printf("  %17s  %9d  %5d   %7s    %-32s  %s\n",
-                              r.BSSID,
-                              r.frequency,
-                              r.level,
-                              age,
-                              String.format("%1.32s", ssid),
-                              r.capabilities);
+                    String rssiInfo;
+                    if (ArrayUtils.size(r.radioChainInfos) != 2) {
+                        rssiInfo = String.format("%9d         ", r.level);
+                    } else {
+                        rssiInfo = String.format("%5d(%1d:%3d/%1d:%3d)", r.level,
+                                r.radioChainInfos[0].id, r.radioChainInfos[0].level,
+                                r.radioChainInfos[1].id, r.radioChainInfos[1].level);
+                    }
+                    pw.printf("  %17s  %9d  %18s   %7s    %-32s  %s\n",
+                            r.BSSID,
+                            r.frequency,
+                            rssiInfo,
+                            age,
+                            String.format("%1.32s", ssid),
+                            r.capabilities);
                 }
             }
             pw.println();
