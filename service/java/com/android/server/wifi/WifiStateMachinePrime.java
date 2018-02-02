@@ -21,6 +21,7 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
 import android.os.Looper;
 import android.os.Message;
+import android.util.ArraySet;
 import android.util.Log;
 
 import com.android.internal.util.Protocol;
@@ -41,10 +42,8 @@ public class WifiStateMachinePrime {
 
     private ModeStateMachine mModeStateMachine;
 
-    // While we are still under the control of a StateMachine, we will only have one
-    // ActiveModeManager at a given time.  This will be relaxed when we are not under the single
-    // mode restriction.
-    private ActiveModeManager mActiveModeManager;
+    // Holder for active mode managers
+    private final ArraySet<ActiveModeManager> mActiveModeManagers;
     // DefaultModeManager used to service API calls when there are not active mode managers.
     private DefaultModeManager mDefaultModeManager;
 
@@ -94,6 +93,7 @@ public class WifiStateMachinePrime {
         mWifiInjector = wifiInjector;
         mLooper = looper;
         mWifiNative = wifiNative;
+        mActiveModeManagers = new ArraySet();
         mDefaultModeManager = defaultModeManager;
         mModeStateMachine = new ModeStateMachine();
     }
@@ -209,6 +209,7 @@ public class WifiStateMachinePrime {
         }
 
         class ModeActiveState extends State {
+            ActiveModeManager mManager;
             @Override
             public boolean processMessage(Message message) {
                 // handle messages for changing modes here
@@ -217,9 +218,13 @@ public class WifiStateMachinePrime {
 
             @Override
             public void exit() {
-                // clean up objects from an active state - check with mode handlers to make sure
-                // they are stopping properly.
-                mActiveModeManager.stop();
+                // Active states must have a mode manager, so this should not be null, but it isn't
+                // obvious from the structure - add a null check here, just in case this is missed
+                // in the future
+                if (mManager != null) {
+                    mManager.stop();
+                }
+                mActiveModeManagers.remove(mManager);
             }
         }
 
@@ -250,7 +255,8 @@ public class WifiStateMachinePrime {
         class ClientModeActiveState extends ModeActiveState {
             @Override
             public void enter() {
-                mActiveModeManager = new ClientModeManager();
+                mManager = new ClientModeManager();
+                mActiveModeManagers.add(mManager);
             }
 
             @Override
@@ -289,8 +295,9 @@ public class WifiStateMachinePrime {
                 // make sure everything is torn down - remove when client mode is moved here
                 cleanup();
 
-                mActiveModeManager = mWifiInjector.makeScanOnlyModeManager(new ScanOnlyListener());
-                mActiveModeManager.start();
+                mManager = mWifiInjector.makeScanOnlyModeManager(new ScanOnlyListener());
+                mManager.start();
+                mActiveModeManagers.add(mManager);
             }
 
             @Override
@@ -360,9 +367,10 @@ public class WifiStateMachinePrime {
                 } else {
                     config = null;
                 }
-                mActiveModeManager = mWifiInjector.makeSoftApManager(
+                mManager = mWifiInjector.makeSoftApManager(
                         new SoftApCallbackImpl(), softApModeConfig);
-                mActiveModeManager.start();
+                mManager.start();
+                mActiveModeManagers.add(mManager);
             }
 
             @Override
@@ -376,7 +384,7 @@ public class WifiStateMachinePrime {
                         Log.d(TAG, "Received CMD_START_AP when active - invalid message - drop");
                         break;
                     case CMD_STOP_AP:
-                        mActiveModeManager.stop();
+                        mManager.stop();
                         break;
                     case CMD_START_AP_FAILURE:
                         Log.d(TAG, "Failed to start SoftApMode.  Return to WifiDisabledState.");
