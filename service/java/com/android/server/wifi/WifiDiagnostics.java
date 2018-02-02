@@ -435,11 +435,6 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
     }
 
     private boolean fetchRingBuffers() {
-        if (mBuildProperties.isUserBuild()) {
-            mRingBuffers = null;
-            return false;
-        }
-
         if (mRingBuffers != null) return true;
 
         mRingBuffers = mWifiNative.getRingBufferStatus();
@@ -471,10 +466,6 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
 
         if (mRingBuffers == null) {
             if (DBG) mLog.tC("No ring buffers to log anything!");
-            return false;
-        }
-
-        if (!isVerboseLoggingEnabled()) {
             return false;
         }
 
