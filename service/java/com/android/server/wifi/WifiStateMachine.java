@@ -4860,7 +4860,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     SupplicantState state = handleSupplicantStateChange(message);
                     // A driver/firmware hang can now put the interface in a down state.
                     // We detect the interface going down and recover from it
-                    if (!SupplicantState.isDriverActive(state) && !mModeChange) {
+                    if (!SupplicantState.isDriverActive(state) && !mModeChange
+                            && !mEnableConnectedMacRandomization.get()) {
                         if (mNetworkInfo.getState() != NetworkInfo.State.DISCONNECTED) {
                             handleNetworkDisconnect();
                         }
