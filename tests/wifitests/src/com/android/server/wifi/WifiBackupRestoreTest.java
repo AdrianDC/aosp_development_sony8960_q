@@ -775,12 +775,14 @@ public class WifiBackupRestoreTest {
     private byte[] createIpConfBackupData(List<WifiConfiguration> configurations) {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream out = new DataOutputStream(bos);
+        final int configStoreVersion = 2;
         try {
             // write version first.
-            out.writeInt(2);
+            out.writeInt(configStoreVersion);
             for (WifiConfiguration configuration : configurations) {
-                IpConfigStore.writeConfig(out, configuration.configKey().hashCode(),
-                        configuration.getIpConfiguration());
+                // TODO: store configKey as a string instead of calculating its hash
+                IpConfigStore.writeConfig(out, String.valueOf(configuration.configKey().hashCode()),
+                        configuration.getIpConfiguration(), configStoreVersion);
             }
             out.flush();
             return bos.toByteArray();
