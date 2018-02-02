@@ -914,6 +914,7 @@ public class WifiConnectivityManager {
         SingleScanListener singleScanListener =
                 new SingleScanListener(isFullBandScan);
         mScanner.startScan(settings, singleScanListener, workSource);
+        mWifiMetrics.incrementConnectivityOneshotScanCount();
     }
 
     // Start a periodic scan when screen is on

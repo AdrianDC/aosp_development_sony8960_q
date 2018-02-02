@@ -237,6 +237,7 @@ public class WifiMetricsTest {
     private static final int NUM_HOTSPOT2_R1_NETWORK_SCAN_RESULTS = 1;
     private static final int NUM_HOTSPOT2_R2_NETWORK_SCAN_RESULTS = 2;
     private static final int NUM_SCANS = 5;
+    private static final int NUM_CONNECTIVITY_ONESHOT_SCAN_EVENT = 4;
     private static final int NUM_TOTAL_SCAN_RESULTS = 8;
     private static final int MIN_RSSI_LEVEL = -127;
     private static final int MAX_RSSI_LEVEL = 0;
@@ -482,6 +483,11 @@ public class WifiMetricsTest {
         for (int i = 0; i < NUM_SCANS; i++) {
             mWifiMetrics.countScanResults(mockScanDetails);
         }
+        // increment connectivity scan metrics
+        for (int i = 0; i < NUM_CONNECTIVITY_ONESHOT_SCAN_EVENT; i++) {
+            mWifiMetrics.incrementConnectivityOneshotScanCount();
+        }
+
         for (int score = WIFI_SCORE_RANGE_MIN; score < NUM_WIFI_SCORES_TO_INCREMENT; score++) {
             for (int offset = 0; offset <= score; offset++) {
                 mWifiMetrics.incrementWifiScoreCount(WIFI_SCORE_RANGE_MIN + score);
@@ -748,6 +754,9 @@ public class WifiMetricsTest {
                 mDecodedProto.numHotspot2R2NetworkScanResults);
         assertEquals(NUM_SCANS,
                 mDecodedProto.numScans);
+        assertEquals(NUM_CONNECTIVITY_ONESHOT_SCAN_EVENT,
+                mDecodedProto.numConnectivityOneshotScans);
+
         for (int score_index = 0; score_index < NUM_WIFI_SCORES_TO_INCREMENT; score_index++) {
             assertEquals(WIFI_SCORE_RANGE_MIN + score_index,
                     mDecodedProto.wifiScoreCount[score_index].score);
