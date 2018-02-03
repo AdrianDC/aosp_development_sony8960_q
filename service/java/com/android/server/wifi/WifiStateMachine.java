@@ -75,7 +75,6 @@ import android.net.wifi.hotspot2.OsuProvider;
 import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.net.wifi.p2p.IWifiP2pManager;
 import android.os.BatteryStats;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.Looper;
@@ -1777,35 +1776,10 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     /**
      * Get status information for the current connection, if any.
      *
-     * @param callingPackage string indicating the calling package of the caller
-     * @param uid the calling uid
      * @return a {@link WifiInfo} object containing information about the current connection
      */
-    public WifiInfo syncRequestConnectionInfo(String callingPackage, int uid) {
+    public WifiInfo syncRequestConnectionInfo() {
         WifiInfo result = new WifiInfo(mWifiInfo);
-        boolean hideBssidAndSsid = true;
-        result.setMacAddress(WifiInfo.DEFAULT_MAC_ADDRESS);
-
-        try {
-            if (mWifiPermissionsWrapper.getLocalMacAddressPermission(uid)
-                    == PackageManager.PERMISSION_GRANTED) {
-                result.setMacAddress(mWifiInfo.getMacAddress());
-            }
-            if (mWifiPermissionsUtil.canAccessScanResults(
-                    callingPackage,
-                    uid,
-                    Build.VERSION_CODES.O)) {
-                hideBssidAndSsid = false;
-            }
-        } catch (RemoteException e) {
-            Log.e(TAG, "Error checking receiver permission", e);
-        } catch (SecurityException e) {
-            Log.e(TAG, "Security exception checking receiver permission", e);
-        }
-        if (hideBssidAndSsid) {
-            result.setBSSID(WifiInfo.DEFAULT_MAC_ADDRESS);
-            result.setSSID(WifiSsid.createFromHex(null));
-        }
         return result;
     }
 

@@ -36,11 +36,9 @@ import static android.net.wifi.WifiManager.WIFI_AP_STATE_FAILED;
 import static android.net.wifi.WifiManager.WIFI_STATE_DISABLED;
 import static android.provider.Settings.Secure.LOCATION_MODE_HIGH_ACCURACY;
 import static android.provider.Settings.Secure.LOCATION_MODE_OFF;
-
 import static com.android.server.wifi.LocalOnlyHotspotRequestInfo.HOTSPOT_NO_ERROR;
 import static com.android.server.wifi.WifiController.CMD_SET_AP;
 import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -66,9 +64,11 @@ import android.net.wifi.ISoftApCallback;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
+import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiManager.LocalOnlyHotspotCallback;
 import android.net.wifi.WifiManager.SoftApCallback;
+import android.net.wifi.WifiSsid;
 import android.net.wifi.hotspot2.IProvisioningCallback;
 import android.net.wifi.hotspot2.OsuProvider;
 import android.net.wifi.hotspot2.PasspointConfiguration;
@@ -93,6 +93,7 @@ import com.android.server.wifi.WifiServiceImpl.LocalOnlyRequestorCallback;
 import com.android.server.wifi.hotspot2.PasspointProvisioningTestUtil;
 import com.android.server.wifi.util.WifiAsyncChannel;
 import com.android.server.wifi.util.WifiPermissionsUtil;
+import com.android.server.wifi.util.WifiPermissionsWrapper;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -168,6 +169,7 @@ public class WifiServiceImplTest {
     @Mock WifiBackupRestore mWifiBackupRestore;
     @Mock WifiMetrics mWifiMetrics;
     @Mock WifiPermissionsUtil mWifiPermissionsUtil;
+    @Mock WifiPermissionsWrapper mWifiPermissionsWrapper;
     @Mock WifiSettingsStore mSettingsStore;
     @Mock ContentResolver mContentResolver;
     @Mock PackageManager mPackageManager;
@@ -297,6 +299,7 @@ public class WifiServiceImplTest {
         when(mWifiInjector.makeLog(anyString())).thenReturn(mLog);
         when(mWifiInjector.getWifiTrafficPoller()).thenReturn(mWifiTrafficPoller);
         when(mWifiInjector.getWifiPermissionsUtil()).thenReturn(mWifiPermissionsUtil);
+        when(mWifiInjector.getWifiPermissionsWrapper()).thenReturn(mWifiPermissionsWrapper);
         when(mWifiInjector.getWifiSettingsStore()).thenReturn(mSettingsStore);
         when(mWifiInjector.getClock()).thenReturn(mClock);
         when(mWifiInjector.getScanRequestProxy()).thenReturn(mScanRequestProxy);
@@ -873,6 +876,69 @@ public class WifiServiceImplTest {
                 ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE);
         mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
         verify(mScanRequestProxy, never()).startScan(Process.myUid());
+    }
+
+    static final String TEST_SSID = "Sid's Place";
+    static final String TEST_SSID_WITH_QUOTES = "\"" + TEST_SSID + "\"";
+    static final String TEST_BSSID = "01:02:03:04:05:06";
+    static final String TEST_PACKAGE = "package";
+
+    private void setupForGetConnectionInfo() {
+        WifiInfo wifiInfo = new WifiInfo();
+        wifiInfo.setSSID(WifiSsid.createFromAsciiEncoded(TEST_SSID));
+        wifiInfo.setBSSID(TEST_BSSID);
+        when(mWifiStateMachine.syncRequestConnectionInfo()).thenReturn(wifiInfo);
+    }
+
+    /**
+     * Test that connected SSID and BSSID are not exposed to an app that does not have the
+     * appropriate permissions.
+     */
+    @Test
+    public void testConnectedIdsAreHiddenFromAppWithoutPermission() throws Exception {
+        setupForGetConnectionInfo();
+
+        when(mWifiPermissionsUtil.canAccessScanResults(anyString(), anyInt(), anyInt()))
+                .thenReturn(false);
+
+        WifiInfo connectionInfo = mWifiServiceImpl.getConnectionInfo(TEST_PACKAGE);
+
+        assertEquals(WifiSsid.NONE, connectionInfo.getSSID());
+        assertEquals(WifiInfo.DEFAULT_MAC_ADDRESS, connectionInfo.getBSSID());
+    }
+
+    /**
+     * Test that connected SSID and BSSID are not exposed to an app that does not have the
+     * appropriate permissions, when canAccessScanResults raises a SecurityException.
+     */
+    @Test
+    public void testConnectedIdsAreHiddenOnSecurityException() throws Exception {
+        setupForGetConnectionInfo();
+
+        when(mWifiPermissionsUtil.canAccessScanResults(anyString(), anyInt(), anyInt()))
+                .thenThrow(new SecurityException());
+
+        WifiInfo connectionInfo = mWifiServiceImpl.getConnectionInfo(TEST_PACKAGE);
+
+        assertEquals(WifiSsid.NONE, connectionInfo.getSSID());
+        assertEquals(WifiInfo.DEFAULT_MAC_ADDRESS, connectionInfo.getBSSID());
+    }
+
+    /**
+     * Test that connected SSID and BSSID are exposed to an app that does have the
+     * appropriate permissions.
+     */
+    @Test
+    public void testConnectedIdsAreVisibleFromPermittedApp() throws Exception {
+        setupForGetConnectionInfo();
+
+        when(mWifiPermissionsUtil.canAccessScanResults(anyString(), anyInt(), anyInt()))
+                .thenReturn(true);
+
+        WifiInfo connectionInfo = mWifiServiceImpl.getConnectionInfo(TEST_PACKAGE);
+
+        assertEquals(TEST_SSID_WITH_QUOTES, connectionInfo.getSSID());
+        assertEquals(TEST_BSSID, connectionInfo.getBSSID());
     }
 
     /**

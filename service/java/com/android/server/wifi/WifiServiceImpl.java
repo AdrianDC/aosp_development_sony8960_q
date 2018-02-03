@@ -28,7 +28,6 @@ import static android.net.wifi.WifiManager.SAP_START_FAILURE_NO_CHANNEL;
 import static android.net.wifi.WifiManager.WIFI_AP_STATE_DISABLED;
 import static android.net.wifi.WifiManager.WIFI_AP_STATE_DISABLING;
 import static android.net.wifi.WifiManager.WIFI_AP_STATE_FAILED;
-
 import static com.android.server.wifi.LocalOnlyHotspotRequestInfo.HOTSPOT_NO_ERROR;
 import static com.android.server.wifi.WifiController.CMD_AIRPLANE_TOGGLED;
 import static com.android.server.wifi.WifiController.CMD_EMERGENCY_CALL_STATE_CHANGED;
@@ -69,6 +68,7 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiManager.LocalOnlyHotspotCallback;
+import android.net.wifi.WifiSsid;
 import android.net.wifi.hotspot2.IProvisioningCallback;
 import android.net.wifi.hotspot2.OsuProvider;
 import android.net.wifi.hotspot2.PasspointConfiguration;
@@ -1938,13 +1938,35 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         enforceAccessPermission();
         int uid = Binder.getCallingUid();
         mLog.info("getConnectionInfo uid=%").c(uid).flush();
-        /*
-         * Make sure we have the latest information, by sending
-         * a status request to the supplicant.
-         */
         long ident = Binder.clearCallingIdentity();
         try {
-            WifiInfo result = mWifiStateMachine.syncRequestConnectionInfo(callingPackage, uid);
+            WifiInfo result = mWifiStateMachine.syncRequestConnectionInfo();
+            boolean hideDefaultMacAddress = true;
+            boolean hideBssidAndSsid = true;
+
+            try {
+                if (mWifiInjector.getWifiPermissionsWrapper().getLocalMacAddressPermission(uid)
+                        == PackageManager.PERMISSION_GRANTED) {
+                    hideDefaultMacAddress = false;
+                }
+                if (mWifiPermissionsUtil.canAccessScanResults(
+                        callingPackage,
+                        uid,
+                        Build.VERSION_CODES.O)) {
+                    hideBssidAndSsid = false;
+                }
+            } catch (RemoteException e) {
+                Log.e(TAG, "Error checking receiver permission", e);
+            } catch (SecurityException e) {
+                Log.e(TAG, "Security exception checking receiver permission", e);
+            }
+            if (hideDefaultMacAddress) {
+                result.setMacAddress(WifiInfo.DEFAULT_MAC_ADDRESS);
+            }
+            if (hideBssidAndSsid) {
+                result.setBSSID(WifiInfo.DEFAULT_MAC_ADDRESS);
+                result.setSSID(WifiSsid.createFromHex(null));
+            }
             return result;
         } finally {
             Binder.restoreCallingIdentity(ident);
