@@ -829,16 +829,22 @@ public class SupplicantStaIfaceHalTest {
     @Test
     public void testSetCurrentNetworkEapIdentityResponse() throws Exception {
         String identity = "blah@blah.com";
-        when(mSupplicantStaNetworkMock.sendNetworkEapIdentityResponse(eq(identity)))
+        String encryptedIdentity = "blah2@blah.com";
+        when(mSupplicantStaNetworkMock.sendNetworkEapIdentityResponse(eq(identity),
+                eq(encryptedIdentity)))
                 .thenReturn(true);
 
         executeAndValidateInitializationSequence();
         // Fail when not connected to a network.
-        assertFalse(mDut.sendCurrentNetworkEapIdentityResponse(WLAN0_IFACE_NAME, identity));
-        verify(mSupplicantStaNetworkMock, never()).sendNetworkEapIdentityResponse(eq(identity));
+        assertFalse(mDut.sendCurrentNetworkEapIdentityResponse(WLAN0_IFACE_NAME, identity,
+                encryptedIdentity));
+        verify(mSupplicantStaNetworkMock, never()).sendNetworkEapIdentityResponse(eq(identity),
+                eq(encryptedIdentity));
         executeAndValidateConnectSequence(4, false);
-        assertTrue(mDut.sendCurrentNetworkEapIdentityResponse(WLAN0_IFACE_NAME, identity));
-        verify(mSupplicantStaNetworkMock).sendNetworkEapIdentityResponse(eq(identity));
+        assertTrue(mDut.sendCurrentNetworkEapIdentityResponse(WLAN0_IFACE_NAME, identity,
+                encryptedIdentity));
+        verify(mSupplicantStaNetworkMock).sendNetworkEapIdentityResponse(eq(identity),
+                eq(encryptedIdentity));
     }
 
     /**
