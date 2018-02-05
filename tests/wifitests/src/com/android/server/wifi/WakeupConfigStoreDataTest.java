@@ -16,6 +16,8 @@
 
 package com.android.server.wifi;
 
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -169,5 +171,31 @@ public class WakeupConfigStoreDataTest {
         verify(mActiveDataSource).setData(false);
         verify(mIsOnboardedDataSource).setData(false);
         verify(mNetworkDataSource).setData(eq(Collections.emptySet()));
+    }
+
+    /**
+     * Verify that hasBeenRead returns false on newly instantiated WakeupConfigStoreData.
+     */
+    @Test
+    public void hasBeenReadIsFalseWhenInitialized() {
+        assertFalse(mWakeupConfigData.hasBeenRead());
+    }
+
+    /**
+     * Verify that hasBeenRead returns true after the user store has been read.
+     */
+    @Test
+    public void hasBeenReadIsTrueWhenUserStoreIsLoaded() throws Exception {
+        mWakeupConfigData.deserializeData(null /* in */, 0 /* outerTagDepth */, false /* shared */);
+        assertTrue(mWakeupConfigData.hasBeenRead());
+    }
+
+    /**
+     * Verify that hasBeenRead returns false if only the shared store has been read.
+     */
+    @Test
+    public void hasBeenReadIsFalseWhenSharedStoreIsLoaded() throws Exception {
+        mWakeupConfigData.deserializeData(null /* in */, 0 /* outerTagDepth */, true /* shared */);
+        assertFalse(mWakeupConfigData.hasBeenRead());
     }
 }
