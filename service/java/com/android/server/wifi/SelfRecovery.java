@@ -83,7 +83,7 @@ public class SelfRecovery {
             }
             mPastRestartTimes.add(mClock.getElapsedSinceBootMillis());
         }
-        mWifiController.sendMessage(WifiController.CMD_RESTART_WIFI);
+        mWifiController.sendMessage(WifiController.CMD_RESTART_WIFI, REASON_STRINGS[reason]);
     }
 
     /**

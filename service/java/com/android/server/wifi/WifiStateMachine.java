@@ -1831,8 +1831,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
     /**
      * Initiates a system-level bugreport, in a non-blocking fashion.
      */
-    public void takeBugReport() {
-        mWifiDiagnostics.takeBugReport();
+    public void takeBugReport(String bugTitle, String bugDetail) {
+        mWifiDiagnostics.takeBugReport(bugTitle, bugDetail);
     }
 
     /**

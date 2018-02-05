@@ -54,8 +54,10 @@ public class BaseWifiDiagnostics {
     /**
      * Starts taking a standard android bugreport
      * android will prompt the user to send the bugreport when it's complete
+     * @param bugTitle Title of bugreport to generate
+     * @param bugDetail Description of the bugreport to generate
      */
-    public void takeBugReport() { }
+    public void takeBugReport(String bugTitle, String bugDetail) { }
 
     protected synchronized void dump(PrintWriter pw) {
         pw.println("Chipset information :-----------------------------------------------");
