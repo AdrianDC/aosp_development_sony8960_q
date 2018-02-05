@@ -100,6 +100,20 @@ public class NativeNfcManager implements DeviceHost {
         doDisableDtaMode();
     }
 
+    private native void doFactoryReset();
+
+    @Override
+    public void factoryReset() {
+        doFactoryReset();
+    }
+
+    private native void doShutdown();
+
+    @Override
+    public void shutdown() {
+        doShutdown();
+    }
+
     private native boolean doDeinitialize();
 
     @Override
@@ -415,4 +429,7 @@ public class NativeNfcManager implements DeviceHost {
         mListener.onRemoteFieldDeactivated();
     }
 
+    private void notifyTransactionListeners(byte[] aid, byte[] data, String evtSrc) {
+        mListener.onNfcTransactionEvent(aid, data, evtSrc);
+    }
 }

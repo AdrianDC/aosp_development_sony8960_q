@@ -22,6 +22,7 @@
 #include <nativehelper/ScopedPrimitiveArray.h>
 #include <nativehelper/ScopedUtfChars.h>
 #include <semaphore.h>
+#include "HciEventManager.h"
 #include "JavaClassConstants.h"
 #include "NfcAdaptation.h"
 #include "NfcJniUtil.h"
@@ -659,6 +660,9 @@ static jboolean nfcManager_initNativeStruc(JNIEnv* e, jobject o) {
   gCachedNfcManagerNotifyRfFieldDeactivated =
       e->GetMethodID(cls.get(), "notifyRfFieldDeactivated", "()V");
 
+  gCachedNfcManagerNotifyTransactionListeners = e->GetMethodID(
+      cls.get(), "notifyTransactionListeners", "([B[BLjava/lang/String;)V");
+
   if (nfc_jni_cache_object(e, gNativeNfcTagClassName, &(nat->cached_NfcTag)) ==
       -1) {
     LOG(ERROR) << StringPrintf("%s: fail cache NativeNfcTag", __func__);
@@ -1031,6 +1035,7 @@ static jboolean nfcManager_doInitialize(JNIEnv* e, jobject o) {
         NfcTag::getInstance().initialize(getNative(e, o));
         PeerToPeer::getInstance().initialize();
         PeerToPeer::getInstance().handleNfcOnOff(true);
+        HciEventManager::getInstance().initialize(getNative(e, o));
 
         /////////////////////////////////////////////////////////////////////////////////
         // Add extra configuration here (work-arounds, etc.)
@@ -1108,6 +1113,16 @@ static void nfcManager_doEnableDtaMode(JNIEnv*, jobject) {
 
 static void nfcManager_doDisableDtaMode(JNIEnv*, jobject) {
   gIsDtaEnabled = false;
+}
+
+static void nfcManager_doFactoryReset(JNIEnv*, jobject) {
+  NfcAdaptation& theInstance = NfcAdaptation::GetInstance();
+  theInstance.FactoryReset();
+}
+
+static void nfcManager_doShutdown(JNIEnv*, jobject) {
+  NfcAdaptation& theInstance = NfcAdaptation::GetInstance();
+  theInstance.DeviceShutdown();
 }
 /*******************************************************************************
 **
@@ -1411,6 +1426,7 @@ static jboolean nfcManager_doDeinitialize(JNIEnv*, jobject) {
   pn544InteropAbortNow();
   RoutingManager::getInstance().onNfccShutdown();
   PowerSwitch::getInstance().initialize(PowerSwitch::UNKNOWN_LEVEL);
+  HciEventManager::getInstance().finalize();
 
   if (sIsNfaEnabled) {
     SyncEventGuard guard(sNfaDisableEvent);
@@ -1959,6 +1975,8 @@ static JNINativeMethod gMethods[] = {
     {"getNciVersion", "()I", (void*)nfcManager_doGetNciVersion},
     {"doEnableDtaMode", "()V", (void*)nfcManager_doEnableDtaMode},
     {"doDisableDtaMode", "()V", (void*)nfcManager_doDisableDtaMode},
+    {"doFactoryReset", "()V", (void*)nfcManager_doFactoryReset},
+    {"doShutdown", "()V", (void*)nfcManager_doShutdown},
 
     {"getIsoDepMaxTransceiveLength", "()I",
      (void*)nfcManager_getIsoDepMaxTransceiveLength}

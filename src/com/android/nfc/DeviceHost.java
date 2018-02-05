@@ -47,6 +47,8 @@ public interface DeviceHost {
         public void onRemoteFieldActivated();
 
         public void onRemoteFieldDeactivated();
+
+        public void onNfcTransactionEvent(byte[] aid, byte[] data, String seName);
     }
 
     public interface TagEndpoint {
@@ -246,4 +248,8 @@ public interface DeviceHost {
     public void enableDtaMode();
 
     public void disableDtaMode();
+
+    public void factoryReset();
+
+    public void shutdown();
 }
