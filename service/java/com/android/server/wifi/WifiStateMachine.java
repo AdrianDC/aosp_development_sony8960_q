@@ -3797,6 +3797,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         }
         MacAddress currentMac = MacAddress.fromString(mWifiNative.getMacAddress(mInterfaceName));
         MacAddress newMac = config.getOrCreateRandomizedMacAddress();
+        mWifiConfigManager.setNetworkRandomizedMacAddress(config.networkId, newMac);
 
         if (currentMac.equals(newMac)) {
             Log.i(TAG, "No changes in MAC address");

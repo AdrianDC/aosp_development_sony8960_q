@@ -356,6 +356,21 @@ public class HostapdHal {
     }
 
     /**
+     * Terminate the hostapd daemon.
+     */
+    public void terminate() {
+        synchronized (mLock) {
+            final String methodStr = "terminate";
+            if (!checkHostapdAndLogFailure(methodStr)) return;
+            try {
+                mIHostapd.terminate();
+            } catch (RemoteException e) {
+                handleRemoteException(e, methodStr);
+            }
+        }
+    }
+
+    /**
      * Wrapper functions to access static HAL methods, created to be mockable in unit tests
      */
     @VisibleForTesting

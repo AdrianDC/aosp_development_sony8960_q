@@ -25,6 +25,7 @@ import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.net.IpConfiguration;
+import android.net.MacAddress;
 import android.net.ProxyInfo;
 import android.net.StaticIpConfiguration;
 import android.net.wifi.ScanResult;
@@ -1608,7 +1609,7 @@ public class WifiConfigManager {
     /**
      * Set default GW MAC address for the provided network.
      *
-     * @param networkId  network ID corresponding to the network.
+     * @param networkId network ID corresponding to the network.
      * @param macAddress MAC address of the gateway to be set.
      * @return true if the network was found, false otherwise.
      */
@@ -1618,6 +1619,22 @@ public class WifiConfigManager {
             return false;
         }
         config.defaultGwMacAddress = macAddress;
+        return true;
+    }
+
+    /**
+     * Set randomized MAC address for the provided network.
+     *
+     * @param networkId network ID corresponding to the network.
+     * @param macAddress Randomized MAC address to be used for network connection.
+     * @return true if the network was found, false otherwise.
+    */
+    public boolean setNetworkRandomizedMacAddress(int networkId, MacAddress macAddress) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            return false;
+        }
+        config.setRandomizedMacAddress(macAddress);
         return true;
     }
 

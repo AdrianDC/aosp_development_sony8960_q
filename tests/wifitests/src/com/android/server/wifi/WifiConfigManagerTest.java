@@ -28,6 +28,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.UserInfo;
 import android.net.IpConfiguration;
+import android.net.MacAddress;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
@@ -3442,6 +3443,30 @@ public class WifiConfigManagerTest {
 
         assertNotEquals(retrievedNetwork.BSSID, bssid);
         assertEquals(retrievedNetwork.BSSID, bssid.toLowerCase());
+    }
+
+    /**
+     * Verifies that the method setNetworkRandomizedMacAddress changes the randomized MAC
+     * address variable in the internal configuration.
+     */
+    @Test
+    public void testSetNetworkRandomizedMacAddressUpdatesInternalMacAddress() {
+        WifiConfiguration originalConfig = WifiConfigurationTestUtil.createOpenNetwork();
+        NetworkUpdateResult result = verifyAddNetworkToWifiConfigManager(originalConfig);
+
+        // Verify that internal randomized MAC address does not change from
+        // from setting external randomized MAC address
+        MacAddress originalMac = originalConfig.getOrCreateRandomizedMacAddress();
+        WifiConfiguration retrievedConfig =
+                mWifiConfigManager.getConfiguredNetwork(result.getNetworkId());
+        assertNotEquals(originalMac, retrievedConfig.getRandomizedMacAddress());
+
+        // Verify that changing randomized MAC address through setNetworkRandomizedMacAddress
+        // changes the internal randomized MAC address
+        MacAddress newMac = MacAddress.createRandomUnicastAddress();
+        mWifiConfigManager.setNetworkRandomizedMacAddress(result.getNetworkId(), newMac);
+        retrievedConfig = mWifiConfigManager.getConfiguredNetwork(result.getNetworkId());
+        assertEquals(newMac, retrievedConfig.getRandomizedMacAddress());
     }
 
     private NetworkUpdateResult verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
