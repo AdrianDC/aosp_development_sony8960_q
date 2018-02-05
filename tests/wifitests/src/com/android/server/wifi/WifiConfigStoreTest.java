@@ -22,6 +22,7 @@ import static org.mockito.Mockito.*;
 import android.app.test.TestAlarmManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.net.MacAddress;
 import android.net.wifi.WifiConfiguration;
 import android.os.test.TestLooper;
 import android.support.test.filters.SmallTest;
@@ -62,6 +63,8 @@ public class WifiConfigStoreTest {
     private static final String TEST_USER_DATA = "UserData";
     private static final String TEST_SHARE_DATA = "ShareData";
     private static final String TEST_CREATOR_NAME = "CreatorName";
+    private static final MacAddress TEST_RANDOMIZED_MAC =
+            MacAddress.fromString("da:a1:19:c4:26:fa");
 
     private static final String TEST_DATA_XML_STRING_FORMAT =
             "<?xml version='1.0' encoding='utf-8' standalone='yes' ?>\n"
@@ -104,6 +107,7 @@ public class WifiConfigStoreTest {
                     + "<int name=\"LastConnectUid\" value=\"0\" />\n"
                     + "<boolean name=\"IsLegacyPasspointConfig\" value=\"false\" />\n"
                     + "<long-array name=\"RoamingConsortiumOIs\" num=\"0\" />\n"
+                    + "<string name=\"RandomizedMacAddress\">%s</string>\n"
                     + "</WifiConfiguration>\n"
                     + "<NetworkStatus>\n"
                     + "<string name=\"SelectionStatus\">NETWORK_SELECTION_ENABLED</string>\n"
@@ -415,6 +419,7 @@ public class WifiConfigStoreTest {
         openNetwork.creatorName = TEST_CREATOR_NAME;
         openNetwork.setIpConfiguration(
                 WifiConfigurationTestUtil.createDHCPIpConfigurationWithNoProxy());
+        openNetwork.setRandomizedMacAddress(TEST_RANDOMIZED_MAC);
         List<WifiConfiguration> userConfigs = new ArrayList<>();
         userConfigs.add(openNetwork);
 
@@ -430,7 +435,8 @@ public class WifiConfigStoreTest {
         String xmlString = String.format(TEST_DATA_XML_STRING_FORMAT,
                 openNetwork.configKey().replaceAll("\"", "&quot;"),
                 openNetwork.SSID.replaceAll("\"", "&quot;"),
-                openNetwork.shared, openNetwork.creatorUid, openNetwork.creatorName, testSsid);
+                openNetwork.shared, openNetwork.creatorUid, openNetwork.creatorName,
+                openNetwork.getRandomizedMacAddress(), testSsid);
         byte[] xmlBytes = xmlString.getBytes(StandardCharsets.UTF_8);
         mUserStore.storeRawDataToWrite(xmlBytes);
 
@@ -458,6 +464,7 @@ public class WifiConfigStoreTest {
         openNetwork.creatorName = TEST_CREATOR_NAME;
         openNetwork.setIpConfiguration(
                 WifiConfigurationTestUtil.createDHCPIpConfigurationWithNoProxy());
+        openNetwork.setRandomizedMacAddress(TEST_RANDOMIZED_MAC);
         List<WifiConfiguration> userConfigs = new ArrayList<>();
         userConfigs.add(openNetwork);
         networkList.setUserConfigurations(userConfigs);
@@ -475,7 +482,8 @@ public class WifiConfigStoreTest {
         String xmlString = String.format(TEST_DATA_XML_STRING_FORMAT,
                 openNetwork.configKey().replaceAll("\"", "&quot;"),
                 openNetwork.SSID.replaceAll("\"", "&quot;"),
-                openNetwork.shared, openNetwork.creatorUid, openNetwork.creatorName, testSsid);
+                openNetwork.shared, openNetwork.creatorUid, openNetwork.creatorName,
+                openNetwork.getRandomizedMacAddress(), testSsid);
         byte[] xmlBytes = xmlString.getBytes(StandardCharsets.UTF_8);
 
         mWifiConfigStore.write(true);

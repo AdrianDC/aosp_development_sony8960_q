@@ -207,6 +207,7 @@ public class XmlUtilTest {
         configuration.lastUpdateUid = configuration.lastConnectUid = configuration.creatorUid;
         configuration.creatorName = configuration.lastUpdateName = TEST_PACKAGE_NAME;
         configuration.creationTime = "04-04-2016";
+        configuration.getOrCreateRandomizedMacAddress();
 
         serializeDeserializeWifiConfigurationForConfigStore(configuration);
     }
