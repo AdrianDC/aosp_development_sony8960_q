@@ -40,6 +40,7 @@ import android.app.test.TestAlarmManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.hardware.wifi.V1_0.NanStatusType;
+import android.location.LocationManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.net.NetworkFactory;
@@ -111,6 +112,7 @@ public class WifiAwareDataPathStateManagerTest {
     @Mock private WifiAwareMetrics mAwareMetricsMock;
     @Mock private WifiPermissionsUtil mWifiPermissionsUtil;
     @Mock private WifiPermissionsWrapper mPermissionsWrapperMock;
+    @Mock private LocationManager mLocationManagerMock;
     TestAlarmManager mAlarmManager;
     private PowerManager mMockPowerManager;
 
@@ -139,6 +141,10 @@ public class WifiAwareDataPathStateManagerTest {
         when(mMockContext.getSystemServiceName(PowerManager.class)).thenReturn(
                 Context.POWER_SERVICE);
         when(mMockContext.getSystemService(PowerManager.class)).thenReturn(mMockPowerManager);
+        when(mMockContext.getSystemService(Context.LOCATION_SERVICE)).thenReturn(
+                mLocationManagerMock);
+
+        when(mLocationManagerMock.isLocationEnabled()).thenReturn(true);
 
         // by default pretend to be an old API: i.e. allow Responders configured as *ANY*. This
         // allows older (more extrensive) tests to run.
