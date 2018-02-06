@@ -190,6 +190,9 @@ public class WifiMetrics {
     /** Wifi power metrics*/
     private WifiPowerMetrics mWifiPowerMetrics = new WifiPowerMetrics();
 
+    /** Wifi Wake metrics */
+    private final WifiWakeMetrics mWifiWakeMetrics = new WifiWakeMetrics();
+
     class RouterFingerPrint {
         private WifiMetricsProto.RouterFingerPrint mRouterFingerPrintProto;
         RouterFingerPrint() {
@@ -1877,6 +1880,7 @@ public class WifiMetrics {
                         + mWpsMetrics.numWpsCancellation);
 
                 mWifiPowerMetrics.dump(pw);
+                mWifiWakeMetrics.dump(pw);
             }
         }
     }
@@ -2163,6 +2167,7 @@ public class WifiMetrics {
 
             mWifiLogProto.wpsMetrics = mWpsMetrics;
             mWifiLogProto.wifiPowerStats = mWifiPowerMetrics.buildProto();
+            mWifiLogProto.wifiWakeStats = mWifiWakeMetrics.buildProto();
         }
     }
 
@@ -2226,6 +2231,7 @@ public class WifiMetrics {
             mSoftApEventListTethered.clear();
             mSoftApEventListLocalOnly.clear();
             mWpsMetrics.clear();
+            mWifiWakeMetrics.clear();
         }
     }
 
@@ -2408,6 +2414,10 @@ public class WifiMetrics {
 
     public WifiAwareMetrics getWifiAwareMetrics() {
         return mWifiAwareMetrics;
+    }
+
+    public WifiWakeMetrics getWakeupMetrics() {
+        return mWifiWakeMetrics;
     }
 
     // Rather than generate a StaEvent for each SUPPLICANT_STATE_CHANGE, cache these in a bitmask
