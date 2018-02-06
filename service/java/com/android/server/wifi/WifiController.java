@@ -631,8 +631,15 @@ public class WifiController extends StateMachine {
                 mFirstUserSignOnSeen = true;
                 return HANDLED;
             } else if (msg.what == CMD_RESTART_WIFI) {
+                final String bugTitle = "Wi-Fi BugReport";
+                final String bugDetail;
+                if (msg.obj != null && msg.obj instanceof String) {
+                    bugDetail = (String) msg.obj;
+                } else {
+                    bugDetail = "";
+                }
                 (new Handler(mWifiStateMachineLooper)).post(() -> {
-                    mWifiStateMachine.takeBugReport();
+                    mWifiStateMachine.takeBugReport(bugTitle, bugDetail);
                 });
                 deferMessage(obtainMessage(CMD_RESTART_WIFI_CONTINUE));
                 transitionTo(mApStaDisabledState);

@@ -34,7 +34,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import android.app.ActivityManager;
 import android.app.test.MockAnswerUtil.AnswerWithArguments;
 import android.content.Context;
 import android.support.test.filters.SmallTest;
@@ -839,25 +838,26 @@ public class WifiDiagnosticsTest {
     @Test
     public void takeBugReportCallsActivityManagerOnUserDebug() {
         when(mBuildProperties.isUserBuild()).thenReturn(false);
-        mWifiDiagnostics.takeBugReport();
-        verify(mActivityManagerService, times(1)).requestBugReport(
-                ActivityManager.BUGREPORT_OPTION_WIFI);
+        mWifiDiagnostics.takeBugReport("", "");
+        verify(mActivityManagerService, times(1)).requestWifiBugReport(
+                anyString(), anyString());
     }
 
     @Test
     public void takeBugReportSwallowsExceptions() {
         when(mBuildProperties.isUserBuild()).thenReturn(false);
-        doThrow(new RuntimeException()).when(mActivityManagerService).requestBugReport(anyInt());
-        mWifiDiagnostics.takeBugReport();
-        verify(mActivityManagerService, times(1)).requestBugReport(
-                ActivityManager.BUGREPORT_OPTION_WIFI);
+        doThrow(new RuntimeException()).when(mActivityManagerService).requestWifiBugReport(
+                anyString(), anyString());
+        mWifiDiagnostics.takeBugReport("", "");
+        verify(mActivityManagerService, times(1)).requestWifiBugReport(
+                anyString(), anyString());
     }
 
     @Test
     public void takeBugReportDoesNothingOnUserBuild() {
         when(mBuildProperties.isUserBuild()).thenReturn(true);
-        mWifiDiagnostics.takeBugReport();
-        verify(mActivityManagerService, never()).requestBugReport(anyInt());
+        mWifiDiagnostics.takeBugReport("", "");
+        verify(mActivityManagerService, never()).requestWifiBugReport(anyString(), anyString());
     }
 
     private void setBuildPropertiesToEnableRingBuffers() {

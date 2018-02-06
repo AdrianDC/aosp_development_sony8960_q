@@ -2342,7 +2342,7 @@ public class WifiStateMachineTest {
 
     @Test
     public void takeBugReportCallsWifiDiagnostics() {
-        mWsm.takeBugReport();
-        verify(mWifiDiagnostics).takeBugReport();
+        mWsm.takeBugReport(anyString(), anyString());
+        verify(mWifiDiagnostics).takeBugReport(anyString(), anyString());
     }
 }

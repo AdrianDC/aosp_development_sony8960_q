@@ -45,6 +45,7 @@ public class WakeupConfigStoreData implements StoreData {
     private final DataSource<Boolean> mIsActiveDataSource;
     private final DataSource<Boolean> mIsOnboardedDataSource;
     private final DataSource<Set<ScanResultMatchInfo>> mNetworkDataSource;
+    private boolean mHasBeenRead = false;
 
     /**
      * Interface defining a data source for the store data.
@@ -78,6 +79,13 @@ public class WakeupConfigStoreData implements StoreData {
         mIsActiveDataSource = isActiveDataSource;
         mIsOnboardedDataSource = isOnboardedDataSource;
         mNetworkDataSource = networkDataSource;
+    }
+
+    /**
+     * Returns whether the user store has been read.
+     */
+    public boolean hasBeenRead() {
+        return mHasBeenRead;
     }
 
     @Override
@@ -132,6 +140,10 @@ public class WakeupConfigStoreData implements StoreData {
     @Override
     public void deserializeData(XmlPullParser in, int outerTagDepth, boolean shared)
             throws XmlPullParserException, IOException {
+        if (!shared) {
+            mHasBeenRead = true;
+        }
+
         // Ignore empty reads.
         if (in == null) {
             return;
