@@ -1086,7 +1086,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         @Override
         public void onStateChanged(int state, int failureReason) {
             mSoftApState = state;
-            mSoftApNumClients = 0;
 
             Iterator<ISoftApCallback> iterator = mRegisteredSoftApCallbacks.values().iterator();
             while (iterator.hasNext()) {
