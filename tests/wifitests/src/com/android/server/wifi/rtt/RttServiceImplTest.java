@@ -67,7 +67,6 @@ import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.WorkSource;
 import android.os.test.TestLooper;
-import android.provider.Settings;
 import android.util.Pair;
 
 import com.android.server.wifi.Clock;
@@ -122,6 +121,9 @@ public class RttServiceImplTest {
     public ActivityManager mockActivityManager;
 
     @Mock
+    public LocationManager mockLocationManager;
+
+    @Mock
     public Clock mockClock;
 
     @Mock
@@ -174,8 +176,7 @@ public class RttServiceImplTest {
         mAlarmManager = new TestAlarmManager();
         doNothing().when(mFrameworkFacade).registerContentObserver(eq(mockContext), any(),
                 anyBoolean(), any());
-        when(mFrameworkFacade.getSecureIntegerSetting(any(), eq(Settings.Secure.LOCATION_MODE),
-                anyInt())).thenReturn(Settings.Secure.LOCATION_MODE_HIGH_ACCURACY);
+        when(mockLocationManager.isLocationEnabled()).thenReturn(true);
         when(mockContext.getSystemService(Context.ALARM_SERVICE))
                 .thenReturn(mAlarmManager.getAlarmManager());
         mInOrder = inOrder(mAlarmManager.getAlarmManager(), mockContext);
@@ -196,6 +197,8 @@ public class RttServiceImplTest {
         when(mockContext.getSystemServiceName(PowerManager.class)).thenReturn(
                 Context.POWER_SERVICE);
         when(mockContext.getSystemService(PowerManager.class)).thenReturn(mMockPowerManager);
+        when(mockContext.getSystemService(Context.LOCATION_SERVICE)).thenReturn(
+                mockLocationManager);
 
         doAnswer(mBinderLinkToDeathCounter).when(mockIbinder).linkToDeath(any(), anyInt());
         doAnswer(mBinderUnlinkToDeathCounter).when(mockIbinder).unlinkToDeath(any(), anyInt());
@@ -1094,8 +1097,7 @@ public class RttServiceImplTest {
         } else if (failureMode == FAILURE_MODE_ENABLE_DOZE) {
             simulatePowerStateChangeDoze(true);
         } else if (failureMode == FAILURE_MODE_DISABLE_LOCATIONING) {
-            when(mFrameworkFacade.getSecureIntegerSetting(any(), eq(Settings.Secure.LOCATION_MODE),
-                    anyInt())).thenReturn(Settings.Secure.LOCATION_MODE_OFF);
+            when(mockLocationManager.isLocationEnabled()).thenReturn(false);
             simulateLocationModeChange();
         }
         mMockLooper.dispatchAll();
@@ -1123,8 +1125,7 @@ public class RttServiceImplTest {
         } else if (failureMode == FAILURE_MODE_ENABLE_DOZE) {
             simulatePowerStateChangeDoze(false);
         } else if (failureMode == FAILURE_MODE_DISABLE_LOCATIONING) {
-            when(mFrameworkFacade.getSecureIntegerSetting(any(), eq(Settings.Secure.LOCATION_MODE),
-                    anyInt())).thenReturn(Settings.Secure.LOCATION_MODE_HIGH_ACCURACY);
+            when(mockLocationManager.isLocationEnabled()).thenReturn(true);
             simulateLocationModeChange();
         }
         mMockLooper.dispatchAll();
