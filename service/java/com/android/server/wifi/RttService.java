@@ -19,6 +19,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.os.Messenger;
 import android.os.RemoteException;
+import android.provider.Settings;
 import android.util.ArrayMap;
 import android.util.Log;
 import android.util.Slog;
@@ -537,7 +538,8 @@ public final class RttService extends SystemService {
                             break;
                         case CMD_RTT_RESPONSE:
                             if (DBG) Log.d(TAG, "Received an RTT response from: " + msg.arg2);
-                            if (checkLocationPermission(mOutstandingRequest.ci)) {
+                            if (checkLocationPermission(mOutstandingRequest.ci)
+                                    && isLocationModeOn()) {
                                 mOutstandingRequest.ci.reportResult(
                                         mOutstandingRequest, (RttManager.RttResult[]) msg.obj);
                             }
@@ -679,6 +681,13 @@ public final class RttService extends SystemService {
         private boolean checkLocationPermission(ClientInfo clientInfo) {
             return mWifiInjector.getWifiPermissionsUtil().checkCallersLocationPermission(
                     clientInfo.mPackageName, clientInfo.mUid);
+        }
+
+        // Returns true if location is enabled.
+        private boolean isLocationModeOn() {
+            int locationMode = mWifiInjector.getFrameworkFacade().getSecureIntegerSetting(mContext,
+                    Settings.Secure.LOCATION_MODE, Settings.Secure.LOCATION_MODE_OFF);
+            return locationMode != Settings.Secure.LOCATION_MODE_OFF;
         }
 
         @Override
