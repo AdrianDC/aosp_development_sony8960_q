@@ -334,9 +334,6 @@ public class WifiNativeInterfaceManagementTest {
         // predetermined.
 
         // Verify STA removal
-        verify(mWifiVendorHal).removeStaIface(IFACE_NAME_1);
-        // Now trigger the HalDeviceManager destroy callback to initiate the rest of the teardown.
-        mIfaceDestroyedListenerCaptor1.getValue().onDestroyed(IFACE_NAME_1);
         verify(mNwManagementService).unregisterObserver(mNetworkObserverCaptor1.getValue());
         verify(mSupplicantStaIfaceHal).teardownIface(IFACE_NAME_1);
         verify(mWificondControl).tearDownClientInterface(IFACE_NAME_1);
@@ -345,14 +342,13 @@ public class WifiNativeInterfaceManagementTest {
         verify(mIfaceCallback1).onDestroyed(IFACE_NAME_1);
 
         // Verify AP removal
-        verify(mWifiVendorHal).removeApIface(IFACE_NAME_0);
-        // Now trigger the HalDeviceManager destroy callback to initiate the rest of the teardown.
-        mIfaceDestroyedListenerCaptor0.getValue().onDestroyed(IFACE_NAME_0);
         verify(mNwManagementService).unregisterObserver(mNetworkObserverCaptor0.getValue());
         verify(mHostapdHal).removeAccessPoint(IFACE_NAME_0);
         verify(mHostapdHal).deregisterDeathHandler();
         verify(mWificondControl).stopHostapd(IFACE_NAME_0);
         verify(mWificondControl).tearDownSoftApInterface(IFACE_NAME_0);
+
+        // Verify we stopped HAL & wificond
         verify(mWificondControl).tearDownInterfaces();
         verify(mWifiVendorHal).stopVendorHal();
         verify(mIfaceCallback0).onDestroyed(IFACE_NAME_0);
