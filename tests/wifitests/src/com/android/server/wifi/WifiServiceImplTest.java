@@ -1369,25 +1369,6 @@ public class WifiServiceImplTest {
         verify(mClientSoftApCallback).onNumClientsChanged(testNumClients);
     }
 
-    /**
-     * Verify that mSoftApNumClients is set to zero on every SoftApStateChanged event
-     */
-    @Test
-    public void resetsNumClientsOnAnySoftApStateChangedEvent() throws Exception {
-        final int testNumClients = 4;
-        mStateMachineSoftApCallback.onNumClientsChanged(testNumClients);
-        // Change state after changing num clients to reset num clients.
-        mStateMachineSoftApCallback.onStateChanged(WIFI_AP_STATE_ENABLED, 0);
-
-        // Register callback after num clients and soft AP are changed.
-        final int callbackIdentifier = 1;
-        mWifiServiceImpl.registerSoftApCallback(mAppBinder, mClientSoftApCallback,
-                callbackIdentifier);
-        mLooper.dispatchAll();
-        verify(mClientSoftApCallback).onStateChanged(WIFI_AP_STATE_ENABLED, 0);
-        verify(mClientSoftApCallback).onNumClientsChanged(0);
-    }
-
     private class IntentFilterMatcher implements ArgumentMatcher<IntentFilter> {
         @Override
         public boolean matches(IntentFilter filter) {
