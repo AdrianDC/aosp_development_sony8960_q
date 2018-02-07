@@ -1896,107 +1896,24 @@ public class WifiStateMachineTest {
     }
 
     /**
-     * Test that connected SSID and BSSID are not exposed to an app that does not have the
-     * appropriate permissions.
+     * Test that connected SSID and BSSID are exposed to system server.
      * Also tests that {@link WifiStateMachine#syncRequestConnectionInfo(String)} always
      * returns a copy of WifiInfo.
-     */
-    @Test
-    public void testConnectedIdsAreHiddenFromAppWithoutPermission() throws Exception {
-        WifiInfo wifiInfo = mWsm.getWifiInfo();
-
-        // Get into a connected state, with known BSSID and SSID
-        connect();
-        assertEquals(sBSSID, wifiInfo.getBSSID());
-        assertEquals(sWifiSsid, wifiInfo.getWifiSsid());
-
-        when(mWifiPermissionsUtil.canAccessScanResults(anyString(), eq(TEST_UID), anyInt()))
-                .thenReturn(false);
-
-        WifiInfo connectionInfo = mWsm.syncRequestConnectionInfo(mContext.getOpPackageName(),
-                TEST_UID);
-
-        assertNotEquals(wifiInfo, connectionInfo);
-        assertEquals(WifiSsid.NONE, connectionInfo.getSSID());
-        assertEquals(WifiInfo.DEFAULT_MAC_ADDRESS, connectionInfo.getBSSID());
-    }
-
-    /**
-     * Test that connected SSID and BSSID are not exposed to an app that does not have the
-     * appropriate permissions, when canAccessScanResults raises a SecurityException.
-     * Also tests that {@link WifiStateMachine#syncRequestConnectionInfo(String)} always
-     * returns a copy of WifiInfo.
-     */
-    @Test
-    public void testConnectedIdsAreHiddenOnSecurityException() throws Exception {
-        WifiInfo wifiInfo = mWsm.getWifiInfo();
-
-        // Get into a connected state, with known BSSID and SSID
-        connect();
-        assertEquals(sBSSID, wifiInfo.getBSSID());
-        assertEquals(sWifiSsid, wifiInfo.getWifiSsid());
-
-        when(mWifiPermissionsUtil.canAccessScanResults(anyString(), eq(TEST_UID), anyInt()))
-                .thenThrow(new SecurityException());
-
-        WifiInfo connectionInfo = mWsm.syncRequestConnectionInfo(mContext.getOpPackageName(),
-                TEST_UID);
-
-        assertNotEquals(wifiInfo, connectionInfo);
-        assertEquals(WifiSsid.NONE, connectionInfo.getSSID());
-        assertEquals(WifiInfo.DEFAULT_MAC_ADDRESS, connectionInfo.getBSSID());
-    }
-
-    /**
-     * Test that connected SSID and BSSID are exposed to system server
      */
     @Test
     public void testConnectedIdsAreVisibleFromSystemServer() throws Exception {
-        when(mWifiPermissionsWrapper.getLocalMacAddressPermission(anyInt()))
-                .thenReturn(PackageManager.PERMISSION_GRANTED);
-
         WifiInfo wifiInfo = mWsm.getWifiInfo();
         // Get into a connected state, with known BSSID and SSID
         connect();
         assertEquals(sBSSID, wifiInfo.getBSSID());
         assertEquals(sWifiSsid, wifiInfo.getWifiSsid());
 
-        when(mWifiPermissionsUtil.canAccessScanResults(anyString(), eq(TEST_UID), anyInt()))
-                .thenReturn(true);
-
-        WifiInfo connectionInfo = mWsm.syncRequestConnectionInfo(mContext.getOpPackageName(),
-                TEST_UID);
+        WifiInfo connectionInfo = mWsm.syncRequestConnectionInfo();
 
         assertNotEquals(wifiInfo, connectionInfo);
         assertEquals(wifiInfo.getSSID(), connectionInfo.getSSID());
         assertEquals(wifiInfo.getBSSID(), connectionInfo.getBSSID());
         assertEquals(wifiInfo.getMacAddress(), connectionInfo.getMacAddress());
-    }
-
-    /**
-     * Test that connected SSID and BSSID are exposed to an app that does have the
-     * appropriate permissions.
-     */
-    @Test
-    public void testConnectedIdsAreVisibleFromPermittedApp() throws Exception {
-        WifiInfo wifiInfo = mWsm.getWifiInfo();
-
-        // Get into a connected state, with known BSSID and SSID
-        connect();
-        assertEquals(sBSSID, wifiInfo.getBSSID());
-        assertEquals(sWifiSsid, wifiInfo.getWifiSsid());
-
-        when(mWifiPermissionsUtil.canAccessScanResults(anyString(), eq(TEST_UID), anyInt()))
-                .thenReturn(true);
-
-        WifiInfo connectionInfo = mWsm.syncRequestConnectionInfo(mContext.getOpPackageName(),
-                TEST_UID);
-
-        assertNotEquals(wifiInfo, connectionInfo);
-        assertEquals(wifiInfo.getSSID(), connectionInfo.getSSID());
-        assertEquals(wifiInfo.getBSSID(), connectionInfo.getBSSID());
-        // Access to our MAC address uses a different permission, make sure it is not granted
-        assertEquals(WifiInfo.DEFAULT_MAC_ADDRESS, connectionInfo.getMacAddress());
     }
 
     /**
