@@ -48,6 +48,7 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.hardware.wifi.V1_0.NanRangingIndication;
 import android.hardware.wifi.V1_0.NanStatusType;
+import android.location.LocationManager;
 import android.net.ConnectivityManager;
 import android.net.wifi.aware.ConfigRequest;
 import android.net.wifi.aware.IWifiAwareDiscoverySessionCallback;
@@ -109,9 +110,11 @@ public class WifiAwareStateManagerTest {
     @Mock private WifiAwareMetrics mAwareMetricsMock;
     @Mock private WifiPermissionsUtil mWifiPermissionsUtil;
     @Mock private WifiPermissionsWrapper mPermissionsWrapperMock;
+    @Mock private LocationManager mLocationManagerMock;
     TestAlarmManager mAlarmManager;
     private PowerManager mMockPowerManager;
     private BroadcastReceiver mPowerBcastReceiver;
+    private BroadcastReceiver mLocationModeReceiver;
     @Mock private WifiAwareDataPathStateManager mMockAwareDataPathStatemanager;
 
     @Rule
@@ -142,6 +145,8 @@ public class WifiAwareStateManagerTest {
         when(mMockContext.getSystemServiceName(PowerManager.class)).thenReturn(
                 Context.POWER_SERVICE);
         when(mMockContext.getSystemService(PowerManager.class)).thenReturn(mMockPowerManager);
+        when(mMockContext.getSystemService(Context.LOCATION_SERVICE)).thenReturn(
+                mLocationManagerMock);
         when(mMockContext.checkPermission(eq(android.Manifest.permission.ACCESS_FINE_LOCATION),
                 anyInt(), anyInt())).thenReturn(PackageManager.PERMISSION_DENIED);
         when(mMockContext.checkPermission(eq(Manifest.permission.ACCESS_COARSE_LOCATION),
@@ -152,6 +157,7 @@ public class WifiAwareStateManagerTest {
                 any())).thenReturn(AppOpsManager.MODE_ERRORED);
         when(mMockPowerManager.isDeviceIdleMode()).thenReturn(false);
         when(mMockPowerManager.isInteractive()).thenReturn(true);
+        when(mLocationManagerMock.isLocationEnabled()).thenReturn(true);
 
         ArgumentCaptor<BroadcastReceiver> bcastRxCaptor = ArgumentCaptor.forClass(
                 BroadcastReceiver.class);
@@ -161,8 +167,10 @@ public class WifiAwareStateManagerTest {
                 mWifiPermissionsUtil, mPermissionsWrapperMock);
         mDut.startLate();
         mMockLooper.dispatchAll();
-        verify(mMockContext).registerReceiver(bcastRxCaptor.capture(), any(IntentFilter.class));
-        mPowerBcastReceiver = bcastRxCaptor.getValue();
+        verify(mMockContext, times(2)).registerReceiver(bcastRxCaptor.capture(),
+                any(IntentFilter.class));
+        mPowerBcastReceiver = bcastRxCaptor.getAllValues().get(0);
+        mLocationModeReceiver = bcastRxCaptor.getAllValues().get(1);
         installMocksInStateManager(mDut, mMockAwareDataPathStatemanager);
 
         when(mMockNative.enableAndConfigure(anyShort(), any(), anyBoolean(),
@@ -3106,6 +3114,56 @@ public class WifiAwareStateManagerTest {
         verifyNoMoreInteractions(mMockNativeManager, mMockNative, mockCallback);
     }
 
+    /**
+     * Validate aware enable/disable during LOCATION MODE transitions.
+     */
+    @Test
+    public void testEnableDisableOnLocationModeChanges() throws Exception {
+        final int clientId = 188;
+        final int uid = 1000;
+        final int pid = 2000;
+        final String callingPackage = "com.google.somePackage";
+
+        ConfigRequest configRequest = new ConfigRequest.Builder().build();
+
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        IWifiAwareEventCallback mockCallback = mock(IWifiAwareEventCallback.class);
+        InOrder inOrder = inOrder(mMockContext, mMockNativeManager, mMockNative, mockCallback);
+        inOrder.verify(mMockNativeManager).start(any(Handler.class));
+
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNativeManager).tryToGetAware();
+        inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
+        mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNativeManager).releaseAware();
+
+        // (1) connect
+        mDut.connect(clientId, uid, pid, callingPackage, mockCallback, configRequest, false);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNativeManager).tryToGetAware();
+        inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(),
+                eq(configRequest), eq(false), eq(true), eq(true), eq(false));
+        mDut.onConfigSuccessResponse(transactionId.getValue());
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
+
+        // (3) location mode change: disable
+        simulateLocationModeChange(false);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).disable(transactionId.capture());
+        mDut.onDisableResponse(transactionId.getValue(), NanStatusType.SUCCESS);
+        validateCorrectAwareStatusChangeBroadcast(inOrder, false);
+
+        // (4) location mode change: enable
+        simulateLocationModeChange(true);
+        mMockLooper.dispatchAll();
+        validateCorrectAwareStatusChangeBroadcast(inOrder, true);
+
+        verifyNoMoreInteractions(mMockNativeManager, mMockNative, mockCallback);
+    }
+
     /*
      * Tests of internal state of WifiAwareStateManager: very limited (not usually
      * a good idea). However, these test that the internal state is cleaned-up
@@ -3284,6 +3342,17 @@ public class WifiAwareStateManagerTest {
         Intent intent = new Intent(
                 isInteractive ? Intent.ACTION_SCREEN_ON : Intent.ACTION_SCREEN_OFF);
         mPowerBcastReceiver.onReceive(mMockContext, intent);
+    }
+
+    /**
+     * Simulate Location Mode change. Changes the location manager return values and dispatches a
+     * broadcast.
+     */
+    private void simulateLocationModeChange(boolean isLocationModeEnabled) {
+        when(mLocationManagerMock.isLocationEnabled()).thenReturn(isLocationModeEnabled);
+
+        Intent intent = new Intent(LocationManager.MODE_CHANGED_ACTION);
+        mLocationModeReceiver.onReceive(mMockContext, intent);
     }
 
     private static Capabilities getCapabilities() {
