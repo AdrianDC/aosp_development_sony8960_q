@@ -659,8 +659,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             if (!mScanRequestProxy.startScan(callingUid)) {
                 Log.e(TAG, "Failed to start scan");
             }
-        }, 0);
+        }, RUN_WITH_SCISSORS_TIMEOUT_MILLIS);
         if (!success) {
+            // TODO: should return false here
             Log.e(TAG, "Failed to post runnable to start scan");
             sendFailedScanBroadcast();
         }
@@ -935,7 +936,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         MutableInt apState = new MutableInt(WifiManager.WIFI_AP_STATE_DISABLED);
         mClientHandler.runWithScissors(() -> {
             apState.value = mWifiApState;
-        }, 0);
+        }, RUN_WITH_SCISSORS_TIMEOUT_MILLIS);
         return apState.value;
     }
 
@@ -2034,7 +2035,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             final List<ScanResult> scanResults = new ArrayList<>();
             boolean success = mWifiInjector.getWifiStateMachineHandler().runWithScissors(() -> {
                 scanResults.addAll(mScanRequestProxy.getScanResults());
-            }, 0);
+            }, RUN_WITH_SCISSORS_TIMEOUT_MILLIS);
             if (!success) {
                 Log.e(TAG, "Failed to post runnable to fetch scan results");
             }
