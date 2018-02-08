@@ -22,6 +22,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.hardware.wifi.V1_0.NanStatusType;
 import android.hardware.wifi.V1_2.NanDataPathChannelInfo;
+import android.location.LocationManager;
 import android.net.wifi.aware.Characteristics;
 import android.net.wifi.aware.ConfigRequest;
 import android.net.wifi.aware.IWifiAwareDiscoverySessionCallback;
@@ -214,6 +215,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
     private WifiAwareStateMachine mSm;
     public WifiAwareDataPathStateManager mDataPathMgr;
     private PowerManager mPowerManager;
+    private LocationManager mLocationManager;
 
     private final SparseArray<WifiAwareClientState> mClients = new SparseArray<>();
     private ConfigRequest mCurrentAwareConfiguration = null;
@@ -386,6 +388,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                 wifiPermissionsUtil, permissionsWrapper);
 
         mPowerManager = mContext.getSystemService(PowerManager.class);
+        mLocationManager = (LocationManager) mContext.getSystemService(Context.LOCATION_SERVICE);
 
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(Intent.ACTION_SCREEN_ON);
@@ -411,6 +414,20 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                     } else {
                         reconfigure();
                     }
+                }
+            }
+        }, intentFilter);
+
+        intentFilter = new IntentFilter();
+        intentFilter.addAction(LocationManager.MODE_CHANGED_ACTION);
+        mContext.registerReceiver(new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (mDbg) Log.v(TAG, "onReceive: MODE_CHANGED_ACTION: intent=" + intent);
+                if (mLocationManager.isLocationEnabled()) {
+                    enableUsage();
+                } else {
+                    disableUsage();
                 }
             }
         }, intentFilter);
@@ -654,6 +671,10 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
         if (mSettableParameters.get(PARAM_ON_IDLE_DISABLE_AWARE) != 0
                 && mPowerManager.isDeviceIdleMode()) {
             Log.d(TAG, "enableUsage(): while device is in IDLE mode - ignoring");
+            return;
+        }
+        if (!mLocationManager.isLocationEnabled()) {
+            Log.d(TAG, "enableUsage(): while location is disabled - ignoring");
             return;
         }
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);

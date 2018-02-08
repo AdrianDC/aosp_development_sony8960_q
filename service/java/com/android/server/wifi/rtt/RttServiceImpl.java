@@ -84,6 +84,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
     private WifiPermissionsUtil mWifiPermissionsUtil;
     private ActivityManager mActivityManager;
     private PowerManager mPowerManager;
+    private LocationManager mLocationManager;
     private FrameworkFacade mFrameworkFacade;
 
     private RttServiceSynchronized mRttServiceSynchronized;
@@ -128,6 +129,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
 
         mActivityManager = (ActivityManager) mContext.getSystemService(Context.ACTIVITY_SERVICE);
         mPowerManager = mContext.getSystemService(PowerManager.class);
+        mLocationManager = (LocationManager) mContext.getSystemService(Context.LOCATION_SERVICE);
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED);
         mContext.registerReceiver(new BroadcastReceiver() {
@@ -164,10 +166,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
             @Override
             public void onReceive(Context context, Intent intent) {
                 if (mDbg) Log.v(TAG, "onReceive: MODE_CHANGED_ACTION: intent=" + intent);
-                int locationMode = mFrameworkFacade.getSecureIntegerSetting(mContext,
-                        Settings.Secure.LOCATION_MODE, Settings.Secure.LOCATION_MODE_OFF);
-                if (locationMode == Settings.Secure.LOCATION_MODE_HIGH_ACCURACY
-                        || locationMode == Settings.Secure.LOCATION_MODE_BATTERY_SAVING) {
+                if (mLocationManager.isLocationEnabled()) {
                     enableIfPossible();
                 } else {
                     disable();
@@ -244,11 +243,8 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
      */
     @Override
     public boolean isAvailable() {
-        int locationMode = mFrameworkFacade.getSecureIntegerSetting(mContext,
-                Settings.Secure.LOCATION_MODE, Settings.Secure.LOCATION_MODE_OFF);
-        return mRttNative.isReady() && !mPowerManager.isDeviceIdleMode() && (
-                locationMode == Settings.Secure.LOCATION_MODE_HIGH_ACCURACY
-                        || locationMode == Settings.Secure.LOCATION_MODE_BATTERY_SAVING);
+        return mRttNative.isReady() && !mPowerManager.isDeviceIdleMode()
+                && mLocationManager.isLocationEnabled();
     }
 
     /**
@@ -894,13 +890,8 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
             }
 
             boolean permissionGranted = mWifiPermissionsUtil.checkCallersLocationPermission(
-                    topOfQueueRequest.callingPackage, topOfQueueRequest.uid);
-            int locationMode = mFrameworkFacade.getSecureIntegerSetting(mContext,
-                    Settings.Secure.LOCATION_MODE, Settings.Secure.LOCATION_MODE_OFF);
-            if (locationMode != Settings.Secure.LOCATION_MODE_HIGH_ACCURACY
-                            && locationMode != Settings.Secure.LOCATION_MODE_BATTERY_SAVING) {
-                permissionGranted = false;
-            }
+                    topOfQueueRequest.callingPackage, topOfQueueRequest.uid)
+                    && mLocationManager.isLocationEnabled();
             try {
                 if (permissionGranted) {
                     List<RangingResult> finalResults = postProcessResults(topOfQueueRequest.request,

@@ -41,6 +41,13 @@ public class WifiStateMachinePrime {
 
     private ModeStateMachine mModeStateMachine;
 
+    // While we are still under the control of a StateMachine, we will only have one
+    // ActiveModeManager at a given time.  This will be relaxed when we are not under the single
+    // mode restriction.
+    private ActiveModeManager mActiveModeManager;
+    // DefaultModeManager used to service API calls when there are not active mode managers.
+    private DefaultModeManager mDefaultModeManager;
+
     private final WifiInjector mWifiInjector;
     private final Looper mLooper;
     private final WifiNative mWifiNative;
@@ -64,7 +71,7 @@ public class WifiStateMachinePrime {
     static final int CMD_START_SCAN_ONLY_MODE                           = BASE + 200;
     // Indicates that start Scan only mode failed
     static final int CMD_START_SCAN_ONLY_MODE_FAILURE                   = BASE + 201;
-    // CMD_STOP_SCAN_ONLY-MODE
+    // Indicates that scan only mode stopped
     static final int CMD_STOP_SCAN_ONLY_MODE                            = BASE + 202;
     // ScanOnly mode teardown is complete
     static final int CMD_SCAN_ONLY_MODE_STOPPED                         = BASE + 203;
@@ -80,10 +87,14 @@ public class WifiStateMachinePrime {
         mSoftApCallback = callback;
     }
 
-    WifiStateMachinePrime(WifiInjector wifiInjector, Looper looper, WifiNative wifiNative) {
+    WifiStateMachinePrime(WifiInjector wifiInjector,
+                          Looper looper,
+                          WifiNative wifiNative,
+                          DefaultModeManager defaultModeManager) {
         mWifiInjector = wifiInjector;
         mLooper = looper;
         mWifiNative = wifiNative;
+        mDefaultModeManager = defaultModeManager;
         mModeStateMachine = new ModeStateMachine();
     }
 
@@ -147,13 +158,7 @@ public class WifiStateMachinePrime {
         public static final int CMD_START_SOFT_AP_MODE   = 2;
         public static final int CMD_DISABLE_WIFI         = 3;
 
-        // Create the base modes for WSM.
-        private final State mClientModeState = new ClientModeState();
-        private final State mScanOnlyModeState = new ScanOnlyModeState();
-        private final State mSoftAPModeState = new SoftAPModeState();
         private final State mWifiDisabledState = new WifiDisabledState();
-
-        // Create the active versions of the modes for WSM.
         private final State mClientModeActiveState = new ClientModeActiveState();
         private final State mScanOnlyModeActiveState = new ScanOnlyModeActiveState();
         private final State mSoftAPModeActiveState = new SoftAPModeActiveState();
@@ -162,12 +167,9 @@ public class WifiStateMachinePrime {
             super(TAG, mLooper);
 
             // CHECKSTYLE:OFF IndentationCheck
-            addState(mClientModeState);
-              addState(mClientModeActiveState, mClientModeState);
-            addState(mScanOnlyModeState);
-              addState(mScanOnlyModeActiveState, mScanOnlyModeState);
-            addState(mSoftAPModeState);
-              addState(mSoftAPModeActiveState, mSoftAPModeState);
+            addState(mClientModeActiveState);
+            addState(mScanOnlyModeActiveState);
+            addState(mSoftAPModeActiveState);
             addState(mWifiDisabledState);
             // CHECKSTYLE:ON IndentationCheck
 
@@ -184,15 +186,15 @@ public class WifiStateMachinePrime {
             switch(message.what) {
                 case ModeStateMachine.CMD_START_CLIENT_MODE:
                     Log.d(TAG, "Switching from " + getCurrentMode() + " to ClientMode");
-                    mModeStateMachine.transitionTo(mClientModeState);
+                    mModeStateMachine.transitionTo(mClientModeActiveState);
                     break;
                 case ModeStateMachine.CMD_START_SCAN_ONLY_MODE:
                     Log.d(TAG, "Switching from " + getCurrentMode() + " to ScanOnlyMode");
-                    mModeStateMachine.transitionTo(mScanOnlyModeState);
+                    mModeStateMachine.transitionTo(mScanOnlyModeActiveState);
                     break;
                 case ModeStateMachine.CMD_START_SOFT_AP_MODE:
                     Log.d(TAG, "Switching from " + getCurrentMode() + " to SoftApMode");
-                    mModeStateMachine.transitionTo(mSoftAPModeState);
+                    mModeStateMachine.transitionTo(mSoftAPModeActiveState);
                     break;
                 case ModeStateMachine.CMD_DISABLE_WIFI:
                     Log.d(TAG, "Switching from " + getCurrentMode() + " to WifiDisabled");
@@ -209,135 +211,7 @@ public class WifiStateMachinePrime {
             mWifiNative.teardownAllInterfaces();
         }
 
-        class ClientModeState extends State {
-            @Override
-            public void enter() {
-            }
-
-            @Override
-            public boolean processMessage(Message message) {
-                if (checkForAndHandleModeChange(message)) {
-                    return HANDLED;
-                }
-                return NOT_HANDLED;
-            }
-
-            @Override
-            public void exit() {
-                // TODO: Activate this when client mode is handled here.
-                // cleanup();
-            }
-        }
-
-        class ScanOnlyModeState extends State {
-
-            @Override
-            public void enter() {
-                // For now - need to clean up from other mode management in WSM
-                cleanup();
-
-                final Message message = mModeStateMachine.getCurrentMessage();
-                if (message.what != ModeStateMachine.CMD_START_SCAN_ONLY_MODE) {
-                    Log.d(TAG, "Entering ScanOnlyMode (idle)");
-                    return;
-                }
-
-                mModeStateMachine.transitionTo(mScanOnlyModeActiveState);
-            }
-
-            @Override
-            public boolean processMessage(Message message) {
-                if (checkForAndHandleModeChange(message)) {
-                    return HANDLED;
-                }
-                return NOT_HANDLED;
-            }
-
-            @Override
-            public void exit() {
-                // while in transition, cleanup is done on entering states.  in the future, each
-                // mode will clean up their own state on exit
-                //cleanup();
-            }
-        }
-
-        class SoftAPModeState extends State {
-
-            @Override
-            public void enter() {
-                // For now - need to clean up from other mode management in WSM
-                cleanup();
-
-                final Message message = mModeStateMachine.getCurrentMessage();
-                if (message.what != ModeStateMachine.CMD_START_SOFT_AP_MODE) {
-                    Log.d(TAG, "Entering SoftAPMode (idle)");
-                    return;
-                }
-
-                mModeStateMachine.transitionTo(mSoftAPModeActiveState);
-            }
-
-            @Override
-            public boolean processMessage(Message message) {
-                if (checkForAndHandleModeChange(message)) {
-                    return HANDLED;
-                }
-
-                switch(message.what) {
-                    case CMD_START_AP:
-                        Log.d(TAG, "Received CMD_START_AP (now invalid message) - dropping");
-                        break;
-                    case CMD_STOP_AP:
-                        // not in active state, nothing to stop.
-                        break;
-                    case CMD_START_AP_FAILURE:
-                        // with interface management in softapmanager, no setup failures can be seen
-                        // here
-                        break;
-                    case CMD_AP_STOPPED:
-                        Log.d(TAG, "SoftApModeActiveState stopped.  Wait for next mode command.");
-                        break;
-                    default:
-                        return NOT_HANDLED;
-                }
-                return HANDLED;
-            }
-
-            @Override
-            public void exit() {
-                // while in transition, cleanup is done on entering states.  in the future, each
-                // mode will clean up their own state on exit
-                //cleanup();
-            }
-
-            private void initializationFailed(String message) {
-                Log.e(TAG, message);
-                mModeStateMachine.sendMessage(CMD_START_AP_FAILURE);
-            }
-        }
-
-        class WifiDisabledState extends State {
-            @Override
-            public void enter() {
-                Log.d(TAG, "Entering WifiDisabledState");
-                // make sure everything is torn down
-                cleanup();
-            }
-
-            @Override
-            public boolean processMessage(Message message) {
-                Log.d(TAG, "received a message in WifiDisabledState: " + message);
-                if (checkForAndHandleModeChange(message)) {
-                    return HANDLED;
-                }
-                return NOT_HANDLED;
-            }
-
-        }
-
         class ModeActiveState extends State {
-            ActiveModeManager mActiveModeManager;
-
             @Override
             public boolean processMessage(Message message) {
                 // handle messages for changing modes here
@@ -352,10 +226,42 @@ public class WifiStateMachinePrime {
             }
         }
 
+        class WifiDisabledState extends ModeActiveState {
+            @Override
+            public void enter() {
+                Log.d(TAG, "Entering WifiDisabledState");
+                // make sure everything is torn down - remove when client mode is moved here
+                cleanup();
+            }
+
+            @Override
+            public boolean processMessage(Message message) {
+                Log.d(TAG, "received a message in WifiDisabledState: " + message);
+                if (checkForAndHandleModeChange(message)) {
+                    return HANDLED;
+                }
+                return NOT_HANDLED;
+            }
+
+            @Override
+            public void exit() {
+                // do not have an active mode manager...  nothing to clean up
+            }
+
+        }
+
         class ClientModeActiveState extends ModeActiveState {
             @Override
             public void enter() {
-                this.mActiveModeManager = new ClientModeManager();
+                mActiveModeManager = new ClientModeManager();
+            }
+
+            @Override
+            public boolean processMessage(Message message) {
+                if (checkForAndHandleModeChange(message)) {
+                    return HANDLED;
+                }
+                return NOT_HANDLED;
             }
         }
 
@@ -383,24 +289,27 @@ public class WifiStateMachinePrime {
             public void enter() {
                 Log.d(TAG, "Entering ScanOnlyModeActiveState");
 
-                this.mActiveModeManager = mWifiInjector.makeScanOnlyModeManager(
-                        new ScanOnlyListener());
-                this.mActiveModeManager.start();
+                mActiveModeManager = mWifiInjector.makeScanOnlyModeManager(new ScanOnlyListener());
+                mActiveModeManager.start();
             }
 
             @Override
             public boolean processMessage(Message message) {
+                if (checkForAndHandleModeChange(message)) {
+                    return HANDLED;
+                }
+
                 switch(message.what) {
                     case CMD_START_SCAN_ONLY_MODE:
                         Log.d(TAG, "Received CMD_START_SCAN_ONLY_MODE when active - drop");
                         break;
                     case CMD_SCAN_ONLY_MODE_FAILED:
-                        Log.d(TAG, "ScanOnlyMode failed, return to idle state.");
-                        mModeStateMachine.transitionTo(mScanOnlyModeState);
+                        Log.d(TAG, "ScanOnlyMode failed, return to WifiDisabledState.");
+                        mModeStateMachine.transitionTo(mWifiDisabledState);
                         break;
                     case CMD_SCAN_ONLY_MODE_STOPPED:
-                        Log.d(TAG, "ScanOnlyMode stopped, return to idle state.");
-                        mModeStateMachine.transitionTo(mScanOnlyModeState);
+                        Log.d(TAG, "ScanOnlyMode stopped, return to WifiDisabledState.");
+                        mModeStateMachine.transitionTo(mWifiDisabledState);
                         break;
                     default:
                         return NOT_HANDLED;
@@ -447,13 +356,17 @@ public class WifiStateMachinePrime {
                 } else {
                     config = null;
                 }
-                this.mActiveModeManager = mWifiInjector.makeSoftApManager(
+                mActiveModeManager = mWifiInjector.makeSoftApManager(
                         new SoftApCallbackImpl(), softApModeConfig);
-                this.mActiveModeManager.start();
+                mActiveModeManager.start();
             }
 
             @Override
             public boolean processMessage(Message message) {
+                if (checkForAndHandleModeChange(message)) {
+                    return HANDLED;
+                }
+
                 switch(message.what) {
                     case CMD_START_AP:
                         Log.d(TAG, "Received CMD_START_AP when active - invalid message - drop");
@@ -462,13 +375,12 @@ public class WifiStateMachinePrime {
                         mActiveModeManager.stop();
                         break;
                     case CMD_START_AP_FAILURE:
-                        Log.d(TAG, "Failed to start SoftApMode.  Return to SoftApMode (inactive).");
-                        mModeStateMachine.transitionTo(mSoftAPModeState);
+                        Log.d(TAG, "Failed to start SoftApMode.  Return to WifiDisabledState.");
+                        mModeStateMachine.transitionTo(mWifiDisabledState);
                         break;
                     case CMD_AP_STOPPED:
-                        Log.d(TAG, "SoftApModeActiveState stopped."
-                                + "  Return to SoftApMode (inactive).");
-                        mModeStateMachine.transitionTo(mSoftAPModeState);
+                        Log.d(TAG, "SoftApModeActiveState stopped. Return to WifiDisabledState.");
+                        mModeStateMachine.transitionTo(mWifiDisabledState);
                         break;
                     default:
                         return NOT_HANDLED;
