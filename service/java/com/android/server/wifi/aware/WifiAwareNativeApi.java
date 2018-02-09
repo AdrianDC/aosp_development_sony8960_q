@@ -40,6 +40,7 @@ import android.net.wifi.aware.SubscribeConfig;
 import android.os.RemoteException;
 import android.os.ShellCommand;
 import android.util.Log;
+import android.util.SparseIntArray;
 
 import libcore.util.HexEncoding;
 
@@ -63,10 +64,28 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
     private static final String SERVICE_NAME_FOR_OOB_DATA_PATH = "Wi-Fi Aware Data Path";
 
     private final WifiAwareNativeManager mHal;
+    private SparseIntArray mTransactionIds; // VDBG only!
 
     public WifiAwareNativeApi(WifiAwareNativeManager wifiAwareNativeManager) {
         mHal = wifiAwareNativeManager;
         onReset();
+        if (VDBG) {
+            mTransactionIds = new SparseIntArray();
+        }
+    }
+
+    private void recordTransactionId(int transactionId) {
+        if (!VDBG) return;
+
+        if (transactionId == 0) {
+            return; // tid == 0 is used as a dummy transaction ID in several commands - acceptable
+        }
+
+        int count = mTransactionIds.get(transactionId);
+        if (count != 0) {
+            Log.wtf(TAG, "Repeated transaction ID == " + transactionId);
+        }
+        mTransactionIds.append(transactionId, count + 1);
     }
 
     /**
@@ -274,6 +293,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
      */
     public boolean getCapabilities(short transactionId) {
         if (mDbg) Log.v(TAG, "getCapabilities: transactionId=" + transactionId);
+        recordTransactionId(transactionId);
 
         IWifiNanIface iface = mHal.getWifiNanIface();
         if (iface == null) {
@@ -316,6 +336,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
                     + ", initialConfiguration=" + initialConfiguration
                     + ", isInteractive=" + isInteractive + ", isIdle=" + isIdle);
         }
+        recordTransactionId(transactionId);
 
         IWifiNanIface iface = mHal.getWifiNanIface();
         if (iface == null) {
@@ -491,6 +512,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
      */
     public boolean disable(short transactionId) {
         if (mDbg) Log.d(TAG, "disable");
+        recordTransactionId(transactionId);
 
         IWifiNanIface iface = mHal.getWifiNanIface();
         if (iface == null) {
@@ -526,6 +548,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
             Log.d(TAG, "publish: transactionId=" + transactionId + ", publishId=" + publishId
                     + ", config=" + publishConfig);
         }
+        recordTransactionId(transactionId);
 
         IWifiNanIface iface = mHal.getWifiNanIface();
         if (iface == null) {
@@ -590,6 +613,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
             Log.d(TAG, "subscribe: transactionId=" + transactionId + ", subscribeId=" + subscribeId
                     + ", config=" + subscribeConfig);
         }
+        recordTransactionId(transactionId);
 
         IWifiNanIface iface = mHal.getWifiNanIface();
         if (iface == null) {
@@ -675,6 +699,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
                             : HexEncoding.encode(message)) + ", message.length=" + (message == null
                             ? 0 : message.length));
         }
+        recordTransactionId(transactionId);
 
         IWifiNanIface iface = mHal.getWifiNanIface();
         if (iface == null) {
@@ -717,6 +742,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
         if (mDbg) {
             Log.d(TAG, "stopPublish: transactionId=" + transactionId + ", pubSubId=" + pubSubId);
         }
+        recordTransactionId(transactionId);
 
         IWifiNanIface iface = mHal.getWifiNanIface();
         if (iface == null) {
@@ -750,6 +776,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
         if (mDbg) {
             Log.d(TAG, "stopSubscribe: transactionId=" + transactionId + ", pubSubId=" + pubSubId);
         }
+        recordTransactionId(transactionId);
 
         IWifiNanIface iface = mHal.getWifiNanIface();
         if (iface == null) {
@@ -784,6 +811,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
             Log.v(TAG, "createAwareNetworkInterface: transactionId=" + transactionId + ", "
                     + "interfaceName=" + interfaceName);
         }
+        recordTransactionId(transactionId);
 
         IWifiNanIface iface = mHal.getWifiNanIface();
         if (iface == null) {
@@ -817,6 +845,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
             Log.v(TAG, "deleteAwareNetworkInterface: transactionId=" + transactionId + ", "
                     + "interfaceName=" + interfaceName);
         }
+        recordTransactionId(transactionId);
 
         IWifiNanIface iface = mHal.getWifiNanIface();
         if (iface == null) {
@@ -865,6 +894,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
                     + ", peer=" + String.valueOf(HexEncoding.encode(peer)) + ", interfaceName="
                     + interfaceName);
         }
+        recordTransactionId(transactionId);
 
         IWifiNanIface iface = mHal.getWifiNanIface();
         if (iface == null) {
@@ -940,6 +970,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
             Log.v(TAG, "respondToDataPathRequest: transactionId=" + transactionId + ", accept="
                     + accept + ", int ndpId=" + ndpId + ", interfaceName=" + interfaceName);
         }
+        recordTransactionId(transactionId);
 
         IWifiNanIface iface = mHal.getWifiNanIface();
         if (iface == null) {
@@ -1001,6 +1032,7 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
         if (mDbg) {
             Log.v(TAG, "endDataPath: transactionId=" + transactionId + ", ndpId=" + ndpId);
         }
+        recordTransactionId(transactionId);
 
         IWifiNanIface iface = mHal.getWifiNanIface();
         if (iface == null) {
