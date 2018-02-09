@@ -74,6 +74,7 @@ import com.android.server.wifi.util.WifiPermissionsWrapper;
 
 import libcore.util.HexEncoding;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -82,6 +83,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.mockito.Spy;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -104,7 +106,8 @@ public class WifiAwareStateManagerTest {
     private Random mRandomNg = new Random(15687);
     private WifiAwareStateManager mDut;
     @Mock private WifiAwareNativeManager mMockNativeManager;
-    @Mock private WifiAwareNativeApi mMockNative;
+    @Spy private TestUtils.MonitoredWifiAwareNativeApi mMockNative =
+            new TestUtils.MonitoredWifiAwareNativeApi();
     @Mock private Context mMockContext;
     @Mock private AppOpsManager mMockAppOpsManager;
     @Mock private WifiAwareMetrics mAwareMetricsMock;
@@ -172,18 +175,14 @@ public class WifiAwareStateManagerTest {
         mPowerBcastReceiver = bcastRxCaptor.getAllValues().get(0);
         mLocationModeReceiver = bcastRxCaptor.getAllValues().get(1);
         installMocksInStateManager(mDut, mMockAwareDataPathStatemanager);
+    }
 
-        when(mMockNative.enableAndConfigure(anyShort(), any(), anyBoolean(),
-                anyBoolean(), anyBoolean(), anyBoolean())).thenReturn(true);
-        when(mMockNative.disable(anyShort())).thenReturn(true);
-        when(mMockNative.publish(anyShort(), anyByte(), any())).thenReturn(true);
-        when(mMockNative.subscribe(anyShort(), anyByte(), any()))
-                .thenReturn(true);
-        when(mMockNative.sendMessage(anyShort(), anyByte(), anyInt(), any(),
-                any(), anyInt())).thenReturn(true);
-        when(mMockNative.stopPublish(anyShort(), anyByte())).thenReturn(true);
-        when(mMockNative.stopSubscribe(anyShort(), anyByte())).thenReturn(true);
-        when(mMockNative.getCapabilities(anyShort())).thenReturn(true);
+    /**
+     * Post-test validation.
+     */
+    @After
+    public void tearDown() throws Exception {
+        mMockNative.validateUniqueTransactionIds();
     }
 
     /**
