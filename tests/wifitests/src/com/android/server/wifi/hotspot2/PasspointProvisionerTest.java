@@ -110,10 +110,11 @@ public class PasspointProvisionerTest {
     private void initAndStartProvisioning() {
         mPasspointProvisioner.init(mLooper.getLooper());
         verify(mOsuNetworkConnection).init(mHandlerCaptor.capture());
-        verify(mOsuServerConnection).init(any(SSLContext.class), any(TrustManagerImpl.class));
 
         mHandler = mHandlerCaptor.getValue();
         assertEquals(mHandler.getLooper(), mLooper.getLooper());
+
+        mLooper.dispatchAll();
 
         assertTrue(mPasspointProvisioner.startSubscriptionProvisioning(
                 TEST_UID, mOsuProvider, mCallback));
