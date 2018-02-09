@@ -22,6 +22,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Mockito.*;
 
+import android.net.MacAddress;
 import android.net.wifi.IApInterface;
 import android.net.wifi.IApInterfaceEventCallback;
 import android.net.wifi.IClientInterface;
@@ -161,6 +162,7 @@ public class WificondControlTest {
                 networkList[1].ssid = TEST_QUOTED_SSID_2;
                 networkList[1].flags = 0;
             }};
+    private static final MacAddress TEST_MAC_ADDRESS = MacAddress.fromString("ee:33:a2:94:10:92");
 
     @Before
     public void setUp() throws Exception {
@@ -1046,6 +1048,27 @@ public class WificondControlTest {
         assertTrue(mWificondControl.enableSupplicant());
         verify(mWifiInjector, times(2)).makeWificond();
         verify(mWificond).enableSupplicant();
+    }
+
+    /**
+     * Verifies setMacAddress() success.
+     */
+    @Test
+    public void testSetMacAddressSuccess() throws Exception {
+        byte[] macByteArray = TEST_MAC_ADDRESS.toByteArray();
+        assertTrue(mWificondControl.setMacAddress(TEST_INTERFACE_NAME, TEST_MAC_ADDRESS));
+        verify(mClientInterface).setMacAddress(macByteArray);
+    }
+
+    /**
+     * Verifies setMacAddress() can handle failure.
+     */
+    @Test
+    public void testSetMacAddressFailDueToExceptionInInterface() throws Exception {
+        byte[] macByteArray = TEST_MAC_ADDRESS.toByteArray();
+        doThrow(new RemoteException()).when(mClientInterface).setMacAddress(macByteArray);
+        assertFalse(mWificondControl.setMacAddress(TEST_INTERFACE_NAME, TEST_MAC_ADDRESS));
+        verify(mClientInterface).setMacAddress(macByteArray);
     }
 
     private void assertRadioChainInfosEqual(

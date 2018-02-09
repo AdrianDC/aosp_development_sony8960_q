@@ -24,6 +24,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.net.MacAddress;
 import android.net.wifi.WifiConfiguration;
 import android.os.INetworkManagementService;
 import android.support.test.filters.SmallTest;
@@ -141,6 +142,7 @@ public class WifiNativeTest {
                 networkList[0].ssid = TEST_QUOTED_SSID_1;
                 networkList[1].ssid = TEST_QUOTED_SSID_2;
             }};
+    private static final MacAddress TEST_MAC_ADDRESS = MacAddress.fromString("ee:33:a2:94:10:92");
 
     @Mock private WifiVendorHal mWifiVendorHal;
     @Mock private WificondControl mWificondControl;
@@ -560,5 +562,14 @@ public class WifiNativeTest {
         // roamToNetwork() should abort ongoing scan before connection.
         verify(mWificondControl).abortScan(WIFI_IFACE_NAME);
         verify(mStaIfaceHal).roamToNetwork(WIFI_IFACE_NAME, config);
+    }
+
+    /**
+     * Verifies that setMacAddress() calls underlying WificondControl.
+     */
+    @Test
+    public void testSetMacAddress() throws Exception {
+        mWifiNative.setMacAddress(WIFI_IFACE_NAME, TEST_MAC_ADDRESS);
+        verify(mWificondControl).setMacAddress(WIFI_IFACE_NAME, TEST_MAC_ADDRESS);
     }
 }
