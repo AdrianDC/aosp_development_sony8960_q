@@ -1265,6 +1265,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      *
      * Callers should already hold the mLocalOnlyHotspotRequests lock.
      */
+    @GuardedBy("mLocalOnlyHotspotRequests")
     private void sendHotspotFailedMessageToAllLOHSRequestInfoEntriesLocked(int arg1) {
         for (LocalOnlyHotspotRequestInfo requestor : mLocalOnlyHotspotRequests.values()) {
             try {
@@ -1285,6 +1286,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      *
      * Callers should already hold the mLocalOnlyHotspotRequests lock.
      */
+    @GuardedBy("mLocalOnlyHotspotRequests")
     private void sendHotspotStoppedMessageToAllLOHSRequestInfoEntriesLocked() {
         for (LocalOnlyHotspotRequestInfo requestor : mLocalOnlyHotspotRequests.values()) {
             try {
@@ -1305,6 +1307,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      *
      * Callers should already hold the mLocalOnlyHotspotRequests lock.
      */
+    @GuardedBy("mLocalOnlyHotspotRequests")
     private void sendHotspotStartedMessageToAllLOHSRequestInfoEntriesLocked() {
         for (LocalOnlyHotspotRequestInfo requestor : mLocalOnlyHotspotRequests.values()) {
             try {
