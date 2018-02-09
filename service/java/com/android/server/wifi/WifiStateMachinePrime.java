@@ -289,6 +289,9 @@ public class WifiStateMachinePrime {
             public void enter() {
                 Log.d(TAG, "Entering ScanOnlyModeActiveState");
 
+                // make sure everything is torn down - remove when client mode is moved here
+                cleanup();
+
                 mActiveModeManager = mWifiInjector.makeScanOnlyModeManager(new ScanOnlyListener());
                 mActiveModeManager.start();
             }
@@ -348,6 +351,10 @@ public class WifiStateMachinePrime {
             @Override
             public void enter() {
                 Log.d(TAG, "Entering SoftApModeActiveState");
+
+                // make sure everything is torn down - remove when client mode is moved here
+                cleanup();
+
                 SoftApModeConfiguration softApModeConfig = mApConfigQueue.poll();
                 WifiConfiguration config = softApModeConfig.getWifiConfiguration();
                 // TODO (b/67601382): add checks for valid softap configs
