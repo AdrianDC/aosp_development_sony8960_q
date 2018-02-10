@@ -5363,6 +5363,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 NetworkCapabilities nc, LinkProperties lp, int score, NetworkMisc misc) {
             super(l, c, TAG, ni, nc, lp, score, misc);
         }
+        private int mLastNetworkStatus = -1; // To detect when the status really changes
 
         @Override
         protected void unwanted() {
@@ -5377,6 +5378,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         @Override
         protected void networkStatus(int status, String redirectUrl) {
             if (this != mNetworkAgent) return;
+            if (status == mLastNetworkStatus) return;
+            mLastNetworkStatus = status;
             if (status == NetworkAgent.INVALID_NETWORK) {
                 if (mVerboseLoggingEnabled) {
                     log("WifiNetworkAgent -> Wifi networkStatus invalid, score="
