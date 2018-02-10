@@ -1075,8 +1075,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         // CHECKSTYLE:OFF IndentationCheck
         addState(mDefaultState);
             addState(mInitialState, mDefaultState);
-            addState(mSupplicantStartingState, mDefaultState);
-            addState(mSupplicantStartedState, mDefaultState);
+                addState(mSupplicantStartingState, mInitialState);
+                addState(mSupplicantStartedState, mInitialState);
                     addState(mConnectModeState, mSupplicantStartedState);
                         addState(mL2ConnectedState, mConnectModeState);
                             addState(mObtainingIpState, mL2ConnectedState);
@@ -3940,6 +3940,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_DISABLE_P2P_WATCHDOG_TIMER:
                 case CMD_DISABLE_EPHEMERAL_NETWORK:
                 case CMD_SELECT_TX_POWER_SCENARIO:
+                case CMD_WIFINATIVE_FAILURE:
+                case CMD_INTERFACE_DESTROYED:
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
                     break;
                 case CMD_START_AP:
@@ -4107,12 +4109,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         mWifiNative.stopFilteringMulticastV4Packets(mInterfaceName);
                     }
                     break;
-                case CMD_WIFINATIVE_FAILURE:
-                    Log.e(TAG, "One of the native daemons died unexpectedly. Triggering recovery");
-                    mWifiDiagnostics.captureBugReportData(
-                            WifiDiagnostics.REPORT_REASON_WIFICOND_CRASH);
-                    mWifiInjector.getSelfRecovery().trigger(SelfRecovery.REASON_WIFICOND_CRASH);
-                    break;
                 case CMD_DIAGS_CONNECT_TIMEOUT:
                     mWifiDiagnostics.reportConnectionEvent(
                             (Long) message.obj, BaseWifiDiagnostics.CONNECTION_EVENT_FAILED);
@@ -4189,6 +4185,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     } else {
                         return NOT_HANDLED;
                     }
+                case CMD_WIFINATIVE_FAILURE:
+                    Log.e(TAG, "One of the native daemons died unexpectedly. Triggering recovery");
+                    mWifiDiagnostics.captureBugReportData(
+                            WifiDiagnostics.REPORT_REASON_WIFICOND_CRASH);
+                    mWifiInjector.getSelfRecovery().trigger(SelfRecovery.REASON_WIFICOND_CRASH);
+                    break;
                 default:
                     return NOT_HANDLED;
             }
