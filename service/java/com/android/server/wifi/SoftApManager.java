@@ -415,6 +415,9 @@ public class SoftApManager implements ActiveModeManager {
                     updateApState(WifiManager.WIFI_AP_STATE_ENABLED,
                             WifiManager.WIFI_AP_STATE_ENABLING, 0);
                     mWifiMetrics.incrementSoftApStartResult(true, 0);
+                    if (mCallback != null) {
+                        mCallback.onNumClientsChanged(mNumAssociatedStations);
+                    }
                 } else {
                     // TODO(b/72223325): handle the case where the interface was up, but goes down
                     // sendMessage(CMD_INTERFACE_DOWN);

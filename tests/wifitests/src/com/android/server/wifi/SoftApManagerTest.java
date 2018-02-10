@@ -659,9 +659,10 @@ public class SoftApManagerTest {
         startSoftApAndVerifyEnabled(apConfig);
 
         /* Invalid values should be ignored */
-        mSoftApListenerCaptor.getValue().onNumAssociatedStationsChanged(-1);
+        final int mInvalidNumClients = -1;
+        mSoftApListenerCaptor.getValue().onNumAssociatedStationsChanged(mInvalidNumClients);
         mLooper.dispatchAll();
-        verify(mCallback, never()).onNumClientsChanged(anyInt());
+        verify(mCallback, never()).onNumClientsChanged(mInvalidNumClients);
         verify(mWifiMetrics, never()).addSoftApNumAssociatedStationsChangedEvent(anyInt(),
                 anyInt());
     }
@@ -717,7 +718,7 @@ public class SoftApManagerTest {
 
         mSoftApListenerCaptor.getValue().onNumAssociatedStationsChanged(0);
         mLooper.dispatchAll();
-        verify(mCallback).onNumClientsChanged(0);
+        verify(mCallback, times(2)).onNumClientsChanged(0);
         // Verify timer is scheduled again
         verify(mAlarmManager.getAlarmManager(), times(2)).setExact(anyInt(), anyLong(),
                 eq(mSoftApManager.SOFT_AP_SEND_MESSAGE_TIMEOUT_TAG), any(), any());
@@ -854,6 +855,7 @@ public class SoftApManagerTest {
         mWifiNativeInterfaceCallbackCaptor.getValue().onUp(TEST_INTERFACE_NAME);
         mLooper.dispatchAll();
         order.verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_ENABLED, 0);
+        order.verify(mCallback).onNumClientsChanged(0);
         verify(mContext, times(2)).sendStickyBroadcastAsUser(intentCaptor.capture(),
                                                              eq(UserHandle.ALL));
         List<Intent> capturedIntents = intentCaptor.getAllValues();
