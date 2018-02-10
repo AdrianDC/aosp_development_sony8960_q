@@ -70,9 +70,12 @@ public class PasspointProvisioner {
     public void init(Looper looper) {
         mProvisioningStateMachine.start(new Handler(looper));
         mOsuNetworkConnection.init(mProvisioningStateMachine.getHandler());
-        mWfaKeyStore.load();
-        mOsuServerConnection.init(mObjectFactory.getSSLContext(TLS_VERSION),
-                mObjectFactory.getTrustManagerImpl(mWfaKeyStore.get()));
+        // Offload the heavy load job to another thread
+        mProvisioningStateMachine.getHandler().post(() -> {
+            mWfaKeyStore.load();
+            mOsuServerConnection.init(mObjectFactory.getSSLContext(TLS_VERSION),
+                    mObjectFactory.getTrustManagerImpl(mWfaKeyStore.get()));
+        });
     }
 
     /**
