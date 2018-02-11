@@ -16,6 +16,8 @@
 
 package com.android.server.wifi.hotspot2;
 
+import com.android.org.conscrypt.TrustManagerImpl;
+
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.atLeastOnce;
@@ -45,7 +47,9 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.net.URL;
+import java.security.KeyStore;
 
+import javax.net.ssl.SSLContext;
 /**
  * Unit tests for {@link com.android.server.wifi.hotspot2.PasspointProvisioner}.
  */
@@ -66,37 +70,51 @@ public class PasspointProvisionerTest {
             ArgumentCaptor.forClass(PasspointProvisioner.OsuServerCallbacks.class);
     private ArgumentCaptor<Handler> mHandlerCaptor = ArgumentCaptor.forClass(Handler.class);
     private OsuProvider mOsuProvider;
+    private TrustManagerImpl mDelegate;
 
+
+    @Mock PasspointObjectFactory mObjectFactory;
     @Mock Context mContext;
     @Mock WifiManager mWifiManager;
     @Mock IProvisioningCallback mCallback;
     @Mock OsuNetworkConnection mOsuNetworkConnection;
     @Mock OsuServerConnection mOsuServerConnection;
     @Mock Network mNetwork;
+    @Mock WfaKeyStore mWfaKeyStore;
+    @Mock KeyStore mKeyStore;
+    @Mock SSLContext mTlsContext;
 
     @Before
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
         when(mWifiManager.isWifiEnabled()).thenReturn(true);
+        when(mObjectFactory.makeOsuNetworkConnection(any(Context.class)))
+                .thenReturn(mOsuNetworkConnection);
+        when(mObjectFactory.makeOsuServerConnection()).thenReturn(mOsuServerConnection);
+        when(mWfaKeyStore.get()).thenReturn(mKeyStore);
+        when(mObjectFactory.makeWfaKeyStore()).thenReturn(mWfaKeyStore);
+        when(mObjectFactory.getSSLContext(any(String.class))).thenReturn(mTlsContext);
         doReturn(mWifiManager).when(mContext)
                 .getSystemService(eq(Context.WIFI_SERVICE));
-        mPasspointProvisioner = new PasspointProvisioner(mContext, mOsuNetworkConnection,
-                mOsuServerConnection);
+        mPasspointProvisioner = new PasspointProvisioner(mContext, mObjectFactory);
         when(mOsuNetworkConnection.connect(any(WifiSsid.class), any())).thenReturn(true);
         when(mOsuServerConnection.connect(any(URL.class), any(Network.class))).thenReturn(true);
         when(mOsuServerConnection.validateProvider(any(String.class))).thenReturn(true);
         when(mOsuServerConnection.canValidateServer()).thenReturn(true);
         mPasspointProvisioner.enableVerboseLogging(1);
         mOsuProvider = PasspointProvisioningTestUtil.generateOsuProvider(true);
+        mDelegate = new TrustManagerImpl(PasspointProvisioningTestUtil.createFakeKeyStore());
+        when(mObjectFactory.getTrustManagerImpl(any(KeyStore.class))).thenReturn(mDelegate);
     }
 
     private void initAndStartProvisioning() {
         mPasspointProvisioner.init(mLooper.getLooper());
         verify(mOsuNetworkConnection).init(mHandlerCaptor.capture());
-        verify(mOsuServerConnection).init(any(String.class));
 
         mHandler = mHandlerCaptor.getValue();
         assertEquals(mHandler.getLooper(), mLooper.getLooper());
+
+        mLooper.dispatchAll();
 
         assertTrue(mPasspointProvisioner.startSubscriptionProvisioning(
                 TEST_UID, mOsuProvider, mCallback));

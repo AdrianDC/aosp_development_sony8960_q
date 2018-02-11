@@ -2014,7 +2014,14 @@ public class WifiConfigManager {
                 scanDetail.setSeen();
                 result.level = info.getRssi();
                 // Average the RSSI value
-                result.averageRssi(previousRssi, previousSeen, SCAN_RESULT_MAXIMUM_AGE_MS);
+                long maxAge = SCAN_RESULT_MAXIMUM_AGE_MS;
+                long age = result.seen - previousSeen;
+                if (previousSeen > 0 && age > 0 && age < maxAge / 2) {
+                    // Average the RSSI with previously seen instances of this scan result
+                    double alpha = 0.5 - (double) age / (double) maxAge;
+                    result.level = (int) ((double) result.level * (1 - alpha)
+                                        + (double) previousRssi * alpha);
+                }
                 if (mVerboseLoggingEnabled) {
                     Log.v(TAG, "Updating scan detail cache freq=" + result.frequency
                             + " BSSID=" + result.BSSID

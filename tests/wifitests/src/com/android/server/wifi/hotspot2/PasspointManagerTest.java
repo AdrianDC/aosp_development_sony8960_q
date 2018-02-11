@@ -91,6 +91,7 @@ import org.mockito.Mock;
 
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.security.KeyStore;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -140,6 +141,8 @@ public class PasspointManagerTest {
     @Mock OsuServerConnection mOsuServerConnection;
     @Mock PasspointProvisioner mPasspointProvisioner;
     @Mock IProvisioningCallback mCallback;
+    @Mock WfaKeyStore mWfaKeyStore;
+    @Mock KeyStore mKeyStore;
 
     TestLooper mLooper;
     PasspointManager mManager;
@@ -156,8 +159,9 @@ public class PasspointManagerTest {
                 .thenReturn(mOsuNetworkConnection);
         when(mObjectFactory.makeOsuServerConnection())
                 .thenReturn(mOsuServerConnection);
-        when(mObjectFactory.makePasspointProvisioner(any(Context.class),
-                any(OsuNetworkConnection.class), any(OsuServerConnection.class)))
+        when(mObjectFactory.makeWfaKeyStore()).thenReturn(mWfaKeyStore);
+        when(mWfaKeyStore.get()).thenReturn(mKeyStore);
+        when(mObjectFactory.makePasspointProvisioner(any(Context.class)))
                 .thenReturn(mPasspointProvisioner);
         mManager = new PasspointManager(mContext, mWifiNative, mWifiKeyStore, mClock,
                 mSimAccessor, mObjectFactory, mWifiConfigManager, mWifiConfigStore, mWifiMetrics);

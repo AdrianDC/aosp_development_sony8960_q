@@ -179,7 +179,7 @@ public class OsuNetworkConnection {
         if (TextUtils.isEmpty(nai)) {
             config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
         } else {
-            // TODO(sohanirao): Handle OSEN.
+            // TODO: Handle OSEN.
             Log.w(TAG, "OSEN not supported");
             return false;
         }
