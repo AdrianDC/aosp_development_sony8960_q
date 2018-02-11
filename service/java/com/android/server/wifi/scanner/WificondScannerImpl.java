@@ -26,12 +26,12 @@ import android.os.Message;
 import android.util.Log;
 
 import com.android.internal.R;
-import com.android.internal.util.ArrayUtils;
 import com.android.server.wifi.Clock;
 import com.android.server.wifi.ScanDetail;
 import com.android.server.wifi.WifiMonitor;
 import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.scanner.ChannelHelper.ChannelCollection;
+import com.android.server.wifi.util.ScanResultUtil;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -40,6 +40,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Implementation of the WifiScanner HAL API that uses wificond to perform all scans
@@ -451,49 +452,20 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
     @Override
     protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         synchronized (mSettingsLock) {
+            long nowMs = mClock.getElapsedSinceBootMillis();
             pw.println("Latest native scan results:");
-            dumpCachedScanResult(pw, mNativeScanResults);
+            if (mNativeScanResults != null) {
+                List<ScanResult> scanResults = mNativeScanResults.stream().map(r -> {
+                    return r.getScanResult();
+                }).collect(Collectors.toList());
+                ScanResultUtil.dumpScanResults(pw, scanResults, nowMs);
+            }
             pw.println("Latest native pno scan results:");
-            dumpCachedScanResult(pw, mNativePnoScanResults);
-        }
-    }
-
-    private void dumpCachedScanResult(PrintWriter pw, ArrayList<ScanDetail> scanResults) {
-        synchronized (mSettingsLock) {
-            if (scanResults != null && scanResults.size() != 0) {
-                long nowMs = mClock.getElapsedSinceBootMillis();
-                pw.println("    BSSID              Frequency      RSSI           Age(sec)     SSID "
-                        + "                                Flags");
-                for (ScanDetail scanDetail : scanResults) {
-                    ScanResult r = scanDetail.getScanResult();
-                    long timeStampMs = r.timestamp / 1000;
-                    String age;
-                    if (timeStampMs <= 0) {
-                        age = "___?___";
-                    } else if (nowMs < timeStampMs) {
-                        age = "  0.000";
-                    } else if (timeStampMs < nowMs - 1000000) {
-                        age = ">1000.0";
-                    } else {
-                        age = String.format("%3.3f", (nowMs - timeStampMs) / 1000.0);
-                    }
-                    String ssid = r.SSID == null ? "" : r.SSID;
-                    String rssiInfo;
-                    if (ArrayUtils.size(r.radioChainInfos) != 2) {
-                        rssiInfo = String.format("%9d         ", r.level);
-                    } else {
-                        rssiInfo = String.format("%5d(%1d:%3d/%1d:%3d)", r.level,
-                                r.radioChainInfos[0].id, r.radioChainInfos[0].level,
-                                r.radioChainInfos[1].id, r.radioChainInfos[1].level);
-                    }
-                    pw.printf("  %17s  %9d  %18s   %7s    %-32s  %s\n",
-                            r.BSSID,
-                            r.frequency,
-                            rssiInfo,
-                            age,
-                            String.format("%1.32s", ssid),
-                            r.capabilities);
-                }
+            if (mNativePnoScanResults != null) {
+                List<ScanResult> pnoScanResults = mNativePnoScanResults.stream().map(r -> {
+                    return r.getScanResult();
+                }).collect(Collectors.toList());
+                ScanResultUtil.dumpScanResults(pw, pnoScanResults, nowMs);
             }
         }
     }
