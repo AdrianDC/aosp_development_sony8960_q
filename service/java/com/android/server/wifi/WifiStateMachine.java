@@ -952,7 +952,7 @@ public class WifiStateMachine extends StateMachine {
                     }
                 }, filter);
 
-        mContext.getContentResolver().registerContentObserver(Settings.Global.getUriFor(
+        mFacade.registerContentObserver(mContext, Settings.Global.getUriFor(
                         Settings.Global.WIFI_SUSPEND_OPTIMIZATIONS_ENABLED), false,
                 new ContentObserver(getHandler()) {
                     @Override
@@ -962,7 +962,7 @@ public class WifiStateMachine extends StateMachine {
                     }
                 });
 
-        mContext.getContentResolver().registerContentObserver(Settings.Global.getUriFor(
+        mFacade.registerContentObserver(mContext, Settings.Global.getUriFor(
                         Settings.Global.WIFI_CONNECTED_MAC_RANDOMIZATION_ENABLED), false,
                 new ContentObserver(getHandler()) {
                     @Override
