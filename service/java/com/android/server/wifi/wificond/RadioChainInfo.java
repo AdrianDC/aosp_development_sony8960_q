@@ -18,7 +18,6 @@ package com.android.server.wifi.wificond;
 
 import android.os.Parcel;
 import android.os.Parcelable;
-import android.util.Log;
 
 import java.util.Objects;
 
@@ -90,10 +89,6 @@ public class RadioChainInfo implements Parcelable {
             RadioChainInfo result = new RadioChainInfo();
             result.chainId = in.readInt();
             result.level = in.readInt();
-            if (in.dataAvail() != 0) {
-                Log.e(TAG, "Found trailing data after parcel parsing.");
-            }
-
             return result;
         }
 
