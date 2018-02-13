@@ -46,6 +46,9 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.os.RemoteException;
+import android.os.ResultReceiver;
+import android.os.ShellCallback;
+import android.os.ShellCommand;
 import android.os.UserHandle;
 import android.os.WorkSource;
 import android.os.WorkSource.WorkChain;
@@ -78,6 +81,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
     private boolean mDbg = false;
 
     private final Context mContext;
+    private final RttShellCommand mShellCommand;
     private Clock mClock;
     private IWifiAwareManager mAwareBinder;
     private RttNative mRttNative;
@@ -101,6 +105,102 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
 
     public RttServiceImpl(Context context) {
         mContext = context;
+        mShellCommand = new RttShellCommand();
+        mShellCommand.reset();
+    }
+
+    /*
+     * Shell command: adb shell cmd wifirtt ...
+     */
+
+    // If set to 0: normal behavior, if set to 1: do not allow any caller (including system
+    // callers) privileged API access
+    private static final String CONTROL_PARAM_OVERRIDE_ASSUME_NO_PRIVILEGE_NAME =
+            "override_assume_no_privilege";
+    private static final int CONTROL_PARAM_OVERRIDE_ASSUME_NO_PRIVILEGE_DEFAULT = 0;
+
+    private class RttShellCommand extends ShellCommand {
+        private Map<String, Integer> mControlParams = new HashMap<>();
+
+        @Override
+        public int onCommand(String cmd) {
+            final int uid = Binder.getCallingUid();
+            if (uid != 0) {
+                throw new SecurityException(
+                        "Uid " + uid + " does not have access to wifirtt commands");
+            }
+
+            final PrintWriter pw = getErrPrintWriter();
+            try {
+                if ("reset".equals(cmd)) {
+                    reset();
+                    return 0;
+                } else if ("get".equals(cmd)) {
+                    String name = getNextArgRequired();
+                    if (!mControlParams.containsKey(name)) {
+                        pw.println("Unknown parameter name -- '" + name + "'");
+                        return -1;
+                    }
+                    getOutPrintWriter().println(mControlParams.get(name));
+                    return 0;
+                } else if ("set".equals(cmd)) {
+                    String name = getNextArgRequired();
+                    String valueStr = getNextArgRequired();
+
+                    if (!mControlParams.containsKey(name)) {
+                        pw.println("Unknown parameter name -- '" + name + "'");
+                        return -1;
+                    }
+
+                    try {
+                        mControlParams.put(name, Integer.valueOf(valueStr));
+                        return 0;
+                    } catch (NumberFormatException e) {
+                        pw.println("Can't convert value to integer -- '" + valueStr + "'");
+                        return -1;
+                    }
+                } else {
+                    handleDefaultCommands(cmd);
+                }
+            } catch (Exception e) {
+                pw.println("Exception: " + e);
+            }
+            return -1;
+        }
+
+        @Override
+        public void onHelp() {
+            final PrintWriter pw = getOutPrintWriter();
+
+            pw.println("Wi-Fi RTT (wifirt) commands:");
+            pw.println("  help");
+            pw.println("    Print this help text.");
+            pw.println("  reset");
+            pw.println("    Reset parameters to default values.");
+            pw.println("  get <name>");
+            pw.println("    Get the value of the control parameter.");
+            pw.println("  set <name> <value>");
+            pw.println("    Set the value of the control parameter.");
+            pw.println("  Control parameters:");
+            for (String name : mControlParams.keySet()) {
+                pw.println("    " + name);
+            }
+            pw.println();
+        }
+
+        public int getControlParam(String name) {
+            if (mControlParams.containsKey(name)) {
+                return mControlParams.get(name);
+            }
+
+            Log.wtf(TAG, "getControlParam for unknown variable: " + name);
+            return 0;
+        }
+
+        public void reset() {
+            mControlParams.put(CONTROL_PARAM_OVERRIDE_ASSUME_NO_PRIVILEGE_NAME,
+                    CONTROL_PARAM_OVERRIDE_ASSUME_NO_PRIVILEGE_DEFAULT);
+        }
     }
 
     /*
@@ -237,6 +337,12 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         });
     }
 
+    @Override
+    public void onShellCommand(FileDescriptor in, FileDescriptor out, FileDescriptor err,
+            String[] args, ShellCallback callback, ResultReceiver resultReceiver) {
+        mShellCommand.exec(this, in, out, err, args, callback, resultReceiver);
+    }
+
     /**
      * Binder interface API to indicate whether the API is currently available. This requires an
      * immediate asynchronous response.
@@ -292,7 +398,9 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
             // tags. Clear names so that other operations involving wakesources become simpler.
             workSource.clearNames();
         }
-        boolean isCalledFromPrivilegedContext = checkLocationHardware();
+        boolean isCalledFromPrivilegedContext =
+                checkLocationHardware() && mShellCommand.getControlParam(
+                        CONTROL_PARAM_OVERRIDE_ASSUME_NO_PRIVILEGE_NAME) == 0;
 
         // register for binder death
         IBinder.DeathRecipient dr = new IBinder.DeathRecipient() {
