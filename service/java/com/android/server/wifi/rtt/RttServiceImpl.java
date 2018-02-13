@@ -1080,11 +1080,13 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                     if (peer.peerHandle == null) {
                         finalResults.add(new RangingResult(status, peer.macAddress,
                                 resultForRequest.distanceInMm, resultForRequest.distanceSdInMm,
-                                resultForRequest.rssi, lci, lcr, resultForRequest.timeStampInUs));
+                                resultForRequest.rssi / -2, lci, lcr,
+                                resultForRequest.timeStampInUs));
                     } else {
                         finalResults.add(new RangingResult(status, peer.peerHandle,
                                 resultForRequest.distanceInMm, resultForRequest.distanceSdInMm,
-                                resultForRequest.rssi, lci, lcr, resultForRequest.timeStampInUs));
+                                resultForRequest.rssi / -2, lci, lcr,
+                                resultForRequest.timeStampInUs));
                     }
                 }
             }
