@@ -123,9 +123,13 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
      * @param cmdId Command ID for the request. Will be used in the corresponding
      * {@link #onResults(int, ArrayList)}.
      * @param request Range request.
+     * @param isCalledFromPrivilegedContext Indicates whether privileged APIs are permitted,
+     *                                      initially: support for one-sided RTT.
+     *
      * @return Success status: true for success, false for failure.
      */
-    public boolean rangeRequest(int cmdId, RangingRequest request) {
+    public boolean rangeRequest(int cmdId, RangingRequest request,
+            boolean isCalledFromPrivilegedContext) {
         if (mDbg) {
             Log.v(TAG,
                     "rangeRequest: cmdId=" + cmdId + ", # of requests=" + request.mRttPeers.size());
@@ -137,10 +141,16 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
                 return false;
             }
 
-            ArrayList<RttConfig> rttConfig = convertRangingRequestToRttConfigs(request);
+            ArrayList<RttConfig> rttConfig = convertRangingRequestToRttConfigs(request,
+                    isCalledFromPrivilegedContext);
             if (rttConfig == null) {
                 Log.e(TAG, "rangeRequest: invalid request parameters");
                 return false;
+            }
+            if (rttConfig.size() == 0) {
+                Log.e(TAG, "rangeRequest: all requests invalidated");
+                mRttService.onRangingResults(cmdId, new ArrayList<>());
+                return true;
             }
 
             try {
@@ -193,7 +203,7 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
      * Callback from HAL with range results.
      *
      * @param cmdId Command ID specified in the original request
-     * {@link #rangeRequest(int, RangingRequest)}.
+     * {@link #rangeRequest(int, RangingRequest, boolean)}.
      * @param halResults A list of range results.
      */
     @Override
@@ -204,12 +214,20 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
         mRttService.onRangingResults(cmdId, halResults);
     }
 
-    private static ArrayList<RttConfig> convertRangingRequestToRttConfigs(RangingRequest request) {
+    private static ArrayList<RttConfig> convertRangingRequestToRttConfigs(RangingRequest request,
+            boolean isCalledFromPrivilegedContext) {
         ArrayList<RttConfig> rttConfigs = new ArrayList<>(request.mRttPeers.size());
 
         // Skipping any configurations which have an error (printing out a message).
         // The caller will only get results for valid configurations.
         for (ResponderConfig responder: request.mRttPeers) {
+            if (!isCalledFromPrivilegedContext) {
+                if (!responder.supports80211mc) {
+                    Log.e(TAG, "Invalid responder: does not support 802.11mc");
+                    continue;
+                }
+            }
+
             RttConfig config = new RttConfig();
 
             System.arraycopy(responder.macAddress.toByteArray(), 0, config.addr, 0,

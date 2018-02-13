@@ -53,9 +53,10 @@ public class RttTestUtils {
     }
 
     /**
-     * Returns a dummy ranging request with 2 requests:
+     * Returns a dummy ranging request with 3 requests:
      * - First: 802.11mc capable
      * - Second: 802.11mc not capable
+     * - Third: Aware peer
      */
     public static RangingRequest getDummyRangingRequest(byte lastMacByte) {
         RangingRequest.Builder builder = new RangingRequest.Builder();
@@ -70,6 +71,23 @@ public class RttTestUtils {
         builder.addAccessPoint(scan1);
         builder.addAccessPoint(scan2);
         builder.addWifiAwarePeer(mac1);
+
+        return builder.build();
+    }
+
+    /**
+     * Returns a dummy ranging request with 2 requests - neither of which support 802.11mc.
+     */
+    public static RangingRequest getDummyRangingRequestNo80211mcSupport(byte lastMacByte) {
+        RangingRequest.Builder builder = new RangingRequest.Builder();
+
+        ScanResult scan1 = new ScanResult();
+        scan1.BSSID = "00:01:02:03:04:" + String.format("%02d", lastMacByte);
+        ScanResult scan2 = new ScanResult();
+        scan2.BSSID = "0A:0B:0C:0D:0E:" + String.format("%02d", lastMacByte);
+
+        builder.addAccessPoint(scan1);
+        builder.addAccessPoint(scan2);
 
         return builder.build();
     }

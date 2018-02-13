@@ -292,6 +292,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
             // tags. Clear names so that other operations involving wakesources become simpler.
             workSource.clearNames();
         }
+        boolean isCalledFromPrivilegedContext = checkLocationHardware();
 
         // register for binder death
         IBinder.DeathRecipient dr = new IBinder.DeathRecipient() {
@@ -319,7 +320,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                 sourceToUse = new WorkSource(uid);
             }
             mRttServiceSynchronized.queueRangingRequest(uid, sourceToUse, binder, dr,
-                    callingPackage, request, callback);
+                    callingPackage, request, callback, isCalledFromPrivilegedContext);
         });
     }
 
@@ -365,6 +366,11 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
     private void enforceLocationHardware() {
         mContext.enforceCallingOrSelfPermission(android.Manifest.permission.LOCATION_HARDWARE,
                 TAG);
+    }
+
+    private boolean checkLocationHardware() {
+        return mContext.checkCallingOrSelfPermission(android.Manifest.permission.LOCATION_HARDWARE)
+                == PackageManager.PERMISSION_GRANTED;
     }
 
     private void sendRttStateChangedBroadcast(boolean enabled) {
@@ -521,7 +527,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
 
         private void queueRangingRequest(int uid, WorkSource workSource, IBinder binder,
                 IBinder.DeathRecipient dr, String callingPackage, RangingRequest request,
-                IRttCallback callback) {
+                IRttCallback callback, boolean isCalledFromPrivilegedContext) {
             if (isRequestorSpamming(workSource)) {
                 Log.w(TAG,
                         "Work source " + workSource + " is spamming, dropping request: " + request);
@@ -543,6 +549,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
             newRequest.callingPackage = callingPackage;
             newRequest.request = request;
             newRequest.callback = callback;
+            newRequest.isCalledFromPrivilegedContext = isCalledFromPrivilegedContext;
             mRttRequestQueue.add(newRequest);
 
             if (VDBG) {
@@ -665,7 +672,8 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
             }
 
             nextRequest.cmdId = mNextCommandId++;
-            if (mRttNative.rangeRequest(nextRequest.cmdId, nextRequest.request)) {
+            if (mRttNative.rangeRequest(nextRequest.cmdId, nextRequest.request,
+                    nextRequest.isCalledFromPrivilegedContext)) {
                 mRangingTimeoutMessage.schedule(
                         mClock.getElapsedSinceBootMillis() + HAL_RANGING_TIMEOUT_MS);
             } else {
@@ -895,7 +903,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
             try {
                 if (permissionGranted) {
                     List<RangingResult> finalResults = postProcessResults(topOfQueueRequest.request,
-                            results);
+                            results, topOfQueueRequest.isCalledFromPrivilegedContext);
                     if (VDBG) {
                         Log.v(TAG, "RttServiceSynchronized.onRangingResults: finalResults="
                                 + finalResults);
@@ -922,7 +930,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
          * - Effectively: throws away results which don't match requests
          */
         private List<RangingResult> postProcessResults(RangingRequest request,
-                List<RttResult> results) {
+                List<RttResult> results, boolean isCalledFromPrivilegedContext) {
             Map<MacAddress, RttResult> resultEntries = new HashMap<>();
             for (RttResult result : results) {
                 resultEntries.put(MacAddress.fromBytes(result.addr), result);
@@ -936,14 +944,22 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                     if (mDbg) {
                         Log.v(TAG, "postProcessResults: missing=" + peer.macAddress);
                     }
+
+                    int errorCode = RangingResult.STATUS_FAIL;
+                    if (!isCalledFromPrivilegedContext) {
+                        if (!peer.supports80211mc) {
+                            errorCode = RangingResult.STATUS_RESPONDER_DOES_NOT_SUPPORT_IEEE80211MC;
+                        }
+                    }
+
                     if (peer.peerHandle == null) {
                         finalResults.add(
-                                new RangingResult(RangingResult.STATUS_FAIL, peer.macAddress, 0, 0,
-                                        0, null, null, 0));
+                                new RangingResult(errorCode, peer.macAddress, 0, 0, 0, null, null,
+                                        0));
                     } else {
                         finalResults.add(
-                                new RangingResult(RangingResult.STATUS_FAIL, peer.peerHandle, 0, 0,
-                                        0, null, null, 0));
+                                new RangingResult(errorCode, peer.peerHandle, 0, 0, 0, null, null,
+                                        0));
                     }
                 } else {
                     int status = resultForRequest.status == RttStatus.SUCCESS
@@ -995,6 +1011,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         public String callingPackage;
         public RangingRequest request;
         public IRttCallback callback;
+        public boolean isCalledFromPrivilegedContext;
 
         public int cmdId = 0; // uninitialized cmdId value
         public boolean dispatchedToNative = false;
@@ -1007,7 +1024,9 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                     ", dr=").append(dr).append(", callingPackage=").append(callingPackage).append(
                     ", request=").append(request.toString()).append(", callback=").append(
                     callback).append(", cmdId=").append(cmdId).append(
-                    ", peerHandlesTranslated=").append(peerHandlesTranslated).toString();
+                    ", peerHandlesTranslated=").append(peerHandlesTranslated).append(
+                    ", isCalledFromPrivilegedContext=").append(
+                    isCalledFromPrivilegedContext).toString();
         }
     }
 
