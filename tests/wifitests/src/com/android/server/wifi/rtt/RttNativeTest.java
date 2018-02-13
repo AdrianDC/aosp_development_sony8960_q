@@ -118,20 +118,27 @@ public class RttNativeTest {
         RttConfig rttConfig = halRequest.get(0);
         collector.checkThat("entry 0: MAC", rttConfig.addr,
                 equalTo(MacAddress.fromString("00:01:02:03:04:00").toByteArray()));
-        collector.checkThat("entry 0: MAC", rttConfig.type, equalTo(RttType.TWO_SIDED));
-        collector.checkThat("entry 0: MAC", rttConfig.peer, equalTo(RttPeerType.AP));
+        collector.checkThat("entry 0: rtt type", rttConfig.type, equalTo(RttType.TWO_SIDED));
+        collector.checkThat("entry 0: peer type", rttConfig.peer, equalTo(RttPeerType.AP));
+        collector.checkThat("entry 0: lci", rttConfig.mustRequestLci, equalTo(true));
+        collector.checkThat("entry 0: lcr", rttConfig.mustRequestLcr, equalTo(true));
 
         rttConfig = halRequest.get(1);
         collector.checkThat("entry 1: MAC", rttConfig.addr,
                 equalTo(MacAddress.fromString("0A:0B:0C:0D:0E:00").toByteArray()));
-        collector.checkThat("entry 1: MAC", rttConfig.type, equalTo(RttType.ONE_SIDED));
-        collector.checkThat("entry 1: MAC", rttConfig.peer, equalTo(RttPeerType.AP));
+        collector.checkThat("entry 1: rtt type", rttConfig.type, equalTo(RttType.ONE_SIDED));
+        collector.checkThat("entry 1: peer type", rttConfig.peer, equalTo(RttPeerType.AP));
+        collector.checkThat("entry 1: lci", rttConfig.mustRequestLci, equalTo(true));
+        collector.checkThat("entry 1: lcr", rttConfig.mustRequestLcr, equalTo(true));
+
 
         rttConfig = halRequest.get(2);
         collector.checkThat("entry 2: MAC", rttConfig.addr,
                 equalTo(MacAddress.fromString("08:09:08:07:06:05").toByteArray()));
-        collector.checkThat("entry 2: MAC", rttConfig.type, equalTo(RttType.TWO_SIDED));
-        collector.checkThat("entry 2: MAC", rttConfig.peer, equalTo(RttPeerType.NAN));
+        collector.checkThat("entry 2: rtt type", rttConfig.type, equalTo(RttType.TWO_SIDED));
+        collector.checkThat("entry 2: peer type", rttConfig.peer, equalTo(RttPeerType.NAN));
+        collector.checkThat("entry 2: lci", rttConfig.mustRequestLci, equalTo(false));
+        collector.checkThat("entry 2: lcr", rttConfig.mustRequestLcr, equalTo(false));
 
         verifyNoMoreInteractions(mockRttController, mockRttServiceImpl);
     }
@@ -162,14 +169,18 @@ public class RttNativeTest {
         RttConfig rttConfig = halRequest.get(0);
         collector.checkThat("entry 0: MAC", rttConfig.addr,
                 equalTo(MacAddress.fromString("00:01:02:03:04:00").toByteArray()));
-        collector.checkThat("entry 0: MAC", rttConfig.type, equalTo(RttType.TWO_SIDED));
-        collector.checkThat("entry 0: MAC", rttConfig.peer, equalTo(RttPeerType.AP));
+        collector.checkThat("entry 0: rtt type", rttConfig.type, equalTo(RttType.TWO_SIDED));
+        collector.checkThat("entry 0: peer type", rttConfig.peer, equalTo(RttPeerType.AP));
+        collector.checkThat("entry 0: lci", rttConfig.mustRequestLci, equalTo(false));
+        collector.checkThat("entry 0: lcr", rttConfig.mustRequestLcr, equalTo(false));
 
         rttConfig = halRequest.get(1);
         collector.checkThat("entry 1: MAC", rttConfig.addr,
                 equalTo(MacAddress.fromString("08:09:08:07:06:05").toByteArray()));
-        collector.checkThat("entry 1: MAC", rttConfig.type, equalTo(RttType.TWO_SIDED));
-        collector.checkThat("entry 1: MAC", rttConfig.peer, equalTo(RttPeerType.NAN));
+        collector.checkThat("entry 1: rtt type", rttConfig.type, equalTo(RttType.TWO_SIDED));
+        collector.checkThat("entry 1: peer type", rttConfig.peer, equalTo(RttPeerType.NAN));
+        collector.checkThat("entry 1: lci", rttConfig.mustRequestLci, equalTo(false));
+        collector.checkThat("entry 1: lcr", rttConfig.mustRequestLcr, equalTo(false));
 
         verifyNoMoreInteractions(mockRttController, mockRttServiceImpl);
     }
