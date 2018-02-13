@@ -468,6 +468,7 @@ public class NetworkListStoreDataTest {
      * Verify that a saved network config with invalid creatorUid resets it to
      * {@link android.os.Process#SYSTEM_UID}.
      */
+    @Test
     public void parseNetworkWithInvalidCreatorUidResetsToSystem() throws Exception {
         WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
         openNetwork.creatorUid = -1;
@@ -490,6 +491,7 @@ public class NetworkListStoreDataTest {
      * Verify that a saved network config with invalid creatorName resets it to the package name
      * provided {@link PackageManager} for the creatorUid.
      */
+    @Test
     public void parseNetworkWithInvalidCreatorNameResetsToPackageNameForCreatorUid()
             throws Exception {
         String badCreatorName = "bad";
@@ -516,6 +518,7 @@ public class NetworkListStoreDataTest {
      * Verify that a saved network config with invalid creatorName resets it to the package name
      * provided {@link PackageManager} for the creatorUid.
      */
+    @Test
     public void parseNetworkWithNullCreatorNameResetsToPackageNameForCreatorUid()
             throws Exception {
         String correctCreatorName = "correct";
@@ -540,6 +543,7 @@ public class NetworkListStoreDataTest {
     /**
      * Verify that a saved network config with valid creatorUid is preserved.
      */
+    @Test
     public void parseNetworkWithValidCreatorUid() throws Exception {
         WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
         openNetwork.creatorUid = 1324422;
