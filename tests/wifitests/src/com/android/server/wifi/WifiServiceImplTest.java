@@ -37,9 +37,11 @@ import static android.net.wifi.WifiManager.WIFI_STATE_DISABLED;
 import static android.net.wifi.WifiManager.WIFI_STATE_ENABLED;
 import static android.provider.Settings.Secure.LOCATION_MODE_HIGH_ACCURACY;
 import static android.provider.Settings.Secure.LOCATION_MODE_OFF;
+
 import static com.android.server.wifi.LocalOnlyHotspotRequestInfo.HOTSPOT_NO_ERROR;
 import static com.android.server.wifi.WifiController.CMD_SET_AP;
 import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -74,6 +76,7 @@ import android.net.wifi.WifiSsid;
 import android.net.wifi.hotspot2.IProvisioningCallback;
 import android.net.wifi.hotspot2.OsuProvider;
 import android.net.wifi.hotspot2.PasspointConfiguration;
+import android.os.Binder;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -583,9 +586,15 @@ public class WifiServiceImplTest {
                 anyString(), anyInt(), anyInt()))
                         .thenReturn(mApplicationInfo);
         mApplicationInfo.uid = TEST_UID;
+        int uid = Binder.getCallingUid();
         BinderUtil.setUid(TEST_UID);
 
-        assertTrue(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, true));
+        try {
+            assertTrue(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, true));
+        } finally {
+            BinderUtil.setUid(uid);
+        }
+
         verify(mContext).startActivity(any());
         verify(mWifiController, never()).sendMessage(eq(CMD_WIFI_TOGGLED));
     }
@@ -612,7 +621,7 @@ public class WifiServiceImplTest {
      *
      * @throws SecurityException
      */
-    @Test(expected = SecurityException.class)
+    @Test
     public void testSetWifiEnabledThrowsSecurityExceptionForConsentUiIfUidNotMatch()
             throws Exception {
         // Set PermissionReviewRequired to true explicitly
@@ -627,11 +636,16 @@ public class WifiServiceImplTest {
                 anyString(), anyInt(), anyInt()))
                         .thenReturn(mApplicationInfo);
         mApplicationInfo.uid = TEST_UID;
+        int uid = Binder.getCallingUid();
         BinderUtil.setUid(OTHER_TEST_UID);
 
-        assertTrue(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, true));
-        verify(mContext, never()).startActivity(any());
-        verify(mWifiController, never()).sendMessage(eq(CMD_WIFI_TOGGLED));
+        try {
+            mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, true);
+            fail();
+        } catch (SecurityException e) {
+        } finally {
+            BinderUtil.setUid(uid);
+        }
     }
 
     /**
@@ -660,12 +674,15 @@ public class WifiServiceImplTest {
      * Verify a SecurityException is thrown if a caller does not have the correct permission to
      * toggle wifi.
      */
-    @Test(expected = SecurityException.class)
+    @Test
     public void testSetWifiDisabledWithoutPermission() throws Exception {
         doThrow(new SecurityException()).when(mContext)
                 .enforceCallingOrSelfPermission(eq(android.Manifest.permission.CHANGE_WIFI_STATE),
                                                 eq("WifiService"));
-        mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, false);
+        try {
+            mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, false);
+            fail();
+        } catch (SecurityException e) { }
     }
 
     /**
@@ -709,9 +726,14 @@ public class WifiServiceImplTest {
                 anyString(), anyInt(), anyInt()))
                         .thenReturn(mApplicationInfo);
         mApplicationInfo.uid = TEST_UID;
+        int uid = Binder.getCallingUid();
         BinderUtil.setUid(TEST_UID);
 
-        assertTrue(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, false));
+        try {
+            assertTrue(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, false));
+        } finally {
+            BinderUtil.setUid(uid);
+        }
         verify(mContext).startActivity(any());
         verify(mWifiController, never()).sendMessage(eq(CMD_WIFI_TOGGLED));
     }
@@ -742,7 +764,7 @@ public class WifiServiceImplTest {
      *
      * @throws SecurityException
      */
-    @Test(expected = SecurityException.class)
+    @Test
     public void testSetWifiDisabledThrowsSecurityExceptionForConsentUiIfUidNotMatch()
             throws Exception {
         // Set PermissionReviewRequired to true explicitly
@@ -758,11 +780,18 @@ public class WifiServiceImplTest {
                 anyString(), anyInt(), anyInt()))
                         .thenReturn(mApplicationInfo);
         mApplicationInfo.uid = TEST_UID;
+        int uid = Binder.getCallingUid();
         BinderUtil.setUid(OTHER_TEST_UID);
 
-        assertTrue(mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, false));
-        verify(mContext, never()).startActivity(any());
-        verify(mWifiController, never()).sendMessage(eq(CMD_WIFI_TOGGLED));
+        try {
+            mWifiServiceImpl.setWifiEnabled(TEST_PACKAGE_NAME, false);
+            fail();
+        } catch (SecurityException e) {
+
+        } finally {
+            // reset Binder uid so we do not mess up other tests
+            BinderUtil.setUid(uid);
+        }
     }
 
     /**
