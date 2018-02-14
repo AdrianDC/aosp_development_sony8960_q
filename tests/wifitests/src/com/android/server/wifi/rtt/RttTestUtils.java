@@ -150,7 +150,7 @@ public class RttTestUtils {
         rttResult.distanceInMm = rangingResult.getDistanceMm();
         rttResult.distanceSdInMm = rangingResult.getDistanceStdDevMm();
         rttResult.rssi = rangingResult.getRssi() * -2;
-        rttResult.timeStampInUs = rangingResult.getRangingTimestampUs();
+        rttResult.timeStampInUs = rangingResult.getRangingTimestampMillis() * 1000;
 
         return rttResult;
     }
