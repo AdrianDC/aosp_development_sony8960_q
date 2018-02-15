@@ -251,6 +251,19 @@ public class WificondControlTest {
      * Verifies that tearDownClientInterface(TEST_INTERFACE_NAME) calls Wificond.
      */
     @Test
+    public void testTeardownClientInterfaceOnInvalidIface() throws Exception {
+        when(mWificond.tearDownClientInterface(TEST_INTERFACE_NAME1)).thenReturn(true);
+
+        assertFalse(mWificondControl.tearDownClientInterface(TEST_INTERFACE_NAME1));
+        verify(mWifiScannerImpl, never()).unsubscribeScanEvents();
+        verify(mWifiScannerImpl, never()).unsubscribePnoScanEvents();
+        verify(mWificond, never()).tearDownClientInterface(any());
+    }
+
+    /**
+     * Verifies that tearDownClientInterface(TEST_INTERFACE_NAME) calls Wificond.
+     */
+    @Test
     public void testTeardownClientInterfaceFailDueToExceptionScannerUnsubscribe() throws Exception {
         when(mWificond.tearDownClientInterface(TEST_INTERFACE_NAME)).thenReturn(true);
         doThrow(new RemoteException()).when(mWifiScannerImpl).unsubscribeScanEvents();
@@ -346,6 +359,18 @@ public class WificondControlTest {
 
         assertTrue(mWificondControl.tearDownSoftApInterface(TEST_INTERFACE_NAME));
         verify(mWificond).tearDownApInterface(TEST_INTERFACE_NAME);
+    }
+
+    /**
+     * Verifies that tearDownSoftapInterface(TEST_INTERFACE_NAME) calls Wificond.
+     */
+    @Test
+    public void testTeardownSoftApInterfaceOnInvalidIface() throws Exception {
+        testSetupInterfaceForSoftApMode();
+        when(mWificond.tearDownApInterface(TEST_INTERFACE_NAME1)).thenReturn(true);
+
+        assertFalse(mWificondControl.tearDownSoftApInterface(TEST_INTERFACE_NAME1));
+        verify(mWificond, never()).tearDownApInterface(any());
     }
 
     /**
