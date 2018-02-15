@@ -442,7 +442,7 @@ public class SupplicantStaIfaceHal {
                     return false;
                 }
             } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicant.getInterface exception: " + e);
+                Log.e(TAG, "ISupplicant.removeInterface exception: " + e);
                 supplicantServiceDiedHandler(ifaceName);
                 return false;
             }
@@ -487,19 +487,19 @@ public class SupplicantStaIfaceHal {
     private void supplicantServiceDiedHandler(@NonNull String ifaceName) {
         synchronized (mLock) {
             mWifiMonitor.broadcastSupplicantDisconnectionEvent(ifaceName);
-            clearState();
+            supplicantServiceDiedHandler();
         }
     }
 
     private void supplicantServiceDiedHandler() {
         synchronized (mLock) {
-            if (mDeathEventHandler != null) {
-                mDeathEventHandler.onDeath();
-            }
             for (String ifaceName : mISupplicantStaIfaces.keySet()) {
                 mWifiMonitor.broadcastSupplicantDisconnectionEvent(ifaceName);
             }
             clearState();
+            if (mDeathEventHandler != null) {
+                mDeathEventHandler.onDeath();
+            }
         }
     }
 
