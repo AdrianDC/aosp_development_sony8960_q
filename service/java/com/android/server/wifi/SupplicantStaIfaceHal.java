@@ -291,6 +291,8 @@ public class SupplicantStaIfaceHal {
      * @return true on success, false otherwise.
      */
     public boolean setupIface(@NonNull String ifaceName) {
+        final String methodStr = "setupIface";
+        if (checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr) != null) return false;
         ISupplicantIface ifaceHwBinder;
         if (isV1_1()) {
             ifaceHwBinder = addIfaceV1_1(ifaceName);
@@ -405,6 +407,8 @@ public class SupplicantStaIfaceHal {
      */
     public boolean teardownIface(@NonNull String ifaceName) {
         synchronized (mLock) {
+            final String methodStr = "teardownIface";
+            if (checkSupplicantStaIfaceAndLogFailure(ifaceName, methodStr) == null) return false;
             if (isV1_1()) {
                 if (!removeIfaceV1_1(ifaceName)) {
                     Log.e(TAG, "Failed to remove iface = " + ifaceName);
