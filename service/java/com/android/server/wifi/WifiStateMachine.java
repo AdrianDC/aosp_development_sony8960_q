@@ -5062,12 +5062,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
                     if (mEnableConnectedMacRandomization.get()) {
                         configureRandomizedMacAddress(config);
-                    } else {
-                        Log.i(TAG, "EnableConnectedMacRandomization setting is off");
                     }
 
-                    Log.i(TAG, "Connecting with "
-                            + mWifiNative.getMacAddress(mInterfaceName) + " as the mac address");
+                    String currentMacAddress = mWifiNative.getMacAddress(mInterfaceName);
+                    mWifiInfo.setMacAddress(currentMacAddress);
+                    Log.i(TAG, "Connecting with " + currentMacAddress + " as the mac address");
 
                     reportConnectionAttemptStart(config, mTargetRoamBSSID,
                             WifiMetricsProto.ConnectionEvent.ROAM_UNRELATED);
