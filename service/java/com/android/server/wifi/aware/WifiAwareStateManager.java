@@ -23,6 +23,7 @@ import android.content.IntentFilter;
 import android.hardware.wifi.V1_0.NanStatusType;
 import android.hardware.wifi.V1_2.NanDataPathChannelInfo;
 import android.location.LocationManager;
+import android.net.wifi.WifiManager;
 import android.net.wifi.aware.Characteristics;
 import android.net.wifi.aware.ConfigRequest;
 import android.net.wifi.aware.IWifiAwareDiscoverySessionCallback;
@@ -216,6 +217,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
     public WifiAwareDataPathStateManager mDataPathMgr;
     private PowerManager mPowerManager;
     private LocationManager mLocationManager;
+    private WifiManager mWifiManager;
 
     private final SparseArray<WifiAwareClientState> mClients = new SparseArray<>();
     private ConfigRequest mCurrentAwareConfiguration = null;
@@ -389,6 +391,7 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
 
         mPowerManager = mContext.getSystemService(PowerManager.class);
         mLocationManager = (LocationManager) mContext.getSystemService(Context.LOCATION_SERVICE);
+        mWifiManager = (WifiManager) mContext.getSystemService(Context.WIFI_SERVICE);
 
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(Intent.ACTION_SCREEN_ON);
@@ -425,6 +428,21 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
             public void onReceive(Context context, Intent intent) {
                 if (mDbg) Log.v(TAG, "onReceive: MODE_CHANGED_ACTION: intent=" + intent);
                 if (mLocationManager.isLocationEnabled()) {
+                    enableUsage();
+                } else {
+                    disableUsage();
+                }
+            }
+        }, intentFilter);
+
+        intentFilter = new IntentFilter();
+        intentFilter.addAction(WifiManager.WIFI_STATE_CHANGED_ACTION);
+        mContext.registerReceiver(new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                boolean isEnabled = intent.getIntExtra(WifiManager.EXTRA_WIFI_STATE,
+                        WifiManager.WIFI_STATE_UNKNOWN) == WifiManager.WIFI_STATE_ENABLED;
+                if (isEnabled) {
                     enableUsage();
                 } else {
                     disableUsage();
@@ -670,11 +688,15 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
     public void enableUsage() {
         if (mSettableParameters.get(PARAM_ON_IDLE_DISABLE_AWARE) != 0
                 && mPowerManager.isDeviceIdleMode()) {
-            Log.d(TAG, "enableUsage(): while device is in IDLE mode - ignoring");
+            if (mDbg) Log.d(TAG, "enableUsage(): while device is in IDLE mode - ignoring");
             return;
         }
         if (!mLocationManager.isLocationEnabled()) {
-            Log.d(TAG, "enableUsage(): while location is disabled - ignoring");
+            if (mDbg) Log.d(TAG, "enableUsage(): while location is disabled - ignoring");
+            return;
+        }
+        if (mWifiManager.getWifiState() != WifiManager.WIFI_STATE_ENABLED) {
+            if (mDbg) Log.d(TAG, "enableUsage(): while Wi-Fi is disabled - ignoring");
             return;
         }
         Message msg = mSm.obtainMessage(MESSAGE_TYPE_COMMAND);
