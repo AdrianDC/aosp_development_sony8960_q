@@ -18,9 +18,11 @@ package com.android.server.wifi.p2p;
 
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.BroadcastReceiver;
 import android.content.DialogInterface;
 import android.content.DialogInterface.OnClickListener;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.content.res.Resources;
@@ -32,6 +34,7 @@ import android.net.LinkProperties;
 import android.net.NetworkInfo;
 import android.net.NetworkUtils;
 import android.net.ip.IpClient;
+import android.net.wifi.WifiManager;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.p2p.IWifiP2pManager;
 import android.net.wifi.p2p.WifiP2pConfig;
@@ -681,6 +684,10 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                 });
         private final WifiP2pInfo mWifiP2pInfo = new WifiP2pInfo();
         private WifiP2pGroup mGroup;
+        // Is the P2P interface available for use.
+        private boolean mIsInterfaceAvailable = false;
+        // Is wifi on or off.
+        private boolean mIsWifiEnabled = false;
 
         // Saved WifiP2pConfig for an ongoing peer connection. This will never be null.
         // The deviceAddress will be an empty string when the device is inactive
@@ -717,10 +724,30 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             setLogOnlyTransitions(true);
 
             if (p2pSupported) {
+                // Register for wifi on/off broadcasts
+                mContext.registerReceiver(new BroadcastReceiver() {
+                    @Override
+                    public void onReceive(Context context, Intent intent) {
+                        int wifistate = intent.getIntExtra(WifiManager.EXTRA_WIFI_STATE,
+                                WifiManager.WIFI_STATE_UNKNOWN);
+                        if (wifistate == WifiManager.WIFI_STATE_ENABLED) {
+                            mIsWifiEnabled = true;
+                            checkAndReEnableP2p();
+                        } else {
+                            mIsWifiEnabled = false;
+                            // Teardown P2P if it's up already.
+                            sendMessage(DISABLE_P2P);
+                        }
+                        checkAndSendP2pStateChangedBroadcast();
+                    }
+                }, new IntentFilter(WifiManager.WIFI_STATE_CHANGED_ACTION));
                 // Register for interface availability from HalDeviceManager
                 mWifiNative.registerInterfaceAvailableListener((boolean isAvailable) -> {
-                    Log.i(TAG, "P2P Interface availability = " + isAvailable);
-                    sendP2pStateChangedBroadcast(isAvailable);
+                    mIsInterfaceAvailable = isAvailable;
+                    if (isAvailable) {
+                        checkAndReEnableP2p();
+                    }
+                    checkAndSendP2pStateChangedBroadcast();
                 }, getHandler());
             }
         }
@@ -1129,6 +1156,10 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                 if (DBG) logd(getName() + message.toString());
                 switch (message.what) {
                     case ENABLE_P2P:
+                        if (!mIsWifiEnabled) {
+                            Log.e(TAG, "Ignore P2P enable since wifi is disabled");
+                            break;
+                        }
                         mInterfaceName = mWifiNative.setupInterface((String ifaceName) -> {
                             sendMessage(DISABLE_P2P);
                         }, getHandler());
@@ -2440,6 +2471,25 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             pw.println("mSavedPeerConfig " + mSavedPeerConfig);
             pw.println("mGroups" + mGroups);
             pw.println();
+        }
+
+        // Check & re-enable P2P if needed.
+        // P2P interface will be created if all of the below are true:
+        // a) Wifi is enabled.
+        // b) P2P interface is available.
+        // c) There is atleast 1 client app which invoked initialize().
+        private void checkAndReEnableP2p() {
+            Log.d(TAG, "Wifi enabled=" + mIsWifiEnabled + ", P2P Interface availability="
+                    + mIsInterfaceAvailable + ", Number of clients=" + mDeathDataByBinder.size());
+            if (mIsWifiEnabled && mIsInterfaceAvailable && !mDeathDataByBinder.isEmpty()) {
+                sendMessage(ENABLE_P2P);
+            }
+        }
+
+        private void checkAndSendP2pStateChangedBroadcast() {
+            Log.d(TAG, "Wifi enabled=" + mIsWifiEnabled + ", P2P Interface availability="
+                    + mIsInterfaceAvailable);
+            sendP2pStateChangedBroadcast(mIsWifiEnabled && mIsInterfaceAvailable);
         }
 
         private void sendP2pStateChangedBroadcast(boolean enabled) {
