@@ -357,6 +357,11 @@ public class WifiStateMachineTest {
     @Mock WakeupController mWakeupController;
     @Mock ScanRequestProxy mScanRequestProxy;
 
+    final ArgumentCaptor<WifiNative.StatusListener> mStatusListenerCaptor =
+            ArgumentCaptor.forClass(WifiNative.StatusListener.class);
+    final ArgumentCaptor<WifiNative.InterfaceCallback> mInterfaceCallbackCaptor =
+            ArgumentCaptor.forClass(WifiNative.InterfaceCallback.class);
+
     public WifiStateMachineTest() throws Exception {
     }
 
@@ -831,6 +836,9 @@ public class WifiStateMachineTest {
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
         mLooper.dispatchAll();
 
+        // this will be removed when interface management is dynamic
+        verify(mWifiNative, atLeastOnce()).teardownAllInterfaces();
+
         assertEquals("SupplicantStartingState", getCurrentState().getName());
 
         when(mWifiNative.setDeviceName(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
@@ -847,7 +855,8 @@ public class WifiStateMachineTest {
         mWsm.sendMessage(WifiMonitor.SUP_CONNECTION_EVENT);
         mLooper.dispatchAll();
 
-        verify(mWifiNative, atLeastOnce()).setupInterfaceForClientMode(any());
+        verify(mWifiNative, atLeastOnce())
+                .setupInterfaceForClientMode(mInterfaceCallbackCaptor.capture());
         verify(mWifiLastResortWatchdog, atLeastOnce()).clearAllFailureCounts();
     }
 
@@ -1751,21 +1760,70 @@ public class WifiStateMachineTest {
         assertEquals("DisconnectingState", getCurrentState().getName());
     }
 
+    /**
+     * Trigger recovery and a bug report of we see a native failure when Client mode is active.
+     */
     @Test
-    public void handleWifiNativeFailure() throws Exception {
-        ArgumentCaptor<WifiNative.StatusListener> statusListenerCaptor =
-                ArgumentCaptor.forClass(WifiNative.StatusListener.class);
-
+    public void handleWifiNativeFailureWhenClientModeActive() throws Exception {
         // Trigger initialize to capture the death handler registration.
         loadComponentsInStaMode();
 
-        verify(mWifiNative).registerStatusListener(statusListenerCaptor.capture());
+        verify(mWifiNative).registerStatusListener(mStatusListenerCaptor.capture());
 
         // Now trigger the death notification.
-        statusListenerCaptor.getValue().onStatusChanged(false);
+        mStatusListenerCaptor.getValue().onStatusChanged(false);
         mLooper.dispatchAll();
         verify(mSelfRecovery).trigger(eq(SelfRecovery.REASON_WIFICOND_CRASH));
         verify(mWifiDiagnostics).captureBugReportData(WifiDiagnostics.REPORT_REASON_WIFICOND_CRASH);
+    }
+
+    /**
+     * WifiNative failures when in a state other than client mode should just be dropped.
+     */
+    @Test
+    public void handleWifiNativeFailureInDefaultDoesNotRestartClientMode() throws Exception {
+        // Trigger initialize to capture the death handler registration.
+        loadComponentsInStaMode();
+        verify(mWifiNative).registerStatusListener(mStatusListenerCaptor.capture());
+
+        mWsm.setOperationalMode(WifiStateMachine.SCAN_ONLY_MODE);
+        mLooper.dispatchAll();
+
+        // Now trigger the death notification.
+        mStatusListenerCaptor.getValue().onStatusChanged(false);
+        mLooper.dispatchAll();
+        verify(mSelfRecovery, never()).trigger(anyInt());
+        verify(mWifiDiagnostics, never()).captureBugReportData(anyInt());
+    }
+
+    /**
+     * Test verifying that interface onDown callbacks are not currently hooked up.
+     */
+    @Test
+    public void testInterfaceOnDownDoesNotTriggerClientModeShutdown() throws Exception {
+        connect();
+
+        // trigger onDown for the client interface
+        mInterfaceCallbackCaptor.getValue().onDown(WIFI_IFACE_NAME);
+        mLooper.dispatchAll();
+
+        // since this is not handled yet, should not trigger a disconnect
+        assertEquals("ConnectedState", getCurrentState().getName());
+    }
+
+    /**
+     * Test verifying that interface onDestroyed callbacks are not currently hooked up.
+     */
+    @Test
+    public void testInterfaceOnDestroyedDoesNotTriggerClientModeShutdown() throws Exception {
+        connect();
+
+        // trigger onDestroyed for the client interface
+        mInterfaceCallbackCaptor.getValue().onDown(WIFI_IFACE_NAME);
+        mLooper.dispatchAll();
+
+        // since this is not handled yet, should not trigger a disconnect
+        assertEquals("ConnectedState", getCurrentState().getName());
     }
 
     /**
