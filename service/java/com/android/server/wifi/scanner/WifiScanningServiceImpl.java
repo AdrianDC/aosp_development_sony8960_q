@@ -141,6 +141,10 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             super.handleMessage(msg);
             switch (msg.what) {
                 case AsyncChannel.CMD_CHANNEL_FULL_CONNECTION: {
+                    if (msg.replyTo == null) {
+                        logw("msg.replyTo is null");
+                        return;
+                    }
                     ExternalClientInfo client = (ExternalClientInfo) mClients.get(msg.replyTo);
                     if (client != null) {
                         logw("duplicate client connection: " + msg.sendingUid + ", messenger="
