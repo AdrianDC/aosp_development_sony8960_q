@@ -149,7 +149,7 @@ public class RttTestUtils {
                 : overrideMac.toByteArray(), 0, rttResult.addr, 0, 6);
         rttResult.distanceInMm = rangingResult.getDistanceMm();
         rttResult.distanceSdInMm = rangingResult.getDistanceStdDevMm();
-        rttResult.rssi = rangingResult.getRssi();
+        rttResult.rssi = rangingResult.getRssi() * -2;
         rttResult.timeStampInUs = rangingResult.getRangingTimestampUs();
 
         return rttResult;
