@@ -633,14 +633,17 @@ public class WifiController extends StateMachine {
             } else if (msg.what == CMD_RESTART_WIFI) {
                 final String bugTitle = "Wi-Fi BugReport";
                 final String bugDetail;
-                if (msg.obj != null && msg.obj instanceof String) {
-                    bugDetail = (String) msg.obj;
+                if (msg.obj != null && msg.arg1 < SelfRecovery.REASON_STRINGS.length
+                        && msg.arg1 >= 0) {
+                    bugDetail = SelfRecovery.REASON_STRINGS[msg.arg1];
                 } else {
                     bugDetail = "";
                 }
-                (new Handler(mWifiStateMachineLooper)).post(() -> {
-                    mWifiStateMachine.takeBugReport(bugTitle, bugDetail);
-                });
+                if (msg.arg1 != SelfRecovery.REASON_LAST_RESORT_WATCHDOG) {
+                    (new Handler(mWifiStateMachineLooper)).post(() -> {
+                        mWifiStateMachine.takeBugReport(bugTitle, bugDetail);
+                    });
+                }
                 deferMessage(obtainMessage(CMD_RESTART_WIFI_CONTINUE));
                 transitionTo(mApStaDisabledState);
                 return HANDLED;

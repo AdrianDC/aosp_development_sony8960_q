@@ -41,7 +41,7 @@ public class SelfRecovery {
     public static final int REASON_WIFICOND_CRASH = 2;
     public static final long MAX_RESTARTS_IN_TIME_WINDOW = 2; // 2 restarts per hour
     public static final long MAX_RESTARTS_TIME_WINDOW_MILLIS = 60 * 60 * 1000; // 1 hour
-    private static final String[] REASON_STRINGS = {
+    protected static final String[] REASON_STRINGS = {
             "Last Resort Watchdog", // REASON_LAST_RESORT_WATCHDOG
             "Hal Crash",            // REASON_HAL_CRASH
             "Wificond Crash"        // REASON_WIFICOND_CRASH
@@ -83,7 +83,7 @@ public class SelfRecovery {
             }
             mPastRestartTimes.add(mClock.getElapsedSinceBootMillis());
         }
-        mWifiController.sendMessage(WifiController.CMD_RESTART_WIFI, REASON_STRINGS[reason]);
+        mWifiController.sendMessage(WifiController.CMD_RESTART_WIFI, reason);
     }
 
     /**

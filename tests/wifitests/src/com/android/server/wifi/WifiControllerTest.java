@@ -22,6 +22,7 @@ import static com.android.server.wifi.WifiController.CMD_EMERGENCY_MODE_CHANGED;
 import static com.android.server.wifi.WifiController.CMD_RESTART_WIFI;
 import static com.android.server.wifi.WifiController.CMD_SET_AP;
 import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
+
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.*;
 
@@ -290,9 +291,17 @@ public class WifiControllerTest {
     @Test
     public void testRestartWifiStackInStaEnabledStateTriggersBugReport() throws Exception {
         enableWifi();
-        mWifiController.sendMessage(CMD_RESTART_WIFI);
+        mWifiController.sendMessage(CMD_RESTART_WIFI, SelfRecovery.REASON_HAL_CRASH);
         mLooper.dispatchAll();
         verify(mWifiStateMachine).takeBugReport(anyString(), anyString());
+    }
+
+    @Test
+    public void testRestartWifiWatchdogDoesNotTriggerBugReport() throws Exception {
+        enableWifi();
+        mWifiController.sendMessage(CMD_RESTART_WIFI, SelfRecovery.REASON_LAST_RESORT_WATCHDOG);
+        mLooper.dispatchAll();
+        verify(mWifiStateMachine, never()).takeBugReport(anyString(), anyString());
     }
 
     /**
