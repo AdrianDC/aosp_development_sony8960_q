@@ -91,6 +91,8 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
 
     private RttServiceSynchronized mRttServiceSynchronized;
 
+    private static final int CONVERSION_US_TO_MS = 1_000;
+
     /* package */ static final String HAL_RANGING_TIMEOUT_TAG = TAG + " HAL Ranging Timeout";
 
     private static final long HAL_RANGING_TIMEOUT_MS = 5_000; // 5 sec
@@ -1081,12 +1083,12 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                         finalResults.add(new RangingResult(status, peer.macAddress,
                                 resultForRequest.distanceInMm, resultForRequest.distanceSdInMm,
                                 resultForRequest.rssi / -2, lci, lcr,
-                                resultForRequest.timeStampInUs));
+                                resultForRequest.timeStampInUs / CONVERSION_US_TO_MS));
                     } else {
                         finalResults.add(new RangingResult(status, peer.peerHandle,
                                 resultForRequest.distanceInMm, resultForRequest.distanceSdInMm,
                                 resultForRequest.rssi / -2, lci, lcr,
-                                resultForRequest.timeStampInUs));
+                                resultForRequest.timeStampInUs / CONVERSION_US_TO_MS));
                     }
                 }
             }
