@@ -42,6 +42,7 @@ import com.android.internal.R;
 import com.android.server.am.ActivityManagerService;
 
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -254,7 +255,8 @@ public class WifiDiagnosticsTest {
     /**
      * Verifies that we discard extraneous ring-buffer data.
      */
-    // TODO(b/36811399): re-enabled this @Test
+    @Ignore("TODO(b/36811399): re-enabled this @Test")
+    @Test
     public void loggerDiscardsExtraneousData() throws Exception {
         final boolean verbosityToggle = false;
         mWifiDiagnostics.startLogging(verbosityToggle);
@@ -612,7 +614,8 @@ public class WifiDiagnosticsTest {
     }
 
     /** Verifies that the default size of our ring buffers is small. */
-    // TODO(b/36811399): re-enable this @Test
+    @Ignore("TODO(b/36811399): re-enable this @Test")
+    @Test
     public void ringBufferSizeIsSmallByDefault() throws Exception {
         final boolean verbosityToggle = false;
         mWifiDiagnostics.startLogging(verbosityToggle);
@@ -623,7 +626,8 @@ public class WifiDiagnosticsTest {
     }
 
     /** Verifies that we use small ring buffers by default, on userdebug builds. */
-    // TODO(b/36811399): re-enable this @Test
+    @Ignore("TODO(b/36811399): re-enable this @Test")
+    @Test
     public void ringBufferSizeIsSmallByDefaultOnUserdebugBuilds() throws Exception {
         final boolean verbosityToggle = false;
         when(mBuildProperties.isUserdebugBuild()).thenReturn(true);
@@ -637,7 +641,8 @@ public class WifiDiagnosticsTest {
     }
 
     /** Verifies that we use small ring buffers by default, on eng builds. */
-    // TODO(b/36811399): re-enable this @Test
+    @Ignore("TODO(b/36811399): re-enable this @Test")
+    @Test
     public void ringBufferSizeIsSmallByDefaultOnEngBuilds() throws Exception {
         final boolean verbosityToggle = false;
         when(mBuildProperties.isEngBuild()).thenReturn(true);
@@ -674,7 +679,8 @@ public class WifiDiagnosticsTest {
     }
 
     /** Verifies that we use small ring buffers when switched from verbose to normal mode. */
-    // TODO(b/36811399): re-enabled this @Test
+    @Ignore("TODO(b/36811399): re-enabled this @Test")
+    @Test
     public void startLoggingShrinksRingBuffersIfNeeded() throws Exception {
 
         mWifiDiagnostics.startLogging(true  /* verbose enabled */);

@@ -101,6 +101,7 @@ import com.android.server.wifi.util.WifiPermissionsUtil;
 import com.android.server.wifi.util.WifiPermissionsWrapper;
 
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatcher;
@@ -906,7 +907,8 @@ public class WifiServiceImplTest {
     /**
      * Ensure we do not allow unpermitted callers to get the wifi ap state.
      */
-    // @Test
+    @Ignore
+    @Test
     public void testGetWifiApEnabledPermissionDenied() {
         // we should not be able to get the state
         doThrow(new SecurityException()).when(mContext)
@@ -1103,7 +1105,8 @@ public class WifiServiceImplTest {
     /**
      * Ensure that we handle scan request failure when posting the runnable to handler fails.
      */
-    // @Test
+    @Ignore
+    @Test
     public void testStartScanFailureInRunWithScissors() {
         setupWifiStateMachineHandlerForRunWithScissors();
         doReturn(false).when(mHandlerSpyForWsmRunWithScissors)
@@ -1205,7 +1208,8 @@ public class WifiServiceImplTest {
     /**
      * Ensure that we handle scan results failure when posting the runnable to handler fails.
      */
-    // @Test
+    @Ignore
+    @Test
     public void testGetScanResultsFailureInRunWithScissors() {
         setupWifiStateMachineHandlerForRunWithScissors();
         doReturn(false).when(mHandlerSpyForWsmRunWithScissors)
@@ -1597,7 +1601,8 @@ public class WifiServiceImplTest {
     /**
      * Verify that wifi service registers for callers BinderDeath event
      */
-    // @Test
+    @Ignore
+    @Test
     public void registersForBinderDeathOnRegisterSoftApCallback() throws Exception {
         final int callbackIdentifier = 1;
         registerSoftApCallbackAndVerify(mClientSoftApCallback, callbackIdentifier);
@@ -2303,7 +2308,8 @@ public class WifiServiceImplTest {
      * Verify that a call to {@link WifiServiceImpl#restoreSupplicantBackupData(byte[], byte[])} is
      * only allowed from callers with the signature only NETWORK_SETTINGS permission.
      */
-    // @Test(expected = SecurityException.class)
+    @Ignore
+    @Test(expected = SecurityException.class)
     public void testRestoreSupplicantBackupDataNotApprovedCaller() {
         doThrow(new SecurityException()).when(mContext)
                 .enforceCallingOrSelfPermission(eq(android.Manifest.permission.NETWORK_SETTINGS),
@@ -2330,6 +2336,8 @@ public class WifiServiceImplTest {
      * Verify that a call to {@link WifiServiceImpl#enableVerboseLogging(int)} is allowed from
      * callers with the signature only NETWORK_SETTINGS permission.
      */
+    @Ignore("TODO: Investigate failure")
+    @Test
     public void testEnableVerboseLoggingWithNetworkSettingsPermission() {
         doNothing().when(mContext)
                 .enforceCallingOrSelfPermission(eq(android.Manifest.permission.NETWORK_SETTINGS),
