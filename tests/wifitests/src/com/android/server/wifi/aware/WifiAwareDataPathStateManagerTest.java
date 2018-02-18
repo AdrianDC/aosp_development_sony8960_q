@@ -45,6 +45,7 @@ import android.net.NetworkCapabilities;
 import android.net.NetworkFactory;
 import android.net.NetworkRequest;
 import android.net.NetworkSpecifier;
+import android.net.wifi.WifiManager;
 import android.net.wifi.aware.AttachCallback;
 import android.net.wifi.aware.ConfigRequest;
 import android.net.wifi.aware.DiscoverySession;
@@ -115,6 +116,7 @@ public class WifiAwareDataPathStateManagerTest {
     @Mock private WifiPermissionsUtil mWifiPermissionsUtil;
     @Mock private WifiPermissionsWrapper mPermissionsWrapperMock;
     @Mock private LocationManager mLocationManagerMock;
+    @Mock private WifiManager mMockWifiManager;
     TestAlarmManager mAlarmManager;
     private PowerManager mMockPowerManager;
 
@@ -131,6 +133,9 @@ public class WifiAwareDataPathStateManagerTest {
         mAlarmManager = new TestAlarmManager();
         when(mMockContext.getSystemService(Context.ALARM_SERVICE))
                 .thenReturn(mAlarmManager.getAlarmManager());
+
+        when(mMockContext.getSystemService(Context.WIFI_SERVICE)).thenReturn(mMockWifiManager);
+        when(mMockWifiManager.getWifiState()).thenReturn(WifiManager.WIFI_STATE_ENABLED);
 
         mMockLooper = new TestLooper();
         mMockLooperHandler = new Handler(mMockLooper.getLooper());

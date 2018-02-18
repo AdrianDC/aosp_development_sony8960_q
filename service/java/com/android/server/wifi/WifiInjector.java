@@ -427,7 +427,7 @@ public class WifiInjector {
      * @param config SoftApModeConfiguration object holding the config and mode
      * @return an instance of SoftApManager
      */
-    public SoftApManager makeSoftApManager(WifiManager.SoftApCallback callback,
+    public SoftApManager makeSoftApManager(@NonNull WifiManager.SoftApCallback callback,
                                            @NonNull SoftApModeConfiguration config) {
         return new SoftApManager(mContext, mWifiStateMachineHandlerThread.getLooper(),
                 mFrameworkFacade, mWifiNative, mCountryCode.getCountryCode(), callback,
@@ -440,7 +440,8 @@ public class WifiInjector {
      * @param listener listener for ScanOnlyModeManager state changes
      * @return a new instance of ScanOnlyModeManager
      */
-    public ScanOnlyModeManager makeScanOnlyModeManager(ScanOnlyModeManager.Listener listener) {
+    public ScanOnlyModeManager makeScanOnlyModeManager(
+            @NonNull ScanOnlyModeManager.Listener listener) {
         return new ScanOnlyModeManager(mContext, mWifiStateMachineHandlerThread.getLooper(),
                 mWifiNative, listener, mWifiMetrics, mScanRequestProxy, mWakeupController);
     }

@@ -141,10 +141,7 @@ public class WifiStateMachinePrime {
     }
 
     protected String getCurrentMode() {
-        if (mModeStateMachine != null) {
-            return mModeStateMachine.getCurrentMode();
-        }
-        return "WifiDisabledState";
+        return mModeStateMachine.getCurrentMode();
     }
 
     private void changeMode(int newMode) {

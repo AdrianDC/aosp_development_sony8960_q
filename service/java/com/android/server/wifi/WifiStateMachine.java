@@ -1075,8 +1075,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         // CHECKSTYLE:OFF IndentationCheck
         addState(mDefaultState);
             addState(mInitialState, mDefaultState);
-            addState(mSupplicantStartingState, mDefaultState);
-            addState(mSupplicantStartedState, mDefaultState);
+                addState(mSupplicantStartingState, mInitialState);
+                addState(mSupplicantStartedState, mInitialState);
                     addState(mConnectModeState, mSupplicantStartedState);
                         addState(mL2ConnectedState, mConnectModeState);
                             addState(mObtainingIpState, mL2ConnectedState);
@@ -3940,6 +3940,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 case CMD_DISABLE_P2P_WATCHDOG_TIMER:
                 case CMD_DISABLE_EPHEMERAL_NETWORK:
                 case CMD_SELECT_TX_POWER_SCENARIO:
+                case CMD_WIFINATIVE_FAILURE:
+                case CMD_INTERFACE_DESTROYED:
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
                     break;
                 case CMD_START_AP:
@@ -4107,12 +4109,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                         mWifiNative.stopFilteringMulticastV4Packets(mInterfaceName);
                     }
                     break;
-                case CMD_WIFINATIVE_FAILURE:
-                    Log.e(TAG, "One of the native daemons died unexpectedly. Triggering recovery");
-                    mWifiDiagnostics.captureBugReportData(
-                            WifiDiagnostics.REPORT_REASON_WIFICOND_CRASH);
-                    mWifiInjector.getSelfRecovery().trigger(SelfRecovery.REASON_WIFICOND_CRASH);
-                    break;
                 case CMD_DIAGS_CONNECT_TIMEOUT:
                     mWifiDiagnostics.reportConnectionEvent(
                             (Long) message.obj, BaseWifiDiagnostics.CONNECTION_EVENT_FAILED);
@@ -4189,6 +4185,12 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                     } else {
                         return NOT_HANDLED;
                     }
+                case CMD_WIFINATIVE_FAILURE:
+                    Log.e(TAG, "One of the native daemons died unexpectedly. Triggering recovery");
+                    mWifiDiagnostics.captureBugReportData(
+                            WifiDiagnostics.REPORT_REASON_WIFICOND_CRASH);
+                    mWifiInjector.getSelfRecovery().trigger(SelfRecovery.REASON_WIFICOND_CRASH);
+                    break;
                 default:
                     return NOT_HANDLED;
             }
@@ -5060,12 +5062,11 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
                     if (mEnableConnectedMacRandomization.get()) {
                         configureRandomizedMacAddress(config);
-                    } else {
-                        Log.i(TAG, "EnableConnectedMacRandomization setting is off");
                     }
 
-                    Log.i(TAG, "Connecting with "
-                            + mWifiNative.getMacAddress(mInterfaceName) + " as the mac address");
+                    String currentMacAddress = mWifiNative.getMacAddress(mInterfaceName);
+                    mWifiInfo.setMacAddress(currentMacAddress);
+                    Log.i(TAG, "Connecting with " + currentMacAddress + " as the mac address");
 
                     reportConnectionAttemptStart(config, mTargetRoamBSSID,
                             WifiMetricsProto.ConnectionEvent.ROAM_UNRELATED);
@@ -5363,6 +5364,7 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
                 NetworkCapabilities nc, LinkProperties lp, int score, NetworkMisc misc) {
             super(l, c, TAG, ni, nc, lp, score, misc);
         }
+        private int mLastNetworkStatus = -1; // To detect when the status really changes
 
         @Override
         protected void unwanted() {
@@ -5377,6 +5379,8 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         @Override
         protected void networkStatus(int status, String redirectUrl) {
             if (this != mNetworkAgent) return;
+            if (status == mLastNetworkStatus) return;
+            mLastNetworkStatus = status;
             if (status == NetworkAgent.INVALID_NETWORK) {
                 if (mVerboseLoggingEnabled) {
                     log("WifiNetworkAgent -> Wifi networkStatus invalid, score="

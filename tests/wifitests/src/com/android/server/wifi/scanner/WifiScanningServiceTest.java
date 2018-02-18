@@ -61,6 +61,7 @@ import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.os.Messenger;
 import android.os.RemoteException;
 import android.os.WorkSource;
 import android.os.test.TestLooper;
@@ -2271,5 +2272,23 @@ public class WifiScanningServiceTest {
         verifyScanResultsReceived(order, handler, requestId, results.getScanData());
         verifySingleScanCompletedReceived(order, handler, requestId);
         verifyNoMoreInteractions(handler);
+    }
+
+    /**
+     * Verifies that null msg.replyTo is handled properly
+     */
+    @Test
+    public void nullReplyToInMsgIsHandled() throws RemoteException {
+        startServiceAndLoadDriver();
+        mWifiScanningServiceImpl.setWifiHandlerLogForTest(mLog);
+        final Message message = Message.obtain();
+        message.what = AsyncChannel.CMD_CHANNEL_FULL_CONNECTION;
+        message.replyTo = null;
+
+        //  can't use BidirectionalAsyncChannel to send message because that
+        //  will override message.replyTo to non-null
+        Messenger messenger = mWifiScanningServiceImpl.getMessenger();
+        messenger.send(message);
+        verify(mFrameworkFacade, never()).makeWifiAsyncChannel(anyString());
     }
 }

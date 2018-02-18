@@ -50,6 +50,7 @@ import android.hardware.wifi.V1_0.NanRangingIndication;
 import android.hardware.wifi.V1_0.NanStatusType;
 import android.location.LocationManager;
 import android.net.ConnectivityManager;
+import android.net.wifi.WifiManager;
 import android.net.wifi.aware.ConfigRequest;
 import android.net.wifi.aware.IWifiAwareDiscoverySessionCallback;
 import android.net.wifi.aware.IWifiAwareEventCallback;
@@ -116,8 +117,10 @@ public class WifiAwareStateManagerTest {
     @Mock private LocationManager mLocationManagerMock;
     TestAlarmManager mAlarmManager;
     private PowerManager mMockPowerManager;
+    @Mock private WifiManager mMockWifiManager;
     private BroadcastReceiver mPowerBcastReceiver;
     private BroadcastReceiver mLocationModeReceiver;
+    private BroadcastReceiver mWifiStateChangedReceiver;
     @Mock private WifiAwareDataPathStateManager mMockAwareDataPathStatemanager;
 
     @Rule
@@ -135,6 +138,9 @@ public class WifiAwareStateManagerTest {
         mAlarmManager = new TestAlarmManager();
         when(mMockContext.getSystemService(Context.ALARM_SERVICE))
                 .thenReturn(mAlarmManager.getAlarmManager());
+
+        when(mMockContext.getSystemService(Context.WIFI_SERVICE)).thenReturn(mMockWifiManager);
+        when(mMockWifiManager.getWifiState()).thenReturn(WifiManager.WIFI_STATE_ENABLED);
 
         mMockLooper = new TestLooper();
 
@@ -170,10 +176,11 @@ public class WifiAwareStateManagerTest {
                 mWifiPermissionsUtil, mPermissionsWrapperMock);
         mDut.startLate();
         mMockLooper.dispatchAll();
-        verify(mMockContext, times(2)).registerReceiver(bcastRxCaptor.capture(),
+        verify(mMockContext, times(3)).registerReceiver(bcastRxCaptor.capture(),
                 any(IntentFilter.class));
         mPowerBcastReceiver = bcastRxCaptor.getAllValues().get(0);
         mLocationModeReceiver = bcastRxCaptor.getAllValues().get(1);
+        mWifiStateChangedReceiver = bcastRxCaptor.getAllValues().get(2);
         installMocksInStateManager(mDut, mMockAwareDataPathStatemanager);
     }
 
@@ -3105,6 +3112,16 @@ public class WifiAwareStateManagerTest {
         simulatePowerStateChangeInteractive(false);
         mMockLooper.dispatchAll();
 
+        // and same for other gating changes -> no changes
+        simulateLocationModeChange(false);
+        simulateWifiStateChange(false);
+        mMockLooper.dispatchAll();
+
+        // and same for other gating changes -> no changes
+        simulateLocationModeChange(true);
+        simulateWifiStateChange(true);
+        mMockLooper.dispatchAll();
+
         // (5) power state change: DOZE OFF
         simulatePowerStateChangeDoze(false);
         mMockLooper.dispatchAll();
@@ -3155,8 +3172,78 @@ public class WifiAwareStateManagerTest {
         mDut.onDisableResponse(transactionId.getValue(), NanStatusType.SUCCESS);
         validateCorrectAwareStatusChangeBroadcast(inOrder, false);
 
+        // disable other gating feature -> no change
+        simulatePowerStateChangeDoze(true);
+        simulateWifiStateChange(false);
+        mMockLooper.dispatchAll();
+
+        // enable other gating feature -> no change
+        simulatePowerStateChangeDoze(false);
+        simulateWifiStateChange(true);
+        mMockLooper.dispatchAll();
+
         // (4) location mode change: enable
         simulateLocationModeChange(true);
+        mMockLooper.dispatchAll();
+        validateCorrectAwareStatusChangeBroadcast(inOrder, true);
+
+        verifyNoMoreInteractions(mMockNativeManager, mMockNative, mockCallback);
+    }
+
+    /**
+     * Validate aware enable/disable during Wi-Fi State transitions.
+     */
+    @Test
+    public void testEnableDisableOnWifiStateChanges() throws Exception {
+        final int clientId = 188;
+        final int uid = 1000;
+        final int pid = 2000;
+        final String callingPackage = "com.google.somePackage";
+
+        ConfigRequest configRequest = new ConfigRequest.Builder().build();
+
+        ArgumentCaptor<Short> transactionId = ArgumentCaptor.forClass(Short.class);
+        IWifiAwareEventCallback mockCallback = mock(IWifiAwareEventCallback.class);
+        InOrder inOrder = inOrder(mMockContext, mMockNativeManager, mMockNative, mockCallback);
+        inOrder.verify(mMockNativeManager).start(any(Handler.class));
+
+        mDut.enableUsage();
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNativeManager).tryToGetAware();
+        inOrder.verify(mMockNative).getCapabilities(transactionId.capture());
+        mDut.onCapabilitiesUpdateResponse(transactionId.getValue(), getCapabilities());
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNativeManager).releaseAware();
+
+        // (1) connect
+        mDut.connect(clientId, uid, pid, callingPackage, mockCallback, configRequest, false);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNativeManager).tryToGetAware();
+        inOrder.verify(mMockNative).enableAndConfigure(transactionId.capture(),
+                eq(configRequest), eq(false), eq(true), eq(true), eq(false));
+        mDut.onConfigSuccessResponse(transactionId.getValue());
+        mMockLooper.dispatchAll();
+        inOrder.verify(mockCallback).onConnectSuccess(clientId);
+
+        // (3) wifi state change: disable
+        simulateWifiStateChange(false);
+        mMockLooper.dispatchAll();
+        inOrder.verify(mMockNative).disable(transactionId.capture());
+        mDut.onDisableResponse(transactionId.getValue(), NanStatusType.SUCCESS);
+        validateCorrectAwareStatusChangeBroadcast(inOrder, false);
+
+        // disable other gating feature -> no change
+        simulatePowerStateChangeDoze(true);
+        simulateLocationModeChange(false);
+        mMockLooper.dispatchAll();
+
+        // enable other gating feature -> no change
+        simulatePowerStateChangeDoze(false);
+        simulateLocationModeChange(true);
+        mMockLooper.dispatchAll();
+
+        // (4) wifi state change: enable
+        simulateWifiStateChange(true);
         mMockLooper.dispatchAll();
         validateCorrectAwareStatusChangeBroadcast(inOrder, true);
 
@@ -3352,6 +3439,19 @@ public class WifiAwareStateManagerTest {
 
         Intent intent = new Intent(LocationManager.MODE_CHANGED_ACTION);
         mLocationModeReceiver.onReceive(mMockContext, intent);
+    }
+
+    /**
+     * Simulate Wi-Fi state change: broadcast state change and modify the API return value.
+     */
+    private void simulateWifiStateChange(boolean isWifiOn) {
+        when(mMockWifiManager.getWifiState()).thenReturn(
+                isWifiOn ? WifiManager.WIFI_STATE_ENABLED : WifiManager.WIFI_STATE_DISABLED);
+
+        Intent intent = new Intent(WifiManager.WIFI_STATE_CHANGED_ACTION);
+        intent.putExtra(WifiManager.EXTRA_WIFI_STATE,
+                isWifiOn ? WifiManager.WIFI_STATE_ENABLED : WifiManager.WIFI_STATE_DISABLED);
+        mWifiStateChangedReceiver.onReceive(mMockContext, intent);
     }
 
     private static Capabilities getCapabilities() {

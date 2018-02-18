@@ -37,7 +37,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
 
     private final ScanOnlyModeStateMachine mStateMachine;
 
-    private static final String TAG = "ScanOnlyModeManager";
+    private static final String TAG = "WifiScanOnlyModeManager";
 
     private final Context mContext;
     private final WifiNative mWifiNative;
@@ -50,9 +50,11 @@ public class ScanOnlyModeManager implements ActiveModeManager {
     private String mClientInterfaceName;
 
 
-    ScanOnlyModeManager(Context context, @NonNull Looper looper, WifiNative wifiNative,
-            Listener listener, WifiMetrics wifiMetrics, ScanRequestProxy scanRequestProxy,
-            WakeupController wakeupController) {
+    ScanOnlyModeManager(@NonNull Context context, @NonNull Looper looper,
+                        @NonNull WifiNative wifiNative, @NonNull Listener listener,
+                        @NonNull WifiMetrics wifiMetrics,
+                        @NonNull ScanRequestProxy scanRequestProxy,
+                        @NonNull WakeupController wakeupController) {
         mContext = context;
         mWifiNative = wifiNative;
         mListener = listener;
@@ -92,9 +94,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
      * @param state new Wifi state
      */
     private void updateWifiState(int state) {
-        if (mListener != null) {
-            mListener.onStateChanged(state);
-        }
+        mListener.onStateChanged(state);
     }
 
     private class ScanOnlyModeStateMachine extends StateMachine {
@@ -104,6 +104,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
         public static final int CMD_WIFINATIVE_FAILURE = 2;
         public static final int CMD_INTERFACE_STATUS_CHANGED = 3;
         public static final int CMD_INTERFACE_DESTROYED = 4;
+        public static final int CMD_INTERFACE_DOWN = 5;
 
         private final State mIdleState = new IdleState();
         private final State mStartedState = new StartedState();
@@ -117,17 +118,23 @@ public class ScanOnlyModeManager implements ActiveModeManager {
         private final InterfaceCallback mWifiNativeInterfaceCallback = new InterfaceCallback() {
             @Override
             public void onDestroyed(String ifaceName) {
-                sendMessage(CMD_INTERFACE_DESTROYED);
+                if (mClientInterfaceName != null && mClientInterfaceName.equals(ifaceName)) {
+                    sendMessage(CMD_INTERFACE_DESTROYED);
+                }
             }
 
             @Override
             public void onUp(String ifaceName) {
-                sendMessage(CMD_INTERFACE_STATUS_CHANGED, 1);
+                if (mClientInterfaceName != null && mClientInterfaceName.equals(ifaceName)) {
+                    sendMessage(CMD_INTERFACE_STATUS_CHANGED, 1);
+                }
             }
 
             @Override
             public void onDown(String ifaceName) {
-                sendMessage(CMD_INTERFACE_STATUS_CHANGED, 0);
+                if (mClientInterfaceName != null && mClientInterfaceName.equals(ifaceName)) {
+                    sendMessage(CMD_INTERFACE_STATUS_CHANGED, 0);
+                }
             }
         };
         private boolean mIfaceIsUp = false;
@@ -192,22 +199,17 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                 } else {
                     // if the interface goes down we should exit and go back to idle state.
                     Log.d(TAG, "interface down - stop scan mode");
-                    mStateMachine.sendMessage(CMD_STOP);
+                    mStateMachine.sendMessage(CMD_INTERFACE_DOWN);
                 }
             }
 
             @Override
             public void enter() {
                 Log.d(TAG, "entering StartedState");
+                mScanRequestProxy.enableScanningForHiddenNetworks(false);
+
                 mIfaceIsUp = false;
                 onUpChanged(mWifiNative.isInterfaceUp(mClientInterfaceName));
-
-                if (mIfaceIsUp) {
-                    // we already received the interface up notification when we were setting up
-                    sendScanAvailableBroadcast(true);
-                    updateWifiState(WifiManager.WIFI_STATE_ENABLED);
-                }
-                mScanRequestProxy.enableScanningForHiddenNetworks(false);
             }
 
             @Override
@@ -218,16 +220,19 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                         break;
                     case CMD_STOP:
                         Log.d(TAG, "Stopping scan mode.");
-                        mWifiNative.teardownInterface(mClientInterfaceName);
+                        transitionTo(mIdleState);
+                        break;
+                    case CMD_INTERFACE_DESTROYED:
+                        Log.d(TAG, "Interface cleanly destroyed, report scan mode stop.");
                         transitionTo(mIdleState);
                         break;
                     case CMD_INTERFACE_STATUS_CHANGED:
                         boolean isUp = message.arg1 == 1;
                         onUpChanged(isUp);
                         break;
+                    case CMD_INTERFACE_DOWN:
                     case CMD_WIFINATIVE_FAILURE:
-                    case CMD_INTERFACE_DESTROYED:
-                        Log.d(TAG, "interface failure!  restart services?");
+                        Log.d(TAG, "native/interface failure!  restart services?");
                         updateWifiState(WifiManager.WIFI_STATE_UNKNOWN);
                         transitionTo(mIdleState);
                         break;
@@ -244,6 +249,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
             @Override
             public void exit() {
                 mWakeupController.stop();
+                //mWifiNative.teardownInterface(mClientInterfaceName);
                 // let WifiScanner know that wifi is down.
                 sendScanAvailableBroadcast(false);
                 updateWifiState(WifiManager.WIFI_STATE_DISABLED);

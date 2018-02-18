@@ -33,8 +33,6 @@ import android.net.wifi.aware.IWifiAwareMacAddressProvider;
 import android.net.wifi.aware.IWifiAwareManager;
 import android.net.wifi.rtt.IRttCallback;
 import android.net.wifi.rtt.IWifiRttManager;
-import android.net.wifi.rtt.LocationCivic;
-import android.net.wifi.rtt.LocationConfigurationInformation;
 import android.net.wifi.rtt.RangingRequest;
 import android.net.wifi.rtt.RangingResult;
 import android.net.wifi.rtt.RangingResultCallback;
@@ -92,6 +90,8 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
     private FrameworkFacade mFrameworkFacade;
 
     private RttServiceSynchronized mRttServiceSynchronized;
+
+    private static final int CONVERSION_US_TO_MS = 1_000;
 
     /* package */ static final String HAL_RANGING_TIMEOUT_TAG = TAG + " HAL Ranging Timeout";
 
@@ -1072,28 +1072,23 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                 } else {
                     int status = resultForRequest.status == RttStatus.SUCCESS
                             ? RangingResult.STATUS_SUCCESS : RangingResult.STATUS_FAIL;
+                    byte[] lci = null;
+                    byte[] lcr = null;
+                    if (isCalledFromPrivilegedContext) {
+                        // should not get results if not privileged - but extra check
+                        lci = NativeUtil.byteArrayFromArrayList(resultForRequest.lci.data);
+                        lcr = NativeUtil.byteArrayFromArrayList(resultForRequest.lcr.data);
+                    }
                     if (peer.peerHandle == null) {
                         finalResults.add(new RangingResult(status, peer.macAddress,
                                 resultForRequest.distanceInMm, resultForRequest.distanceSdInMm,
-                                resultForRequest.rssi,
-                                LocationConfigurationInformation.parseInformationElement(
-                                        resultForRequest.lci.id, NativeUtil.byteArrayFromArrayList(
-                                                resultForRequest.lcr.data)),
-                                LocationCivic.parseInformationElement(resultForRequest.lci.id,
-                                        NativeUtil.byteArrayFromArrayList(
-                                                resultForRequest.lci.data)),
-                                resultForRequest.timeStampInUs));
+                                resultForRequest.rssi / -2, lci, lcr,
+                                resultForRequest.timeStampInUs / CONVERSION_US_TO_MS));
                     } else {
                         finalResults.add(new RangingResult(status, peer.peerHandle,
                                 resultForRequest.distanceInMm, resultForRequest.distanceSdInMm,
-                                resultForRequest.rssi,
-                                LocationConfigurationInformation.parseInformationElement(
-                                        resultForRequest.lci.id, NativeUtil.byteArrayFromArrayList(
-                                                resultForRequest.lci.data)),
-                                LocationCivic.parseInformationElement(resultForRequest.lci.id,
-                                        NativeUtil.byteArrayFromArrayList(
-                                                resultForRequest.lci.data)),
-                                resultForRequest.timeStampInUs));
+                                resultForRequest.rssi / -2, lci, lcr,
+                                resultForRequest.timeStampInUs / CONVERSION_US_TO_MS));
                     }
                 }
             }
