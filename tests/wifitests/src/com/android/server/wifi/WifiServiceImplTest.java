@@ -182,6 +182,7 @@ public class WifiServiceImplTest {
     @Mock ContentResolver mContentResolver;
     @Mock PackageManager mPackageManager;
     @Mock UserManager mUserManager;
+    @Mock WifiApConfigStore mWifiApConfigStore;
     @Mock WifiConfiguration mApConfig;
     @Mock ActivityManager mActivityManager;
     @Mock AppOpsManager mAppOpsManager;
@@ -279,6 +280,7 @@ public class WifiServiceImplTest {
         when(mContext.getResources()).thenReturn(mResources);
         when(mContext.getContentResolver()).thenReturn(mContentResolver);
         when(mContext.getPackageManager()).thenReturn(mPackageManager);
+        when(mWifiInjector.getWifiApConfigStore()).thenReturn(mWifiApConfigStore);
         doNothing().when(mFrameworkFacade).registerContentObserver(eq(mContext), any(),
                 anyBoolean(), any());
         when(mContext.getSystemService(Context.ACTIVITY_SERVICE)).thenReturn(mActivityManager);
@@ -799,12 +801,14 @@ public class WifiServiceImplTest {
      *
      * @throws SecurityException
      */
-    @Test(expected = SecurityException.class)
+    @Test
     public void testSetWifiApConfigurationNotSavedWithoutPermission() {
         when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt())).thenReturn(false);
         WifiConfiguration apConfig = new WifiConfiguration();
-        mWifiServiceImpl.setWifiApConfiguration(apConfig, TEST_PACKAGE_NAME);
-        verify(mWifiStateMachine, never()).setWifiApConfiguration(eq(apConfig));
+        try {
+            mWifiServiceImpl.setWifiApConfiguration(apConfig, TEST_PACKAGE_NAME);
+            fail("Expected SecurityException");
+        } catch (SecurityException e) { }
     }
 
     /**
@@ -815,8 +819,9 @@ public class WifiServiceImplTest {
         when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt())).thenReturn(true);
         WifiConfiguration apConfig = new WifiConfiguration();
         mWifiServiceImpl.setWifiApConfiguration(apConfig, TEST_PACKAGE_NAME);
+        mLooper.dispatchAll();
         verifyCheckChangePermission(TEST_PACKAGE_NAME);
-        verify(mWifiStateMachine).setWifiApConfiguration(eq(apConfig));
+        verify(mWifiApConfigStore).setApConfiguration(eq(apConfig));
     }
 
     /**
@@ -826,7 +831,7 @@ public class WifiServiceImplTest {
     public void testSetWifiApConfigurationNullConfigNotSaved() {
         when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt())).thenReturn(true);
         mWifiServiceImpl.setWifiApConfiguration(null, TEST_PACKAGE_NAME);
-        verify(mWifiStateMachine, never()).setWifiApConfiguration(isNull(WifiConfiguration.class));
+        verify(mWifiApConfigStore, never()).setApConfiguration(isNull(WifiConfiguration.class));
     }
 
     /**
@@ -834,11 +839,14 @@ public class WifiServiceImplTest {
      *
      * @throws SecurityException
      */
-    @Test(expected = SecurityException.class)
+    @Test
     public void testGetWifiApConfigurationNotReturnedWithoutPermission() {
         when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt())).thenReturn(false);
-        mWifiServiceImpl.getWifiApConfiguration();
-        verify(mWifiStateMachine, never()).syncGetWifiApConfiguration();
+        try {
+            mWifiServiceImpl.getWifiApConfiguration();
+            fail("Expected a SecurityException");
+        } catch (SecurityException e) {
+        }
     }
 
     /**
@@ -846,9 +854,17 @@ public class WifiServiceImplTest {
      */
     @Test
     public void testGetWifiApConfigurationSuccess() {
+        setupWifiStateMachineHandlerForRunWithScissors();
+
+        mWifiServiceImpl = new WifiServiceImpl(mContext, mWifiInjector, mAsyncChannel);
+        mWifiServiceImpl.setWifiHandlerLogForTest(mLog);
+
+        when(mFrameworkFacade.inStorageManagerCryptKeeperBounce()).thenReturn(false);
+        when(mSettingsStore.isWifiToggleEnabled()).thenReturn(false);
+
         when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt())).thenReturn(true);
         WifiConfiguration apConfig = new WifiConfiguration();
-        when(mWifiStateMachine.syncGetWifiApConfiguration()).thenReturn(apConfig);
+        when(mWifiApConfigStore.getApConfiguration()).thenReturn(apConfig);
         assertEquals(apConfig, mWifiServiceImpl.getWifiApConfiguration());
     }
 
@@ -1190,7 +1206,7 @@ public class WifiServiceImplTest {
      * Ensure that we handle scan results failure when posting the runnable to handler fails.
      */
     // @Test
-    public void testGetScanResultsFailureInRunWithScisccors() {
+    public void testGetScanResultsFailureInRunWithScissors() {
         setupWifiStateMachineHandlerForRunWithScissors();
         doReturn(false).when(mHandlerSpyForWsmRunWithScissors)
                 .runWithScissors(any(), anyLong());

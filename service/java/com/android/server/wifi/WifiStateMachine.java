@@ -943,7 +943,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
 
         mWifiPermissionsUtil = mWifiInjector.getWifiPermissionsUtil();
         mWifiConfigManager = mWifiInjector.getWifiConfigManager();
-        mWifiApConfigStore = mWifiInjector.getWifiApConfigStore();
 
         mPasspointManager = mWifiInjector.getPasspointManager();
 
@@ -1678,14 +1677,6 @@ public class WifiStateMachine extends StateMachine implements WifiNative.WifiRss
         } else {
             sendMessage(CMD_STOP_AP);
         }
-    }
-
-    public void setWifiApConfiguration(WifiConfiguration config) {
-        mWifiApConfigStore.setApConfiguration(config);
-    }
-
-    public WifiConfiguration syncGetWifiApConfiguration() {
-        return mWifiApConfigStore.getApConfiguration();
     }
 
     /**
