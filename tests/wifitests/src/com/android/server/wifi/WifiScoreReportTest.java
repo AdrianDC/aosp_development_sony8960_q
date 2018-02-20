@@ -265,7 +265,7 @@ public class WifiScoreReportTest {
      */
     @Test
     public void testDataLoggingLimit() throws Exception {
-        for (int i = 0; i < 14500; i++) {
+        for (int i = 0; i < 3620; i++) {
             mWifiInfo.setRssi(-65 + i % 20);
             mWifiInfo.setLinkSpeed(300);
             mWifiInfo.setFrequency(5220);
@@ -276,6 +276,6 @@ public class WifiScoreReportTest {
             mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mWifiMetrics);
         }
         mWifiScoreReport.dump(null, mPrintWriter, null);
-        verify(mPrintWriter, atMost(14401)).println(anyString());
+        verify(mPrintWriter, atMost(3601)).println(anyString());
     }
 }
