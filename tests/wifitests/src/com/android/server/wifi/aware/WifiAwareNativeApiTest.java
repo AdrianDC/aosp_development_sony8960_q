@@ -364,10 +364,10 @@ public class WifiAwareNativeApiTest {
         collector.checkThat("subWithMin.baseConfigs.rangingRequired", true,
                 equalTo(halSubReq.baseConfigs.rangingRequired));
         collector.checkThat("subWithMin.baseConfigs.configRangingIndications",
-                NanRangingIndication.INGRESS_MET_MASK,
+                NanRangingIndication.EGRESS_MET_MASK,
                 equalTo(halSubReq.baseConfigs.configRangingIndications));
-        collector.checkThat("subWithMin.baseConfigs.distanceIngressCm", minDistanceCm,
-                equalTo(halSubReq.baseConfigs.distanceIngressCm));
+        collector.checkThat("subWithMin.baseConfigs.distanceEgressCm", minDistanceCm,
+                equalTo(halSubReq.baseConfigs.distanceEgressCm));
 
         // subWithMax
         halSubReq = subCaptor.getAllValues().get(2);
@@ -376,10 +376,10 @@ public class WifiAwareNativeApiTest {
         collector.checkThat("subWithMax.baseConfigs.rangingRequired", true,
                 equalTo(halSubReq.baseConfigs.rangingRequired));
         collector.checkThat("subWithMax.baseConfigs.configRangingIndications",
-                NanRangingIndication.EGRESS_MET_MASK,
+                NanRangingIndication.INGRESS_MET_MASK,
                 equalTo(halSubReq.baseConfigs.configRangingIndications));
-        collector.checkThat("subWithMin.baseConfigs.distanceEgressCm", maxDistanceCm,
-                equalTo(halSubReq.baseConfigs.distanceEgressCm));
+        collector.checkThat("subWithMin.baseConfigs.distanceIngressCm", maxDistanceCm,
+                equalTo(halSubReq.baseConfigs.distanceIngressCm));
 
         // subWithMinMax
         halSubReq = subCaptor.getAllValues().get(3);
@@ -390,10 +390,10 @@ public class WifiAwareNativeApiTest {
         collector.checkThat("subWithMinMax.baseConfigs.configRangingIndications",
                 NanRangingIndication.INGRESS_MET_MASK | NanRangingIndication.EGRESS_MET_MASK,
                 equalTo(halSubReq.baseConfigs.configRangingIndications));
-        collector.checkThat("subWithMin.baseConfigs.distanceIngressCm", minDistanceCm,
-                equalTo(halSubReq.baseConfigs.distanceIngressCm));
-        collector.checkThat("subWithMin.baseConfigs.distanceEgressCm", maxDistanceCm,
+        collector.checkThat("subWithMin.baseConfigs.distanceEgressCm", minDistanceCm,
                 equalTo(halSubReq.baseConfigs.distanceEgressCm));
+        collector.checkThat("subWithMin.baseConfigs.distanceIngressCm", maxDistanceCm,
+                equalTo(halSubReq.baseConfigs.distanceIngressCm));
     }
 
     // utilities
