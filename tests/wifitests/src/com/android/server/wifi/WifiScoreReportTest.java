@@ -145,8 +145,7 @@ public class WifiScoreReportTest {
     @Test
     public void calculateAndReportScoreSucceeds() throws Exception {
         mWifiInfo.setRssi(-77);
-        mWifiScoreReport.calculateAndReportScore(mWifiInfo,
-                mNetworkAgent, mWifiMetrics);
+        mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mWifiMetrics);
         verify(mNetworkAgent).sendNetworkScore(anyInt());
         verify(mWifiMetrics).incrementWifiScoreCount(anyInt());
     }
@@ -207,6 +206,23 @@ public class WifiScoreReportTest {
         int score = mWifiInfo.score;
         assertTrue(score < CELLULAR_THRESHOLD_SCORE);
         verify(mNetworkAgent, atLeast(1)).sendNetworkScore(score);
+    }
+
+    /**
+     * When the score ramps down to the exit theshold, let go.
+     */
+    @Test
+    public void giveUpOnBadRssiAggressively() throws Exception {
+        String oops = "giveUpOnBadRssiAggressively";
+        for (int rssi = -60; rssi >= -83; rssi -= 1) {
+            mWifiInfo.setRssi(rssi);
+            oops += " " + mClock.mWallClockMillis + "," + rssi;
+            mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mWifiMetrics);
+            oops += ":" + mWifiInfo.score;
+        }
+        int score = mWifiInfo.score;
+        verify(mNetworkAgent, atLeast(1)).sendNetworkScore(score);
+        assertTrue(oops, score < CELLULAR_THRESHOLD_SCORE);
     }
 
     /**
