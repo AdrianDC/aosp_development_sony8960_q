@@ -42,7 +42,6 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.PrintWriter;
-import java.util.Arrays;
 
 /**
  * Unit tests for {@link com.android.server.wifi.WifiScoreReport}.
@@ -70,7 +69,6 @@ public class WifiScoreReportTest {
     @Mock Context mContext;
     @Mock NetworkAgent mNetworkAgent;
     @Mock Resources mResources;
-    @Mock WifiConfigManager mWifiConfigManager;
     @Mock WifiMetrics mWifiMetrics;
     @Mock PrintWriter mPrintWriter;
 
@@ -119,24 +117,13 @@ public class WifiScoreReportTest {
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
         setUpResources(mResources);
-        WifiConfiguration config = new WifiConfiguration();
-        config.SSID = "nooooooooooo";
-        config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
-        config.hiddenSSID = false;
         mWifiInfo = new WifiInfo();
         mWifiInfo.setFrequency(2412);
-        when(mWifiConfigManager.getSavedNetworks()).thenReturn(Arrays.asList(config));
-        when(mWifiConfigManager.getConfiguredNetwork(anyInt())).thenReturn(config);
-        mWifiConfiguration = config;
         int maxSize = 10;
         int trimSize = 5;
-        mScanDetailCache = new ScanDetailCache(config, maxSize, trimSize);
-        // TODO: populate the cache, but probably in the test cases, not here.
-        when(mWifiConfigManager.getScanDetailCacheForNetwork(anyInt()))
-                .thenReturn(mScanDetailCache);
         when(mContext.getResources()).thenReturn(mResources);
         mClock = new FakeClock();
-        mWifiScoreReport = new WifiScoreReport(mContext, mWifiConfigManager, mClock);
+        mWifiScoreReport = new WifiScoreReport(mContext, mClock);
     }
 
     /**
@@ -146,7 +133,6 @@ public class WifiScoreReportTest {
     public void tearDown() throws Exception {
         mResources = null;
         mWifiScoreReport = null;
-        mWifiConfigManager = null;
         mWifiMetrics = null;
     }
 

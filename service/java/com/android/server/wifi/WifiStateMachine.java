@@ -916,7 +916,7 @@ public class WifiStateMachine extends StateMachine {
 
         mCountryCode = countryCode;
 
-        mWifiScoreReport = new WifiScoreReport(mContext, mWifiConfigManager, mClock);
+        mWifiScoreReport = new WifiScoreReport(mContext, mClock);
 
         mUserWantsSuspendOpt.set(mFacade.getIntegerSetting(mContext,
                 Settings.Global.WIFI_SUSPEND_OPTIMIZATIONS_ENABLED, 1) == 1);
