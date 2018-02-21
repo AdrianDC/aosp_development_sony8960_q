@@ -328,7 +328,6 @@ public class WifiStateMachineTest {
     @Mock SupplicantStateTracker mSupplicantStateTracker;
     @Mock WifiMetrics mWifiMetrics;
     @Mock UserManager mUserManager;
-    @Mock WifiApConfigStore mApConfigStore;
     @Mock BackupManagerProxy mBackupManagerProxy;
     @Mock WifiCountryCode mCountryCode;
     @Mock WifiInjector mWifiInjector;
@@ -418,9 +417,6 @@ public class WifiStateMachineTest {
                 Settings.Global.WIFI_FREQUENCY_BAND,
                 WifiManager.WIFI_FREQUENCY_BAND_AUTO)).thenReturn(
                 WifiManager.WIFI_FREQUENCY_BAND_AUTO);
-
-        when(mFrameworkFacade.makeApConfigStore(eq(mContext), eq(mBackupManagerProxy)))
-                .thenReturn(mApConfigStore);
 
         when(mFrameworkFacade.makeSupplicantStateTracker(
                 any(Context.class), any(WifiConfigManager.class),
