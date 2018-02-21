@@ -131,9 +131,7 @@ public class LogcatLogTest {
     @Test
     public void logMessageSilentlyIgnoresExtraneousValues() {
         WifiLog.LogMessage logMessage = mLogger.err("%");
-        logMessage.c("hello world");
-        logMessage.c("more stuff");
-        logMessage.flush();
+        logMessage.c("hello world").c("more stuff").flush();
         assertEquals("hello world", logMessage.toString());
     }
 
@@ -144,9 +142,7 @@ public class LogcatLogTest {
     @Test
     public void logMessageSilentlyIgnoresExtraneousValuesEvenForEmptyFormat() {
         WifiLog.LogMessage logMessage = mLogger.err("");
-        logMessage.c("hello world");
-        logMessage.c("more stuff");
-        logMessage.flush();
+        logMessage.c("hello world").c("more stuff").flush();
         assertEquals("", logMessage.toString());
     }
 
@@ -157,9 +153,7 @@ public class LogcatLogTest {
     @Test
     public void logMessageSilentlyIgnoresExtraneousValuesEvenForFormatWithoutPlaceholders() {
         WifiLog.LogMessage logMessage = mLogger.err("literal format");
-        logMessage.c("hello world");
-        logMessage.c("more stuff");
-        logMessage.flush();
+        logMessage.c("hello world").c("more stuff").flush();
         assertEquals("literal format", logMessage.toString());
     }
 
