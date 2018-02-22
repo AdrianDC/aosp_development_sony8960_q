@@ -21,6 +21,7 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.net.InterfaceConfiguration;
 import android.net.MacAddress;
+import android.net.TrafficStats;
 import android.net.apf.ApfCapabilities;
 import android.net.wifi.RttManager;
 import android.net.wifi.RttManager.ResponderConfig;
@@ -2474,6 +2475,26 @@ public class WifiNative {
      */
     public boolean getRxPktFates(@NonNull String ifaceName, RxFateReport[] reportBufs) {
         return mWifiVendorHal.getRxPktFates(ifaceName, reportBufs);
+    }
+
+    /**
+     * Get the tx packet counts for the interface.
+     *
+     * @param ifaceName Name of the interface.
+     * @return tx packet counts
+     */
+    public long getTxPackets(@NonNull String ifaceName) {
+        return TrafficStats.getTxPackets(ifaceName);
+    }
+
+    /**
+     * Get the rx packet counts for the interface.
+     *
+     * @param ifaceName Name of the interface
+     * @return rx packet counts
+     */
+    public long getRxPackets(@NonNull String ifaceName) {
+        return TrafficStats.getRxPackets(ifaceName);
     }
 
     /**

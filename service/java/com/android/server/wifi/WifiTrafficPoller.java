@@ -24,7 +24,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.NetworkInfo;
-import android.net.TrafficStats;
 import android.net.wifi.WifiManager;
 import android.os.Handler;
 import android.os.Looper;
@@ -75,7 +74,8 @@ public class WifiTrafficPoller {
 
     private boolean mVerboseLoggingEnabled = false;
 
-    WifiTrafficPoller(Context context, Looper looper, WifiNative wifiNative) {
+    WifiTrafficPoller(@NonNull Context context, @NonNull Looper looper,
+            @NonNull WifiNative wifiNative) {
         mTrafficHandler = new TrafficHandler(looper);
         mWifiNative = wifiNative;
 
@@ -195,8 +195,8 @@ public class WifiTrafficPoller {
         long preTxPkts = mTxPkts, preRxPkts = mRxPkts;
         int dataActivity = WifiManager.DATA_ACTIVITY_NONE;
 
-        mTxPkts = TrafficStats.getTxPackets(ifaceName);
-        mRxPkts = TrafficStats.getRxPackets(ifaceName);
+        mTxPkts = mWifiNative.getTxPackets(ifaceName);
+        mRxPkts = mWifiNative.getRxPackets(ifaceName);
 
         if (DBG) {
             Log.d(TAG, " packet count Tx="
