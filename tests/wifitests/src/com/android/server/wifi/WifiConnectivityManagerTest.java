@@ -254,7 +254,6 @@ public class WifiConnectivityManagerTest {
     WifiStateMachine mockWifiStateMachine() {
         WifiStateMachine stateMachine = mock(WifiStateMachine.class);
 
-        when(stateMachine.isLinkDebouncing()).thenReturn(false);
         when(stateMachine.isConnected()).thenReturn(false);
         when(stateMachine.isDisconnected()).thenReturn(true);
         when(stateMachine.isSupplicantTransientState()).thenReturn(false);
