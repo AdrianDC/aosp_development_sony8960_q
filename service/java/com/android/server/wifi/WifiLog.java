@@ -91,16 +91,31 @@ public interface WifiLog {
     LogMessage info(@NonNull String format);
 
     /**
-     * Like {@link #err(String) err()}, except that a trace-level message is
-     * allocated.
+     * Like {@link #err(String) err()}, except:
+     * - a trace-level message is allocated
+     * - the log message is prefixed with the caller's name
      *
      * Trace-level messages should be used to report progress or status messages
      * that help understand the program's internal behavior. For example:
-     * "Reached myCoolMethod()".
+     * "invoked with verbose=%".
      */
     @CheckReturnValue
     @NonNull
     LogMessage trace(@NonNull String format);
+
+    /**
+     * Like {@link #trace(String) trace(String)}, except that, rather than logging
+     * the immediate caller, the |numFramesToIgnore + 1|-th caller will be logged.
+     *
+     * E.g. if numFramesToIgnore == 1, then the caller's caller will be logged.
+     *
+     * Trace-level messages should be used to report progress or status messages
+     * that help understand the program's internal behavior. For example:
+     * "invoked with verbose=%".
+     */
+    @CheckReturnValue
+    @NonNull
+    LogMessage trace(@NonNull String format, int numFramesToIgnore);
 
     /**
      * Like {@link #err(String) err()}, except that a dump-level message is
