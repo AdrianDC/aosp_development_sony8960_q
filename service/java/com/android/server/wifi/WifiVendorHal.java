@@ -2452,7 +2452,7 @@ public class WifiVendorHal {
                         val = StaRoamingState.ENABLED;
                         break;
                     default:
-                        mLog.err("enableFirmwareRoaming invalid argument " + state).flush();
+                        mLog.err("enableFirmwareRoaming invalid argument %").c(state).flush();
                         return WifiStatusCode.ERROR_INVALID_ARGS;
                 }
 

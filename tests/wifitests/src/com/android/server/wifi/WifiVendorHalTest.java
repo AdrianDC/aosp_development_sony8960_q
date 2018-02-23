@@ -1248,7 +1248,7 @@ public class WifiVendorHalTest {
         assertTrue(mWifiVendorHal.startVendorHalAp());
         assertFalse(mWifiVendorHal.setCountryCodeHal(TEST_IFACE_NAME, "CA"));
         assertFalse(mWifiVendorHal.isHalStarted());
-        verify(mWifiLog).err(any());
+        verify(mWifiLog).err("% RemoteException in HIDL call %");
     }
 
     /**
