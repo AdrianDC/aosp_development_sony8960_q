@@ -588,7 +588,7 @@ public class WifiVendorHalTest {
         mWifiVendorHal.mLog = spy(mWifiLog);
         mWifiVendorHal.enableVerboseLogging(true);
         mWifiVendorHal.installPacketFilter(TEST_IFACE_NAME, new byte[0]);
-        verify(mWifiVendorHal.mLog).trace(eq("% filter length %"));
+        verify(mWifiVendorHal.mLog).trace(eq("filter length %"), eq(1));
     }
 
     /**
@@ -601,7 +601,7 @@ public class WifiVendorHalTest {
         mWifiVendorHal.enableVerboseLogging(true);
         mWifiVendorHal.enableVerboseLogging(false);
         mWifiVendorHal.installPacketFilter(TEST_IFACE_NAME, new byte[0]);
-        verify(mWifiVendorHal.mLog, never()).trace(eq("% filter length %"));
+        verify(mWifiVendorHal.mLog, never()).trace(eq("filter length %"), anyInt());
     }
 
     /**
