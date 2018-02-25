@@ -115,6 +115,7 @@ LOCAL_JNI_SHARED_LIBRARIES += libwpa_client
 endif
 
 LOCAL_PACKAGE_NAME := FrameworksWifiTests
+LOCAL_PRIVATE_PLATFORM_APIS := true
 
 LOCAL_COMPATIBILITY_SUITE := device-tests
 

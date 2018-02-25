@@ -37,6 +37,8 @@ import android.net.DhcpResults;
 import android.net.LinkProperties;
 import android.net.NetworkCapabilities;
 import android.net.NetworkFactory;
+import android.net.NetworkInfo;
+import android.net.NetworkMisc;
 import android.net.NetworkRequest;
 import android.net.dhcp.DhcpClient;
 import android.net.ip.IpClient;
@@ -106,9 +108,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
@@ -135,6 +135,13 @@ public class WifiStateMachineTest {
     private static final String DEFAULT_TEST_SSID = "\"GoogleGuest\"";
     private static final String OP_PACKAGE_NAME = "com.xxx";
     private static final int TEST_UID = Process.SYSTEM_UID + 1000;
+
+    // NetworkAgent creates threshold ranges with Integers
+    private static final int RSSI_THRESHOLD_MAX = -30;
+    private static final int RSSI_THRESHOLD_MIN = -76;
+    // Threshold breach callbacks are called with bytes
+    private static final byte RSSI_THRESHOLD_BREACH_MIN = -80;
+    private static final byte RSSI_THRESHOLD_BREACH_MAX = -20;
 
     private long mBinderToken;
 
@@ -910,68 +917,6 @@ public class WifiStateMachineTest {
             }
         }
         return null;
-    }
-
-    private void verifyScan(int band, int reportEvents, Set<String> hiddenNetworkSSIDSet) {
-        ArgumentCaptor<WifiScanner.ScanSettings> scanSettingsCaptor =
-                ArgumentCaptor.forClass(WifiScanner.ScanSettings.class);
-        ArgumentCaptor<WifiScanner.ScanListener> scanListenerCaptor =
-                ArgumentCaptor.forClass(WifiScanner.ScanListener.class);
-        verify(mWifiScanner).startScan(scanSettingsCaptor.capture(), scanListenerCaptor.capture(),
-                eq(null));
-        WifiScanner.ScanSettings actualSettings = scanSettingsCaptor.getValue();
-        assertEquals("band", band, actualSettings.band);
-        assertEquals("reportEvents", reportEvents, actualSettings.reportEvents);
-
-        if (hiddenNetworkSSIDSet == null) {
-            hiddenNetworkSSIDSet = new HashSet<>();
-        }
-        Set<String> actualHiddenNetworkSSIDSet = new HashSet<>();
-        if (actualSettings.hiddenNetworks != null) {
-            for (int i = 0; i < actualSettings.hiddenNetworks.length; ++i) {
-                actualHiddenNetworkSSIDSet.add(actualSettings.hiddenNetworks[i].ssid);
-            }
-        }
-        assertEquals("hidden networks", hiddenNetworkSSIDSet, actualHiddenNetworkSSIDSet);
-
-        when(mWifiNative.getScanResults(WIFI_IFACE_NAME)).thenReturn(getMockScanResults());
-        mWsm.sendMessage(WifiMonitor.SCAN_RESULTS_EVENT);
-
-        mLooper.dispatchAll();
-
-        List<ScanResult> reportedResults = mWsm.syncGetScanResultsList();
-        assertEquals(8, reportedResults.size());
-    }
-
-    @Test
-    public void scan() throws Exception {
-        initializeAndAddNetworkAndVerifySuccess();
-
-        mWsm.startScan(-1, 0, null, null);
-        mLooper.dispatchAll();
-
-        verifyScan(WifiScanner.WIFI_BAND_BOTH_WITH_DFS,
-                WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN
-                | WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT, null);
-    }
-
-    @Test
-    public void scanWithHiddenNetwork() throws Exception {
-        initializeAndAddNetworkAndVerifySuccess(true);
-
-        Set<String> hiddenNetworkSet = new HashSet<>();
-        hiddenNetworkSet.add(sSSID);
-        List<WifiScanner.ScanSettings.HiddenNetwork> hiddenNetworkList = new ArrayList<>();
-        hiddenNetworkList.add(new WifiScanner.ScanSettings.HiddenNetwork(sSSID));
-        when(mWifiConfigManager.retrieveHiddenNetworkList()).thenReturn(hiddenNetworkList);
-
-        mWsm.startScan(-1, 0, null, null);
-        mLooper.dispatchAll();
-
-        verifyScan(WifiScanner.WIFI_BAND_BOTH_WITH_DFS,
-                WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN
-                | WifiScanner.REPORT_EVENT_FULL_SCAN_RESULT,
-                hiddenNetworkSet);
     }
 
     private void setupAndStartConnectSequence(WifiConfiguration config) throws Exception {
@@ -2315,5 +2260,61 @@ public class WifiStateMachineTest {
     public void takeBugReportCallsWifiDiagnostics() {
         mWsm.takeBugReport(anyString(), anyString());
         verify(mWifiDiagnostics).takeBugReport(anyString(), anyString());
+    }
+
+    /**
+     * Verify that Rssi Monitoring is started and the callback registered after connecting.
+     */
+    @Test
+    public void verifyRssiMonitoringCallbackIsRegistered() throws Exception {
+        // Simulate the first connection.
+        connect();
+        ArgumentCaptor<Messenger> messengerCaptor = ArgumentCaptor.forClass(Messenger.class);
+        verify(mConnectivityManager).registerNetworkAgent(messengerCaptor.capture(),
+                any(NetworkInfo.class), any(LinkProperties.class), any(NetworkCapabilities.class),
+                anyInt(), any(NetworkMisc.class));
+
+        ArrayList<Integer> thresholdsArray = new ArrayList();
+        thresholdsArray.add(RSSI_THRESHOLD_MAX);
+        thresholdsArray.add(RSSI_THRESHOLD_MIN);
+        Bundle thresholds = new Bundle();
+        thresholds.putIntegerArrayList("thresholds", thresholdsArray);
+        Message message = new Message();
+        message.what = android.net.NetworkAgent.CMD_SET_SIGNAL_STRENGTH_THRESHOLDS;
+        message.obj  = thresholds;
+        messengerCaptor.getValue().send(message);
+        mLooper.dispatchAll();
+
+        ArgumentCaptor<WifiNative.WifiRssiEventHandler> rssiEventHandlerCaptor =
+                ArgumentCaptor.forClass(WifiNative.WifiRssiEventHandler.class);
+        verify(mWifiNative).startRssiMonitoring(anyString(), anyByte(), anyByte(),
+                rssiEventHandlerCaptor.capture());
+
+        // breach below min
+        rssiEventHandlerCaptor.getValue().onRssiThresholdBreached(RSSI_THRESHOLD_BREACH_MIN);
+        mLooper.dispatchAll();
+        WifiInfo wifiInfo = mWsm.getWifiInfo();
+        assertEquals(RSSI_THRESHOLD_BREACH_MIN, wifiInfo.getRssi());
+
+        // breach above max
+        rssiEventHandlerCaptor.getValue().onRssiThresholdBreached(RSSI_THRESHOLD_BREACH_MAX);
+        mLooper.dispatchAll();
+        assertEquals(RSSI_THRESHOLD_BREACH_MAX, wifiInfo.getRssi());
+    }
+
+    /**
+     * Verify that calls to start and stop filtering multicast packets are passed on to the IpClient
+     * instance.
+     */
+    @Test
+    public void verifyMcastLockManagerFilterControllerCallsUpdateIpClient() throws Exception {
+        loadComponentsInStaMode();
+        reset(mIpClient);
+        WifiMulticastLockManager.FilterController filterController =
+                mWsm.getMcastLockManagerFilterController();
+        filterController.startFilteringMulticastPackets();
+        verify(mIpClient).setMulticastFilter(eq(true));
+        filterController.stopFilteringMulticastPackets();
+        verify(mIpClient).setMulticastFilter(eq(false));
     }
 }
