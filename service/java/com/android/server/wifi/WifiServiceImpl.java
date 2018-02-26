@@ -1992,10 +1992,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                         == PackageManager.PERMISSION_GRANTED) {
                     hideDefaultMacAddress = false;
                 }
-                if (mWifiPermissionsUtil.canAccessScanResults(
-                        callingPackage,
-                        uid,
-                        Build.VERSION_CODES.O)) {
+                if (mWifiPermissionsUtil.canAccessScanResults(callingPackage, uid)) {
                     hideBssidAndSsid = false;
                 }
             } catch (RemoteException e) {
@@ -2027,9 +2024,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         int uid = Binder.getCallingUid();
         long ident = Binder.clearCallingIdentity();
         try {
-            // TODO: Remove the bypass for apps targeting older SDK's (< M).
-            if (!mWifiPermissionsUtil.canAccessScanResults(callingPackage,
-                      uid, Build.VERSION_CODES.M)) {
+            if (!mWifiPermissionsUtil.canAccessScanResults(callingPackage, uid)) {
                 return new ArrayList<ScanResult>();
             }
             final List<ScanResult> scanResults = new ArrayList<>();
