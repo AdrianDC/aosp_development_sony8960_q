@@ -20,14 +20,21 @@ import static com.android.server.wifi.WifiController.CMD_AP_STOPPED;
 import static com.android.server.wifi.WifiController.CMD_EMERGENCY_CALL_STATE_CHANGED;
 import static com.android.server.wifi.WifiController.CMD_EMERGENCY_MODE_CHANGED;
 import static com.android.server.wifi.WifiController.CMD_RESTART_WIFI;
+import static com.android.server.wifi.WifiController.CMD_SCAN_ALWAYS_MODE_CHANGED;
 import static com.android.server.wifi.WifiController.CMD_SET_AP;
 import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
+
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.*;
 
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.location.LocationManager;
 import android.os.Handler;
 import android.os.test.TestLooper;
+import android.provider.Settings;
 import android.support.test.filters.SmallTest;
 import android.util.Log;
 
@@ -37,6 +44,7 @@ import com.android.internal.util.StateMachine;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -71,6 +79,8 @@ public class WifiControllerTest {
         when(mSettingsStore.isAirplaneModeOn()).thenReturn(false);
         when(mSettingsStore.isWifiToggleEnabled()).thenReturn(false);
         when(mSettingsStore.isScanAlwaysAvailable()).thenReturn(true);
+        when(mSettingsStore.getLocationModeSetting(eq(mContext)))
+                .thenReturn(Settings.Secure.LOCATION_MODE_HIGH_ACCURACY);
     }
 
     TestLooper mLooper;
@@ -82,6 +92,9 @@ public class WifiControllerTest {
 
     WifiController mWifiController;
     Handler mWifiStateMachineHandler;
+
+    private BroadcastReceiver mBroadcastReceiver;
+
 
     @Before
     public void setUp() throws Exception {
@@ -95,6 +108,11 @@ public class WifiControllerTest {
                 mSettingsStore, mLooper.getLooper(), mFacade, mWifiStateMachinePrime);
         mWifiController.start();
         mLooper.dispatchAll();
+        ArgumentCaptor<BroadcastReceiver> bcastRxCaptor = ArgumentCaptor.forClass(
+                BroadcastReceiver.class);
+        verify(mContext).registerReceiver(bcastRxCaptor.capture(), any(IntentFilter.class));
+
+        mBroadcastReceiver = bcastRxCaptor.getValue();
     }
 
     @After
@@ -120,6 +138,100 @@ public class WifiControllerTest {
         mWifiController.sendMessage(CMD_WIFI_TOGGLED);
         mLooper.dispatchAll();
         assertEquals("DeviceActiveState", getCurrentState().getName());
+    }
+
+    /**
+     * Do not enter scan mode if location mode disabled.
+     */
+    @Test
+    public void testDoesNotEnterScanModeWhenLocationModeDisabled() throws Exception {
+        // Start a new WifiController with wifi disabled
+        when(mSettingsStore.isAirplaneModeOn()).thenReturn(false);
+        when(mSettingsStore.isWifiToggleEnabled()).thenReturn(false);
+        when(mSettingsStore.isScanAlwaysAvailable()).thenReturn(false);
+        when(mSettingsStore.getLocationModeSetting(eq(mContext)))
+                .thenReturn(Settings.Secure.LOCATION_MODE_OFF);
+
+        mWifiController = new WifiController(mContext, mWifiStateMachine, mLooper.getLooper(),
+                mSettingsStore, mLooper.getLooper(), mFacade, mWifiStateMachinePrime);
+
+        reset(mWifiStateMachinePrime);
+        mWifiController.start();
+        mLooper.dispatchAll();
+
+        verify(mWifiStateMachinePrime).disableWifi();
+
+        // toggling scan always available is not sufficient for scan mode
+        when(mSettingsStore.isScanAlwaysAvailable()).thenReturn(true);
+        mWifiController.sendMessage(CMD_SCAN_ALWAYS_MODE_CHANGED);
+        mLooper.dispatchAll();
+
+        verify(mWifiStateMachinePrime, never()).enterScanOnlyMode();
+
+    }
+
+    /**
+     * Only enter scan mode if location mode enabled
+     */
+    @Test
+    public void testEnterScanModeWhenLocationModeEnabled() throws Exception {
+        when(mSettingsStore.isScanAlwaysAvailable()).thenReturn(true);
+        when(mSettingsStore.getLocationModeSetting(eq(mContext)))
+                .thenReturn(Settings.Secure.LOCATION_MODE_OFF);
+
+        reset(mContext, mWifiStateMachinePrime);
+        mWifiController = new WifiController(mContext, mWifiStateMachine, mLooper.getLooper(),
+                mSettingsStore, mLooper.getLooper(), mFacade, mWifiStateMachinePrime);
+        ArgumentCaptor<BroadcastReceiver> bcastRxCaptor = ArgumentCaptor.forClass(
+                BroadcastReceiver.class);
+        verify(mContext).registerReceiver(bcastRxCaptor.capture(), any(IntentFilter.class));
+
+        mBroadcastReceiver = bcastRxCaptor.getValue();
+
+        mWifiController.start();
+        mLooper.dispatchAll();
+
+        verify(mWifiStateMachinePrime).disableWifi();
+
+        when(mSettingsStore.getLocationModeSetting(eq(mContext)))
+                .thenReturn(Settings.Secure.LOCATION_MODE_HIGH_ACCURACY);
+        Intent intent = new Intent(LocationManager.MODE_CHANGED_ACTION);
+
+        mBroadcastReceiver.onReceive(mContext, intent);
+        mLooper.dispatchAll();
+        verify(mWifiStateMachinePrime).enterScanOnlyMode();
+    }
+
+    /**
+     * Disabling location mode when in scan mode will disable wifi
+     */
+    @Test
+    public void testExitScanModeWhenLocationModeDisabled() throws Exception {
+        when(mSettingsStore.isScanAlwaysAvailable()).thenReturn(true);
+        when(mSettingsStore.getLocationModeSetting(eq(mContext)))
+                .thenReturn(Settings.Secure.LOCATION_MODE_HIGH_ACCURACY);
+
+        reset(mContext, mWifiStateMachinePrime);
+        mWifiController = new WifiController(mContext, mWifiStateMachine, mLooper.getLooper(),
+                mSettingsStore, mLooper.getLooper(), mFacade, mWifiStateMachinePrime);
+        ArgumentCaptor<BroadcastReceiver> bcastRxCaptor = ArgumentCaptor.forClass(
+                BroadcastReceiver.class);
+        verify(mContext).registerReceiver(bcastRxCaptor.capture(), any(IntentFilter.class));
+
+        mBroadcastReceiver = bcastRxCaptor.getValue();
+
+        mWifiController.start();
+        mLooper.dispatchAll();
+
+        verify(mWifiStateMachinePrime).enterScanOnlyMode();
+
+        when(mSettingsStore.getLocationModeSetting(eq(mContext)))
+                .thenReturn(Settings.Secure.LOCATION_MODE_OFF);
+        Intent intent = new Intent(LocationManager.MODE_CHANGED_ACTION);
+
+        mBroadcastReceiver.onReceive(mContext, intent);
+        mLooper.dispatchAll();
+        verify(mWifiStateMachinePrime).disableWifi();
     }
 
     @Test
