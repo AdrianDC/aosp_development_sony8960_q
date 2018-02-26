@@ -490,8 +490,6 @@ public class WifiStateMachine extends StateMachine {
     static final int CMD_REMOVE_NETWORK                                 = BASE + 53;
     /* Enable a network. The device will attempt a connection to the given network. */
     static final int CMD_ENABLE_NETWORK                                 = BASE + 54;
-    /* Save configuration */
-    static final int CMD_SAVE_CONFIG                                    = BASE + 58;
     /* Get configured networks */
     static final int CMD_GET_CONFIGURED_NETWORKS                        = BASE + 59;
     /* Get adaptors */
@@ -3528,9 +3526,6 @@ public class WifiStateMachine extends StateMachine {
                     }
                     replyToMessage(message, message.what, result.getNetworkId());
                     break;
-                case CMD_SAVE_CONFIG:
-                    replyToMessage(message, message.what, FAILURE);
-                    break;
                 case CMD_REMOVE_NETWORK:
                     deleteNetworkConfigAndSendReply(message, false);
                     break;
@@ -4515,12 +4510,6 @@ public class WifiStateMachine extends StateMachine {
                             sendMessage(CMD_DISCONNECT);
                         }
                     }
-                    break;
-                case CMD_SAVE_CONFIG:
-                    ok = mWifiConfigManager.saveToStore(true);
-                    replyToMessage(message, CMD_SAVE_CONFIG, ok ? SUCCESS : FAILURE);
-                    // Inform the backup manager about a data change
-                    mBackupManagerProxy.notifyDataChanged();
                     break;
                 case WifiMonitor.SUP_REQUEST_IDENTITY:
                     netId = message.arg2;
