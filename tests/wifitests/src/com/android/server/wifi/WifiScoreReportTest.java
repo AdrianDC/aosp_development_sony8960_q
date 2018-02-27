@@ -42,7 +42,6 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.io.PrintWriter;
-import java.util.Arrays;
 
 /**
  * Unit tests for {@link com.android.server.wifi.WifiScoreReport}.
@@ -70,7 +69,6 @@ public class WifiScoreReportTest {
     @Mock Context mContext;
     @Mock NetworkAgent mNetworkAgent;
     @Mock Resources mResources;
-    @Mock WifiConfigManager mWifiConfigManager;
     @Mock WifiMetrics mWifiMetrics;
     @Mock PrintWriter mPrintWriter;
 
@@ -119,24 +117,13 @@ public class WifiScoreReportTest {
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
         setUpResources(mResources);
-        WifiConfiguration config = new WifiConfiguration();
-        config.SSID = "nooooooooooo";
-        config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
-        config.hiddenSSID = false;
         mWifiInfo = new WifiInfo();
         mWifiInfo.setFrequency(2412);
-        when(mWifiConfigManager.getSavedNetworks()).thenReturn(Arrays.asList(config));
-        when(mWifiConfigManager.getConfiguredNetwork(anyInt())).thenReturn(config);
-        mWifiConfiguration = config;
         int maxSize = 10;
         int trimSize = 5;
-        mScanDetailCache = new ScanDetailCache(config, maxSize, trimSize);
-        // TODO: populate the cache, but probably in the test cases, not here.
-        when(mWifiConfigManager.getScanDetailCacheForNetwork(anyInt()))
-                .thenReturn(mScanDetailCache);
         when(mContext.getResources()).thenReturn(mResources);
         mClock = new FakeClock();
-        mWifiScoreReport = new WifiScoreReport(mContext, mWifiConfigManager, mClock);
+        mWifiScoreReport = new WifiScoreReport(mContext, mClock);
     }
 
     /**
@@ -146,7 +133,6 @@ public class WifiScoreReportTest {
     public void tearDown() throws Exception {
         mResources = null;
         mWifiScoreReport = null;
-        mWifiConfigManager = null;
         mWifiMetrics = null;
     }
 
@@ -159,8 +145,7 @@ public class WifiScoreReportTest {
     @Test
     public void calculateAndReportScoreSucceeds() throws Exception {
         mWifiInfo.setRssi(-77);
-        mWifiScoreReport.calculateAndReportScore(mWifiInfo,
-                mNetworkAgent, mWifiMetrics);
+        mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mWifiMetrics);
         verify(mNetworkAgent).sendNetworkScore(anyInt());
         verify(mWifiMetrics).incrementWifiScoreCount(anyInt());
     }
@@ -224,6 +209,23 @@ public class WifiScoreReportTest {
     }
 
     /**
+     * When the score ramps down to the exit theshold, let go.
+     */
+    @Test
+    public void giveUpOnBadRssiAggressively() throws Exception {
+        String oops = "giveUpOnBadRssiAggressively";
+        for (int rssi = -60; rssi >= -83; rssi -= 1) {
+            mWifiInfo.setRssi(rssi);
+            oops += " " + mClock.mWallClockMillis + "," + rssi;
+            mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mWifiMetrics);
+            oops += ":" + mWifiInfo.score;
+        }
+        int score = mWifiInfo.score;
+        verify(mNetworkAgent, atLeast(1)).sendNetworkScore(score);
+        assertTrue(oops, score < CELLULAR_THRESHOLD_SCORE);
+    }
+
+    /**
      * This setup causes some reports to be generated when println
      * methods are called, to check for "concurrent" modification
      * errors.
@@ -265,7 +267,7 @@ public class WifiScoreReportTest {
      */
     @Test
     public void testDataLoggingLimit() throws Exception {
-        for (int i = 0; i < 14500; i++) {
+        for (int i = 0; i < 3620; i++) {
             mWifiInfo.setRssi(-65 + i % 20);
             mWifiInfo.setLinkSpeed(300);
             mWifiInfo.setFrequency(5220);
@@ -276,6 +278,6 @@ public class WifiScoreReportTest {
             mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mWifiMetrics);
         }
         mWifiScoreReport.dump(null, mPrintWriter, null);
-        verify(mPrintWriter, atMost(14401)).println(anyString());
+        verify(mPrintWriter, atMost(3601)).println(anyString());
     }
 }

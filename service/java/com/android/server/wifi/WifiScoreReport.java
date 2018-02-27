@@ -35,7 +35,7 @@ import java.util.Locale;
 public class WifiScoreReport {
     private static final String TAG = "WifiScoreReport";
 
-    private static final int DUMPSYS_ENTRY_COUNT_LIMIT = 14400; // 12 hours on 3 second poll
+    private static final int DUMPSYS_ENTRY_COUNT_LIMIT = 3600; // 3 hours on 3 second poll
 
     private boolean mVerboseLoggingEnabled = false;
     private static final long FIRST_REASONABLE_WALL_CLOCK = 1490000000000L; // mid-December 2016
@@ -47,13 +47,11 @@ public class WifiScoreReport {
     private final Clock mClock;
     private int mSessionNumber = 0;
 
-    ConnectedScore mConnectedScore;
     ConnectedScore mAggressiveConnectedScore;
     VelocityBasedConnectedScore mFancyConnectedScore;
 
-    WifiScoreReport(Context context, WifiConfigManager wifiConfigManager, Clock clock) {
+    WifiScoreReport(Context context, Clock clock) {
         mClock = clock;
-        mConnectedScore = new LegacyConnectedScore(context, wifiConfigManager, clock);
         mAggressiveConnectedScore = new AggressiveConnectedScore(context, clock);
         mFancyConnectedScore = new VelocityBasedConnectedScore(context, clock);
     }
@@ -76,7 +74,6 @@ public class WifiScoreReport {
             mSessionNumber++;
             mReportValid = false;
         }
-        mConnectedScore.reset();
         mAggressiveConnectedScore.reset();
         mFancyConnectedScore.reset();
         if (mVerboseLoggingEnabled) Log.d(TAG, "reset");
@@ -116,12 +113,15 @@ public class WifiScoreReport {
         int score;
 
         long millis = mClock.getWallClockMillis();
+        int netId = 0;
 
-        mConnectedScore.updateUsingWifiInfo(wifiInfo, millis);
+        if (networkAgent != null) {
+            netId = networkAgent.netId;
+        }
+
         mAggressiveConnectedScore.updateUsingWifiInfo(wifiInfo, millis);
         mFancyConnectedScore.updateUsingWifiInfo(wifiInfo, millis);
 
-        int s0 = mConnectedScore.generateScore();
         int s1 = mAggressiveConnectedScore.generateScore();
         int s2 = mFancyConnectedScore.generateScore();
 
@@ -135,7 +135,7 @@ public class WifiScoreReport {
             score = 0;
         }
 
-        logLinkMetrics(wifiInfo, millis, s0, s1, s2);
+        logLinkMetrics(wifiInfo, millis, netId, s1, s2);
 
         //report score
         if (score != wifiInfo.score) {
@@ -163,7 +163,8 @@ public class WifiScoreReport {
     /**
      * Data logging for dumpsys
      */
-    private void logLinkMetrics(WifiInfo wifiInfo, long now, int s0, int s1, int s2) {
+    private void logLinkMetrics(WifiInfo wifiInfo, long now, int netId,
+                                int s1, int s2) {
         if (now < FIRST_REASONABLE_WALL_CLOCK) return;
         double rssi = wifiInfo.getRssi();
         double filteredRssi = mFancyConnectedScore.getFilteredRssi();
@@ -178,10 +179,11 @@ public class WifiScoreReport {
         try {
             String timestamp = new SimpleDateFormat("MM-dd HH:mm:ss.SSS").format(new Date(now));
             s = String.format(Locale.US, // Use US to avoid comma/decimal confusion
-                    "%s,%d,%.1f,%.1f,%.1f,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%d,%d",
-                    timestamp, mSessionNumber, rssi, filteredRssi, rssiThreshold, freq, linkSpeed,
+                    "%s,%d,%d,%.1f,%.1f,%.1f,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%d",
+                    timestamp, mSessionNumber, netId,
+                    rssi, filteredRssi, rssiThreshold, freq, linkSpeed,
                     txSuccessRate, txRetriesRate, txBadRate, rxSuccessRate,
-                    s0, s1, s2);
+                    s1, s2);
         } catch (Exception e) {
             Log.e(TAG, "format problem", e);
             return;
@@ -210,8 +212,8 @@ public class WifiScoreReport {
         synchronized (mLinkMetricsHistory) {
             history = new LinkedList<>(mLinkMetricsHistory);
         }
-        pw.println("time,session,rssi,filtered_rssi,rssi_threshold,"
-                + "freq,linkspeed,tx_good,tx_retry,tx_bad,rx_pps,s0,s1,s2");
+        pw.println("time,session,netid,rssi,filtered_rssi,rssi_threshold,"
+                + "freq,linkspeed,tx_good,tx_retry,tx_bad,rx_pps,s1,s2");
         for (String line : history) {
             pw.println(line);
         }
