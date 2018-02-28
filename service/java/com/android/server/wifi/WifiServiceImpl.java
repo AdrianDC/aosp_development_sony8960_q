@@ -1035,7 +1035,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             // for softap mode and restart softap with the tethering config.
             if (!mLocalOnlyHotspotRequests.isEmpty()) {
                 mLog.trace("Call to stop Tethering while LOHS is active,"
-                        + " Registered LOHS callers will be updated when softap stopped.");
+                        + " Registered LOHS callers will be updated when softap stopped.").flush();
             }
 
             return stopSoftApInternal();
@@ -1217,7 +1217,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 return LocalOnlyHotspotCallback.ERROR_INCOMPATIBLE_MODE;
             }
         } catch (RemoteException e) {
-            mLog.warn("RemoteException during isAppForeground when calling startLOHS");
+            mLog.warn("RemoteException during isAppForeground when calling startLOHS").flush();
             return LocalOnlyHotspotCallback.ERROR_INCOMPATIBLE_MODE;
         }
 
@@ -1227,14 +1227,14 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             // check if we are currently tethering
             if (mIfaceIpModes.contains(WifiManager.IFACE_IP_MODE_TETHERED)) {
                 // Tethering is enabled, cannot start LocalOnlyHotspot
-                mLog.info("Cannot start localOnlyHotspot when WiFi Tethering is active.");
+                mLog.info("Cannot start localOnlyHotspot when WiFi Tethering is active.").flush();
                 return LocalOnlyHotspotCallback.ERROR_INCOMPATIBLE_MODE;
             }
 
             // does this caller already have a request?
             LocalOnlyHotspotRequestInfo request = mLocalOnlyHotspotRequests.get(pid);
             if (request != null) {
-                mLog.trace("caller already has an active request");
+                mLog.trace("caller already has an active request").flush();
                 throw new IllegalStateException(
                         "Caller already has an active LocalOnlyHotspot request");
             }
@@ -1247,7 +1247,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             if (mIfaceIpModes.contains(WifiManager.IFACE_IP_MODE_LOCAL_ONLY)) {
                 // LOHS is already active, send out what is running
                 try {
-                    mLog.trace("LOHS already up, trigger onStarted callback");
+                    mLog.trace("LOHS already up, trigger onStarted callback").flush();
                     request.sendHotspotStartedMessage(mLocalOnlyHotspotConfig);
                 } catch (RemoteException e) {
                     return LocalOnlyHotspotCallback.ERROR_GENERIC;
@@ -1298,7 +1298,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
         synchronized (mLocalOnlyHotspotRequests) {
             if (mLocalOnlyHotspotRequests.remove(request.getPid()) == null) {
-                mLog.trace("LocalOnlyHotspotRequestInfo not found to remove");
+                mLog.trace("LocalOnlyHotspotRequestInfo not found to remove").flush();
                 return;
             }
 
