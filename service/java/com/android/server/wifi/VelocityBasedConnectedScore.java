@@ -33,7 +33,7 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
     private final int mThresholdMinimumRssi5;      // -82
     private final int mThresholdMinimumRssi24;     // -85
 
-    private int mFrequency = 5000;
+    private int mFrequency = ScoringParams.BAND5;
     private double mThresholdMinimumRssi;
     private double mThresholdAdjustment;
     private final KalmanFilter mFilter;
