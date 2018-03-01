@@ -18,8 +18,12 @@ package com.android.server.wifi;
 
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.util.Pair;
+
+import com.android.internal.annotations.VisibleForTesting;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -60,6 +64,9 @@ public class WifiLastResortWatchdog {
      * Failure count that each available networks must meet to possibly trigger the Watchdog
      */
     public static final int FAILURE_THRESHOLD = 7;
+    public static final String BUGREPORT_TITLE = "Wifi watchdog triggered";
+    public static final double PROB_TAKE_BUGREPORT_DEFAULT = 0.08;
+
     /**
      * Cached WifiConfigurations of available networks seen within MAX_BSSID_AGE scan results
      * Key:BSSID, Value:Counters of failure types
@@ -79,10 +86,16 @@ public class WifiLastResortWatchdog {
 
     private SelfRecovery mSelfRecovery;
     private WifiMetrics mWifiMetrics;
+    private WifiStateMachine mWifiStateMachine;
+    private Looper mWifiStateMachineLooper;
+    private double mBugReportProbability = PROB_TAKE_BUGREPORT_DEFAULT;
 
-    WifiLastResortWatchdog(SelfRecovery selfRecovery, WifiMetrics wifiMetrics) {
+    WifiLastResortWatchdog(SelfRecovery selfRecovery, WifiMetrics wifiMetrics,
+            WifiStateMachine wsm, Looper wifiStateMachineLooper) {
         mSelfRecovery = selfRecovery;
         mWifiMetrics = wifiMetrics;
+        mWifiStateMachine = wsm;
+        mWifiStateMachineLooper = wifiStateMachineLooper;
     }
 
     /**
@@ -184,6 +197,7 @@ public class WifiLastResortWatchdog {
             Log.v(TAG, "noteConnectionFailureAndTriggerIfNeeded: [" + ssid + ", " + bssid + ", "
                     + reason + "]");
         }
+
         // Update failure count for the failing network
         updateFailureCountForNetwork(ssid, bssid, reason);
 
@@ -214,11 +228,11 @@ public class WifiLastResortWatchdog {
             Log.v(TAG, "connectedStateTransition: isEntering = " + isEntering);
         }
         mWifiIsConnected = isEntering;
-
         if (!mWatchdogAllowedToTrigger) {
             // WiFi has connected after a Watchdog trigger, without any new networks becoming
             // available, log a Watchdog success in wifi metrics
             mWifiMetrics.incrementNumLastResortWatchdogSuccesses();
+            takeBugReportWithCurrentProbability("Wifi fixed after restart");
         }
         if (isEntering) {
             // We connected to something! Reset failure counts for everything
@@ -227,6 +241,19 @@ public class WifiLastResortWatchdog {
             // something right, re-enable it so it can fire again.
             setWatchdogTriggerEnabled(true);
         }
+    }
+
+    /**
+     * Triggers a wifi specific bugreport with a based on the current trigger probability.
+     * @param bugDetail description of the bug
+     */
+    private void takeBugReportWithCurrentProbability(String bugDetail) {
+        if (mBugReportProbability <= Math.random()) {
+            return;
+        }
+        (new Handler(mWifiStateMachineLooper)).post(() -> {
+            mWifiStateMachine.takeBugReport(BUGREPORT_TITLE, bugDetail);
+        });
     }
 
     /**
@@ -467,6 +494,11 @@ public class WifiLastResortWatchdog {
         } else {
             mVerboseLoggingEnabled = false;
         }
+    }
+
+    @VisibleForTesting
+    protected void setBugReportProbability(double newProbability) {
+        mBugReportProbability = newProbability;
     }
 
     /**
