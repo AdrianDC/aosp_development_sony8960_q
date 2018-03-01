@@ -31,10 +31,12 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.UserInfo;
+import android.database.ContentObserver;
 import android.hardware.wifi.supplicant.V1_0.ISupplicantStaIfaceCallback;
 import android.net.ConnectivityManager;
 import android.net.DhcpResults;
 import android.net.LinkProperties;
+import android.net.MacAddress;
 import android.net.NetworkCapabilities;
 import android.net.NetworkFactory;
 import android.net.NetworkInfo;
@@ -135,6 +137,8 @@ public class WifiStateMachineTest {
     private static final String DEFAULT_TEST_SSID = "\"GoogleGuest\"";
     private static final String OP_PACKAGE_NAME = "com.xxx";
     private static final int TEST_UID = Process.SYSTEM_UID + 1000;
+    private static final MacAddress TEST_GLOBAL_MAC_ADDRESS =
+            MacAddress.fromString("10:22:34:56:78:92");
 
     // NetworkAgent creates threshold ranges with Integers
     private static final int RSSI_THRESHOLD_MAX = -30;
@@ -327,6 +331,7 @@ public class WifiStateMachineTest {
     PhoneStateListener mPhoneStateListener;
     NetworkRequest mDefaultNetworkRequest;
     OsuProvider mOsuProvider;
+    ContentObserver mContentObserver;
 
     final ArgumentCaptor<WifiManager.SoftApCallback> mSoftApCallbackCaptor =
             ArgumentCaptor.forClass(WifiManager.SoftApCallback.class);
@@ -425,6 +430,10 @@ public class WifiStateMachineTest {
                 WifiManager.WIFI_FREQUENCY_BAND_AUTO)).thenReturn(
                 WifiManager.WIFI_FREQUENCY_BAND_AUTO);
 
+        when(mFrameworkFacade.getIntegerSetting(mContext,
+                Settings.Global.WIFI_CONNECTED_MAC_RANDOMIZATION_ENABLED,
+                0)).thenReturn(0);
+
         when(mFrameworkFacade.makeSupplicantStateTracker(
                 any(Context.class), any(WifiConfigManager.class),
                 any(Handler.class))).thenReturn(mSupplicantStateTracker);
@@ -448,6 +457,14 @@ public class WifiStateMachineTest {
         initializeWsm();
 
         mOsuProvider = PasspointProvisioningTestUtil.generateOsuProvider(true);
+
+        /* Capture the ContentObserver for Connected MAC Randomization. */
+        ArgumentCaptor<ContentObserver> observerCaptor =
+                ArgumentCaptor.forClass(ContentObserver.class);
+        verify(mFrameworkFacade).registerContentObserver(eq(mContext), eq(Settings.Global.getUriFor(
+                Settings.Global.WIFI_CONNECTED_MAC_RANDOMIZATION_ENABLED)), eq(false),
+                observerCaptor.capture());
+        mContentObserver = observerCaptor.getValue();
     }
 
     private void registerAsyncChannel(Consumer<AsyncChannel> consumer, Messenger messenger) {
@@ -2316,5 +2333,58 @@ public class WifiStateMachineTest {
         verify(mIpClient).setMulticastFilter(eq(true));
         filterController.stopFilteringMulticastPackets();
         verify(mIpClient).setMulticastFilter(eq(false));
+    }
+
+    /**
+     * Verifies that connected MAC randomization is handled correctly when it is enabled.
+     */
+    @Test
+    public void testConnectedMacRandomization() throws Exception {
+        initializeAndAddNetworkAndVerifySuccess();
+        assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
+        assertEquals(WifiManager.WIFI_STATE_ENABLED, mWsm.syncGetWifiState());
+
+        when(mFrameworkFacade.getIntegerSetting(mContext,
+                Settings.Global.WIFI_CONNECTED_MAC_RANDOMIZATION_ENABLED, 0)).thenReturn(1);
+        mContentObserver.onChange(false);
+
+        when(mWifiNative.getMacAddress(WIFI_IFACE_NAME))
+                .thenReturn(TEST_GLOBAL_MAC_ADDRESS.toString());
+        when(mWifiNative.setMacAddress(eq(WIFI_IFACE_NAME), anyObject()))
+                .then(new AnswerWithArguments() {
+                    public boolean answer(String iface, MacAddress mac) {
+                        when(mWifiNative.getMacAddress(iface)).thenReturn(mac.toString());
+                        return true;
+                    }
+                });
+
+        mWsm.sendMessage(WifiStateMachine.CMD_START_CONNECT, 0, 0, sBSSID);
+        mLooper.dispatchAll();
+
+        MacAddress newMac = MacAddress.fromString(mWifiNative.getMacAddress(WIFI_IFACE_NAME));
+        assertNotEquals(TEST_GLOBAL_MAC_ADDRESS, newMac);
+        verify(mWifiConfigManager).setNetworkRandomizedMacAddress(eq(0), eq(newMac));
+        verify(mWifiNative).setMacAddress(eq(WIFI_IFACE_NAME), eq(newMac));
+        assertEquals(mWsm.getWifiInfo().getMacAddress(), newMac.toString());
+    }
+
+    /**
+     * Verifies that connected MAC randomization methods are not called
+     * when the feature is off.
+     */
+    @Test
+    public void testConnectedMacRandomizationOff() throws Exception {
+        initializeAndAddNetworkAndVerifySuccess();
+        assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
+        assertEquals(WifiManager.WIFI_STATE_ENABLED, mWsm.syncGetWifiState());
+        String oldMac = mWsm.getWifiInfo().getMacAddress();
+
+        mWsm.sendMessage(WifiStateMachine.CMD_START_CONNECT, 0, 0, sBSSID);
+        mLooper.dispatchAll();
+
+        verify(mWifiConfigManager, never())
+                .setNetworkRandomizedMacAddress(eq(0), any(MacAddress.class));
+        verify(mWifiNative, never()).setMacAddress(eq(WIFI_IFACE_NAME), any(MacAddress.class));
+        assertEquals(mWsm.getWifiInfo().getMacAddress(), oldMac);
     }
 }
