@@ -654,8 +654,18 @@ public class WifiBackupRestore {
                         Map<String, String> extras =
                                 SupplicantStaNetworkHal.parseNetworkExtra(
                                         NativeUtil.removeEnclosingQuotes(idString));
+                        if (extras == null) {
+                            Log.e(TAG, "Error parsing network extras, ignoring network.");
+                            return null;
+                        }
                         String configKey = extras.get(
                                 SupplicantStaNetworkHal.ID_STRING_KEY_CONFIG_KEY);
+                        // No ConfigKey was passed but we need it for validating the parsed
+                        // network so we stop the restore.
+                        if (configKey == null) {
+                            Log.e(TAG, "Configuration key was not passed, ignoring network.");
+                            return null;
+                        }
                         if (!configKey.equals(configuration.configKey())) {
                             // ConfigKey mismatches are expected for private networks because the
                             // UID is not preserved across backup/restore.
@@ -696,6 +706,13 @@ public class WifiBackupRestore {
                         if (line != null) {
                             if (line.startsWith("network")) {
                                 SupplicantNetwork net = SupplicantNetwork.readNetworkFromStream(in);
+
+                                // An IOException occurred while trying to read the network.
+                                if (net == null) {
+                                    Log.e(TAG, "Error while parsing the network.");
+                                    continue;
+                                }
+
                                 // Networks that use certificates for authentication can't be
                                 // restored because the certificates they need don't get restored
                                 // (because they are stored in keystore, and can't be restored).
@@ -721,10 +738,17 @@ public class WifiBackupRestore {
             public List<WifiConfiguration> retrieveWifiConfigurations() {
                 ArrayList<WifiConfiguration> wifiConfigurations = new ArrayList<>();
                 for (SupplicantNetwork net : mNetworks) {
-                    WifiConfiguration wifiConfiguration = net.createWifiConfiguration();
-                    if (wifiConfiguration != null) {
-                        Log.v(TAG, "Parsed Configuration: " + wifiConfiguration.configKey());
-                        wifiConfigurations.add(wifiConfiguration);
+                    try {
+                        WifiConfiguration wifiConfiguration = net.createWifiConfiguration();
+                        if (wifiConfiguration != null) {
+                            Log.v(TAG, "Parsed Configuration: " + wifiConfiguration.configKey());
+                            wifiConfigurations.add(wifiConfiguration);
+                        }
+                    } catch (NumberFormatException e) {
+                        // Occurs if we are unable to parse the hidden SSID, WEP Key index or
+                        // creator UID.
+                        Log.e(TAG, "Error parsing wifi configuration: " + e);
+                        return null;
                     }
                 }
                 return wifiConfigurations;
