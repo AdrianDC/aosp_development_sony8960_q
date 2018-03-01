@@ -20,6 +20,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.location.LocationManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
@@ -121,12 +122,16 @@ public class WifiController extends StateMachine {
         boolean isAirplaneModeOn = mSettingsStore.isAirplaneModeOn();
         boolean isWifiEnabled = mSettingsStore.isWifiToggleEnabled();
         boolean isScanningAlwaysAvailable = mSettingsStore.isScanAlwaysAvailable();
+        boolean isLocationModeActive =
+                mSettingsStore.getLocationModeSetting(mContext)
+                        == Settings.Secure.LOCATION_MODE_OFF;
 
-        log("isAirplaneModeOn = " + isAirplaneModeOn +
-                ", isWifiEnabled = " + isWifiEnabled +
-                ", isScanningAvailable = " + isScanningAlwaysAvailable);
+        log("isAirplaneModeOn = " + isAirplaneModeOn
+                + ", isWifiEnabled = " + isWifiEnabled
+                + ", isScanningAvailable = " + isScanningAlwaysAvailable
+                + ", isLocationModeActive = " + isLocationModeActive);
 
-        if (isScanningAlwaysAvailable) {
+        if (checkScanOnlyModeAvailable()) {
             setInitialState(mStaDisabledWithScanState);
         } else {
             setInitialState(mApStaDisabledState);
@@ -139,6 +144,7 @@ public class WifiController extends StateMachine {
         filter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
         filter.addAction(WifiManager.WIFI_AP_STATE_CHANGED_ACTION);
         filter.addAction(WifiManager.WIFI_STATE_CHANGED_ACTION);
+        filter.addAction(LocationManager.MODE_CHANGED_ACTION);
         mContext.registerReceiver(
                 new BroadcastReceiver() {
                     @Override
@@ -165,12 +171,25 @@ public class WifiController extends StateMachine {
                                 loge(TAG + "Wifi turn on failed");
                                 sendMessage(CMD_STA_START_FAILURE);
                             }
+                        } else if (action.equals(LocationManager.MODE_CHANGED_ACTION)) {
+                            // Location mode has been toggled...  trigger with the scan change
+                            // update to make sure we are in the correct mode
+                            sendMessage(CMD_SCAN_ALWAYS_MODE_CHANGED);
                         }
                     }
                 },
                 new IntentFilter(filter));
 
         readWifiReEnableDelay();
+    }
+
+    private boolean checkScanOnlyModeAvailable() {
+        // first check if Location service is disabled, if so return false
+        if (mSettingsStore.getLocationModeSetting(mContext)
+                == Settings.Secure.LOCATION_MODE_OFF) {
+            return false;
+        }
+        return mSettingsStore.isScanAlwaysAvailable();
     }
 
     private void readWifiReEnableDelay() {
@@ -248,12 +267,12 @@ public class WifiController extends StateMachine {
                         // what state to head to (it might go to scan mode).
                         mWifiStateMachine.setOperationalMode(WifiStateMachine.CONNECT_MODE);
                         transitionTo(mDeviceActiveState);
-                    } else if (mSettingsStore.isScanAlwaysAvailable()) {
+                    } else if (checkScanOnlyModeAvailable()) {
                         transitionTo(mStaDisabledWithScanState);
                     }
                     break;
                 case CMD_SCAN_ALWAYS_MODE_CHANGED:
-                    if (mSettingsStore.isScanAlwaysAvailable()) {
+                    if (checkScanOnlyModeAvailable()) {
                         transitionTo(mStaDisabledWithScanState);
                         break;
                     }
@@ -317,7 +336,7 @@ public class WifiController extends StateMachine {
             switch (msg.what) {
                 case CMD_WIFI_TOGGLED:
                     if (! mSettingsStore.isWifiToggleEnabled()) {
-                        if (mSettingsStore.isScanAlwaysAvailable()) {
+                        if (checkScanOnlyModeAvailable()) {
                             transitionTo(mStaDisabledWithScanState);
                         } else {
                             transitionTo(mApStaDisabledState);
@@ -333,7 +352,7 @@ public class WifiController extends StateMachine {
                     }
                     break;
                 case CMD_STA_START_FAILURE:
-                    if (!mSettingsStore.isScanAlwaysAvailable()) {
+                    if (!checkScanOnlyModeAvailable()) {
                         transitionTo(mApStaDisabledState);
                     } else {
                         transitionTo(mStaDisabledWithScanState);
@@ -414,7 +433,7 @@ public class WifiController extends StateMachine {
                     }
                     break;
                 case CMD_SCAN_ALWAYS_MODE_CHANGED:
-                    if (! mSettingsStore.isScanAlwaysAvailable()) {
+                    if (!checkScanOnlyModeAvailable()) {
                         log("StaDisabledWithScanState: scan no longer available");
                         transitionTo(mApStaDisabledState);
                     }
@@ -487,7 +506,7 @@ public class WifiController extends StateMachine {
                 return mDeviceActiveState;
             }
 
-            if (mSettingsStore.isScanAlwaysAvailable()) {
+            if (checkScanOnlyModeAvailable()) {
                 return mStaDisabledWithScanState;
             }
 
@@ -601,7 +620,7 @@ public class WifiController extends StateMachine {
             if (exitEcm) {
                 if (mSettingsStore.isWifiToggleEnabled()) {
                     transitionTo(mDeviceActiveState);
-                } else if (mSettingsStore.isScanAlwaysAvailable()) {
+                } else if (checkScanOnlyModeAvailable()) {
                     transitionTo(mStaDisabledWithScanState);
                 } else {
                     transitionTo(mApStaDisabledState);

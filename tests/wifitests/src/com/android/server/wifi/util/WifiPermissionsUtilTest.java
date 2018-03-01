@@ -95,7 +95,6 @@ public class WifiPermissionsUtilTest {
     private int mCurrentUser;
     private int mLocationModeSetting;
     private boolean mThrowSecurityException;
-    private int mTargetVersion;
     private Answer<Integer> mReturnPermission;
     private HashMap<String, Integer> mPermissionsList = new HashMap<String, Integer>();
 
@@ -175,7 +174,7 @@ public class WifiPermissionsUtilTest {
         WifiPermissionsUtil codeUnderTest = new WifiPermissionsUtil(mMockPermissionsWrapper,
                 mMockContext, mMockWifiSettingsStore, mMockUserManager, mWifiInjector);
         try {
-            output = codeUnderTest.canAccessScanResults(TEST_PACKAGE_NAME, mUid, mTargetVersion);
+            output = codeUnderTest.canAccessScanResults(TEST_PACKAGE_NAME, mUid);
         } catch (SecurityException e) {
             throw e;
         }
@@ -202,7 +201,7 @@ public class WifiPermissionsUtilTest {
         WifiPermissionsUtil codeUnderTest = new WifiPermissionsUtil(mMockPermissionsWrapper,
                 mMockContext, mMockWifiSettingsStore, mMockUserManager, mWifiInjector);
         try {
-            output = codeUnderTest.canAccessScanResults(TEST_PACKAGE_NAME, mUid, mTargetVersion);
+            output = codeUnderTest.canAccessScanResults(TEST_PACKAGE_NAME, mUid);
         } catch (SecurityException e) {
             throw e;
         }
@@ -224,7 +223,7 @@ public class WifiPermissionsUtilTest {
         WifiPermissionsUtil codeUnderTest = new WifiPermissionsUtil(mMockPermissionsWrapper,
                 mMockContext, mMockWifiSettingsStore, mMockUserManager, mWifiInjector);
         try {
-            output = codeUnderTest.canAccessScanResults(TEST_PACKAGE_NAME, mUid, mTargetVersion);
+            output = codeUnderTest.canAccessScanResults(TEST_PACKAGE_NAME, mUid);
         } catch (SecurityException e) {
             throw e;
         }
@@ -252,7 +251,7 @@ public class WifiPermissionsUtilTest {
         WifiPermissionsUtil codeUnderTest = new WifiPermissionsUtil(mMockPermissionsWrapper,
                 mMockContext, mMockWifiSettingsStore, mMockUserManager, mWifiInjector);
         try {
-            output = codeUnderTest.canAccessScanResults(TEST_PACKAGE_NAME, mUid, mTargetVersion);
+            output = codeUnderTest.canAccessScanResults(TEST_PACKAGE_NAME, mUid);
         } catch (SecurityException e) {
             throw e;
         }
@@ -278,7 +277,7 @@ public class WifiPermissionsUtilTest {
         WifiPermissionsUtil codeUnderTest = new WifiPermissionsUtil(mMockPermissionsWrapper,
                 mMockContext, mMockWifiSettingsStore, mMockUserManager, mWifiInjector);
         try {
-            output = codeUnderTest.canAccessScanResults(TEST_PACKAGE_NAME, mUid, mTargetVersion);
+            output = codeUnderTest.canAccessScanResults(TEST_PACKAGE_NAME, mUid);
         } catch (SecurityException e) {
             throw e;
         }
@@ -287,14 +286,13 @@ public class WifiPermissionsUtilTest {
 
     /**
      * Test case Setting: Package is valid
-     *                    Legacy App
      *                    Foreground
      *                    This App has permission to request WIFI_SCAN
      *                    User is current
-     *  Validate result is true - has all permissions
+     *  Validate result is false - app does not have location permission
      */
     @Test
-    public void testLegacyForegroundAppAndAllPermissions() throws Exception {
+    public void testLegacyForegroundAppWithOtherPermissionsDenied() throws Exception {
         boolean output = false;
         mThrowSecurityException = false;
         mMockApplInfo.targetSdkVersion = Build.VERSION_CODES.GINGERBREAD;
@@ -306,16 +304,15 @@ public class WifiPermissionsUtilTest {
         WifiPermissionsUtil codeUnderTest = new WifiPermissionsUtil(mMockPermissionsWrapper,
                 mMockContext, mMockWifiSettingsStore, mMockUserManager, mWifiInjector);
         try {
-            output = codeUnderTest.canAccessScanResults(TEST_PACKAGE_NAME, mUid, mTargetVersion);
+            output = codeUnderTest.canAccessScanResults(TEST_PACKAGE_NAME, mUid);
         } catch (SecurityException e) {
             throw e;
         }
-        assertEquals(output, true);
+        assertEquals(output, false);
     }
 
     /**
      * Test case Setting: Package is valid
-     *                    Legacy App
      *                    Location Mode Enabled
      *                    Coarse Location Access
      *                    This App has permission to request WIFI_SCAN
@@ -337,7 +334,7 @@ public class WifiPermissionsUtilTest {
         WifiPermissionsUtil codeUnderTest = new WifiPermissionsUtil(mMockPermissionsWrapper,
                 mMockContext, mMockWifiSettingsStore, mMockUserManager, mWifiInjector);
         try {
-            output = codeUnderTest.canAccessScanResults(TEST_PACKAGE_NAME, mUid, mTargetVersion);
+            output = codeUnderTest.canAccessScanResults(TEST_PACKAGE_NAME, mUid);
         } catch (SecurityException e) {
             throw e;
         }
@@ -363,7 +360,7 @@ public class WifiPermissionsUtilTest {
         WifiPermissionsUtil codeUnderTest = new WifiPermissionsUtil(mMockPermissionsWrapper,
                 mMockContext, mMockWifiSettingsStore, mMockUserManager, mWifiInjector);
         try {
-            output = codeUnderTest.canAccessScanResults(TEST_PACKAGE_NAME, mUid, mTargetVersion);
+            output = codeUnderTest.canAccessScanResults(TEST_PACKAGE_NAME, mUid);
         } catch (SecurityException e) {
             throw e;
         }
@@ -381,7 +378,7 @@ public class WifiPermissionsUtilTest {
         WifiPermissionsUtil codeUnderTest = new WifiPermissionsUtil(mMockPermissionsWrapper,
                 mMockContext, mMockWifiSettingsStore, mMockUserManager, mWifiInjector);
         try {
-            output = codeUnderTest.canAccessScanResults(TEST_PACKAGE_NAME, mUid, mTargetVersion);
+            output = codeUnderTest.canAccessScanResults(TEST_PACKAGE_NAME, mUid);
         } catch (SecurityException e) {
             throw e;
         }
@@ -468,7 +465,6 @@ public class WifiPermissionsUtilTest {
         mThrowSecurityException = true;
         mMockUserInfo.id = UserHandle.USER_NULL;
         mMockApplInfo.targetSdkVersion = Build.VERSION_CODES.M;
-        mTargetVersion = Build.VERSION_CODES.M;
         mPkgNameOfTopActivity = INVALID_PACKAGE;
         mLocationModeSetting = Settings.Secure.LOCATION_MODE_OFF;
         mCurrentUser = UserHandle.USER_SYSTEM;
