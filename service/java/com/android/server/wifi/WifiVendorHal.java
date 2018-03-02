@@ -317,7 +317,7 @@ public class WifiVendorHal {
             if (!startVendorHal()) {
                 return false;
             }
-            if (TextUtils.isEmpty(createStaIface(null))) {
+            if (TextUtils.isEmpty(createStaIface(false, null))) {
                 stopVendorHal();
                 return false;
             }
@@ -368,12 +368,15 @@ public class WifiVendorHal {
     /**
      * Create a STA iface using {@link HalDeviceManager}.
      *
+     * @param lowPrioritySta The requested STA has a low request priority (lower probability of
+     *                       getting created, higher probability of getting destroyed).
      * @param destroyedListener Listener to be invoked when the interface is destroyed.
      * @return iface name on success, null otherwise.
      */
-    public String createStaIface(InterfaceDestroyedListener destroyedListener) {
+    public String createStaIface(boolean lowPrioritySta,
+            InterfaceDestroyedListener destroyedListener) {
         synchronized (sLock) {
-            IWifiStaIface iface = mHalDeviceManager.createStaIface(
+            IWifiStaIface iface = mHalDeviceManager.createStaIface(lowPrioritySta,
                     new StaInterfaceDestroyedListenerInternal(destroyedListener), null);
             if (iface == null) {
                 mLog.err("Failed to create STA iface").flush();
