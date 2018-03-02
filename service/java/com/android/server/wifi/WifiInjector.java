@@ -229,7 +229,7 @@ public class WifiInjector {
                 mWifiConfigManager, mClock, mConnectivityLocalLog, mWifiConnectivityHelper);
         mScoredNetworkEvaluator = new ScoredNetworkEvaluator(context, wifiStateMachineLooper,
                 mFrameworkFacade, mNetworkScoreManager, mWifiConfigManager, mConnectivityLocalLog,
-                mWifiNetworkScoreCache);
+                mWifiNetworkScoreCache, mWifiPermissionsUtil);
         mSimAccessor = new SIMAccessor(mContext);
         mPasspointManager = new PasspointManager(mContext, mWifiNative, mWifiKeyStore, mClock,
                 mSimAccessor, new PasspointObjectFactory(), mWifiConfigManager, mWifiConfigStore,

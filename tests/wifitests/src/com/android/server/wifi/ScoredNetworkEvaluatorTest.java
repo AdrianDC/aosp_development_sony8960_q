@@ -27,6 +27,7 @@ import android.content.Context;
 import android.database.ContentObserver;
 import android.net.NetworkKey;
 import android.net.NetworkScoreManager;
+import android.net.NetworkScorerAppData;
 import android.net.Uri;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
@@ -38,6 +39,7 @@ import android.support.test.filters.SmallTest;
 import android.util.LocalLog;
 
 import com.android.server.wifi.WifiNetworkSelectorTestUtil.ScanDetailsAndWifiConfigs;
+import com.android.server.wifi.util.WifiPermissionsUtil;
 
 import org.junit.After;
 import org.junit.Before;
@@ -55,6 +57,10 @@ import java.util.List;
  */
 @SmallTest
 public class ScoredNetworkEvaluatorTest {
+    private static final String TEST_PACKAGE_NAME = "name.package.test";
+    private static final int TEST_UID = 12345;
+    private static final NetworkScorerAppData TEST_APP_DATA = new NetworkScorerAppData(
+            TEST_UID, null, null, null, null);
     private ContentObserver mContentObserver;
     private int mThresholdQualifiedRssi2G;
     private int mThresholdQualifiedRssi5G;
@@ -64,6 +70,7 @@ public class ScoredNetworkEvaluatorTest {
     @Mock private FrameworkFacade mFrameworkFacade;
     @Mock private NetworkScoreManager mNetworkScoreManager;
     @Mock private WifiConfigManager mWifiConfigManager;
+    @Mock private WifiPermissionsUtil mWifiPermissionsUtil;
 
     @Captor private ArgumentCaptor<NetworkKey[]> mNetworkKeyArrayCaptor;
 
@@ -81,17 +88,24 @@ public class ScoredNetworkEvaluatorTest {
                 Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED, 0))
                 .thenReturn(1);
 
+        when(mWifiPermissionsUtil.canAccessScanResults(eq(TEST_PACKAGE_NAME), anyInt()))
+                .thenReturn(true);
+
         ArgumentCaptor<ContentObserver> observerCaptor =
                 ArgumentCaptor.forClass(ContentObserver.class);
         mScoreCache = new WifiNetworkScoreCache(mContext);
         mScoredNetworkEvaluator = new ScoredNetworkEvaluator(mContext,
                 Looper.getMainLooper(), mFrameworkFacade, mNetworkScoreManager,
-                mWifiConfigManager, new LocalLog(0), mScoreCache);
+                mWifiConfigManager, new LocalLog(0), mScoreCache, mWifiPermissionsUtil);
         verify(mFrameworkFacade).registerContentObserver(eq(mContext), any(Uri.class), eq(false),
                 observerCaptor.capture());
         mContentObserver = observerCaptor.getValue();
 
         reset(mNetworkScoreManager);
+        when(mNetworkScoreManager.getActiveScorer())
+                .thenReturn(TEST_APP_DATA);
+        when(mNetworkScoreManager.getActiveScorerPackage())
+                .thenReturn(TEST_PACKAGE_NAME);
 
         when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime());
     }
@@ -209,6 +223,50 @@ public class ScoredNetworkEvaluatorTest {
         mScoredNetworkEvaluator.evaluateNetworks(null, null, null, false, false, null);
 
         verifyZeroInteractions(mWifiConfigManager, mNetworkScoreManager);
+    }
+
+    @Test
+    public void testUpdate_externalScorerNotPermittedToSeeScanResults() {
+        String[] ssids = {"\"test1\"", "\"test2\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
+        int[] freqs = {2470, 2437};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[ESS]"};
+        int[] securities = {SECURITY_PSK, SECURITY_NONE};
+        int[] levels = {mThresholdQualifiedRssi2G + 8, mThresholdQualifiedRssi2G + 10};
+
+        when(mWifiPermissionsUtil.canAccessScanResults(any(), anyInt()))
+                .thenReturn(false);
+
+        ScanDetailsAndWifiConfigs scanDetailsAndConfigs = WifiNetworkSelectorTestUtil
+                .setupScanDetailsAndConfigStore(
+                        ssids, bssids, freqs, caps, levels, securities, mWifiConfigManager, mClock);
+
+        mScoredNetworkEvaluator.update(scanDetailsAndConfigs.getScanDetails());
+
+        verify(mNetworkScoreManager, never()).requestScores(any());
+        verify(mWifiPermissionsUtil).canAccessScanResults(eq(TEST_PACKAGE_NAME), eq(TEST_UID));
+    }
+
+    @Test
+    public void testUpdate_externalScorerNotPermittedToSeeScanResultsWithException() {
+        String[] ssids = {"\"test1\"", "\"test2\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4"};
+        int[] freqs = {2470, 2437};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]", "[ESS]"};
+        int[] securities = {SECURITY_PSK, SECURITY_NONE};
+        int[] levels = {mThresholdQualifiedRssi2G + 8, mThresholdQualifiedRssi2G + 10};
+
+        when(mWifiPermissionsUtil.canAccessScanResults(any(), anyInt()))
+                .thenThrow(new SecurityException());
+
+        ScanDetailsAndWifiConfigs scanDetailsAndConfigs = WifiNetworkSelectorTestUtil
+                .setupScanDetailsAndConfigStore(
+                        ssids, bssids, freqs, caps, levels, securities, mWifiConfigManager, mClock);
+
+        mScoredNetworkEvaluator.update(scanDetailsAndConfigs.getScanDetails());
+
+        verify(mNetworkScoreManager, never()).requestScores(any());
+        verify(mWifiPermissionsUtil).canAccessScanResults(eq(TEST_PACKAGE_NAME), eq(TEST_UID));
     }
 
     /**
