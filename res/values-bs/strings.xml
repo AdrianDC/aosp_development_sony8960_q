@@ -12,7 +12,7 @@
     <string name="beam_canceled" msgid="5425192751826544741">"Prijenos je otkazan."</string>
     <string name="cancel" msgid="61873902552555096">"Otkaži"</string>
     <string name="beam_tap_to_view" msgid="7430394753262448349">"Dodirnite za prikaz"</string>
-    <string name="beam_handover_not_supported" msgid="4083165921751489015">"Uređaj primaoca ne podržava prijenos velikih datoteka putem emitiranja."</string>
+    <string name="beam_handover_not_supported" msgid="4083165921751489015">"Uređaj primaoca ne podržava prijenos velikih fajlova putem emitiranja."</string>
     <string name="beam_try_again" msgid="3364677301009783455">"Opet spojite uređaje"</string>
     <string name="beam_busy" msgid="5253335587620612576">"Prijenos je trenutno zauzet. Pokušajte ponovo kada se prethodni transfer završi."</string>
     <string name="device" msgid="4459621591392478151">"uređaj"</string>
