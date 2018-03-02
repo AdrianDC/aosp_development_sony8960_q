@@ -645,14 +645,14 @@ public class WifiAwareNativeApi implements WifiAwareShellCommand.DelegatedShellC
         req.baseConfigs.configRangingIndications = 0;
         // TODO: b/69428593 remove correction factors once HAL converted from CM to MM
         if (subscribeConfig.mMinDistanceMmSet) {
-            req.baseConfigs.distanceIngressCm = (short) Math.min(
+            req.baseConfigs.distanceEgressCm = (short) Math.min(
                     subscribeConfig.mMinDistanceMm / 10, Short.MAX_VALUE);
-            req.baseConfigs.configRangingIndications |= NanRangingIndication.INGRESS_MET_MASK;
+            req.baseConfigs.configRangingIndications |= NanRangingIndication.EGRESS_MET_MASK;
         }
         if (subscribeConfig.mMaxDistanceMmSet) {
-            req.baseConfigs.distanceEgressCm = (short) Math.min(subscribeConfig.mMaxDistanceMm / 10,
-                    Short.MAX_VALUE);
-            req.baseConfigs.configRangingIndications |= NanRangingIndication.EGRESS_MET_MASK;
+            req.baseConfigs.distanceIngressCm = (short) Math.min(
+                    subscribeConfig.mMaxDistanceMm / 10, Short.MAX_VALUE);
+            req.baseConfigs.configRangingIndications |= NanRangingIndication.INGRESS_MET_MASK;
         }
 
         // TODO: configure security
