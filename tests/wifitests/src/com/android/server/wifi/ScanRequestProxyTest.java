@@ -16,9 +16,13 @@
 
 package com.android.server.wifi;
 
+import static android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE;
+
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
+import android.app.ActivityManager;
+import android.app.AppOpsManager;
 import android.content.Context;
 import android.content.Intent;
 import android.net.wifi.ScanResult;
@@ -57,6 +61,8 @@ public class ScanRequestProxyTest {
             }};
 
     @Mock private Context mContext;
+    @Mock private AppOpsManager mAppOps;
+    @Mock private ActivityManager mActivityManager;
     @Mock private WifiInjector mWifiInjector;
     @Mock private WifiConfigManager mWifiConfigManager;
     @Mock private WifiScanner mWifiScanner;
@@ -90,8 +96,8 @@ public class ScanRequestProxyTest {
         mTestScanDatas2 = ScanTestUtil.createScanDatas(new int[][]{ { 2412, 2422, 5200, 5210 } });
 
         mScanRequestProxy =
-            new ScanRequestProxy(mContext, mWifiInjector, mWifiConfigManager,
-                    mWifiPermissionsUtil, mClock);
+            new ScanRequestProxy(mContext, mAppOps, mActivityManager, mWifiInjector,
+                    mWifiConfigManager, mWifiPermissionsUtil, mClock);
     }
 
     @After
@@ -454,7 +460,7 @@ public class ScanRequestProxyTest {
 
     /**
      * Ensure new scan requests from the same app are rejected if it's before
-     * {@link ScanRequestProxy#SCAN_REQUEST_THROTTLE_INTERVAL_MS}
+     * {@link ScanRequestProxy#SCAN_REQUEST_THROTTLE_INTERVAL_FG_APPS_MS}
      */
     @Test
     public void testSuccessiveScanRequestFromSameAppThrottled() {
@@ -465,7 +471,7 @@ public class ScanRequestProxyTest {
         mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
 
         long secondRequestMs =
-                firstRequestMs + ScanRequestProxy.SCAN_REQUEST_THROTTLE_INTERVAL_MS - 1;
+                firstRequestMs + ScanRequestProxy.SCAN_REQUEST_THROTTLE_INTERVAL_FG_APPS_MS - 1;
         when(mClock.getElapsedSinceBootMillis()).thenReturn(secondRequestMs);
         // Make scan request 2 from the same package name & ensure that it is throttled.
         assertFalse(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_1));
@@ -476,7 +482,7 @@ public class ScanRequestProxyTest {
 
     /**
      * Ensure new scan requests from the same app are not rejected if it's after
-     * {@link ScanRequestProxy#SCAN_REQUEST_THROTTLE_INTERVAL_MS}
+     * {@link ScanRequestProxy#SCAN_REQUEST_THROTTLE_INTERVAL_FG_APPS_MS}
      */
     @Test
     public void testSuccessiveScanRequestFromSameAppNotThrottled() {
@@ -487,7 +493,7 @@ public class ScanRequestProxyTest {
         mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
 
         long secondRequestMs =
-                firstRequestMs + ScanRequestProxy.SCAN_REQUEST_THROTTLE_INTERVAL_MS + 1;
+                firstRequestMs + ScanRequestProxy.SCAN_REQUEST_THROTTLE_INTERVAL_FG_APPS_MS + 1;
         when(mClock.getElapsedSinceBootMillis()).thenReturn(secondRequestMs);
         // Make scan request 2 from the same package name & ensure that it is not throttled.
         assertTrue(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_1));
@@ -511,7 +517,7 @@ public class ScanRequestProxyTest {
         mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
 
         long secondRequestMs =
-                firstRequestMs + ScanRequestProxy.SCAN_REQUEST_THROTTLE_INTERVAL_MS - 1;
+                firstRequestMs + ScanRequestProxy.SCAN_REQUEST_THROTTLE_INTERVAL_FG_APPS_MS - 1;
         when(mClock.getElapsedSinceBootMillis()).thenReturn(secondRequestMs);
         // Make scan request 2 from the same package name & ensure that it is not throttled.
         assertTrue(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_1));
@@ -536,6 +542,57 @@ public class ScanRequestProxyTest {
         validateScanResultsFailureBroadcastSent(TEST_PACKAGE_NAME_1);
 
         // Make scan request 3 from a different package name & ensure that it is not throttled.
+        assertTrue(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_2));
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+
+        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+    }
+
+    /**
+     * Ensure scan requests from different background apps are throttled if it's before
+     * {@link ScanRequestProxy#SCAN_REQUEST_THROTTLE_INTERVAL_BG_APPS_MS}.
+     */
+    @Test
+    public void testSuccessiveScanRequestFromBgAppsThrottled() {
+        when(mActivityManager.getPackageImportance(TEST_PACKAGE_NAME_1))
+                .thenReturn(IMPORTANCE_FOREGROUND_SERVICE + 1);
+        when(mActivityManager.getPackageImportance(TEST_PACKAGE_NAME_2))
+                .thenReturn(IMPORTANCE_FOREGROUND_SERVICE + 1);
+
+        long firstRequestMs = 782;
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(firstRequestMs);
+        // Make scan request 1.
+        assertTrue(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_1));
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+
+        // Make scan request 2 from the different package name & ensure that it is throttled.
+        assertFalse(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_2));
+        validateScanResultsFailureBroadcastSent(TEST_PACKAGE_NAME_2);
+
+        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+    }
+
+    /**
+     * Ensure scan requests from different background apps are not throttled if it's after
+     * {@link ScanRequestProxy#SCAN_REQUEST_THROTTLE_INTERVAL_BG_APPS_MS}.
+     */
+    @Test
+    public void testSuccessiveScanRequestFromBgAppsNotThrottled() {
+        when(mActivityManager.getPackageImportance(TEST_PACKAGE_NAME_1))
+                .thenReturn(ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND + 1);
+        when(mActivityManager.getPackageImportance(TEST_PACKAGE_NAME_2))
+                .thenReturn(ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND + 1);
+
+        long firstRequestMs = 782;
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(firstRequestMs);
+        // Make scan request 1.
+        assertTrue(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_1));
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+
+        long secondRequestMs =
+                firstRequestMs + ScanRequestProxy.SCAN_REQUEST_THROTTLE_INTERVAL_BG_APPS_MS + 1;
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(secondRequestMs);
+        // Make scan request 2 from the different package name & ensure that it is throttled.
         assertTrue(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_2));
         mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
 

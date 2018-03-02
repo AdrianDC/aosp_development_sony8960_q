@@ -16,6 +16,8 @@
 
 package com.android.server.wifi;
 
+import android.app.ActivityManager;
+import android.app.AppOpsManager;
 import android.content.Context;
 import android.content.Intent;
 import android.net.wifi.ScanResult;
@@ -48,15 +50,22 @@ import javax.annotation.concurrent.NotThreadSafe;
  * {@link WifiManager#getScanResults()} is invoked.
  * c) Will send out the {@link WifiManager#SCAN_RESULTS_AVAILABLE_ACTION} broadcast when new
  * scan results are available.
+ * d) Throttle scan requests from non-setting apps:
+ *    d.1) For foreground apps, throttle to a max of 1 scan per app every 30 seconds.
+ *    d.2) For background apps, throttle to a max of 1 scan from any app every 30 minutes.
  * Note: This class is not thread-safe. It needs to be invoked from WifiStateMachine thread only.
  */
 @NotThreadSafe
 public class ScanRequestProxy {
     private static final String TAG = "WifiScanRequestProxy";
     @VisibleForTesting
-    public static final int SCAN_REQUEST_THROTTLE_INTERVAL_MS = 30 * 1000;
+    public static final int SCAN_REQUEST_THROTTLE_INTERVAL_FG_APPS_MS = 30 * 1000;
+    @VisibleForTesting
+    public static final int SCAN_REQUEST_THROTTLE_INTERVAL_BG_APPS_MS = 30 * 60 * 1000;
 
     private final Context mContext;
+    private final AppOpsManager mAppOps;
+    private final ActivityManager mActivityManager;
     private final WifiInjector mWifiInjector;
     private final WifiConfigManager mWifiConfigManager;
     private final WifiPermissionsUtil mWifiPermissionsUtil;
@@ -69,8 +78,10 @@ public class ScanRequestProxy {
     private boolean mScanningForHiddenNetworksEnabled = false;
     // Flag to indicate that we're waiting for scan results from an existing request.
     private boolean mIsScanProcessingComplete = true;
-    // Timestamps for the last scan requested by each app.
-    private final ArrayMap<String, Long> mLastScanTimestampsForApps = new ArrayMap();
+    // Timestamps for the last scan requested by any background app.
+    private long mLastScanTimestampForBgApps = 0;
+    // Timestamps for the last scan requested by each foreground app.
+    private final ArrayMap<String, Long> mLastScanTimestampsForFgApps = new ArrayMap();
     // Scan results cached from the last full single scan request.
     private final List<ScanResult> mLastScanResults = new ArrayList<>();
     // Common scan listener for scan requests.
@@ -122,9 +133,12 @@ public class ScanRequestProxy {
         }
     };
 
-    ScanRequestProxy(Context context, WifiInjector wifiInjector, WifiConfigManager configManager,
+    ScanRequestProxy(Context context, AppOpsManager appOpsManager, ActivityManager activityManager,
+                     WifiInjector wifiInjector, WifiConfigManager configManager,
             WifiPermissionsUtil wifiPermissionUtil, Clock clock) {
         mContext = context;
+        mAppOps = appOpsManager;
+        mActivityManager = activityManager;
         mWifiInjector = wifiInjector;
         mWifiConfigManager = configManager;
         mWifiPermissionsUtil = wifiPermissionUtil;
@@ -211,15 +225,74 @@ public class ScanRequestProxy {
      * Checks if the scan request from the app (specified by packageName) needs
      * to be throttled.
      */
-    private boolean shouldScanRequestBeThrottledForApp(String packageName) {
-        long lastScanMs = mLastScanTimestampsForApps.getOrDefault(packageName, 0L);
+    private boolean shouldScanRequestBeThrottledForForegroundApp(String packageName) {
+        long lastScanMs = mLastScanTimestampsForFgApps.getOrDefault(packageName, 0L);
         long elapsedRealtime = mClock.getElapsedSinceBootMillis();
-        if (lastScanMs != 0 && (elapsedRealtime - lastScanMs) < SCAN_REQUEST_THROTTLE_INTERVAL_MS) {
+        if (lastScanMs != 0
+                && (elapsedRealtime - lastScanMs) < SCAN_REQUEST_THROTTLE_INTERVAL_FG_APPS_MS) {
             return true;
         }
         // Proceed with the scan request and record the time.
-        mLastScanTimestampsForApps.put(packageName, elapsedRealtime);
+        mLastScanTimestampsForFgApps.put(packageName, elapsedRealtime);
         return false;
+    }
+
+    /**
+     * Checks if the scan request from a background app needs to be throttled.
+     */
+    private boolean shouldScanRequestBeThrottledForBackgroundApp() {
+        long lastScanMs = mLastScanTimestampForBgApps;
+        long elapsedRealtime = mClock.getElapsedSinceBootMillis();
+        if (lastScanMs != 0
+                && (elapsedRealtime - lastScanMs) < SCAN_REQUEST_THROTTLE_INTERVAL_BG_APPS_MS) {
+            return true;
+        }
+        // Proceed with the scan request and record the time.
+        mLastScanTimestampForBgApps = elapsedRealtime;
+        return false;
+    }
+
+    /**
+     * Check if the request comes from background app.
+     */
+    private boolean isRequestFromBackground(int callingUid, String packageName) {
+        mAppOps.checkPackage(callingUid, packageName);
+        // getPackageImportance requires PACKAGE_USAGE_STATS permission, so clearing the incoming
+        // identity so the permission check can be done on system process where wifi runs in.
+        long callingIdentity = Binder.clearCallingIdentity();
+        // TODO(b/74970282): This try/catch block may not be necessary (here & above) because all
+        // of these calls are already in WSM thread context (offloaded from app's binder thread).
+        try {
+            return mActivityManager.getPackageImportance(packageName)
+                    > ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE;
+        } finally {
+            Binder.restoreCallingIdentity(callingIdentity);
+        }
+    }
+
+    /**
+     * Checks if the scan request from the app (specified by callingUid & packageName) needs
+     * to be throttled.
+     *
+     * a) Each foreground app can request 1 scan every
+     * {@link #SCAN_REQUEST_THROTTLE_INTERVAL_FG_APPS_MS}.
+     * b) Background apps combined can request 1 scan every
+     * {@link #SCAN_REQUEST_THROTTLE_INTERVAL_BG_APPS_MS}.
+     */
+    private boolean shouldScanRequestBeThrottledForApp(int callingUid, String packageName) {
+        boolean isThrottled;
+        if (isRequestFromBackground(callingUid, packageName)) {
+            isThrottled = shouldScanRequestBeThrottledForBackgroundApp();
+            if (isThrottled && mVerboseLoggingEnabled) {
+                Log.v(TAG, "Background scan app request [" + callingUid + ", " + packageName + "]");
+            }
+        } else {
+            isThrottled = shouldScanRequestBeThrottledForForegroundApp(packageName);
+            if (isThrottled && mVerboseLoggingEnabled) {
+                Log.v(TAG, "Foreground scan app request [" + callingUid + ", " + packageName + "]");
+            }
+        }
+        return isThrottled;
     }
 
     /**
@@ -236,7 +309,7 @@ public class ScanRequestProxy {
         }
         boolean fromSettings = mWifiPermissionsUtil.checkNetworkSettingsPermission(callingUid);
         // Check and throttle scan request from apps without NETWORK_SETTINGS permission.
-        if (!fromSettings && shouldScanRequestBeThrottledForApp(packageName)) {
+        if (!fromSettings && shouldScanRequestBeThrottledForApp(callingUid, packageName)) {
             Log.i(TAG, "Scan request from " + packageName + " throttled");
             sendScanResultFailureBroadcastToPackage(packageName);
             return false;
@@ -280,6 +353,7 @@ public class ScanRequestProxy {
      */
     public void clearScanResults() {
         mLastScanResults.clear();
-        mLastScanTimestampsForApps.clear();
+        mLastScanTimestampForBgApps = 0;
+        mLastScanTimestampsForFgApps.clear();
     }
 }
