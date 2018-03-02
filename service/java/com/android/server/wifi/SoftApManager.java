@@ -419,8 +419,8 @@ public class SoftApManager implements ActiveModeManager {
                         mCallback.onNumClientsChanged(mNumAssociatedStations);
                     }
                 } else {
-                    // TODO(b/72223325): handle the case where the interface was up, but goes down
-                    // sendMessage(CMD_INTERFACE_DOWN);
+                    // the interface was up, but goes down
+                    sendMessage(CMD_INTERFACE_DOWN);
                 }
                 mWifiMetrics.addSoftApUpChangedEvent(isUp, mMode);
             }
