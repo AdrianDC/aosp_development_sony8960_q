@@ -769,7 +769,7 @@ public class HalDeviceManagerTest {
                 any(IWifiIface.getTypeCallback.class));
         doAnswer(new CreateXxxIfaceAnswer(chipMock, mStatusOk, staIface)).when(
                 chipMock.chip).createStaIface(any(IWifiChip.createStaIfaceCallback.class));
-        assertEquals(staIface, mDut.createStaIface(staIdl, null));
+        assertEquals(staIface, mDut.createStaIface(false, staIdl, null));
 
         mInOrder.verify(chipMock.chip).configureChip(TestChipV1.STA_CHIP_MODE_ID);
         mInOrder.verify(staIafrl).onAvailabilityChanged(false);
@@ -932,7 +932,7 @@ public class HalDeviceManagerTest {
         inOrderAvail.verify(staAvailListener).onAvailabilityChanged(false);
 
         // request STA2: should fail
-        IWifiIface staIface2 = mDut.createStaIface(null, null);
+        IWifiIface staIface2 = mDut.createStaIface(false, null, null);
         collector.checkThat("STA2 should not be created", staIface2, IsNull.nullValue());
 
         // register additional InterfaceDestroyedListeners - including a duplicate (verify that
@@ -1115,7 +1115,7 @@ public class HalDeviceManagerTest {
         verify(staAvailListener1).onAvailabilityChanged(false);
 
         // get STA interface again
-        IWifiIface staIface2 = mDut.createStaIface(staDestroyedListener2, mHandler);
+        IWifiIface staIface2 = mDut.createStaIface(false, staDestroyedListener2, mHandler);
         collector.checkThat("STA created", staIface2, IsNull.nullValue());
 
         verifyNoMoreInteractions(mManagerStatusListenerMock, staDestroyedListener1,
@@ -1291,7 +1291,7 @@ public class HalDeviceManagerTest {
         inOrderAvail.verify(staAvailListener).onAvailabilityChanged(false);
 
         // request STA2: should fail
-        IWifiIface staIface2 = mDut.createStaIface(null, null);
+        IWifiIface staIface2 = mDut.createStaIface(false, null, null);
         collector.checkThat("STA2 should not be created", staIface2, IsNull.nullValue());
 
         // request AP2: should fail
@@ -1324,7 +1324,7 @@ public class HalDeviceManagerTest {
         inOrderAvail.verify(staAvailListener).onAvailabilityChanged(false);
 
         // request STA3: should fail
-        IWifiIface staIface3 = mDut.createStaIface(null, null);
+        IWifiIface staIface3 = mDut.createStaIface(false, null, null);
         collector.checkThat("STA3 should not be created", staIface3, IsNull.nullValue());
 
         // create AP - this will destroy the last STA created, i.e. STA2
@@ -1564,7 +1564,7 @@ public class HalDeviceManagerTest {
         inOrderAvail.verify(apAvailListener).onAvailabilityChanged(false);
 
         // request STA2: should fail
-        IWifiIface staIface2 = mDut.createStaIface(null, null);
+        IWifiIface staIface2 = mDut.createStaIface(false, null, null);
         collector.checkThat("STA2 should not be created", staIface2, IsNull.nullValue());
 
         // request AP2: should fail
@@ -1603,7 +1603,7 @@ public class HalDeviceManagerTest {
         inOrderAvail.verify(staAvailListener).onAvailabilityChanged(false);
 
         // request STA3: should fail
-        IWifiIface staIface3 = mDut.createStaIface(null, null);
+        IWifiIface staIface3 = mDut.createStaIface(false, null, null);
         collector.checkThat("STA3 should not be created", staIface3, IsNull.nullValue());
 
         // create NAN: should destroy the last created STA (STA2)
@@ -1626,7 +1626,7 @@ public class HalDeviceManagerTest {
         verify(staDestroyedListener2).onDestroyed(getName(staIface2));
 
         // request STA2: should fail
-        staIface2 = mDut.createStaIface(null, null);
+        staIface2 = mDut.createStaIface(false, null, null);
         collector.checkThat("STA2 should not be created", staIface2, IsNull.nullValue());
 
         verifyNoMoreInteractions(mManagerStatusListenerMock, staDestroyedListener,
@@ -1823,7 +1823,7 @@ public class HalDeviceManagerTest {
         inOrderAvail.verify(apAvailListener).onAvailabilityChanged(false);
 
         // request STA2: should fail
-        IWifiIface staIface2 = mDut.createStaIface(null, null);
+        IWifiIface staIface2 = mDut.createStaIface(false, null, null);
         collector.checkThat("STA2 should not be created", staIface2, IsNull.nullValue());
 
         // request AP2: should fail
@@ -1845,7 +1845,7 @@ public class HalDeviceManagerTest {
         verify(apDestroyedListener).onDestroyed(getName(apIface));
 
         // request STA2: should fail
-        staIface2 = mDut.createStaIface(null, null);
+        staIface2 = mDut.createStaIface(false, null, null);
         collector.checkThat("STA2 should not be created", staIface2, IsNull.nullValue());
 
         // create NAN
@@ -1864,7 +1864,7 @@ public class HalDeviceManagerTest {
         inOrderAvail.verify(nanAvailListener).onAvailabilityChanged(false);
 
         // request STA2: should fail
-        staIface2 = mDut.createStaIface(null, null);
+        staIface2 = mDut.createStaIface(false, null, null);
         collector.checkThat("STA2 should not be created", staIface2, IsNull.nullValue());
 
         // tear down STA
@@ -2213,7 +2213,7 @@ public class HalDeviceManagerTest {
                 doAnswer(new CreateXxxIfaceAnswer(chipMock, mStatusOk, iface)).when(
                         chipMock.chip).createStaIface(any(IWifiChip.createStaIfaceCallback.class));
 
-                mDut.createStaIface(destroyedListener, mHandler);
+                mDut.createStaIface(false, destroyedListener, mHandler);
                 break;
             case IfaceType.AP:
                 iface = mock(IWifiApIface.class);

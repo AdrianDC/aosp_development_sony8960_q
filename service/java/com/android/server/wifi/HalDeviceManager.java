@@ -210,6 +210,10 @@ public class HalDeviceManager {
      * Create a STA interface if possible. Changes chip mode and removes conflicting interfaces if
      * needed and permitted by priority.
      *
+     * @param lowPrioritySta Indicates whether the requested STA is a low priority STA. The priority
+     *                       and preemption rules for low priority STA are:
+     *                       - Do not destroy any interface for it (even another low priority STA)
+     *                       - Destroy it for any other request
      * @param destroyedListener Optional (nullable) listener to call when the allocated interface
      *                          is removed. Will only be registered and used if an interface is
      *                          created successfully.
@@ -218,8 +222,8 @@ public class HalDeviceManager {
      *                iface destruction.
      * @return A newly created interface - or null if the interface could not be created.
      */
-    public IWifiStaIface createStaIface(@Nullable InterfaceDestroyedListener destroyedListener,
-            @Nullable Handler handler) {
+    public IWifiStaIface createStaIface(boolean lowPrioritySta,
+            @Nullable InterfaceDestroyedListener destroyedListener, @Nullable Handler handler) {
         return (IWifiStaIface) createIface(IfaceType.STA, destroyedListener, handler);
     }
 

@@ -23,7 +23,17 @@ import static android.net.wifi.WifiManager.WIFI_STATE_ENABLED;
 import static android.net.wifi.WifiManager.WIFI_STATE_UNKNOWN;
 
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 import android.content.Context;
 import android.content.Intent;
@@ -79,12 +89,14 @@ public class ScanOnlyModeManagerTest {
     }
 
     private void startScanOnlyModeAndVerifyEnabled() throws Exception {
-        when(mWifiNative.setupInterfaceForClientMode(any())).thenReturn(TEST_INTERFACE_NAME);
+        when(mWifiNative.setupInterfaceForClientMode(anyBoolean(), any())).thenReturn(
+                TEST_INTERFACE_NAME);
         mScanOnlyModeManager.start();
         mLooper.dispatchAll();
 
         verify(mWifiNative).registerStatusListener(mStatusListenerCaptor.capture());
-        verify(mWifiNative).setupInterfaceForClientMode(mInterfaceCallbackCaptor.capture());
+        verify(mWifiNative).setupInterfaceForClientMode(eq(true),
+                mInterfaceCallbackCaptor.capture());
 
         // now mark the interface as up
         mInterfaceCallbackCaptor.getValue().onUp(TEST_INTERFACE_NAME);
@@ -138,7 +150,7 @@ public class ScanOnlyModeManagerTest {
      */
     @Test
     public void detectAndReportErrorWhenSetupForClientWifiNativeFailure() throws Exception {
-        when(mWifiNative.setupInterfaceForClientMode(any())).thenReturn(null);
+        when(mWifiNative.setupInterfaceForClientMode(anyBoolean(), any())).thenReturn(null);
         mScanOnlyModeManager.start();
         mLooper.dispatchAll();
 
@@ -155,7 +167,7 @@ public class ScanOnlyModeManagerTest {
     @Test
     public void scanModeStartDoesNotSendScanningActiveWhenClientInterfaceNameIsEmpty()
             throws Exception {
-        when(mWifiNative.setupInterfaceForClientMode(any())).thenReturn("");
+        when(mWifiNative.setupInterfaceForClientMode(anyBoolean(), any())).thenReturn("");
         mScanOnlyModeManager.start();
         mLooper.dispatchAll();
 

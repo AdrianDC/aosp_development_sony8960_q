@@ -3821,7 +3821,7 @@ public class WifiStateMachine extends StateMachine {
             logStateAndMessage(message, this);
             switch (message.what) {
                 case CMD_START_SUPPLICANT:
-                    mInterfaceName = mWifiNative.setupInterfaceForClientMode(
+                    mInterfaceName = mWifiNative.setupInterfaceForClientMode(false,
                             mWifiNativeInterfaceCallback);
                     if (TextUtils.isEmpty(mInterfaceName)) {
                         Log.e(TAG, "setup failure when creating client interface.");
