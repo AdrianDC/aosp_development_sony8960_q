@@ -587,8 +587,22 @@ public class SoftApManagerTest {
 
         mLooper.dispatchAll();
 
-        // this will need updating when onDown properly triggers stop and failure reporting
-        verifyNoMoreInteractions(mContext, mCallback, mWifiNative);
+        order.verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
+                WifiManager.SAP_START_FAILURE_GENERAL);
+        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
+        verify(mContext, times(3)).sendStickyBroadcastAsUser(intentCaptor.capture(),
+                eq(UserHandle.ALL));
+
+        List<Intent> capturedIntents = intentCaptor.getAllValues();
+        checkApStateChangedBroadcast(capturedIntents.get(0), WIFI_AP_STATE_FAILED,
+                WIFI_AP_STATE_ENABLED, WifiManager.SAP_START_FAILURE_GENERAL, TEST_INTERFACE_NAME,
+                softApModeConfig.getTargetMode());
+        checkApStateChangedBroadcast(capturedIntents.get(1), WIFI_AP_STATE_DISABLING,
+                WIFI_AP_STATE_FAILED, HOTSPOT_NO_ERROR, TEST_INTERFACE_NAME,
+                softApModeConfig.getTargetMode());
+        checkApStateChangedBroadcast(capturedIntents.get(2), WIFI_AP_STATE_DISABLED,
+                WIFI_AP_STATE_DISABLING, HOTSPOT_NO_ERROR, TEST_INTERFACE_NAME,
+                softApModeConfig.getTargetMode());
     }
 
     /**
