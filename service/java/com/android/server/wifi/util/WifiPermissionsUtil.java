@@ -119,25 +119,19 @@ public class WifiPermissionsUtil {
     }
 
     /**
-     * API to determine if the caller has permissions to get
-     * scan results.
+     * API to determine if the caller has permissions to get scan results.
      * @param pkgName package name of the application requesting access
      * @param uid The uid of the package
-     * @param minVersion Minimum app API Version number to enforce location permission
      * @return boolean true or false if permissions is granted
      */
-    public boolean canAccessScanResults(String pkgName, int uid,
-                int minVersion) throws SecurityException {
+    public boolean canAccessScanResults(String pkgName, int uid) throws SecurityException {
         mAppOps.checkPackage(uid, pkgName);
         // Check if the calling Uid has CAN_READ_PEER_MAC_ADDRESS permission.
         boolean canCallingUidAccessLocation = checkCallerHasPeersMacAddressPermission(uid);
-        // LocationAccess by App: For AppVersion older than minVersion,
-        // it is sufficient to check if the App is foreground.
-        // Otherwise, Location Mode must be enabled and caller must have
+        // LocationAccess by App: Location Mode must be enabled and caller must have
         // Coarse Location permission to have access to location information.
-        boolean canAppPackageUseLocation = isLegacyForeground(pkgName, minVersion)
-                || (isLocationModeEnabled(pkgName)
-                        && checkCallersLocationPermission(pkgName, uid));
+        boolean canAppPackageUseLocation = isLocationModeEnabled(pkgName)
+                        && checkCallersLocationPermission(pkgName, uid);
         // If neither caller or app has location access, there is no need to check
         // any other permissions. Deny access to scan results.
         if (!canCallingUidAccessLocation && !canAppPackageUseLocation) {
@@ -223,14 +217,6 @@ public class WifiPermissionsUtil {
 
     private boolean checkAppOpAllowed(int op, String pkgName, int uid) {
         return mAppOps.noteOp(op, uid, pkgName) == AppOpsManager.MODE_ALLOWED;
-    }
-
-    private boolean isLegacyForeground(String pkgName, int version) {
-        return isLegacyVersion(pkgName, version) && isForegroundApp(pkgName);
-    }
-
-    private boolean isForegroundApp(String pkgName) {
-        return pkgName.equals(mWifiPermissionsWrapper.getTopPkgName());
     }
 
     private boolean isLocationModeEnabled(String pkgName) {

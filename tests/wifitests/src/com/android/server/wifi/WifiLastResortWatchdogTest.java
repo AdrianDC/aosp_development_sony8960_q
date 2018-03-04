@@ -23,6 +23,7 @@ import static org.mockito.MockitoAnnotations.*;
 
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiSsid;
+import android.os.test.TestLooper;
 import android.support.test.filters.SmallTest;
 import android.util.Pair;
 
@@ -42,6 +43,8 @@ public class WifiLastResortWatchdogTest {
     WifiLastResortWatchdog mLastResortWatchdog;
     @Mock WifiMetrics mWifiMetrics;
     @Mock SelfRecovery mSelfRecovery;
+    @Mock WifiStateMachine mWifiStateMachine;
+
     private String[] mSsids = {"\"test1\"", "\"test2\"", "\"test3\"", "\"test4\""};
     private String[] mBssids = {"6c:f3:7f:ae:8c:f3", "6c:f3:7f:ae:8c:f4", "de:ad:ba:b1:e5:55",
             "c0:ff:ee:ee:e3:ee"};
@@ -51,11 +54,15 @@ public class WifiLastResortWatchdogTest {
     private int[] mLevels = {-60, -86, -50, -62};
     private boolean[] mIsEphemeral = {false, false, false, false};
     private boolean[] mHasEverConnected = {false, false, false, false};
+    private TestLooper mLooper;
 
     @Before
     public void setUp() throws Exception {
         initMocks(this);
-        mLastResortWatchdog = new WifiLastResortWatchdog(mSelfRecovery, mWifiMetrics);
+        mLooper = new TestLooper();
+        mLastResortWatchdog = new WifiLastResortWatchdog(mSelfRecovery, mWifiMetrics,
+                mWifiStateMachine, mLooper.getLooper());
+        mLastResortWatchdog.setBugReportProbability(1);
     }
 
     private List<Pair<ScanDetail, WifiConfiguration>> createFilteredQnsCandidates(String[] ssids,
@@ -1483,12 +1490,18 @@ public class WifiLastResortWatchdogTest {
 
         // Verify that WifiMetrics counted this as a Watchdog success
         verify(mWifiMetrics, times(1)).incrementNumLastResortWatchdogSuccesses();
+        // Verify takeBugReport is called
+        mLooper.dispatchAll();
+        verify(mWifiStateMachine, times(1)).takeBugReport(anyString(), anyString());
 
         // Simulate wifi disconnecting
         mLastResortWatchdog.connectedStateTransition(false);
 
         // Verify that WifiMetrics has still only counted one success
         verify(mWifiMetrics, times(1)).incrementNumLastResortWatchdogSuccesses();
+        // Verify takeBugReport not called again
+        mLooper.dispatchAll();
+        verify(mWifiStateMachine, times(1)).takeBugReport(anyString(), anyString());
 
         // Remove the fifth network from candidates
         candidates = createFilteredQnsCandidates(Arrays.copyOfRange(mSsids, 0, 4),

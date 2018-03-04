@@ -568,10 +568,10 @@ public class WifiNative {
      * For devices which do not the support the HAL, this will bypass HalDeviceManager &
      * teardown any existing iface.
      */
-    private String createStaIface(@NonNull Iface iface) {
+    private String createStaIface(@NonNull Iface iface, boolean lowPrioritySta) {
         synchronized (mLock) {
             if (mWifiVendorHal.isVendorHalSupported()) {
-                return mWifiVendorHal.createStaIface(
+                return mWifiVendorHal.createStaIface(lowPrioritySta,
                         new InterfaceDestoyedListenerInternal(iface.id));
             } else {
                 Log.i(TAG, "Vendor Hal not supported, ignoring createStaIface.");
@@ -734,10 +734,13 @@ public class WifiNative {
      * This method configures an interface in STA mode in all the native daemons
      * (wificond, wpa_supplicant & vendor HAL).
      *
+     * @param lowPrioritySta The requested STA has a low request priority (lower probability of
+     *                       getting created, higher probability of getting destroyed).
      * @param interfaceCallback Associated callback for notifying status changes for the iface.
      * @return Returns the name of the allocated interface, will be null on failure.
      */
-    public String setupInterfaceForClientMode(@NonNull InterfaceCallback interfaceCallback) {
+    public String setupInterfaceForClientMode(boolean lowPrioritySta,
+            @NonNull InterfaceCallback interfaceCallback) {
         synchronized (mLock) {
             if (!startHal()) {
                 Log.e(TAG, "Failed to start Hal");
@@ -755,7 +758,7 @@ public class WifiNative {
                 return null;
             }
             iface.externalListener = interfaceCallback;
-            iface.name = createStaIface(iface);
+            iface.name = createStaIface(iface, lowPrioritySta);
             if (TextUtils.isEmpty(iface.name)) {
                 Log.e(TAG, "Failed to create iface in vendor HAL");
                 mIfaceMgr.removeIface(iface.id);

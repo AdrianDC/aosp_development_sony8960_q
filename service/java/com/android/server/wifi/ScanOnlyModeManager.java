@@ -162,7 +162,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
             public boolean processMessage(Message message) {
                 switch (message.what) {
                     case CMD_START:
-                        mClientInterfaceName = mWifiNative.setupInterfaceForClientMode(
+                        mClientInterfaceName = mWifiNative.setupInterfaceForClientMode(true,
                                 mWifiNativeInterfaceCallback);
                         if (TextUtils.isEmpty(mClientInterfaceName)) {
                             Log.e(TAG, "Failed to create ClientInterface. Sit in Idle");

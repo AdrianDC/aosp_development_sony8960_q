@@ -17,8 +17,8 @@
 package com.android.server.wifi.p2p;
 
 import android.app.AlertDialog;
-import android.content.Context;
 import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.DialogInterface.OnClickListener;
 import android.content.Intent;
@@ -51,7 +51,6 @@ import android.net.wifi.p2p.nsd.WifiP2pServiceInfo;
 import android.net.wifi.p2p.nsd.WifiP2pServiceRequest;
 import android.net.wifi.p2p.nsd.WifiP2pServiceResponse;
 import android.os.Binder;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -3468,10 +3467,8 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                 mWifiInjector = WifiInjector.getInstance();
             }
             wifiPermissionsUtil = mWifiInjector.getWifiPermissionsUtil();
-            // Minimum Version to enforce location permission is O or later
             try {
-                scanPermission = wifiPermissionsUtil.canAccessScanResults(pkgName, uid,
-                        Build.VERSION_CODES.O);
+                scanPermission = wifiPermissionsUtil.canAccessScanResults(pkgName, uid);
             } catch (SecurityException e) {
                 Log.e(TAG, "Security Exception, cannot access peer list");
             }

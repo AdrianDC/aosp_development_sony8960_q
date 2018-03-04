@@ -415,7 +415,7 @@ public class WifiStateMachineTest {
         when(mWifiInjector.getWakeupController()).thenReturn(mWakeupController);
         when(mWifiInjector.getScanRequestProxy()).thenReturn(mScanRequestProxy);
 
-        when(mWifiNative.setupInterfaceForClientMode(any()))
+        when(mWifiNative.setupInterfaceForClientMode(anyBoolean(), any()))
                 .thenReturn(WIFI_IFACE_NAME);
         when(mWifiNative.initialize()).thenReturn(true);
 
@@ -595,7 +595,7 @@ public class WifiStateMachineTest {
 
     @Test
     public void shouldRequireSupplicantStartupToLeaveInitialState() throws Exception {
-        when(mWifiNative.setupInterfaceForClientMode(any())).thenReturn(null);
+        when(mWifiNative.setupInterfaceForClientMode(anyBoolean(), any())).thenReturn(null);
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
         mLooper.dispatchAll();
         assertEquals("DefaultState", getCurrentState().getName());
@@ -606,7 +606,7 @@ public class WifiStateMachineTest {
 
     @Test
     public void loadComponentsFailure() throws Exception {
-        when(mWifiNative.setupInterfaceForClientMode(any())).thenReturn(null);
+        when(mWifiNative.setupInterfaceForClientMode(anyBoolean(), any())).thenReturn(null);
 
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
         mLooper.dispatchAll();
@@ -876,7 +876,7 @@ public class WifiStateMachineTest {
         mLooper.dispatchAll();
 
         verify(mWifiNative, atLeastOnce())
-                .setupInterfaceForClientMode(mInterfaceCallbackCaptor.capture());
+                .setupInterfaceForClientMode(eq(false), mInterfaceCallbackCaptor.capture());
         verify(mWifiLastResortWatchdog, atLeastOnce()).clearAllFailureCounts();
     }
 

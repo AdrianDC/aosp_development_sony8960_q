@@ -229,7 +229,7 @@ public class WifiInjector {
                 mWifiConfigManager, mClock, mConnectivityLocalLog, mWifiConnectivityHelper);
         mScoredNetworkEvaluator = new ScoredNetworkEvaluator(context, wifiStateMachineLooper,
                 mFrameworkFacade, mNetworkScoreManager, mWifiConfigManager, mConnectivityLocalLog,
-                mWifiNetworkScoreCache);
+                mWifiNetworkScoreCache, mWifiPermissionsUtil);
         mSimAccessor = new SIMAccessor(mContext);
         mPasspointManager = new PasspointManager(mContext, mWifiNative, mWifiKeyStore, mClock,
                 mSimAccessor, new PasspointObjectFactory(), mWifiConfigManager, mWifiConfigStore,
@@ -247,7 +247,8 @@ public class WifiInjector {
                 new WrongPasswordNotifier(mContext, mFrameworkFacade));
         IBinder b = mFrameworkFacade.getService(Context.NETWORKMANAGEMENT_SERVICE);
         mWifiStateMachinePrime = new WifiStateMachinePrime(this, wifiStateMachineLooper,
-                mWifiNative, new DefaultModeManager(mContext, wifiStateMachineLooper));
+                mWifiNative, new DefaultModeManager(mContext, wifiStateMachineLooper),
+                mBatteryStats);
         mOpenNetworkNotifier = new OpenNetworkNotifier(mContext,
                 mWifiStateMachineHandlerThread.getLooper(), mFrameworkFacade, mClock, mWifiMetrics,
                 mWifiConfigManager, mWifiConfigStore, mWifiStateMachine,
@@ -271,7 +272,8 @@ public class WifiInjector {
                 mSettingsStore, mWifiServiceHandlerThread.getLooper(), mFrameworkFacade,
                 mWifiStateMachinePrime);
         mSelfRecovery = new SelfRecovery(mWifiController, mClock);
-        mWifiLastResortWatchdog = new WifiLastResortWatchdog(mSelfRecovery, mWifiMetrics);
+        mWifiLastResortWatchdog = new WifiLastResortWatchdog(mSelfRecovery, mWifiMetrics,
+                mWifiStateMachine, wifiStateMachineLooper);
         mWifiMulticastLockManager = new WifiMulticastLockManager(
                 mWifiStateMachine.getMcastLockManagerFilterController(),
                 BatteryStatsService.getService());

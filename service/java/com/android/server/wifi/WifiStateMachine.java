@@ -16,11 +16,6 @@
 
 package com.android.server.wifi;
 
-import static android.net.wifi.WifiManager.WIFI_AP_STATE_DISABLED;
-import static android.net.wifi.WifiManager.WIFI_AP_STATE_DISABLING;
-import static android.net.wifi.WifiManager.WIFI_AP_STATE_ENABLED;
-import static android.net.wifi.WifiManager.WIFI_AP_STATE_ENABLING;
-import static android.net.wifi.WifiManager.WIFI_AP_STATE_FAILED;
 import static android.net.wifi.WifiManager.WIFI_STATE_DISABLED;
 import static android.net.wifi.WifiManager.WIFI_STATE_DISABLING;
 import static android.net.wifi.WifiManager.WIFI_STATE_ENABLED;
@@ -808,15 +803,6 @@ public class WifiStateMachine extends StateMachine {
     private final AtomicInteger mWifiState = new AtomicInteger(WIFI_STATE_DISABLED);
 
     /**
-     * One of  {@link WifiManager#WIFI_AP_STATE_DISABLED},
-     * {@link WifiManager#WIFI_AP_STATE_DISABLING},
-     * {@link WifiManager#WIFI_AP_STATE_ENABLED},
-     * {@link WifiManager#WIFI_AP_STATE_ENABLING},
-     * {@link WifiManager#WIFI_AP_STATE_FAILED}
-     */
-    private final AtomicInteger mWifiApState = new AtomicInteger(WIFI_AP_STATE_DISABLED);
-
-    /**
      * Work source to use to blame usage on the WiFi service
      */
     public static final WorkSource WIFI_WORK_SOURCE = new WorkSource(Process.WIFI_UID);
@@ -1514,33 +1500,6 @@ public class WifiStateMachine extends StateMachine {
                 return "enabled";
             case WIFI_STATE_UNKNOWN:
                 return "unknown state";
-            default:
-                return "[invalid state]";
-        }
-    }
-
-    /**
-     * TODO: doc
-     */
-    //public int syncGetWifiApState() {
-    //    return mWifiApState.get();
-    //}
-
-    /**
-     * TODO: doc
-     */
-    public String syncGetWifiApStateByName() {
-        switch (mWifiApState.get()) {
-            case WIFI_AP_STATE_DISABLING:
-                return "disabling";
-            case WIFI_AP_STATE_DISABLED:
-                return "disabled";
-            case WIFI_AP_STATE_ENABLING:
-                return "enabling";
-            case WIFI_AP_STATE_ENABLED:
-                return "enabled";
-            case WIFI_AP_STATE_FAILED:
-                return "failed";
             default:
                 return "[invalid state]";
         }
@@ -2597,16 +2556,6 @@ public class WifiStateMachine extends StateMachine {
     private void setWifiState(int wifiState) {
         final int previousWifiState = mWifiState.get();
 
-        try {
-            if (wifiState == WIFI_STATE_ENABLED) {
-                mBatteryStats.noteWifiOn();
-            } else if (wifiState == WIFI_STATE_DISABLED) {
-                mBatteryStats.noteWifiOff();
-            }
-        } catch (RemoteException e) {
-            loge("Failed to note battery stats in wifi");
-        }
-
         mWifiState.set(wifiState);
 
         if (mVerboseLoggingEnabled) log("setWifiState: " + syncGetWifiStateByName());
@@ -2616,26 +2565,6 @@ public class WifiStateMachine extends StateMachine {
         intent.putExtra(WifiManager.EXTRA_WIFI_STATE, wifiState);
         intent.putExtra(WifiManager.EXTRA_PREVIOUS_WIFI_STATE, previousWifiState);
         mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
-    }
-
-    private void setWifiApState(int wifiApState, int reason, String ifaceName, int mode) {
-        final int previousWifiApState = mWifiApState.get();
-
-        try {
-            if (wifiApState == WIFI_AP_STATE_ENABLED) {
-                mBatteryStats.noteWifiOn();
-            } else if (wifiApState == WIFI_AP_STATE_DISABLED) {
-                mBatteryStats.noteWifiOff();
-            }
-        } catch (RemoteException e) {
-            loge("Failed to note battery stats in wifi");
-        }
-
-        // Update state
-        mWifiApState.set(wifiApState);
-
-        // TODO: when this code is removed, also remove syncGetWifiApStateByName()
-        if (mVerboseLoggingEnabled) log("setWifiApState: " + syncGetWifiApStateByName());
     }
 
     /*
@@ -3821,7 +3750,7 @@ public class WifiStateMachine extends StateMachine {
             logStateAndMessage(message, this);
             switch (message.what) {
                 case CMD_START_SUPPLICANT:
-                    mInterfaceName = mWifiNative.setupInterfaceForClientMode(
+                    mInterfaceName = mWifiNative.setupInterfaceForClientMode(false,
                             mWifiNativeInterfaceCallback);
                     if (TextUtils.isEmpty(mInterfaceName)) {
                         Log.e(TAG, "setup failure when creating client interface.");
