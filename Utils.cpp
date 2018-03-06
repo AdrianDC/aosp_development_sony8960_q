@@ -56,6 +56,8 @@ using namespace std::chrono_literals;
 using android::base::ReadFileToString;
 using android::base::StringPrintf;
 
+using namespace std::chrono_literals;
+
 namespace android {
 namespace vold {
 
@@ -792,6 +794,23 @@ bool Readlinkat(int dirfd, const std::string& path, std::string* result) {
         }
         // Double our buffer and try again.
         buf.resize(buf.size() * 2);
+    }
+}
+
+bool WaitForFile(const std::string& filename,
+        const std::chrono::milliseconds relativeTimeout) {
+    auto startTime = std::chrono::steady_clock::now();
+
+    while (true) {
+        if (!access(filename.c_str(), F_OK) || errno != ENOENT) {
+            return true;
+        }
+
+        std::this_thread::sleep_for(50ms);
+
+        auto now = std::chrono::steady_clock::now();
+        auto timeElapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime);
+        if (timeElapsed > relativeTimeout) return false;
     }
 }
 
