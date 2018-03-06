@@ -24,8 +24,10 @@ import android.net.wifi.EAPConstants;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.os.PersistableBundle;
 import android.telephony.CarrierConfigManager;
+import android.telephony.ImsiEncryptionInfo;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
+import android.telephony.TelephonyManager;
 import android.util.Base64;
 import android.util.Log;
 
@@ -122,6 +124,22 @@ public class CarrierNetworkConfig {
         }
         List<SubscriptionInfo> subInfoList = subscriptionManager.getActiveSubscriptionInfoList();
         if (subInfoList == null) {
+            return;
+        }
+
+        TelephonyManager telephonyManager = (TelephonyManager) context.getSystemService(
+                Context.TELEPHONY_SERVICE);
+        if (telephonyManager == null) {
+            return;
+        }
+        try {
+            ImsiEncryptionInfo imsiEncryptionInfo = telephonyManager
+                    .getCarrierInfoForImsiEncryption(TelephonyManager.KEY_TYPE_WLAN);
+            if (imsiEncryptionInfo == null) {
+                return;
+            }
+        } catch (RuntimeException e) {
+            Log.e(TAG, "Failed to get imsi encryption info: " + e.getMessage());
             return;
         }
 
