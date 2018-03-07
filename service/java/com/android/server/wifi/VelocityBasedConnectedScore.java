@@ -19,7 +19,6 @@ package com.android.server.wifi;
 import android.content.Context;
 import android.net.wifi.WifiInfo;
 
-import com.android.internal.R;
 import com.android.server.wifi.util.KalmanFilter;
 import com.android.server.wifi.util.Matrix;
 
@@ -29,9 +28,7 @@ import com.android.server.wifi.util.Matrix;
  */
 public class VelocityBasedConnectedScore extends ConnectedScore {
 
-    // Device configs. The values are examples.
-    private final int mThresholdMinimumRssi5;      // -82
-    private final int mThresholdMinimumRssi24;     // -85
+    private final ScoringParams mScoringParams;
 
     private int mFrequency = ScoringParams.BAND5;
     private double mThresholdMinimumRssi;
@@ -41,11 +38,8 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
 
     public VelocityBasedConnectedScore(Context context, Clock clock) {
         super(clock);
-        mThresholdMinimumRssi5 = context.getResources().getInteger(
-                R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_5GHz);
-        mThresholdMinimumRssi24 = context.getResources().getInteger(
-                R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_24GHz);
-        mThresholdMinimumRssi = mThresholdMinimumRssi5;
+        mScoringParams = new ScoringParams(context);
+        mThresholdMinimumRssi = mScoringParams.getExitRssi(5000);
         mFilter = new KalmanFilter();
         mFilter.mH = new Matrix(2, new double[]{1.0, 0.0});
         mFilter.mR = new Matrix(1, new double[]{1.0});
@@ -114,8 +108,7 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
             // Consider resetting or partially resetting threshold adjustment
             // Consider checking bssid
             mFrequency = frequency;
-            mThresholdMinimumRssi =
-                    mFrequency >= 5000 ? mThresholdMinimumRssi5 : mThresholdMinimumRssi24;
+            mThresholdMinimumRssi = mScoringParams.getExitRssi(frequency);
         }
         updateUsingRssi(wifiInfo.getRssi(), millis, mDefaultRssiStandardDeviation);
         adjustThreshold(wifiInfo);
