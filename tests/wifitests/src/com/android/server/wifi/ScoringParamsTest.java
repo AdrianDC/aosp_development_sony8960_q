@@ -17,18 +17,27 @@
 package com.android.server.wifi;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.content.Context;
 import android.content.res.Resources;
+import android.database.ContentObserver;
+import android.os.Handler;
+import android.provider.Settings;
 import android.support.test.filters.SmallTest;
 
 import com.android.internal.R;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
@@ -41,6 +50,111 @@ public class ScoringParamsTest {
 
     ScoringParams mScoringParams;
 
+    /**
+     * Sets up for unit test
+     */
+    @Before
+    public void setUp() throws Exception {
+        MockitoAnnotations.initMocks(this);
+        setUpResources(mResources);
+        when(mContext.getResources()).thenReturn(mResources);
+        mScoringParams = new ScoringParams();
+    }
+
+    /**
+     * Check that thresholds are properly ordered, and in range.
+     */
+    private void checkThresholds(int frequency) {
+        assertTrue(-127 <= mScoringParams.getExitRssi(frequency));
+        assertTrue(mScoringParams.getExitRssi(frequency)
+                <= mScoringParams.getEntryRssi(frequency));
+        assertTrue(mScoringParams.getEntryRssi(frequency)
+                <= mScoringParams.getSufficientRssi(frequency));
+        assertTrue(mScoringParams.getSufficientRssi(frequency)
+                <= mScoringParams.getGoodRssi(frequency));
+        assertTrue(mScoringParams.getGoodRssi(frequency) < 0);
+    }
+
+    /**
+     * Test basic constructor
+     */
+    @Test
+    public void testBasicConstructor() throws Exception {
+        mScoringParams = new ScoringParams();
+        checkThresholds(2412);
+        checkThresholds(5020);
+        assertEquals(15, mScoringParams.getHorizonSeconds());
+    }
+
+    /**
+     * Test toString
+     */
+    @Test
+    public void testToString() throws Exception {
+        mScoringParams = new ScoringParams();
+        String expect = "rssi2=-83:-80:-73:-60,rssi5=-80:-77:-70:-57,horizon=15";
+        String actual = mScoringParams.toString();
+        assertEquals(expect, actual);
+    }
+
+    /**
+     * Test complete update
+     */
+    @Test
+    public void testUpdateEverything() throws Exception {
+        mScoringParams = new ScoringParams();
+        String params = "rssi2=-86:-84:-77:-10,rssi5=-88:-77:-66:-55,horizon=3";
+        assertTrue(mScoringParams.update(params));
+        assertEquals(params, mScoringParams.toString());
+    }
+
+    /**
+     * Test partial update
+     */
+    @Test
+    public void testPartialUpdate() throws Exception {
+        mScoringParams = new ScoringParams();
+        String before = mScoringParams.toString();
+        String partial = "rssi5=-88:-77:-66:-55";
+        assertFalse(before.contains(partial));
+        assertTrue(mScoringParams.update(partial));
+        String after = mScoringParams.toString();
+        assertTrue(after + " should contain " + partial, after.contains(partial));
+    }
+
+    /**
+     * Test some failed updates
+     */
+    @Test
+    public void testUpdateFail() throws Exception {
+        mScoringParams = new ScoringParams();
+        String before = mScoringParams.toString();
+        assertFalse(mScoringParams.update("word"));
+        assertFalse(mScoringParams.update("42"));
+        assertFalse(mScoringParams.update(" "));
+        assertFalse(mScoringParams.update("horizon=flat"));
+        assertFalse(mScoringParams.update(",,,,,,,,,,,,,,,,,,"));
+        assertFalse(mScoringParams.update("rssi2=-86"));
+        assertFalse(mScoringParams.update("rssi2=-99:-88:-77:-66:-55"));
+        assertFalse(mScoringParams.update("rssi5=one:two:three:four"));
+        assertEquals(before, mScoringParams.toString());
+    }
+
+    /**
+     * Test that empty updates are OK
+     */
+    @Test
+    public void testEmptyUpdate() throws Exception {
+        mScoringParams = new ScoringParams();
+        String before = mScoringParams.toString();
+        assertTrue(mScoringParams.update(""));
+        assertTrue(mScoringParams.update(null));
+        assertEquals(before, mScoringParams.toString());
+    }
+
+    /**
+     * Tests for obtaining values from device configuration (config.xml)
+     */
     int mBad2GHz, mEntry2GHz, mSufficient2GHz, mGood2GHz;
     int mBad5GHz, mEntry5GHz, mSufficient5GHz, mGood5GHz;
 
@@ -77,45 +191,10 @@ public class ScoringParamsTest {
     }
 
     /**
-     * Sets up for unit test
-     */
-    @Before
-    public void setUp() throws Exception {
-        MockitoAnnotations.initMocks(this);
-        setUpResources(mResources);
-        when(mContext.getResources()).thenReturn(mResources);
-        mScoringParams = new ScoringParams();
-    }
-
-    /**
-     * Check that thresholds are properly ordered, and in range.
-     */
-    private void checkThresholds(int frequency) {
-        assertTrue(-127 <= mScoringParams.getExitRssi(frequency));
-        assertTrue(mScoringParams.getExitRssi(frequency)
-                <= mScoringParams.getEntryRssi(frequency));
-        assertTrue(mScoringParams.getEntryRssi(frequency)
-                <= mScoringParams.getSufficientRssi(frequency));
-        assertTrue(mScoringParams.getSufficientRssi(frequency)
-                <= mScoringParams.getGoodRssi(frequency));
-        assertTrue(mScoringParams.getGoodRssi(frequency) < 0);
-    }
-
-    /**
-     * Test basic constuctor
-     */
-    @Test
-    public void testBasicConstructor() {
-        mScoringParams = new ScoringParams();
-        checkThresholds(2412);
-        checkThresholds(5020);
-    }
-
-    /**
      * Check that we get the config.xml values, if that's what we want
      */
     @Test
-    public void testContextConstructor() {
+    public void testContextConstructor() throws Exception {
         mScoringParams = new ScoringParams(mContext);
 
         assertEquals(mBad2GHz, mScoringParams.getExitRssi(2412));
@@ -129,5 +208,58 @@ public class ScoringParamsTest {
         assertEquals(mSufficient5GHz, mScoringParams.getSufficientRssi(5100));
         assertEquals(mGood5GHz, mScoringParams.getGoodRssi(5678));
         assertEquals(mGood5GHz, mScoringParams.getGoodRssi(ScoringParams.BAND5));
+    }
+
+    /**
+     * Additional mocks for handling Settings
+     */
+    @Mock FrameworkFacade mFrameworkFacade;
+    @Mock Handler mHandler;
+
+    /**
+     * Test getting updates from Settings
+     *
+     * Exercises the ContentObserver notification path
+     */
+    @Test
+    public void testFullConstructorWithUpdatesFromSettings() throws Exception {
+        ArgumentCaptor<ContentObserver> captor = ArgumentCaptor.forClass(ContentObserver.class);
+        when(mFrameworkFacade.getStringSetting(mContext, Settings.Global.WIFI_SCORE_PARAMS))
+                .thenReturn(null);
+        mScoringParams = new ScoringParams(mContext, mFrameworkFacade, mHandler);
+        verify(mFrameworkFacade)
+                .registerContentObserver(eq(mContext), any(), anyBoolean(), captor.capture());
+
+        String before = mScoringParams.toString();
+        String changed = before.replace('8', '9');
+        assertFalse(changed.equals(before));
+
+        when(mFrameworkFacade.getStringSetting(mContext, Settings.Global.WIFI_SCORE_PARAMS))
+                .thenReturn(changed);
+        captor.getValue().onChange(/*selfChange*/ false);
+        assertEquals(changed, mScoringParams.toString());
+
+        when(mFrameworkFacade.getStringSetting(mContext, Settings.Global.WIFI_SCORE_PARAMS))
+                .thenReturn("");
+        captor.getValue().onChange(/*selfChange*/ false);
+        assertEquals(before, mScoringParams.toString());
+    }
+
+    @Test
+    public void testBadSettings() throws Exception {
+        ArgumentCaptor<ContentObserver> captor = ArgumentCaptor.forClass(ContentObserver.class);
+        when(mFrameworkFacade.getStringSetting(mContext, Settings.Global.WIFI_SCORE_PARAMS))
+                .thenReturn(null);
+        mScoringParams = new ScoringParams(mContext, mFrameworkFacade, mHandler);
+        verify(mFrameworkFacade)
+                .registerContentObserver(eq(mContext), any(), anyBoolean(), captor.capture());
+
+        String before = mScoringParams.toString();
+        String garbage = "what??";
+
+        when(mFrameworkFacade.getStringSetting(mContext, Settings.Global.WIFI_SCORE_PARAMS))
+                .thenReturn(garbage);
+        captor.getValue().onChange(/*selfChange*/ false);
+        assertEquals(before, mScoringParams.toString());
     }
 }
