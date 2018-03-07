@@ -239,6 +239,7 @@ public class SupplicantP2pIfaceHal {
      */
     public boolean setupIface(@NonNull String ifaceName) {
         synchronized (mLock) {
+            if (mISupplicantP2pIface != null) return false;
             ISupplicantIface ifaceHwBinder;
             if (isV1_1()) {
                 ifaceHwBinder = addIfaceV1_1(ifaceName);
@@ -349,6 +350,7 @@ public class SupplicantP2pIfaceHal {
      */
     public boolean teardownIface(@NonNull String ifaceName) {
         synchronized (mLock) {
+            if (mISupplicantP2pIface == null) return false;
             // Only supported for V1.1
             if (isV1_1()) {
                 return removeIfaceV1_1(ifaceName);

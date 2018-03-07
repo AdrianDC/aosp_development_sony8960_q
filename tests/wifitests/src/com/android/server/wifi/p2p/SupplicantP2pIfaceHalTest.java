@@ -23,6 +23,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.app.test.MockAnswerUtil.AnswerWithArguments;
@@ -263,6 +264,19 @@ public class SupplicantP2pIfaceHalTest {
     }
 
     /**
+     * Ensures that reject addition of an existing iface.
+     */
+    @Test
+    public void testDuplicateSetupIfaceV1_1_Fails() throws Exception {
+        mISupplicantMockV1_1 = mock(android.hardware.wifi.supplicant.V1_1.ISupplicant.class);
+        executeAndValidateInitializationSequenceV1_1(false, false);
+
+        // Trying setting up the p2p0 interface again & ensure it fails.
+        assertFalse(mDut.setupIface(mIfaceName));
+        verifyNoMoreInteractions(mISupplicantMockV1_1);
+    }
+
+    /**
      * Sunny day scenario for SupplicantStaIfaceHal teardown.
      * Asserts successful teardown.
      * Note: Only applicable for 1.1 supplicant HAL.
@@ -276,6 +290,15 @@ public class SupplicantP2pIfaceHalTest {
                 .thenReturn(mStatusSuccess);
         assertTrue(mDut.teardownIface(mIfaceName));
         verify(mISupplicantMockV1_1).removeInterface(any());
+    }
+
+    /**
+     * Ensures that we reject removal of an invalid iface.
+     */
+    @Test
+    public void testInvalidTeardownInterfaceV1_1_Fails() throws Exception {
+        assertFalse(mDut.teardownIface(mIfaceName));
+        verifyNoMoreInteractions(mISupplicantMock);
     }
 
     /**
