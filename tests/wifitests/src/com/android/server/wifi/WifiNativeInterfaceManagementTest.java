@@ -1196,7 +1196,9 @@ public class WifiNativeInterfaceManagementTest {
             boolean anyOtherStaIface, boolean anyOtherApIface,
             String ifaceName, @Mock WifiNative.InterfaceCallback callback,
             BaseNetworkObserver networkObserver) throws Exception {
-        mInOrder.verify(mNwManagementService).unregisterObserver(networkObserver);
+        if (networkObserver != null) {
+            mInOrder.verify(mNwManagementService).unregisterObserver(networkObserver);
+        }
         mInOrder.verify(mSupplicantStaIfaceHal).teardownIface(ifaceName);
         mInOrder.verify(mWificondControl).tearDownClientInterface(ifaceName);
 
@@ -1261,7 +1263,9 @@ public class WifiNativeInterfaceManagementTest {
             boolean anyOtherStaIface, boolean anyOtherApIface,
             String ifaceName, @Mock WifiNative.InterfaceCallback callback,
             BaseNetworkObserver networkObserver) throws Exception {
-        mInOrder.verify(mNwManagementService).unregisterObserver(networkObserver);
+        if (networkObserver != null) {
+            mInOrder.verify(mNwManagementService).unregisterObserver(networkObserver);
+        }
         mInOrder.verify(mHostapdHal).removeAccessPoint(ifaceName);
         mInOrder.verify(mHostapdHal).deregisterDeathHandler();
         mInOrder.verify(mWificondControl).stopHostapd(ifaceName);

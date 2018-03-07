@@ -351,7 +351,8 @@ public class WifiNative {
     }
 
     /** Helper method to register a network observer and return it */
-    private boolean registerNetworkObserver(@NonNull NetworkObserverInternal observer) {
+    private boolean registerNetworkObserver(NetworkObserverInternal observer) {
+        if (observer == null) return false;
         try {
             mNwManagementService.registerObserver(observer);
         } catch (RemoteException e) {
@@ -360,8 +361,9 @@ public class WifiNative {
         return true;
     }
 
-    /** Helper method to register a network observer and return it */
-    private boolean unregisterNetworkObserver(@NonNull NetworkObserverInternal observer) {
+    /** Helper method to unregister a network observer */
+    private boolean unregisterNetworkObserver(NetworkObserverInternal observer) {
+        if (observer == null) return false;
         try {
             mNwManagementService.unregisterObserver(observer);
         } catch (RemoteException e) {
