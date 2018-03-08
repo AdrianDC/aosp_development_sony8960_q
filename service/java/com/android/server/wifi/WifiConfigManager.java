@@ -2758,6 +2758,14 @@ public class WifiConfigManager {
      * false otherwise.
      */
     public boolean loadFromStore() {
+        // If the user unlock comes in before we load from store, which means the user store have
+        // not been setup yet for the current user. Setup the user store before the read so that
+        // configurations for the current user will also being loaded.
+        if (mDeferredUserUnlockRead) {
+            Log.i(TAG, "Handling user unlock before loading from store.");
+            mWifiConfigStore.setUserStore(WifiConfigStore.createUserFile(mCurrentUserId));
+            mDeferredUserUnlockRead = false;
+        }
         if (!mWifiConfigStore.areStoresPresent()) {
             Log.d(TAG, "New store files not found. No saved networks loaded!");
             if (!mWifiConfigStoreLegacy.areStoresPresent()) {
@@ -2765,14 +2773,6 @@ public class WifiConfigManager {
                 mPendingStoreRead = false;
             }
             return true;
-        }
-        // If the user unlock comes in before we load from store, which means the user store have
-        // not been setup yet for the current user.  Setup the user store before the read so that
-        // configurations for the current user will also being loaded.
-        if (mDeferredUserUnlockRead) {
-            Log.i(TAG, "Handling user unlock before loading from store.");
-            mWifiConfigStore.setUserStore(WifiConfigStore.createUserFile(mCurrentUserId));
-            mDeferredUserUnlockRead = false;
         }
         try {
             mWifiConfigStore.read();
