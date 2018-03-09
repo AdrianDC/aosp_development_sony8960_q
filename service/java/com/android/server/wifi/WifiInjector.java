@@ -302,6 +302,7 @@ public class WifiInjector {
         mWifiBackupRestore.enableVerboseLogging(verbose);
         mHalDeviceManager.enableVerboseLogging(verbose);
         mScanRequestProxy.enableVerboseLogging(verbose);
+        mWakeupController.enableVerboseLogging(verbose);
         LogcatLog.enableVerboseLogging(verbose);
     }
 
