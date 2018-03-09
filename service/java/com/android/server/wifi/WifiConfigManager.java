@@ -429,6 +429,16 @@ public class WifiConfigManager {
     }
 
     /**
+     * Helper method to mask randomized MAC address from the provided WifiConfiguration Object.
+     * This is needed when the network configurations are being requested via the public
+     * WifiManager API's. This method puts "0:0:0:0:0:0" as the MAC address.
+     * @param configuration WifiConfiguration to hide the MAC address
+     */
+    private void maskRandomizedMacAddressInWifiConfiguration(WifiConfiguration configuration) {
+        configuration.setRandomizedMacAddress(MacAddress.ALL_ZEROS_ADDRESS);
+    }
+
+    /**
      * Helper method to create a copy of the provided internal WifiConfiguration object to be
      * passed to external modules.
      *
@@ -442,6 +452,7 @@ public class WifiConfigManager {
         if (maskPasswords) {
             maskPasswordsInWifiConfiguration(network);
         }
+        maskRandomizedMacAddressInWifiConfiguration(network);
         return network;
     }
 
@@ -550,6 +561,24 @@ public class WifiConfigManager {
         // Create a new configuration object without the passwords masked to send out to the
         // external world.
         return createExternalWifiConfiguration(config, false);
+    }
+
+    /**
+     * Retrieves the configured network corresponding to the provided networkId
+     * without any masking.
+     *
+     * WARNING: Don't use this to pass network configurations except in the wifi stack, when
+     * there is a need for passwords and randomized MAC address.
+     *
+     * @param networkId networkId of the requested network.
+     * @return Copy of WifiConfiguration object if found, null otherwise.
+     */
+    public WifiConfiguration getConfiguredNetworkWithoutMasking(int networkId) {
+        WifiConfiguration config = getInternalConfiguredNetwork(networkId);
+        if (config == null) {
+            return null;
+        }
+        return new WifiConfiguration(config);
     }
 
     /**
