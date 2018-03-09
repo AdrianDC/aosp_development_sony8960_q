@@ -21,6 +21,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import android.hardware.wifi.supplicant.V1_0.ISupplicantStaIfaceCallback.WpsConfigError;
@@ -534,4 +535,38 @@ public class WifiMonitorTest {
         verify(mHandlerSpy).handleMessage(messageCaptor.capture());
         assertEquals(WifiMonitor.SUP_DISCONNECTION_EVENT, messageCaptor.getValue().what);
     }
+
+    @Test
+    public void testDeregisterHandlerNotCrash() {
+        mWifiMonitor.deregisterHandler(null, 0, null);
+    }
+
+    /**
+     * Register a handler, send an event and then verify that the event is handled.
+     * Unregister the handler, send an event and then verify the event is not handled.
+     */
+    @Test
+    public void testDeregisterHandlerRemovesHandler() {
+        mWifiMonitor.registerHandler(
+                WLAN_IFACE_NAME, WifiMonitor.WPS_FAIL_EVENT, mHandlerSpy);
+        mWifiMonitor.broadcastWpsFailEvent(
+                WLAN_IFACE_NAME, WpsConfigError.NO_ERROR,
+                WpsErrorIndication.SECURITY_TKIP_ONLY_PROHIBITED);
+        mLooper.dispatchAll();
+
+        ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(mHandlerSpy, times(1)).handleMessage(messageCaptor.capture());
+        assertEquals(WifiMonitor.WPS_FAIL_EVENT, messageCaptor.getValue().what);
+        assertEquals(WifiManager.WPS_TKIP_ONLY_PROHIBITED, messageCaptor.getValue().arg1);
+        mWifiMonitor.deregisterHandler(
+                WLAN_IFACE_NAME, WifiMonitor.WPS_FAIL_EVENT, mHandlerSpy);
+        mWifiMonitor.broadcastWpsFailEvent(
+                WLAN_IFACE_NAME, WpsConfigError.NO_ERROR,
+                WpsErrorIndication.SECURITY_TKIP_ONLY_PROHIBITED);
+        mLooper.dispatchAll();
+
+        verify(mHandlerSpy, times(1)).handleMessage(messageCaptor.capture());
+    }
+
+
 }

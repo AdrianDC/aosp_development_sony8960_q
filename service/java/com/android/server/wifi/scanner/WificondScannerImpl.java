@@ -63,6 +63,7 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
     private final Context mContext;
     private final String mIfaceName;
     private final WifiNative mWifiNative;
+    private final WifiMonitor mWifiMonitor;
     private final AlarmManager mAlarmManager;
     private final Handler mEventHandler;
     private final ChannelHelper mChannelHelper;
@@ -99,6 +100,7 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
         mContext = context;
         mIfaceName = ifaceName;
         mWifiNative = wifiNative;
+        mWifiMonitor = wifiMonitor;
         mChannelHelper = channelHelper;
         mAlarmManager = (AlarmManager) mContext.getSystemService(Context.ALARM_SERVICE);
         mEventHandler = new Handler(looper, this);
@@ -122,6 +124,12 @@ public class WificondScannerImpl extends WifiScannerImpl implements Handler.Call
             stopHwPnoScan();
             mLastScanSettings = null; // finally clear any active scan
             mLastPnoScanSettings = null; // finally clear any active scan
+            mWifiMonitor.deregisterHandler(mIfaceName,
+                    WifiMonitor.SCAN_FAILED_EVENT, mEventHandler);
+            mWifiMonitor.deregisterHandler(mIfaceName,
+                    WifiMonitor.PNO_SCAN_RESULTS_EVENT, mEventHandler);
+            mWifiMonitor.deregisterHandler(mIfaceName,
+                    WifiMonitor.SCAN_RESULTS_EVENT, mEventHandler);
         }
     }
 
