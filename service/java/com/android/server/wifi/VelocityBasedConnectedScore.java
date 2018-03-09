@@ -16,7 +16,6 @@
 
 package com.android.server.wifi;
 
-import android.content.Context;
 import android.net.wifi.WifiInfo;
 
 import com.android.server.wifi.util.KalmanFilter;
@@ -31,15 +30,13 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
     private final ScoringParams mScoringParams;
 
     private int mFrequency = ScoringParams.BAND5;
-    private double mThresholdMinimumRssi;
     private double mThresholdAdjustment;
     private final KalmanFilter mFilter;
     private long mLastMillis;
 
-    public VelocityBasedConnectedScore(Context context, Clock clock) {
+    public VelocityBasedConnectedScore(ScoringParams scoringParams, Clock clock) {
         super(clock);
-        mScoringParams = new ScoringParams(context);
-        mThresholdMinimumRssi = mScoringParams.getExitRssi(5000);
+        mScoringParams = scoringParams;
         mFilter = new KalmanFilter();
         mFilter.mH = new Matrix(2, new double[]{1.0, 0.0});
         mFilter.mR = new Matrix(1, new double[]{1.0});
@@ -65,7 +62,6 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
     @Override
     public void reset() {
         mLastMillis = 0;
-        mThresholdAdjustment = 0.0;
     }
 
     /**
@@ -108,7 +104,6 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
             // Consider resetting or partially resetting threshold adjustment
             // Consider checking bssid
             mFrequency = frequency;
-            mThresholdMinimumRssi = mScoringParams.getExitRssi(frequency);
         }
         updateUsingRssi(wifiInfo.getRssi(), millis, mDefaultRssiStandardDeviation);
         adjustThreshold(wifiInfo);
@@ -135,7 +130,7 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
      * Returns the adjusted RSSI threshold
      */
     public double getAdjustedRssiThreshold() {
-        return mThresholdMinimumRssi + mThresholdAdjustment;
+        return mScoringParams.getExitRssi(mFrequency) + mThresholdAdjustment;
     }
 
     private double mMinimumPpsForMeasuringSuccess = 2.0;
@@ -171,7 +166,7 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
     @Override
     public int generateScore() {
         double badRssi = getAdjustedRssiThreshold();
-        double horizonSeconds = 15.0;
+        double horizonSeconds = mScoringParams.getHorizonSeconds();
         Matrix x = new Matrix(mFilter.mx);
         double filteredRssi = x.get(0, 0);
         setDeltaTimeSeconds(horizonSeconds);

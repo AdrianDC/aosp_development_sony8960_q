@@ -414,7 +414,7 @@ public class WifiStateMachineTest {
         when(mWifiInjector.getWifiPermissionsWrapper()).thenReturn(mWifiPermissionsWrapper);
         when(mWifiInjector.getWakeupController()).thenReturn(mWakeupController);
         when(mWifiInjector.getScanRequestProxy()).thenReturn(mScanRequestProxy);
-
+        when(mWifiInjector.getScoringParams()).thenReturn(new ScoringParams());
         when(mWifiNative.setupInterfaceForClientMode(anyBoolean(), any()))
                 .thenReturn(WIFI_IFACE_NAME);
         when(mWifiNative.initialize()).thenReturn(true);

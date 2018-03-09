@@ -592,11 +592,12 @@ public class WifiNetworkSelector {
         return true;
     }
 
-    WifiNetworkSelector(Context context, WifiConfigManager configManager, Clock clock,
+    WifiNetworkSelector(Context context, ScoringParams scoringParams,
+            WifiConfigManager configManager, Clock clock,
             LocalLog localLog) {
         mWifiConfigManager = configManager;
         mClock = clock;
-        mScoringParams = new ScoringParams(context);
+        mScoringParams = scoringParams;
         mLocalLog = localLog;
 
         mEnableAutoJoinWhenAssociated = context.getResources().getBoolean(

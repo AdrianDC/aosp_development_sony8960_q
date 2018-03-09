@@ -16,7 +16,6 @@
 
 package com.android.server.wifi;
 
-import android.content.Context;
 import android.net.NetworkAgent;
 import android.net.wifi.WifiInfo;
 import android.util.Log;
@@ -50,10 +49,10 @@ public class WifiScoreReport {
     ConnectedScore mAggressiveConnectedScore;
     VelocityBasedConnectedScore mFancyConnectedScore;
 
-    WifiScoreReport(Context context, Clock clock) {
+    WifiScoreReport(ScoringParams scoringParams, Clock clock) {
         mClock = clock;
-        mAggressiveConnectedScore = new AggressiveConnectedScore(context, clock);
-        mFancyConnectedScore = new VelocityBasedConnectedScore(context, clock);
+        mAggressiveConnectedScore = new AggressiveConnectedScore(scoringParams, clock);
+        mFancyConnectedScore = new VelocityBasedConnectedScore(scoringParams, clock);
     }
 
     /**

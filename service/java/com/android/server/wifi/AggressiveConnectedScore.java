@@ -16,11 +16,10 @@
 
 package com.android.server.wifi;
 
-import android.content.Context;
 import android.net.wifi.WifiInfo;
 
 /**
- * Experimental scorer, used when aggressive handover preference is set.
+ * Experimental scorer
  */
 public class AggressiveConnectedScore extends ConnectedScore {
 
@@ -29,9 +28,9 @@ public class AggressiveConnectedScore extends ConnectedScore {
     private int mFrequencyMHz = 5000;
     private int mRssi = 0;
 
-    public AggressiveConnectedScore(Context context, Clock clock) {
+    public AggressiveConnectedScore(ScoringParams scoringParams, Clock clock) {
         super(clock);
-        mScoringParams = new ScoringParams(context);
+        mScoringParams = scoringParams;
     }
 
     @Override

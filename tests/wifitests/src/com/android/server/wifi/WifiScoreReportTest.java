@@ -123,7 +123,7 @@ public class WifiScoreReportTest {
         int trimSize = 5;
         when(mContext.getResources()).thenReturn(mResources);
         mClock = new FakeClock();
-        mWifiScoreReport = new WifiScoreReport(mContext, mClock);
+        mWifiScoreReport = new WifiScoreReport(new ScoringParams(mContext), mClock);
     }
 
     /**
