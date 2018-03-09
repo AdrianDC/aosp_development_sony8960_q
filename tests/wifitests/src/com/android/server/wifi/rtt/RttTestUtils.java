@@ -64,8 +64,10 @@ public class RttTestUtils {
         ScanResult scan1 = new ScanResult();
         scan1.BSSID = "00:01:02:03:04:" + String.format("%02d", lastMacByte);
         scan1.setFlag(ScanResult.FLAG_80211mc_RESPONDER);
+        scan1.channelWidth = ScanResult.CHANNEL_WIDTH_40MHZ;
         ScanResult scan2 = new ScanResult();
         scan2.BSSID = "0A:0B:0C:0D:0E:" + String.format("%02d", lastMacByte);
+        scan2.channelWidth = ScanResult.CHANNEL_WIDTH_20MHZ;
         MacAddress mac1 = MacAddress.fromString("08:09:08:07:06:05");
 
         builder.addAccessPoint(scan1);
