@@ -28,11 +28,15 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import android.hardware.wifi.V1_0.IWifiRttController;
+import android.hardware.wifi.V1_0.RttBw;
+import android.hardware.wifi.V1_0.RttCapabilities;
 import android.hardware.wifi.V1_0.RttConfig;
 import android.hardware.wifi.V1_0.RttPeerType;
+import android.hardware.wifi.V1_0.RttPreamble;
 import android.hardware.wifi.V1_0.RttResult;
 import android.hardware.wifi.V1_0.RttStatus;
 import android.hardware.wifi.V1_0.RttType;
+import android.hardware.wifi.V1_0.WifiChannelWidthInMhz;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.net.MacAddress;
@@ -56,11 +60,14 @@ import java.util.List;
  */
 public class RttNativeTest {
     private RttNative mDut;
+    private WifiStatus mStatusSuccess;
 
     private ArgumentCaptor<ArrayList> mRttConfigCaptor = ArgumentCaptor.forClass(ArrayList.class);
     private ArgumentCaptor<List> mRttResultCaptor = ArgumentCaptor.forClass(List.class);
     private ArgumentCaptor<HalDeviceManager.ManagerStatusListener> mHdmStatusListener =
             ArgumentCaptor.forClass(HalDeviceManager.ManagerStatusListener.class);
+    private ArgumentCaptor<IWifiRttController.getCapabilitiesCallback> mGetCapCbCatpr =
+            ArgumentCaptor.forClass(IWifiRttController.getCapabilitiesCallback.class);
 
     @Rule
     public ErrorCollector collector = new ErrorCollector();
@@ -81,17 +88,22 @@ public class RttNativeTest {
         when(mockHalDeviceManager.isStarted()).thenReturn(true);
         when(mockHalDeviceManager.createRttController()).thenReturn(mockRttController);
 
-        WifiStatus status = new WifiStatus();
-        status.code = WifiStatusCode.SUCCESS;
-        when(mockRttController.registerEventCallback(any())).thenReturn(status);
-        when(mockRttController.rangeRequest(anyInt(), any(ArrayList.class))).thenReturn(status);
-        when(mockRttController.rangeCancel(anyInt(), any(ArrayList.class))).thenReturn(status);
+        mStatusSuccess = new WifiStatus();
+        mStatusSuccess.code = WifiStatusCode.SUCCESS;
+        when(mockRttController.registerEventCallback(any())).thenReturn(mStatusSuccess);
+        when(mockRttController.rangeRequest(anyInt(), any(ArrayList.class))).thenReturn(
+                mStatusSuccess);
+        when(mockRttController.rangeCancel(anyInt(), any(ArrayList.class))).thenReturn(
+                mStatusSuccess);
 
         mDut = new RttNative(mockRttServiceImpl, mockHalDeviceManager);
         mDut.start(null);
         verify(mockHalDeviceManager).registerStatusListener(mHdmStatusListener.capture(), any());
         verify(mockRttController).registerEventCallback(any());
         verify(mockRttServiceImpl).enableIfPossible();
+        verify(mockRttController).getCapabilities(mGetCapCbCatpr.capture());
+        // will override capabilities (just call cb again) for specific tests
+        mGetCapCbCatpr.getValue().onValues(mStatusSuccess, getFullRttCapabilities());
         assertTrue(mDut.isReady());
     }
 
@@ -130,7 +142,6 @@ public class RttNativeTest {
         collector.checkThat("entry 1: peer type", rttConfig.peer, equalTo(RttPeerType.AP));
         collector.checkThat("entry 1: lci", rttConfig.mustRequestLci, equalTo(true));
         collector.checkThat("entry 1: lcr", rttConfig.mustRequestLcr, equalTo(true));
-
 
         rttConfig = halRequest.get(2);
         collector.checkThat("entry 2: MAC", rttConfig.addr,
@@ -181,6 +192,105 @@ public class RttNativeTest {
         collector.checkThat("entry 1: peer type", rttConfig.peer, equalTo(RttPeerType.NAN));
         collector.checkThat("entry 1: lci", rttConfig.mustRequestLci, equalTo(false));
         collector.checkThat("entry 1: lcr", rttConfig.mustRequestLcr, equalTo(false));
+
+        verifyNoMoreInteractions(mockRttController, mockRttServiceImpl);
+    }
+
+    /**
+     * Validate successful ranging flow - with privileges access but with limited capabilities:
+     * - No single-sided RTT
+     * - No LCI/LCR
+     * - Limited BW
+     * - Limited Preamble
+     */
+    @Test
+    public void testRangeRequestWithLimitedCapabilities() throws Exception {
+        int cmdId = 55;
+        RangingRequest request = RttTestUtils.getDummyRangingRequest((byte) 0);
+
+        // update capabilities to a limited set
+        RttCapabilities cap = getFullRttCapabilities();
+        cap.rttOneSidedSupported = false;
+        cap.lciSupported = false;
+        cap.lcrSupported = false;
+        cap.bwSupport = RttBw.BW_10MHZ | RttBw.BW_160MHZ;
+        cap.preambleSupport = RttPreamble.LEGACY;
+        mGetCapCbCatpr.getValue().onValues(mStatusSuccess, cap);
+
+        // Note: request 1: BW = 40MHz --> 10MHz, Preamble = HT (since 40MHz) -> Legacy
+
+        // (1) issue range request
+        mDut.rangeRequest(cmdId, request, true);
+
+        // (2) verify HAL call and parameters
+        verify(mockRttController).rangeRequest(eq(cmdId), mRttConfigCaptor.capture());
+
+        // verify contents of HAL request (hard codes knowledge from getDummyRangingRequest()).
+        ArrayList<RttConfig> halRequest = mRttConfigCaptor.getValue();
+
+        collector.checkThat("number of entries", halRequest.size(), equalTo(2));
+
+        RttConfig rttConfig = halRequest.get(0);
+        collector.checkThat("entry 0: MAC", rttConfig.addr,
+                equalTo(MacAddress.fromString("00:01:02:03:04:00").toByteArray()));
+        collector.checkThat("entry 0: rtt type", rttConfig.type, equalTo(RttType.TWO_SIDED));
+        collector.checkThat("entry 0: peer type", rttConfig.peer, equalTo(RttPeerType.AP));
+        collector.checkThat("entry 0: lci", rttConfig.mustRequestLci, equalTo(false));
+        collector.checkThat("entry 0: lcr", rttConfig.mustRequestLcr, equalTo(false));
+        collector.checkThat("entry 0: channel.width", rttConfig.channel.width, equalTo(
+                WifiChannelWidthInMhz.WIDTH_40));
+        collector.checkThat("entry 0: bw", rttConfig.bw, equalTo(RttBw.BW_10MHZ));
+        collector.checkThat("entry 0: preamble", rttConfig.preamble, equalTo(RttPreamble.LEGACY));
+
+        rttConfig = halRequest.get(1);
+        collector.checkThat("entry 1: MAC", rttConfig.addr,
+                equalTo(MacAddress.fromString("08:09:08:07:06:05").toByteArray()));
+        collector.checkThat("entry 1: rtt type", rttConfig.type, equalTo(RttType.TWO_SIDED));
+        collector.checkThat("entry 1: peer type", rttConfig.peer, equalTo(RttPeerType.NAN));
+        collector.checkThat("entry 1: lci", rttConfig.mustRequestLci, equalTo(false));
+        collector.checkThat("entry 1: lcr", rttConfig.mustRequestLcr, equalTo(false));
+
+        verifyNoMoreInteractions(mockRttController, mockRttServiceImpl);
+    }
+
+    /**
+     * Validate successful ranging flow - with privileges access but with limited capabilities:
+     * - Very limited BW
+     * - Very limited Preamble
+     */
+    @Test
+    public void testRangeRequestWithLimitedCapabilitiesNoOverlap() throws Exception {
+        int cmdId = 55;
+        RangingRequest request = RttTestUtils.getDummyRangingRequest((byte) 0);
+
+        // update capabilities to a limited set
+        RttCapabilities cap = getFullRttCapabilities();
+        cap.bwSupport = RttBw.BW_80MHZ;
+        cap.preambleSupport = RttPreamble.VHT;
+        mGetCapCbCatpr.getValue().onValues(mStatusSuccess, cap);
+
+        // Note: request 1: BW = 40MHz --> no overlap -> dropped
+        // Note: request 2: BW = 160MHz --> 160MHz, preamble = VHT (since 160MHz) -> no overlap,
+        //                                                                           dropped
+
+        // (1) issue range request
+        mDut.rangeRequest(cmdId, request, true);
+
+        // (2) verify HAL call and parameters
+        verify(mockRttController).rangeRequest(eq(cmdId), mRttConfigCaptor.capture());
+
+        // verify contents of HAL request (hard codes knowledge from getDummyRangingRequest()).
+        ArrayList<RttConfig> halRequest = mRttConfigCaptor.getValue();
+
+        collector.checkThat("number of entries", halRequest.size(), equalTo(1));
+
+        RttConfig rttConfig = halRequest.get(0);
+        collector.checkThat("entry 0: MAC", rttConfig.addr,
+                equalTo(MacAddress.fromString("08:09:08:07:06:05").toByteArray()));
+        collector.checkThat("entry 0: rtt type", rttConfig.type, equalTo(RttType.TWO_SIDED));
+        collector.checkThat("entry 0: peer type", rttConfig.peer, equalTo(RttPeerType.NAN));
+        collector.checkThat("entry 0: lci", rttConfig.mustRequestLci, equalTo(false));
+        collector.checkThat("entry 0: lcr", rttConfig.mustRequestLcr, equalTo(false));
 
         verifyNoMoreInteractions(mockRttController, mockRttServiceImpl);
     }
@@ -285,5 +395,29 @@ public class RttNativeTest {
         collector.checkThat("timestamp", rttResult.timeStampInUs, equalTo(666L));
 
         verifyNoMoreInteractions(mockRttController, mockRttServiceImpl);
+    }
+
+    // Utilities
+
+    /**
+     * Return an RttCapabilities structure with all features enabled and support for all
+     * preambles and bandwidths. The purpose is to enable any request. The returned structure can
+     * then be modified to disable specific features.
+     */
+    RttCapabilities getFullRttCapabilities() {
+        RttCapabilities cap = new RttCapabilities();
+
+        cap.rttOneSidedSupported = true;
+        cap.rttFtmSupported = true;
+        cap.lciSupported = true;
+        cap.lcrSupported = true;
+        cap.responderSupported = true; // unused
+        cap.preambleSupport = RttPreamble.LEGACY | RttPreamble.HT | RttPreamble.VHT;
+        cap.bwSupport =
+                RttBw.BW_5MHZ | RttBw.BW_10MHZ | RttBw.BW_20MHZ | RttBw.BW_40MHZ | RttBw.BW_80MHZ
+                        | RttBw.BW_160MHZ;
+        cap.mcVersion = 1; // unused
+
+        return cap;
     }
 }
