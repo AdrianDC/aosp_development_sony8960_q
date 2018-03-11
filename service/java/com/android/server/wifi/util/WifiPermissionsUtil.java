@@ -88,14 +88,14 @@ public class WifiPermissionsUtil {
     }
 
     /**
-     * Check and enforce Location permission.
+     * Check and enforce Coarse Location permission.
      *
      * @param pkgName PackageName of the application requesting access
      * @param uid The uid of the package
      */
     public void enforceLocationPermission(String pkgName, int uid) {
         if (!checkCallersLocationPermission(pkgName, uid)) {
-            throw new SecurityException("UID " + uid + " does not have Location permission");
+            throw new SecurityException("UID " + uid + " does not have Coarse Location permission");
         }
     }
 
@@ -108,11 +108,42 @@ public class WifiPermissionsUtil {
      * @param uid The uid of the package
      */
     public boolean checkCallersLocationPermission(String pkgName, int uid) {
-        // Coarse Permission implies Fine permission
+        // Having FINE permission implies having COARSE permission (but not the reverse)
         if ((mWifiPermissionsWrapper.getUidPermission(
                 Manifest.permission.ACCESS_COARSE_LOCATION, uid)
                 == PackageManager.PERMISSION_GRANTED)
                 && checkAppOpAllowed(AppOpsManager.OP_COARSE_LOCATION, pkgName, uid)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Check and enforce Fine Location permission.
+     *
+     * @param pkgName PackageName of the application requesting access
+     * @param uid The uid of the package
+     */
+    public void enforceFineLocationPermission(String pkgName, int uid) {
+        if (!checkCallersFineLocationPermission(pkgName, uid)) {
+            throw new SecurityException("UID " + uid + " does not have Fine Location permission");
+        }
+    }
+
+
+    /**
+     * Checks that calling process has android.Manifest.permission.ACCESS_FINE_LOCATION
+     * and a corresponding app op is allowed for this package and uid.
+     *
+     * @param pkgName PackageName of the application requesting access
+     * @param uid The uid of the package
+     */
+    public boolean checkCallersFineLocationPermission(String pkgName, int uid) {
+        // Having FINE permission implies having COARSE permission (but not the reverse)
+        if ((mWifiPermissionsWrapper.getUidPermission(
+                Manifest.permission.ACCESS_FINE_LOCATION, uid)
+                == PackageManager.PERMISSION_GRANTED)
+                && checkAppOpAllowed(AppOpsManager.OP_FINE_LOCATION, pkgName, uid)) {
             return true;
         }
         return false;

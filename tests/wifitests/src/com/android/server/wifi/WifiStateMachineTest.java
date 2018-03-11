@@ -891,7 +891,7 @@ public class WifiStateMachineTest {
                 .thenReturn(new NetworkUpdateResult(0));
         when(mWifiConfigManager.getSavedNetworks()).thenReturn(Arrays.asList(config));
         when(mWifiConfigManager.getConfiguredNetwork(0)).thenReturn(config);
-        when(mWifiConfigManager.getConfiguredNetworkWithPassword(0)).thenReturn(config);
+        when(mWifiConfigManager.getConfiguredNetworkWithoutMasking(0)).thenReturn(config);
 
         mLooper.startAutoDispatch();
         mWsm.syncAddOrUpdateNetwork(mWsmAsyncChannel, config);
@@ -943,8 +943,8 @@ public class WifiStateMachineTest {
                 .thenReturn(true);
         when(mWifiConfigManager.getConfiguredNetwork(eq(config.networkId)))
                 .thenReturn(config);
-        when(mWifiConfigManager.getConfiguredNetworkWithPassword(eq(config.networkId)))
-                .thenReturn(config);
+        when(mWifiConfigManager.getConfiguredNetworkWithoutMasking(
+                eq(config.networkId))).thenReturn(config);
 
         verify(mWifiNative).removeAllNetworks(WIFI_IFACE_NAME);
         verify(mScanRequestProxy).enableScanningForHiddenNetworks(true);
@@ -958,7 +958,7 @@ public class WifiStateMachineTest {
         verify(mWifiConfigManager).enableNetwork(eq(config.networkId), eq(true), anyInt());
         verify(mWifiConnectivityManager).setUserConnectChoice(eq(config.networkId));
         verify(mWifiConnectivityManager).prepareForForcedConnection(eq(config.networkId));
-        verify(mWifiConfigManager).getConfiguredNetworkWithPassword(eq(config.networkId));
+        verify(mWifiConfigManager).getConfiguredNetworkWithoutMasking(eq(config.networkId));
         verify(mWifiNative).connectToNetwork(eq(WIFI_IFACE_NAME), eq(config));
     }
 
@@ -966,7 +966,8 @@ public class WifiStateMachineTest {
         verify(mWifiConfigManager).enableNetwork(eq(config.networkId), eq(true), anyInt());
         verify(mWifiConnectivityManager).setUserConnectChoice(eq(config.networkId));
         verify(mWifiConnectivityManager).prepareForForcedConnection(eq(config.networkId));
-        verify(mWifiConfigManager, never()).getConfiguredNetworkWithPassword(eq(config.networkId));
+        verify(mWifiConfigManager, never())
+                .getConfiguredNetworkWithoutMasking(eq(config.networkId));
         verify(mWifiNative, never()).connectToNetwork(eq(WIFI_IFACE_NAME), eq(config));
     }
 

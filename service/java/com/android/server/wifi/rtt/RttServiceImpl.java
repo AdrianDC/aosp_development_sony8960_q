@@ -391,7 +391,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         // permission checks
         enforceAccessPermission();
         enforceChangePermission();
-        mWifiPermissionsUtil.enforceLocationPermission(callingPackage, uid);
+        mWifiPermissionsUtil.enforceFineLocationPermission(callingPackage, uid);
         if (workSource != null) {
             enforceLocationHardware();
             // We only care about UIDs in the incoming worksources and not their associated

@@ -4545,7 +4545,7 @@ public class WifiStateMachine extends StateMachine {
                         }
                     }
 
-                    config = mWifiConfigManager.getConfiguredNetworkWithPassword(netId);
+                    config = mWifiConfigManager.getConfiguredNetworkWithoutMasking(netId);
                     logd("CMD_START_CONNECT sup state "
                             + mSupplicantStateTracker.getSupplicantStateName()
                             + " my state " + getCurrentState().getName()
@@ -5679,7 +5679,7 @@ public class WifiStateMachine extends StateMachine {
                     if (candidate != null) {
                         bssid = candidate.BSSID;
                     }
-                    config = mWifiConfigManager.getConfiguredNetworkWithPassword(netId);
+                    config = mWifiConfigManager.getConfiguredNetworkWithoutMasking(netId);
                     if (config == null) {
                         loge("CMD_START_ROAM and no config, bail out...");
                         break;
