@@ -163,13 +163,13 @@ public class WificondControl implements IBinder.DeathRecipient {
     @Override
     public void binderDied() {
         Log.e(TAG, "Wificond died!");
+        clearState();
+        // Invalidate the global wificond handle on death. Will be refreshed
+        // on the next setup call.
+        mWificond = null;
         if (mDeathEventHandler != null) {
             mDeathEventHandler.onDeath();
         }
-        clearState();
-        // Invalidate the global wificond handle on death. Will be refereshed
-        // on the next setup call.
-        mWificond = null;
     }
 
     /** Enable or disable verbose logging of WificondControl.
@@ -275,7 +275,10 @@ public class WificondControl implements IBinder.DeathRecipient {
      * @return Returns true on success.
      */
     public boolean tearDownClientInterface(@NonNull String ifaceName) {
-        boolean success;
+        if (getClientInterface(ifaceName) == null) {
+            Log.e(TAG, "No valid wificond client interface handler");
+            return false;
+        }
         try {
             IWifiScannerImpl scannerImpl = mWificondScanners.get(ifaceName);
             if (scannerImpl != null) {
@@ -287,6 +290,7 @@ public class WificondControl implements IBinder.DeathRecipient {
             return false;
         }
 
+        boolean success;
         try {
             success = mWificond.tearDownClientInterface(ifaceName);
         } catch (RemoteException e1) {
@@ -341,6 +345,10 @@ public class WificondControl implements IBinder.DeathRecipient {
      * @return Returns true on success.
      */
     public boolean tearDownSoftApInterface(@NonNull String ifaceName) {
+        if (getApInterface(ifaceName) == null) {
+            Log.e(TAG, "No valid wificond ap interface handler");
+            return false;
+        }
         boolean success;
         try {
             success = mWificond.tearDownApInterface(ifaceName);
