@@ -2656,14 +2656,39 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
                 return;
             }
 
+            boolean isRangingEnabled = false;
+            int minRange = -1;
+            int maxRange = -1;
+            if (completedCommand.arg1 == COMMAND_TYPE_PUBLISH) {
+                PublishConfig publishConfig = completedCommand.getData().getParcelable(
+                        MESSAGE_BUNDLE_KEY_CONFIG);
+                isRangingEnabled = publishConfig.mEnableRanging;
+            } else {
+                SubscribeConfig subscribeConfig = completedCommand.getData().getParcelable(
+                        MESSAGE_BUNDLE_KEY_CONFIG);
+                isRangingEnabled =
+                        subscribeConfig.mMinDistanceMmSet || subscribeConfig.mMaxDistanceMmSet;
+                if (subscribeConfig.mMinDistanceMmSet) {
+                    minRange = subscribeConfig.mMinDistanceMm;
+                }
+                if (subscribeConfig.mMaxDistanceMmSet) {
+                    maxRange = subscribeConfig.mMaxDistanceMm;
+                }
+            }
+
             WifiAwareDiscoverySessionState session = new WifiAwareDiscoverySessionState(
-                    mWifiAwareNativeApi, sessionId, pubSubId, callback, isPublish,
+                    mWifiAwareNativeApi, sessionId, pubSubId, callback, isPublish, isRangingEnabled,
                     SystemClock.elapsedRealtime());
             session.mDbg = mDbg;
             client.addSession(session);
 
-            mAwareMetrics.recordDiscoverySession(client.getUid(),
-                    completedCommand.arg1 == COMMAND_TYPE_PUBLISH, mClients);
+            if (isRangingEnabled) {
+                mAwareMetrics.recordDiscoverySessionWithRanging(client.getUid(),
+                        completedCommand.arg1 != COMMAND_TYPE_PUBLISH, minRange, maxRange,
+                        mClients);
+            } else {
+                mAwareMetrics.recordDiscoverySession(client.getUid(), mClients);
+            }
             mAwareMetrics.recordDiscoveryStatus(client.getUid(), NanStatusType.SUCCESS,
                     completedCommand.arg1 == COMMAND_TYPE_PUBLISH);
 
@@ -2957,6 +2982,9 @@ public class WifiAwareStateManager implements WifiAwareShellCommand.DelegatedShe
             return;
         }
 
+        if (data.second.isRangingEnabled()) {
+            mAwareMetrics.recordMatchIndicationForRangeEnabledSubscribe(rangingIndication != 0);
+        }
         data.second.onMatch(requestorInstanceId, peerMac, serviceSpecificInfo, matchFilter,
                 rangingIndication, rangeMm);
     }
