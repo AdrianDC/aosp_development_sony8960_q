@@ -16,6 +16,7 @@
 
 package com.android.server.wifi;
 
+import android.text.format.DateUtils;
 import android.util.ArrayMap;
 import android.util.Log;
 
@@ -29,7 +30,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * A lock to determine whether Auto Wifi can re-enable Wifi.
+ * A lock to determine whether Wifi Wake can re-enable Wifi.
  *
  * <p>Wakeuplock manages a list of networks to determine whether the device's location has changed.
  */
@@ -39,44 +40,144 @@ public class WakeupLock {
 
     @VisibleForTesting
     static final int CONSECUTIVE_MISSED_SCANS_REQUIRED_TO_EVICT = 3;
-
+    @VisibleForTesting
+    static final long MAX_LOCK_TIME_MILLIS = 10 * DateUtils.MINUTE_IN_MILLIS;
 
     private final WifiConfigManager mWifiConfigManager;
     private final Map<ScanResultMatchInfo, Integer> mLockedNetworks = new ArrayMap<>();
-    private boolean mVerboseLoggingEnabled;
+    private final WifiWakeMetrics mWifiWakeMetrics;
+    private final Clock mClock;
 
-    public WakeupLock(WifiConfigManager wifiConfigManager) {
+    private boolean mVerboseLoggingEnabled;
+    private long mLockTimestamp;
+    private boolean mIsInitialized;
+    private int mNumScans;
+
+    public WakeupLock(WifiConfigManager wifiConfigManager, WifiWakeMetrics wifiWakeMetrics,
+                      Clock clock) {
         mWifiConfigManager = wifiConfigManager;
+        mWifiWakeMetrics = wifiWakeMetrics;
+        mClock = clock;
     }
 
     /**
-     * Initializes the WakeupLock with the given {@link ScanResultMatchInfo} list.
+     * Sets the WakeupLock with the given {@link ScanResultMatchInfo} list.
      *
-     * <p>This saves the wakeup lock to the store.
+     * <p>This saves the wakeup lock to the store and begins the initialization process.
      *
      * @param scanResultList list of ScanResultMatchInfos to start the lock with
      */
-    public void initialize(Collection<ScanResultMatchInfo> scanResultList) {
+    public void setLock(Collection<ScanResultMatchInfo> scanResultList) {
+        mLockTimestamp = mClock.getElapsedSinceBootMillis();
+        mIsInitialized = false;
+        mNumScans = 0;
+
         mLockedNetworks.clear();
         for (ScanResultMatchInfo scanResultMatchInfo : scanResultList) {
             mLockedNetworks.put(scanResultMatchInfo, CONSECUTIVE_MISSED_SCANS_REQUIRED_TO_EVICT);
         }
 
-        Log.d(TAG, "Lock initialized. Number of networks: " + mLockedNetworks.size());
+        Log.d(TAG, "Lock set. Number of networks: " + mLockedNetworks.size());
 
         mWifiConfigManager.saveToStore(false /* forceWrite */);
     }
 
     /**
-     * Updates the lock with the given {@link ScanResultMatchInfo} list.
+     * Maybe sets the WakeupLock as initialized based on total scans handled.
+     *
+     * @param numScans total number of elapsed scans in the current WifiWake session
+     * @return Whether the lock transitioned into its initialized state.
+     */
+    private boolean maybeSetInitializedByScans(int numScans) {
+        if (mIsInitialized) {
+            return false;
+        }
+        boolean shouldBeInitialized = numScans >= CONSECUTIVE_MISSED_SCANS_REQUIRED_TO_EVICT;
+        if (shouldBeInitialized) {
+            mIsInitialized = true;
+
+            Log.d(TAG, "Lock initialized by handled scans. Scans: " + numScans);
+            if (mVerboseLoggingEnabled) {
+                Log.d(TAG, "State of lock: " + mLockedNetworks);
+            }
+        }
+        return mIsInitialized;
+    }
+
+    /**
+     * Maybe sets the WakeupLock as initialized based on elapsed time.
+     *
+     * @param timestampMillis current timestamp
+     * @return Whether the lock transitioned into its initialized state.
+     */
+    private boolean maybeSetInitializedByTimeout(long timestampMillis) {
+        if (mIsInitialized) {
+            return false;
+        }
+        long elapsedTime = timestampMillis - mLockTimestamp;
+        boolean shouldBeInitialized = elapsedTime > MAX_LOCK_TIME_MILLIS;
+
+        if (shouldBeInitialized) {
+            mIsInitialized = true;
+
+            Log.d(TAG, "Lock initialized by timeout. Elapsed time: " + elapsedTime);
+            if (mVerboseLoggingEnabled) {
+                Log.d(TAG, "State of lock: " + mLockedNetworks);
+            }
+        }
+        return mIsInitialized;
+    }
+
+    /** Returns whether the lock has been fully initialized. */
+    public boolean isInitialized() {
+        return mIsInitialized;
+    }
+
+    /**
+     * Adds the given networks to the lock.
+     *
+     * <p>This is called during the initialization step.
+     *
+     * @param networkList The list of networks to be added
+     */
+    private void addToLock(Collection<ScanResultMatchInfo> networkList) {
+        if (mVerboseLoggingEnabled) {
+            Log.d(TAG, "Initializing lock with networks: " + networkList);
+        }
+
+        boolean hasChanged = false;
+
+        for (ScanResultMatchInfo network : networkList) {
+            if (!mLockedNetworks.containsKey(network)) {
+                mLockedNetworks.put(network, CONSECUTIVE_MISSED_SCANS_REQUIRED_TO_EVICT);
+                hasChanged = true;
+            }
+        }
+
+        if (hasChanged) {
+            mWifiConfigManager.saveToStore(false /* forceWrite */);
+        }
+
+        // Set initialized if the lock has handled enough scans, and log the event
+        if (maybeSetInitializedByScans(mNumScans)) {
+            // TODO(easchwar) log metric
+        }
+    }
+
+    /**
+     * Removes networks from the lock if not present in the given {@link ScanResultMatchInfo} list.
      *
      * <p>If a network in the lock is not present in the list, reduce the number of scans
      * required to evict by one. Remove any entries in the list with 0 scans required to evict. If
      * any entries in the lock are removed, the store is updated.
      *
-     * @param scanResultList list of present ScanResultMatchInfos to update the lock with
+     * @param networkList list of present ScanResultMatchInfos to update the lock with
      */
-    public void update(Collection<ScanResultMatchInfo> scanResultList) {
+    private void removeFromLock(Collection<ScanResultMatchInfo> networkList) {
+        if (mVerboseLoggingEnabled) {
+            Log.d(TAG, "Filtering lock with networks: " + networkList);
+        }
+
         boolean hasChanged = false;
         Iterator<Map.Entry<ScanResultMatchInfo, Integer>> it =
                 mLockedNetworks.entrySet().iterator();
@@ -84,7 +185,7 @@ public class WakeupLock {
             Map.Entry<ScanResultMatchInfo, Integer> entry = it.next();
 
             // if present in scan list, reset to max
-            if (scanResultList.contains(entry.getKey())) {
+            if (networkList.contains(entry.getKey())) {
                 if (mVerboseLoggingEnabled) {
                     Log.d(TAG, "Found network in lock: " + entry.getKey().networkSsid);
                 }
@@ -104,13 +205,50 @@ public class WakeupLock {
         if (hasChanged) {
             mWifiConfigManager.saveToStore(false /* forceWrite */);
         }
+
+        if (isUnlocked()) {
+            Log.d(TAG, "Lock emptied. Recording unlock event.");
+            mWifiWakeMetrics.recordUnlockEvent(mNumScans);
+        }
     }
 
     /**
-     * Returns whether the internal network set is empty.
+     * Updates the lock with the given {@link ScanResultMatchInfo} list.
+     *
+     * <p>Based on the current initialization state of the lock, either adds or removes networks
+     * from the lock.
+     *
+     * <p>The lock is initialized after {@link #CONSECUTIVE_MISSED_SCANS_REQUIRED_TO_EVICT}
+     * scans have been handled, or after {@link #MAX_LOCK_TIME_MILLIS} milliseconds have elapsed
+     * since {@link #setLock(Collection, long)}.
+     *
+     * @param networkList list of present ScanResultMatchInfos to update the lock with
      */
-    public boolean isEmpty() {
-        return mLockedNetworks.isEmpty();
+    public void update(Collection<ScanResultMatchInfo> networkList) {
+        // update is no-op if already unlocked
+        if (isUnlocked()) {
+            return;
+        }
+        mNumScans++;
+
+        // Before checking mIsInitialized, we check to see whether we've exceeded the maximum time
+        // allowed for initialization. If so, we set initialized and treat this scan as a
+        // "removeFromLock()" instead of an "addToLock()".
+        if (maybeSetInitializedByTimeout(mClock.getElapsedSinceBootMillis())) {
+            // TODO(easchwar) log metric
+        }
+
+        // add or remove networks based on initialized status
+        if (mIsInitialized) {
+            removeFromLock(networkList);
+        } else {
+            addToLock(networkList);
+        }
+    }
+
+    /** Returns whether the WakeupLock is unlocked */
+    public boolean isUnlocked() {
+        return mIsInitialized && mLockedNetworks.isEmpty();
     }
 
     /** Returns the data source for the WakeupLock config store data. */
@@ -121,6 +259,8 @@ public class WakeupLock {
     /** Dumps wakeup lock contents. */
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         pw.println("WakeupLock: ");
+        pw.println("mNumScans: " + mNumScans);
+        pw.println("mIsInitialized: " + mIsInitialized);
         pw.println("Locked networks: " + mLockedNetworks.size());
         for (Map.Entry<ScanResultMatchInfo, Integer> entry : mLockedNetworks.entrySet()) {
             pw.println(entry.getKey() + ", scans to evict: " + entry.getValue());
@@ -146,7 +286,8 @@ public class WakeupLock {
             for (ScanResultMatchInfo network : data) {
                 mLockedNetworks.put(network, CONSECUTIVE_MISSED_SCANS_REQUIRED_TO_EVICT);
             }
-
+            // lock is considered initialized if loaded from store
+            mIsInitialized = true;
         }
     }
 }

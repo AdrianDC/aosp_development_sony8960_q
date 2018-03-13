@@ -26,7 +26,6 @@ import android.net.wifi.WifiScanner;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
-import android.util.ArraySet;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
@@ -38,6 +37,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 
 /**
@@ -175,17 +175,16 @@ public class WakeupController {
         if (isEnabled()) {
             mWakeupOnboarding.maybeShowNotification();
 
-            Set<ScanResultMatchInfo> mostRecentSavedScanResults = getMostRecentSavedScanResults();
-
+            Set<ScanResultMatchInfo> savedNetworksFromLatestScan = getSavedNetworksFromLatestScan();
             if (mVerboseLoggingEnabled) {
-                Log.d(TAG, "Saved networks in most recent scan:" + mostRecentSavedScanResults);
+                Log.d(TAG, "Saved networks in most recent scan:" + savedNetworksFromLatestScan);
             }
 
-            mWifiWakeMetrics.recordStartEvent(mostRecentSavedScanResults.size());
-            mWakeupLock.initialize(mostRecentSavedScanResults);
+            mWifiWakeMetrics.recordStartEvent(savedNetworksFromLatestScan.size());
+            mWakeupLock.setLock(savedNetworksFromLatestScan);
+            // TODO(b/77291248): request low latency scan here
         }
     }
-
     /**
      * Stops listening for scans.
      *
@@ -212,18 +211,30 @@ public class WakeupController {
         mWakeupLock.enableVerboseLogging(mVerboseLoggingEnabled);
     }
 
-    /** Returns a list of saved networks from the last full scan. */
-    private Set<ScanResultMatchInfo> getMostRecentSavedScanResults() {
-        Set<ScanResultMatchInfo> goodSavedNetworks = getGoodSavedNetworks();
+    /** Returns a filtered list of saved networks from the last full scan. */
+    private Set<ScanResultMatchInfo> getSavedNetworksFromLatestScan() {
+        Set<ScanResult> filteredScanResults =
+                filterScanResults(mWifiInjector.getWifiScanner().getSingleScanResults());
+        Set<ScanResultMatchInfo> goodMatchInfos  = toMatchInfos(filteredScanResults);
+        goodMatchInfos.retainAll(getGoodSavedNetworks());
 
-        List<ScanResult> scanResults = mWifiInjector.getWifiScanner().getSingleScanResults();
-        Set<ScanResultMatchInfo> lastSeenNetworks = new HashSet<>(scanResults.size());
-        for (ScanResult scanResult : scanResults) {
-            lastSeenNetworks.add(ScanResultMatchInfo.fromScanResult(scanResult));
+        return goodMatchInfos;
+    }
+
+    /** Returns a set of ScanResults with all DFS channels removed. */
+    private Set<ScanResult> filterScanResults(Collection<ScanResult> scanResults) {
+        int[] dfsChannels = mWifiInjector.getWifiNative()
+                .getChannelsForBand(WifiScanner.WIFI_BAND_5_GHZ_DFS_ONLY);
+        if (dfsChannels == null) {
+            dfsChannels = new int[0];
         }
 
-        lastSeenNetworks.retainAll(goodSavedNetworks);
-        return lastSeenNetworks;
+        final Set<Integer> dfsChannelSet = Arrays.stream(dfsChannels).boxed()
+                .collect(Collectors.toSet());
+
+        return scanResults.stream()
+                .filter(scanResult -> !dfsChannelSet.contains(scanResult.frequency))
+                .collect(Collectors.toSet());
     }
 
     /** Returns a filtered list of saved networks from WifiConfigManager. */
@@ -245,16 +256,18 @@ public class WakeupController {
     }
 
     //TODO(b/69271702) implement WAN filtering
-    private boolean isWideAreaNetwork(WifiConfiguration wifiConfiguration) {
+    private static boolean isWideAreaNetwork(WifiConfiguration config) {
         return false;
     }
 
     /**
      * Handles incoming scan results.
      *
-     * <p>The controller updates the WakeupLock with the incoming scan results. If WakeupLock is
-     * empty, it evaluates scan results for a match with saved networks. If a match exists, it
-     * enables wifi.
+     * <p>The controller updates the WakeupLock with the incoming scan results. If WakeupLock is not
+     * yet fully initialized, it adds the current scanResults to the lock and returns. If WakeupLock
+     * is initialized but not empty, the controller updates the lock with the current scan. If it is
+     * both initialized and empty, it evaluates scan results for a match with saved networks. If a
+     * match exists, it enables wifi.
      *
      * <p>The feature must be enabled and the store data must be loaded in order for the controller
      * to handle scan results.
@@ -267,48 +280,45 @@ public class WakeupController {
             return;
         }
 
-        // only count scan as handled if isEnabled
-        mNumScansHandled++;
-
-        if (mVerboseLoggingEnabled) {
-            Log.d(TAG, "Incoming scan. Total scans handled: " + mNumScansHandled);
-            Log.d(TAG, "ScanResults: " + scanResults);
-        }
+        Set<ScanResult> filteredScanResults = filterScanResults(scanResults);
 
         // need to show notification here in case user enables Wifi Wake when Wifi is off
+        // TODO(b/72399908) make onboarding not blocking
         mWakeupOnboarding.maybeShowNotification();
         if (!mWakeupOnboarding.isOnboarded()) {
+            if (mVerboseLoggingEnabled) {
+                Log.d(TAG, "handleScanResults: Scan not handled because user is not onboarded.");
+            }
             return;
         }
 
-        // only update the wakeup lock if it's not already empty
-        if (!mWakeupLock.isEmpty()) {
-            if (mVerboseLoggingEnabled) {
-                Log.d(TAG, "WakeupLock not empty. Updating.");
-            }
+        // only count scan as handled if isEnabled and user onboarded
+        mNumScansHandled++;
+        if (mVerboseLoggingEnabled) {
+            Log.d(TAG, "Incoming scan #" + mNumScansHandled);
+        }
 
-            Set<ScanResultMatchInfo> networks = new ArraySet<>();
-            for (ScanResult scanResult : scanResults) {
-                networks.add(ScanResultMatchInfo.fromScanResult(scanResult));
-            }
-            mWakeupLock.update(networks);
-
-            // if wakeup lock is still not empty, return
-            if (!mWakeupLock.isEmpty()) {
-                return;
-            }
-
-            Log.d(TAG, "WakeupLock emptied");
-            mWifiWakeMetrics.recordUnlockEvent(mNumScansHandled);
+        mWakeupLock.update(toMatchInfos(filteredScanResults));
+        if (!mWakeupLock.isUnlocked()) {
+            return;
         }
 
         ScanResult network =
-                mWakeupEvaluator.findViableNetwork(scanResults, getGoodSavedNetworks());
+                mWakeupEvaluator.findViableNetwork(filteredScanResults, getGoodSavedNetworks());
 
         if (network != null) {
             Log.d(TAG, "Enabling wifi for network: " + network.SSID);
             enableWifi();
         }
+    }
+
+    /**
+     * Converts ScanResults to ScanResultMatchInfos.
+     */
+    private static Set<ScanResultMatchInfo> toMatchInfos(Collection<ScanResult> scanResults) {
+        return scanResults.stream()
+                .map(ScanResultMatchInfo::fromScanResult)
+                .collect(Collectors.toSet());
     }
 
     /**
