@@ -39,12 +39,14 @@ public class WakeupConfigStoreData implements StoreData {
     private static final String XML_TAG_FEATURE_STATE_SECTION = "FeatureState";
     private static final String XML_TAG_IS_ACTIVE = "IsActive";
     private static final String XML_TAG_IS_ONBOARDED = "IsOnboarded";
+    private static final String XML_TAG_NOTIFICATIONS_SHOWN = "NotificationsShown";
     private static final String XML_TAG_NETWORK_SECTION = "Network";
     private static final String XML_TAG_SSID = "SSID";
     private static final String XML_TAG_SECURITY = "Security";
 
     private final DataSource<Boolean> mIsActiveDataSource;
     private final DataSource<Boolean> mIsOnboardedDataSource;
+    private final DataSource<Integer> mNotificationsDataSource;
     private final DataSource<Set<ScanResultMatchInfo>> mNetworkDataSource;
     private boolean mHasBeenRead = false;
 
@@ -76,9 +78,11 @@ public class WakeupConfigStoreData implements StoreData {
     public WakeupConfigStoreData(
             DataSource<Boolean> isActiveDataSource,
             DataSource<Boolean> isOnboardedDataSource,
+            DataSource<Integer> notificationsDataSource,
             DataSource<Set<ScanResultMatchInfo>> networkDataSource) {
         mIsActiveDataSource = isActiveDataSource;
         mIsOnboardedDataSource = isOnboardedDataSource;
+        mNotificationsDataSource = notificationsDataSource;
         mNetworkDataSource = networkDataSource;
     }
 
@@ -116,6 +120,8 @@ public class WakeupConfigStoreData implements StoreData {
 
         XmlUtil.writeNextValue(out, XML_TAG_IS_ACTIVE, mIsActiveDataSource.getData());
         XmlUtil.writeNextValue(out, XML_TAG_IS_ONBOARDED, mIsOnboardedDataSource.getData());
+        XmlUtil.writeNextValue(out, XML_TAG_NOTIFICATIONS_SHOWN,
+                mNotificationsDataSource.getData());
 
         XmlUtil.writeNextSectionEnd(out, XML_TAG_FEATURE_STATE_SECTION);
     }
@@ -185,6 +191,7 @@ public class WakeupConfigStoreData implements StoreData {
             throws IOException, XmlPullParserException {
         boolean isActive = false;
         boolean isOnboarded = false;
+        int notificationsShown = 0;
 
         while (!XmlUtil.isNextSectionEnd(in, outerTagDepth)) {
             String[] valueName = new String[1];
@@ -199,6 +206,9 @@ public class WakeupConfigStoreData implements StoreData {
                 case XML_TAG_IS_ONBOARDED:
                     isOnboarded = (Boolean) value;
                     break;
+                case XML_TAG_NOTIFICATIONS_SHOWN:
+                    notificationsShown = (Integer) value;
+                    break;
                 default:
                     throw new XmlPullParserException("Unknown value found: " + valueName[0]);
             }
@@ -206,6 +216,7 @@ public class WakeupConfigStoreData implements StoreData {
 
         mIsActiveDataSource.setData(isActive);
         mIsOnboardedDataSource.setData(isOnboarded);
+        mNotificationsDataSource.setData(notificationsShown);
     }
 
     /**
@@ -248,6 +259,7 @@ public class WakeupConfigStoreData implements StoreData {
             mNetworkDataSource.setData(Collections.emptySet());
             mIsActiveDataSource.setData(false);
             mIsOnboardedDataSource.setData(false);
+            mNotificationsDataSource.setData(0);
         }
     }
 

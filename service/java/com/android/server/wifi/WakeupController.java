@@ -127,22 +127,28 @@ public class WakeupController {
         mContentObserver = new ContentObserver(mHandler) {
             @Override
             public void onChange(boolean selfChange) {
-                mWifiWakeupEnabled = mFrameworkFacade.getIntegerSetting(
-                                mContext, Settings.Global.WIFI_WAKEUP_ENABLED, 0) == 1;
-                Log.d(TAG, "WifiWake " + (mWifiWakeupEnabled ? "enabled" : "disabled"));
+                readWifiWakeupEnabledFromSettings();
+                mWakeupOnboarding.setOnboarded();
             }
         };
         mFrameworkFacade.registerContentObserver(mContext, Settings.Global.getUriFor(
                 Settings.Global.WIFI_WAKEUP_ENABLED), true, mContentObserver);
-        mContentObserver.onChange(false /* selfChange */);
+        readWifiWakeupEnabledFromSettings();
 
         // registering the store data here has the effect of reading the persisted value of the
         // data sources after system boot finishes
         mWakeupConfigStoreData = new WakeupConfigStoreData(
                 new IsActiveDataSource(),
-                mWakeupOnboarding.getDataSource(),
+                mWakeupOnboarding.getIsOnboadedDataSource(),
+                mWakeupOnboarding.getNotificationsDataSource(),
                 mWakeupLock.getDataSource());
         wifiConfigStore.registerStoreData(mWakeupConfigStoreData);
+    }
+
+    private void readWifiWakeupEnabledFromSettings() {
+        mWifiWakeupEnabled = mFrameworkFacade.getIntegerSetting(
+                mContext, Settings.Global.WIFI_WAKEUP_ENABLED, 0) == 1;
+        Log.d(TAG, "WifiWake " + (mWifiWakeupEnabled ? "enabled" : "disabled"));
     }
 
     private void setActive(boolean isActive) {
@@ -185,6 +191,7 @@ public class WakeupController {
             // TODO(b/77291248): request low latency scan here
         }
     }
+
     /**
      * Stops listening for scans.
      *
@@ -280,23 +287,16 @@ public class WakeupController {
             return;
         }
 
-        Set<ScanResult> filteredScanResults = filterScanResults(scanResults);
-
-        // need to show notification here in case user enables Wifi Wake when Wifi is off
-        // TODO(b/72399908) make onboarding not blocking
-        mWakeupOnboarding.maybeShowNotification();
-        if (!mWakeupOnboarding.isOnboarded()) {
-            if (mVerboseLoggingEnabled) {
-                Log.d(TAG, "handleScanResults: Scan not handled because user is not onboarded.");
-            }
-            return;
-        }
-
-        // only count scan as handled if isEnabled and user onboarded
+        // only count scan as handled if isEnabled
         mNumScansHandled++;
         if (mVerboseLoggingEnabled) {
             Log.d(TAG, "Incoming scan #" + mNumScansHandled);
         }
+
+        // need to show notification here in case user turns phone on while wifi is off
+        mWakeupOnboarding.maybeShowNotification();
+
+        Set<ScanResult> filteredScanResults = filterScanResults(scanResults);
 
         mWakeupLock.update(toMatchInfos(filteredScanResults));
         if (!mWakeupLock.isUnlocked()) {

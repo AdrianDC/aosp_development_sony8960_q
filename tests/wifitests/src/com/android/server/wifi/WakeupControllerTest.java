@@ -27,6 +27,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.content.Context;
+import android.database.ContentObserver;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiScanner;
@@ -420,12 +421,13 @@ public class WakeupControllerTest {
     }
 
     /**
-     * Verify that the controller only updates the WakeupLock if the user is onboarded.
+     * Verify that the controller updates the WakeupLock even if the user is not onboarded.
      */
     @Test
-    public void onResultsDoesNotUpdateIfNotOnboarded() {
+    public void onResultsUpdatesIfNotOnboarded() {
         initializeWakeupController(true /* enabled */);
         when(mWakeupOnboarding.isOnboarded()).thenReturn(false);
+        when(mWakeupLock.isUnlocked()).thenReturn(false);
         mWakeupController.start();
 
         ArgumentCaptor<WifiScanner.ScanListener> scanListenerArgumentCaptor =
@@ -437,9 +439,8 @@ public class WakeupControllerTest {
         // incoming scan results
         scanListener.onResults(mTestScanDatas);
 
-        verify(mWakeupLock, never()).isUnlocked();
-        verify(mWakeupLock, never()).update(any());
-
+        verify(mWakeupLock).update(any());
+        verify(mWakeupLock).isUnlocked();
         verifyDoesNotEnableWifi();
     }
 
@@ -492,5 +493,23 @@ public class WakeupControllerTest {
         verify(mWakeupLock, never()).isUnlocked();
         verify(mWakeupOnboarding, never()).maybeShowNotification();
         verify(mWakeupEvaluator, never()).findViableNetwork(any(), any());
+    }
+
+    @Test
+    public void userIsNotOnboardedByInitialization() {
+        initializeWakeupController(true /* enabled */);
+        verify(mWakeupOnboarding, never()).setOnboarded();
+    }
+
+    @Test
+    public void userIsOnboardedBySettingChange() {
+        initializeWakeupController(true /* enabled */);
+        ArgumentCaptor<ContentObserver> argumentCaptor =
+                ArgumentCaptor.forClass(ContentObserver.class);
+        verify(mFrameworkFacade).registerContentObserver(any(), any(), eq(true),
+                argumentCaptor.capture());
+        ContentObserver contentObserver = argumentCaptor.getValue();
+        contentObserver.onChange(false /* selfChange */);
+        verify(mWakeupOnboarding).setOnboarded();
     }
 }

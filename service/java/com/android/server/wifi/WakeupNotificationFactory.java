@@ -22,6 +22,7 @@ import android.content.Context;
 import android.content.Intent;
 
 import com.android.internal.R;
+import com.android.internal.messages.nano.SystemMessageProto.SystemMessage;
 import com.android.internal.notification.SystemNotificationChannels;
 
 
@@ -36,6 +37,9 @@ public class WakeupNotificationFactory {
             "com.android.server.wifi.wakeup.OPEN_WIFI_SETTINGS";
     public static final String ACTION_TURN_OFF_WIFI_WAKE =
             "com.android.server.wifi.wakeup.TURN_OFF_WIFI_WAKE";
+
+    /** Notification channel ID for onboarding messages. */
+    public static final int ONBOARD_ID = SystemMessage.NOTE_WIFI_WAKE_ONBOARD;
 
     private final Context mContext;
     private final FrameworkFacade mFrameworkFacade;
