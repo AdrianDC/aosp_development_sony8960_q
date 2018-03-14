@@ -330,10 +330,10 @@ public class HostapdHal {
      */
     private void hostapdServiceDiedHandler() {
         synchronized (mLock) {
+            clearState();
             if (mDeathEventHandler != null) {
                 mDeathEventHandler.onDeath();
             }
-            clearState();
         }
     }
 

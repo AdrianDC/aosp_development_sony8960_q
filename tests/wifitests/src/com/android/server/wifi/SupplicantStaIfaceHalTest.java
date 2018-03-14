@@ -272,6 +272,19 @@ public class SupplicantStaIfaceHalTest {
     }
 
     /**
+     * Ensures that reject addition of an existing iface.
+     */
+    @Test
+    public void testDuplicateSetupIfaceV1_1_Fails() throws Exception {
+        mISupplicantMockV1_1 = mock(android.hardware.wifi.supplicant.V1_1.ISupplicant.class);
+        executeAndValidateInitializationSequenceV1_1(false, false);
+
+        // Trying setting up the wlan0 interface again & ensure it fails.
+        assertFalse(mDut.setupIface(WLAN0_IFACE_NAME));
+        verifyNoMoreInteractions(mISupplicantMockV1_1);
+    }
+
+    /**
      * Sunny day scenario for SupplicantStaIfaceHal interface teardown.
      */
     @Test
@@ -298,6 +311,15 @@ public class SupplicantStaIfaceHalTest {
         // Ensure that the cancel wps operation is failed because there are no interfaces setup.
         assertFalse(mDut.cancelWps(WLAN0_IFACE_NAME));
         verify(mISupplicantStaIfaceMock, never()).cancelWps();
+    }
+
+    /**
+     * Ensures that we reject removal of an invalid iface.
+     */
+    @Test
+    public void testInvalidTeardownInterfaceV1_1_Fails() throws Exception {
+        assertFalse(mDut.teardownIface(WLAN0_IFACE_NAME));
+        verifyNoMoreInteractions(mISupplicantMock);
     }
 
     /**
