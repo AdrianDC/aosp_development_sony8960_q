@@ -47,12 +47,12 @@ public class WifiScoreReport {
     private int mSessionNumber = 0;
 
     ConnectedScore mAggressiveConnectedScore;
-    VelocityBasedConnectedScore mFancyConnectedScore;
+    VelocityBasedConnectedScore mVelocityBasedConnectedScore;
 
     WifiScoreReport(ScoringParams scoringParams, Clock clock) {
         mClock = clock;
         mAggressiveConnectedScore = new AggressiveConnectedScore(scoringParams, clock);
-        mFancyConnectedScore = new VelocityBasedConnectedScore(scoringParams, clock);
+        mVelocityBasedConnectedScore = new VelocityBasedConnectedScore(scoringParams, clock);
     }
 
     /**
@@ -74,7 +74,7 @@ public class WifiScoreReport {
             mReportValid = false;
         }
         mAggressiveConnectedScore.reset();
-        mFancyConnectedScore.reset();
+        mVelocityBasedConnectedScore.reset();
         if (mVerboseLoggingEnabled) Log.d(TAG, "reset");
     }
 
@@ -119,10 +119,10 @@ public class WifiScoreReport {
         }
 
         mAggressiveConnectedScore.updateUsingWifiInfo(wifiInfo, millis);
-        mFancyConnectedScore.updateUsingWifiInfo(wifiInfo, millis);
+        mVelocityBasedConnectedScore.updateUsingWifiInfo(wifiInfo, millis);
 
         int s1 = mAggressiveConnectedScore.generateScore();
-        int s2 = mFancyConnectedScore.generateScore();
+        int s2 = mVelocityBasedConnectedScore.generateScore();
 
         score = s2;
 
@@ -166,8 +166,8 @@ public class WifiScoreReport {
                                 int s1, int s2) {
         if (now < FIRST_REASONABLE_WALL_CLOCK) return;
         double rssi = wifiInfo.getRssi();
-        double filteredRssi = mFancyConnectedScore.getFilteredRssi();
-        double rssiThreshold = mFancyConnectedScore.getAdjustedRssiThreshold();
+        double filteredRssi = mVelocityBasedConnectedScore.getFilteredRssi();
+        double rssiThreshold = mVelocityBasedConnectedScore.getAdjustedRssiThreshold();
         int freq = wifiInfo.getFrequency();
         int linkSpeed = wifiInfo.getLinkSpeed();
         double txSuccessRate = wifiInfo.txSuccessRate;
