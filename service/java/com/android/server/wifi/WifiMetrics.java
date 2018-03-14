@@ -1333,8 +1333,7 @@ public class WifiMetrics {
      */
     public void incrementNumSupplicantCrashes() {
         synchronized (mLock) {
-            // TODO(b/71720421): Add metrics for supplicant crashes.
-            mWifiLogProto.numHalCrashes++;
+            mWifiLogProto.numSupplicantCrashes++;
         }
     }
 
@@ -1343,8 +1342,7 @@ public class WifiMetrics {
      */
     public void incrementNumHostapdCrashes() {
         synchronized (mLock) {
-            // TODO(b/71720421): Add metrics for hostapd crashes.
-            mWifiLogProto.numHalCrashes++;
+            mWifiLogProto.numHostapdCrashes++;
         }
     }
 
@@ -1367,12 +1365,11 @@ public class WifiMetrics {
     }
 
     /**
-     * Increment number of times the wifi on failed due to an error in wificond.
+     * Increment number of times the wifi on failed due to an error in supplicant.
      */
     public void incrementNumWifiOnFailureDueToSupplicant() {
         synchronized (mLock) {
-            // TODO(b/71720421): Add metrics for supplicant failure during startup.
-            mWifiLogProto.numWifiOnFailureDueToHal++;
+            mWifiLogProto.numWifiOnFailureDueToSupplicant++;
         }
     }
 
@@ -1797,10 +1794,16 @@ public class WifiMetrics {
                         + mWifiLogProto.numHalCrashes);
                 pw.println("mWifiLogProto.numWificondCrashes="
                         + mWifiLogProto.numWificondCrashes);
+                pw.println("mWifiLogProto.numSupplicantCrashes="
+                        + mWifiLogProto.numSupplicantCrashes);
+                pw.println("mWifiLogProto.numHostapdCrashes="
+                        + mWifiLogProto.numHostapdCrashes);
                 pw.println("mWifiLogProto.numWifiOnFailureDueToHal="
                         + mWifiLogProto.numWifiOnFailureDueToHal);
                 pw.println("mWifiLogProto.numWifiOnFailureDueToWificond="
                         + mWifiLogProto.numWifiOnFailureDueToWificond);
+                pw.println("mWifiLogProto.numWifiOnFailureDueToSupplicant="
+                        + mWifiLogProto.numWifiOnFailureDueToSupplicant);
                 pw.println("StaEventList:");
                 for (StaEventWithTime event : mStaEventList) {
                     pw.println(event);
