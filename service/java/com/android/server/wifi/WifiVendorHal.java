@@ -189,9 +189,7 @@ public class WifiVendorHal {
      */
     private WifiLog.LogMessage enter(String format) {
         if (mVerboseLog == sNoLog) return sNoLog.info(format);
-        Thread cur = Thread.currentThread();
-        StackTraceElement[] trace = cur.getStackTrace();
-        return mVerboseLog.trace("% " + format).c(trace[3].getMethodName());
+        return mVerboseLog.trace(format, 1);
     }
 
     /**
@@ -201,7 +199,7 @@ public class WifiVendorHal {
      *
      * @param trace, fo example obtained by Thread.currentThread().getStackTrace()
      * @param start  frame number to log, typically 3
-     * @return string cotaining the method name and line number
+     * @return string containing the method name and line number
      */
     private static String niceMethodName(StackTraceElement[] trace, int start) {
         if (start >= trace.length) return "";
@@ -2454,7 +2452,7 @@ public class WifiVendorHal {
                         val = StaRoamingState.ENABLED;
                         break;
                     default:
-                        mLog.err("enableFirmwareRoaming invalid argument " + state).flush();
+                        mLog.err("enableFirmwareRoaming invalid argument %").c(state).flush();
                         return WifiStatusCode.ERROR_INVALID_ARGS;
                 }
 
