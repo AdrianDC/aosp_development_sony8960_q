@@ -796,12 +796,12 @@ public class WifiNative {
         synchronized (mLock) {
             if (!startHal()) {
                 Log.e(TAG, "Failed to start Hal");
-                mWifiMetrics.incrementNumWifiOnFailureDueToHal();
+                mWifiMetrics.incrementNumSetupClientInterfaceFailureDueToHal();
                 return null;
             }
             if (!startSupplicant()) {
                 Log.e(TAG, "Failed to start supplicant");
-                mWifiMetrics.incrementNumWifiOnFailureDueToSupplicant();
+                mWifiMetrics.incrementNumSetupClientInterfaceFailureDueToSupplicant();
                 return null;
             }
             Iface iface = mIfaceMgr.allocateIface(Iface.IFACE_TYPE_STA);
@@ -814,19 +814,19 @@ public class WifiNative {
             if (TextUtils.isEmpty(iface.name)) {
                 Log.e(TAG, "Failed to create STA iface in vendor HAL");
                 mIfaceMgr.removeIface(iface.id);
-                mWifiMetrics.incrementNumWifiOnFailureDueToHal();
+                mWifiMetrics.incrementNumSetupClientInterfaceFailureDueToHal();
                 return null;
             }
             if (mWificondControl.setupInterfaceForClientMode(iface.name) == null) {
                 Log.e(TAG, "Failed to setup iface in wificond on " + iface);
                 teardownInterface(iface.name);
-                mWifiMetrics.incrementNumWifiOnFailureDueToWificond();
+                mWifiMetrics.incrementNumSetupClientInterfaceFailureDueToWificond();
                 return null;
             }
             if (!mSupplicantStaIfaceHal.setupIface(iface.name)) {
                 Log.e(TAG, "Failed to setup iface in supplicant on " + iface);
                 teardownInterface(iface.name);
-                mWifiMetrics.incrementNumWifiOnFailureDueToSupplicant();
+                mWifiMetrics.incrementNumSetupClientInterfaceFailureDueToSupplicant();
                 return null;
             }
             iface.networkObserver = new NetworkObserverInternal(iface.id);
@@ -857,7 +857,7 @@ public class WifiNative {
         synchronized (mLock) {
             if (!startHal()) {
                 Log.e(TAG, "Failed to start Hal");
-                mWifiMetrics.incrementNumWifiOnFailureDueToHal();
+                mWifiMetrics.incrementNumSetupSoftApInterfaceFailureDueToHal();
                 return null;
             }
             Iface iface = mIfaceMgr.allocateIface(Iface.IFACE_TYPE_AP);
@@ -870,15 +870,13 @@ public class WifiNative {
             if (TextUtils.isEmpty(iface.name)) {
                 Log.e(TAG, "Failed to create AP iface in vendor HAL");
                 mIfaceMgr.removeIface(iface.id);
-                // TODO(b/68716726): Separate SoftAp metrics
-                mWifiMetrics.incrementNumWifiOnFailureDueToHal();
+                mWifiMetrics.incrementNumSetupSoftApInterfaceFailureDueToHal();
                 return null;
             }
             if (mWificondControl.setupInterfaceForSoftApMode(iface.name) == null) {
                 Log.e(TAG, "Failed to setup iface in wificond on " + iface);
                 teardownInterface(iface.name);
-                // TODO(b/68716726): Separate SoftAp metrics
-                mWifiMetrics.incrementNumWifiOnFailureDueToWificond();
+                mWifiMetrics.incrementNumSetupSoftApInterfaceFailureDueToWificond();
                 return null;
             }
             iface.networkObserver = new NetworkObserverInternal(iface.id);
@@ -1198,18 +1196,22 @@ public class WifiNative {
             @NonNull String ifaceName, WifiConfiguration config, SoftApListener listener) {
         if (!mWificondControl.startHostapd(ifaceName, listener)) {
             Log.e(TAG, "Failed to start hostapd");
+            mWifiMetrics.incrementNumSetupSoftApInterfaceFailureDueToHostapd();
             return false;
         }
         if (!waitForHostapdConnection()) {
             Log.e(TAG, "Failed to establish connection to hostapd");
+            mWifiMetrics.incrementNumSetupSoftApInterfaceFailureDueToHostapd();
             return false;
         }
         if (!mHostapdHal.registerDeathHandler(new HostapdDeathHandlerInternal())) {
             Log.e(TAG, "Failed to register hostapd death handler");
+            mWifiMetrics.incrementNumSetupSoftApInterfaceFailureDueToHostapd();
             return false;
         }
         if (!mHostapdHal.addAccessPoint(ifaceName, config)) {
             Log.e(TAG, "Failed to add acccess point");
+            mWifiMetrics.incrementNumSetupSoftApInterfaceFailureDueToHostapd();
             return false;
         }
         return true;

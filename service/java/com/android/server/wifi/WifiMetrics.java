@@ -1349,27 +1349,54 @@ public class WifiMetrics {
     /**
      * Increment number of times the wifi on failed due to an error in HAL.
      */
-    public void incrementNumWifiOnFailureDueToHal() {
+    public void incrementNumSetupClientInterfaceFailureDueToHal() {
         synchronized (mLock) {
-            mWifiLogProto.numWifiOnFailureDueToHal++;
+            mWifiLogProto.numSetupClientInterfaceFailureDueToHal++;
         }
     }
 
     /**
      * Increment number of times the wifi on failed due to an error in wificond.
      */
-    public void incrementNumWifiOnFailureDueToWificond() {
+    public void incrementNumSetupClientInterfaceFailureDueToWificond() {
         synchronized (mLock) {
-            mWifiLogProto.numWifiOnFailureDueToWificond++;
+            mWifiLogProto.numSetupClientInterfaceFailureDueToWificond++;
         }
     }
 
     /**
      * Increment number of times the wifi on failed due to an error in supplicant.
      */
-    public void incrementNumWifiOnFailureDueToSupplicant() {
+    public void incrementNumSetupClientInterfaceFailureDueToSupplicant() {
         synchronized (mLock) {
-            mWifiLogProto.numWifiOnFailureDueToSupplicant++;
+            mWifiLogProto.numSetupClientInterfaceFailureDueToSupplicant++;
+        }
+    }
+
+    /**
+     * Increment number of times the SoftAp on failed due to an error in HAL.
+     */
+    public void incrementNumSetupSoftApInterfaceFailureDueToHal() {
+        synchronized (mLock) {
+            mWifiLogProto.numSetupSoftApInterfaceFailureDueToHal++;
+        }
+    }
+
+    /**
+     * Increment number of times the SoftAp on failed due to an error in wificond.
+     */
+    public void incrementNumSetupSoftApInterfaceFailureDueToWificond() {
+        synchronized (mLock) {
+            mWifiLogProto.numSetupSoftApInterfaceFailureDueToWificond++;
+        }
+    }
+
+    /**
+     * Increment number of times the SoftAp on failed due to an error in hostapd.
+     */
+    public void incrementNumSetupSoftApInterfaceFailureDueToHostapd() {
+        synchronized (mLock) {
+            mWifiLogProto.numSetupSoftApInterfaceFailureDueToHostapd++;
         }
     }
 
@@ -1798,12 +1825,18 @@ public class WifiMetrics {
                         + mWifiLogProto.numSupplicantCrashes);
                 pw.println("mWifiLogProto.numHostapdCrashes="
                         + mWifiLogProto.numHostapdCrashes);
-                pw.println("mWifiLogProto.numWifiOnFailureDueToHal="
-                        + mWifiLogProto.numWifiOnFailureDueToHal);
-                pw.println("mWifiLogProto.numWifiOnFailureDueToWificond="
-                        + mWifiLogProto.numWifiOnFailureDueToWificond);
-                pw.println("mWifiLogProto.numWifiOnFailureDueToSupplicant="
-                        + mWifiLogProto.numWifiOnFailureDueToSupplicant);
+                pw.println("mWifiLogProto.numSetupClientInterfaceFailureDueToHal="
+                        + mWifiLogProto.numSetupClientInterfaceFailureDueToHal);
+                pw.println("mWifiLogProto.numSetupClientInterfaceFailureDueToWificond="
+                        + mWifiLogProto.numSetupClientInterfaceFailureDueToWificond);
+                pw.println("mWifiLogProto.numSetupClientInterfaceFailureDueToSupplicant="
+                        + mWifiLogProto.numSetupClientInterfaceFailureDueToSupplicant);
+                pw.println("mWifiLogProto.numSetupSoftApInterfaceFailureDueToHal="
+                        + mWifiLogProto.numSetupSoftApInterfaceFailureDueToHal);
+                pw.println("mWifiLogProto.numSetupSoftApInterfaceFailureDueToWificond="
+                        + mWifiLogProto.numSetupSoftApInterfaceFailureDueToWificond);
+                pw.println("mWifiLogProto.numSetupSoftApInterfaceFailureDueToHostapd="
+                        + mWifiLogProto.numSetupSoftApInterfaceFailureDueToHostapd);
                 pw.println("StaEventList:");
                 for (StaEventWithTime event : mStaEventList) {
                     pw.println(event);
