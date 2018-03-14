@@ -97,6 +97,11 @@ status_t PrivateVolume::doDestroy() {
 }
 
 status_t PrivateVolume::doMount() {
+    if (!WaitForFile(mDmDevPath, 15s)) {
+        PLOG(ERROR) << "Timed out waiting for " << getId();
+        return -EIO;
+    }
+
     if (readMetadata()) {
         LOG(ERROR) << getId() << " failed to read metadata";
         return -EIO;
