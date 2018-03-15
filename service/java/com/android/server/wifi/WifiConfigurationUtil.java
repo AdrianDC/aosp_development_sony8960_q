@@ -357,11 +357,53 @@ public class WifiConfigurationUtil {
         return true;
     }
 
-    private static boolean validateKeyMgmt(BitSet keyMgmnt) {
-        if (keyMgmnt == null) {
-            Log.e(TAG, "validateKeyMgmt failed: null bitset");
+    private static boolean validateBitSet(BitSet bitSet, int validValuesLength) {
+        if (bitSet == null) return false;
+        BitSet clonedBitset = (BitSet) bitSet.clone();
+        clonedBitset.clear(0, validValuesLength);
+        return clonedBitset.isEmpty();
+    }
+
+    private static boolean validateBitSets(WifiConfiguration config) {
+        // 1. Check |allowedKeyManagement|.
+        if (!validateBitSet(config.allowedKeyManagement,
+                WifiConfiguration.KeyMgmt.strings.length)) {
+            Log.e(TAG, "validateBitsets failed: invalid allowedKeyManagement bitset "
+                    + config.allowedKeyManagement);
             return false;
         }
+        // 2. Check |allowedProtocols|.
+        if (!validateBitSet(config.allowedProtocols,
+                WifiConfiguration.Protocol.strings.length)) {
+            Log.e(TAG, "validateBitsets failed: invalid allowedProtocols bitset "
+                    + config.allowedProtocols);
+            return false;
+        }
+        // 3. Check |allowedAuthAlgorithms|.
+        if (!validateBitSet(config.allowedAuthAlgorithms,
+                WifiConfiguration.AuthAlgorithm.strings.length)) {
+            Log.e(TAG, "validateBitsets failed: invalid allowedAuthAlgorithms bitset "
+                    + config.allowedAuthAlgorithms);
+            return false;
+        }
+        // 4. Check |allowedGroupCiphers|.
+        if (!validateBitSet(config.allowedGroupCiphers,
+                WifiConfiguration.GroupCipher.strings.length)) {
+            Log.e(TAG, "validateBitsets failed: invalid allowedGroupCiphers bitset "
+                    + config.allowedGroupCiphers);
+            return false;
+        }
+        // 5. Check |allowedPairwiseCiphers|.
+        if (!validateBitSet(config.allowedPairwiseCiphers,
+                WifiConfiguration.PairwiseCipher.strings.length)) {
+            Log.e(TAG, "validateBitsets failed: invalid allowedPairwiseCiphers bitset "
+                    + config.allowedPairwiseCiphers);
+            return false;
+        }
+        return true;
+    }
+
+    private static boolean validateKeyMgmt(BitSet keyMgmnt) {
         if (keyMgmnt.cardinality() > 1) {
             if (keyMgmnt.cardinality() != 2) {
                 Log.e(TAG, "validateKeyMgmt failed: cardinality != 2");
@@ -412,7 +454,11 @@ public class WifiConfigurationUtil {
      * 1. {@link WifiConfiguration#SSID}
      * 2. {@link WifiConfiguration#preSharedKey}
      * 3. {@link WifiConfiguration#allowedKeyManagement}
-     * 4. {@link WifiConfiguration#getIpConfiguration()}
+     * 4. {@link WifiConfiguration#allowedProtocols}
+     * 5. {@link WifiConfiguration#allowedAuthAlgorithms}
+     * 6. {@link WifiConfiguration#allowedGroupCiphers}
+     * 7. {@link WifiConfiguration#allowedPairwiseCiphers}
+     * 8. {@link WifiConfiguration#getIpConfiguration()}
      *
      * @param config {@link WifiConfiguration} received from an external application.
      * @param isAdd {@link #VALIDATE_FOR_ADD} to indicate a network config received for an add,
@@ -423,6 +469,9 @@ public class WifiConfigurationUtil {
      */
     public static boolean validate(WifiConfiguration config, boolean isAdd) {
         if (!validateSsid(config.SSID, isAdd)) {
+            return false;
+        }
+        if (!validateBitSets(config)) {
             return false;
         }
         if (!validateKeyMgmt(config.allowedKeyManagement)) {
