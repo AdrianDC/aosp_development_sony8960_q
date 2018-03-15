@@ -1144,6 +1144,16 @@ public class WifiMetrics {
     }
 
     /**
+     * Sets the time taken for wifi to connect after a watchdog triggers a restart.
+     * @param milliseconds
+     */
+    public void setWatchdogSuccessTimeDurationMs(long ms) {
+        synchronized (mLock) {
+            mWifiLogProto.watchdogTriggerToConnectionSuccessDurationMs = ms;
+        }
+    }
+
+    /**
      * Increments the count of alerts by alert reason.
      *
      * @param reason The cause of the alert. The reason values are driver-specific.

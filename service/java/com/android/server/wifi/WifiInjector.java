@@ -284,8 +284,8 @@ public class WifiInjector {
                 mSettingsStore, mWifiServiceHandlerThread.getLooper(), mFrameworkFacade,
                 mWifiStateMachinePrime);
         mSelfRecovery = new SelfRecovery(mWifiController, mClock);
-        mWifiLastResortWatchdog = new WifiLastResortWatchdog(mSelfRecovery, mWifiMetrics,
-                mWifiStateMachine, wifiStateMachineLooper);
+        mWifiLastResortWatchdog = new WifiLastResortWatchdog(mSelfRecovery, mClock,
+                mWifiMetrics, mWifiStateMachine, wifiStateMachineLooper);
         mWifiMulticastLockManager = new WifiMulticastLockManager(
                 mWifiStateMachine.getMcastLockManagerFilterController(),
                 BatteryStatsService.getService());
