@@ -2316,7 +2316,7 @@ public class WifiMetrics {
                 break;
             case WifiMonitor.AUTHENTICATION_FAILURE_EVENT:
                 event.type = StaEvent.TYPE_AUTHENTICATION_FAILURE_EVENT;
-                switch (msg.arg2) {
+                switch (msg.arg1) {
                     case WifiManager.ERROR_AUTH_FAILURE_NONE:
                         event.authFailureReason = StaEvent.AUTH_FAILURE_NONE;
                         break;

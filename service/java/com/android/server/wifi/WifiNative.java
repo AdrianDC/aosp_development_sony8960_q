@@ -1507,6 +1507,11 @@ public class WifiNative {
     public static final String SIM_AUTH_RESP_TYPE_UMTS_AUTS = "UMTS-AUTS";
 
     /**
+     * EAP-SIM Error Codes
+     */
+    public static final int EAP_SIM_VENDOR_SPECIFIC_CERT_EXPIRED = 16385;
+
+    /**
      * Send the sim auth response for the currently configured network.
      *
      * @param ifaceName Name of the interface.

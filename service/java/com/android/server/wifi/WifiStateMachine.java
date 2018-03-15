@@ -4307,7 +4307,7 @@ public class WifiStateMachine extends StateMachine {
                     int disableReason = WifiConfiguration.NetworkSelectionStatus
                             .DISABLED_AUTHENTICATION_FAILURE;
                     // Check if this is a permanent wrong password failure.
-                    if (isPermanentWrongPasswordFailure(mTargetNetworkId, message.arg2)) {
+                    if (isPermanentWrongPasswordFailure(mTargetNetworkId, message.arg1)) {
                         disableReason = WifiConfiguration.NetworkSelectionStatus
                                 .DISABLED_BY_WRONG_PASSWORD;
                         WifiConfiguration targetedNetwork =

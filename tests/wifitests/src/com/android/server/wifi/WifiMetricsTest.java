@@ -1220,15 +1220,15 @@ public class WifiMetricsTest {
     private final WifiConfiguration mTestWifiConfig = createComplexWifiConfig();
     // <msg.what> <msg.arg1> <msg.arg2>
     private int[][] mTestStaMessageInts = {
-        {WifiMonitor.ASSOCIATION_REJECTION_EVENT,   ASSOC_TIMEOUT,      ASSOC_STATUS},
-        {WifiMonitor.AUTHENTICATION_FAILURE_EVENT,  0,                  AUTH_FAILURE_REASON},
-        {WifiMonitor.NETWORK_CONNECTION_EVENT,      0,                  0},
-        {WifiMonitor.NETWORK_DISCONNECTION_EVENT,   LOCAL_GEN,          DEAUTH_REASON},
-        {WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0,                  0},
-        {WifiStateMachine.CMD_ASSOCIATED_BSSID,     0,                  0},
-        {WifiStateMachine.CMD_TARGET_BSSID,         0,                  0},
-        {WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0,                  0},
-        {WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0,                  0}
+        {WifiMonitor.ASSOCIATION_REJECTION_EVENT,   ASSOC_TIMEOUT,       ASSOC_STATUS},
+        {WifiMonitor.AUTHENTICATION_FAILURE_EVENT,  AUTH_FAILURE_REASON, -1},
+        {WifiMonitor.NETWORK_CONNECTION_EVENT,      0,                   0},
+        {WifiMonitor.NETWORK_DISCONNECTION_EVENT,   LOCAL_GEN,           DEAUTH_REASON},
+        {WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0,                   0},
+        {WifiStateMachine.CMD_ASSOCIATED_BSSID,     0,                   0},
+        {WifiStateMachine.CMD_TARGET_BSSID,         0,                   0},
+        {WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0,                   0},
+        {WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0,                   0}
     };
     private Object[] mTestStaMessageObjs = {
         null,

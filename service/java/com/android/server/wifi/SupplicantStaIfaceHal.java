@@ -286,13 +286,28 @@ public class SupplicantStaIfaceHal {
             Log.e(TAG, "setupIface got null iface");
             return false;
         }
-        ISupplicantStaIface iface = getStaIfaceMockable(ifaceHwBinder);
-        ISupplicantStaIfaceCallback callback = new SupplicantStaIfaceHalCallback(ifaceName);
-        if (!registerCallback(iface, callback)) {
-            return false;
+        SupplicantStaIfaceHalCallback callback = new SupplicantStaIfaceHalCallback(ifaceName);
+
+        if (isV1_1()) {
+            android.hardware.wifi.supplicant.V1_1.ISupplicantStaIface iface =
+                getStaIfaceMockableV1_1(ifaceHwBinder);
+            SupplicantStaIfaceHalCallbackV1_1 callbackV1_1 =
+                new SupplicantStaIfaceHalCallbackV1_1(ifaceName, callback);
+
+            if (!registerCallbackV1_1(iface, callbackV1_1)) {
+                return false;
+            }
+            mISupplicantStaIfaces.put(ifaceName, iface);
+            mISupplicantStaIfaceCallbacks.put(ifaceName, callbackV1_1);
+        } else {
+            ISupplicantStaIface iface = getStaIfaceMockable(ifaceHwBinder);
+
+            if (!registerCallback(iface, callback)) {
+                return false;
+            }
+            mISupplicantStaIfaces.put(ifaceName, iface);
+            mISupplicantStaIfaceCallbacks.put(ifaceName, callback);
         }
-        mISupplicantStaIfaces.put(ifaceName, iface);
-        mISupplicantStaIfaceCallbacks.put(ifaceName, callback);
         return true;
     }
 
@@ -554,6 +569,14 @@ public class SupplicantStaIfaceHal {
     protected ISupplicantStaIface getStaIfaceMockable(ISupplicantIface iface) {
         synchronized (mLock) {
             return ISupplicantStaIface.asInterface(iface.asBinder());
+        }
+    }
+
+    protected android.hardware.wifi.supplicant.V1_1.ISupplicantStaIface
+            getStaIfaceMockableV1_1(ISupplicantIface iface) {
+        synchronized (mLock) {
+            return android.hardware.wifi.supplicant.V1_1.ISupplicantStaIface.
+                    asInterface(iface.asBinder());
         }
     }
 
@@ -1085,6 +1108,23 @@ public class SupplicantStaIfaceHal {
             if (iface == null) return false;
             try {
                 SupplicantStatus status =  iface.registerCallback(callback);
+                return checkStatusAndLogFailure(status, methodStr);
+            } catch (RemoteException e) {
+                handleRemoteException(e, methodStr);
+                return false;
+            }
+        }
+    }
+
+    private boolean registerCallbackV1_1(
+            android.hardware.wifi.supplicant.V1_1.ISupplicantStaIface iface,
+            android.hardware.wifi.supplicant.V1_1.ISupplicantStaIfaceCallback callback) {
+        synchronized (mLock) {
+            String methodStr = "registerCallback_1_1";
+
+            if (iface == null) return false;
+            try {
+                SupplicantStatus status =  iface.registerCallback_1_1(callback);
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -2398,11 +2438,7 @@ public class SupplicantStaIfaceHal {
                 if (mStateIsFourway
                         && (!locallyGenerated || reasonCode != ReasonCode.IE_IN_4WAY_DIFFERS)) {
                     mWifiMonitor.broadcastAuthenticationFailureEvent(
-                            mIfaceName, WifiManager.ERROR_AUTH_FAILURE_WRONG_PSWD);
-                }
-                if (reasonCode == ReasonCode.IEEE_802_1X_AUTH_FAILED) {
-                    mWifiMonitor.broadcastAuthenticationFailureEvent(
-                            mIfaceName, WifiManager.ERROR_AUTH_FAILURE_EAP_FAILURE);
+                            mIfaceName, WifiManager.ERROR_AUTH_FAILURE_WRONG_PSWD, -1);
                 }
                 mWifiMonitor.broadcastNetworkDisconnectionEvent(
                         mIfaceName, locallyGenerated ? 1 : 0, reasonCode,
@@ -2424,7 +2460,7 @@ public class SupplicantStaIfaceHal {
             synchronized (mLock) {
                 logCallback("onAuthenticationTimeout");
                 mWifiMonitor.broadcastAuthenticationFailureEvent(
-                        mIfaceName, WifiManager.ERROR_AUTH_FAILURE_TIMEOUT);
+                        mIfaceName, WifiManager.ERROR_AUTH_FAILURE_TIMEOUT, -1);
             }
         }
 
@@ -2447,7 +2483,7 @@ public class SupplicantStaIfaceHal {
             synchronized (mLock) {
                 logCallback("onEapFailure");
                 mWifiMonitor.broadcastAuthenticationFailureEvent(
-                        mIfaceName, WifiManager.ERROR_AUTH_FAILURE_EAP_FAILURE);
+                        mIfaceName, WifiManager.ERROR_AUTH_FAILURE_EAP_FAILURE, -1);
             }
         }
 
@@ -2492,6 +2528,120 @@ public class SupplicantStaIfaceHal {
             synchronized (mLock) {
                 logCallback("onExtRadioWorkTimeout");
             }
+        }
+    }
+
+    private class SupplicantStaIfaceHalCallbackV1_1 extends
+            android.hardware.wifi.supplicant.V1_1.ISupplicantStaIfaceCallback.Stub {
+        private String mIfaceName;
+        private SupplicantStaIfaceHalCallback mCallbackV1_0;
+
+        SupplicantStaIfaceHalCallbackV1_1(@NonNull String ifaceName,
+                @NonNull SupplicantStaIfaceHalCallback callback) {
+            mIfaceName = ifaceName;
+            mCallbackV1_0 = callback;
+        }
+
+        @Override
+        public void onNetworkAdded(int id) {
+            mCallbackV1_0.onNetworkAdded(id);
+        }
+
+        @Override
+        public void onNetworkRemoved(int id) {
+            mCallbackV1_0.onNetworkRemoved(id);
+        }
+
+        @Override
+        public void onStateChanged(int newState, byte[/* 6 */] bssid, int id,
+                                   ArrayList<Byte> ssid) {
+            mCallbackV1_0.onStateChanged(newState, bssid, id, ssid);
+        }
+
+        @Override
+        public void onAnqpQueryDone(byte[/* 6 */] bssid,
+                                    ISupplicantStaIfaceCallback.AnqpData data,
+                                    ISupplicantStaIfaceCallback.Hs20AnqpData hs20Data) {
+            mCallbackV1_0.onAnqpQueryDone(bssid, data, hs20Data);
+        }
+
+        @Override
+        public void onHs20IconQueryDone(byte[/* 6 */] bssid, String fileName,
+                                        ArrayList<Byte> data) {
+            mCallbackV1_0.onHs20IconQueryDone(bssid, fileName, data);
+        }
+
+        @Override
+        public void onHs20SubscriptionRemediation(byte[/* 6 */] bssid,
+                                                  byte osuMethod, String url) {
+            mCallbackV1_0.onHs20SubscriptionRemediation(bssid, osuMethod, url);
+        }
+
+        @Override
+        public void onHs20DeauthImminentNotice(byte[/* 6 */] bssid, int reasonCode,
+                                               int reAuthDelayInSec, String url) {
+            mCallbackV1_0.onHs20DeauthImminentNotice(bssid, reasonCode, reAuthDelayInSec, url);
+        }
+
+        @Override
+        public void onDisconnected(byte[/* 6 */] bssid, boolean locallyGenerated,
+                                   int reasonCode) {
+            mCallbackV1_0.onDisconnected(bssid, locallyGenerated, reasonCode);
+        }
+
+        @Override
+        public void onAssociationRejected(byte[/* 6 */] bssid, int statusCode,
+                                          boolean timedOut) {
+            mCallbackV1_0.onAssociationRejected(bssid, statusCode, timedOut);
+        }
+
+        @Override
+        public void onAuthenticationTimeout(byte[/* 6 */] bssid) {
+            mCallbackV1_0.onAuthenticationTimeout(bssid);
+        }
+
+        @Override
+        public void onBssidChanged(byte reason, byte[/* 6 */] bssid) {
+            mCallbackV1_0.onBssidChanged(reason, bssid);
+        }
+
+        @Override
+        public void onEapFailure() {
+            mCallbackV1_0.onEapFailure();
+        }
+
+        @Override
+        public void onEapFailure_1_1(int code) {
+            synchronized (mLock) {
+                logCallback("onEapFailure_1_1");
+                mWifiMonitor.broadcastAuthenticationFailureEvent(
+                        mIfaceName, WifiManager.ERROR_AUTH_FAILURE_EAP_FAILURE, code);
+            }
+        }
+
+        @Override
+        public void onWpsEventSuccess() {
+            mCallbackV1_0.onWpsEventSuccess();
+        }
+
+        @Override
+        public void onWpsEventFail(byte[/* 6 */] bssid, short configError, short errorInd) {
+            mCallbackV1_0.onWpsEventFail(bssid, configError, errorInd);
+        }
+
+        @Override
+        public void onWpsEventPbcOverlap() {
+            mCallbackV1_0.onWpsEventPbcOverlap();
+        }
+
+        @Override
+        public void onExtRadioWorkStart(int id) {
+            mCallbackV1_0.onExtRadioWorkStart(id);
+        }
+
+        @Override
+        public void onExtRadioWorkTimeout(int id) {
+            mCallbackV1_0.onExtRadioWorkTimeout(id);
         }
     }
 
