@@ -37,14 +37,12 @@ public class SelfRecovery {
      * Reason codes for the various recovery triggers.
      */
     public static final int REASON_LAST_RESORT_WATCHDOG = 0;
-    public static final int REASON_HAL_CRASH = 1;
-    public static final int REASON_WIFICOND_CRASH = 2;
+    public static final int REASON_WIFINATIVE_FAILURE = 1;
     public static final long MAX_RESTARTS_IN_TIME_WINDOW = 2; // 2 restarts per hour
     public static final long MAX_RESTARTS_TIME_WINDOW_MILLIS = 60 * 60 * 1000; // 1 hour
     protected static final String[] REASON_STRINGS = {
             "Last Resort Watchdog", // REASON_LAST_RESORT_WATCHDOG
-            "Hal Crash",            // REASON_HAL_CRASH
-            "Wificond Crash"        // REASON_WIFICOND_CRASH
+            "WifiNative Failure"    // REASON_WIFINATIVE_FAILURE
     };
 
     private final WifiController mWifiController;
@@ -67,13 +65,12 @@ public class SelfRecovery {
      * @param reason One of the above |REASON_*| codes.
      */
     public void trigger(int reason) {
-        if (!(reason == REASON_LAST_RESORT_WATCHDOG || reason == REASON_HAL_CRASH
-                || reason == REASON_WIFICOND_CRASH)) {
+        if (!(reason == REASON_LAST_RESORT_WATCHDOG || reason == REASON_WIFINATIVE_FAILURE)) {
             Log.e(TAG, "Invalid trigger reason. Ignoring...");
             return;
         }
         Log.e(TAG, "Triggering recovery for reason: " + REASON_STRINGS[reason]);
-        if (reason == REASON_WIFICOND_CRASH || reason == REASON_HAL_CRASH) {
+        if (reason == REASON_WIFINATIVE_FAILURE) {
             trimPastRestartTimes();
             // Ensure there haven't been too many restarts within MAX_RESTARTS_TIME_WINDOW
             if (mPastRestartTimes.size() >= MAX_RESTARTS_IN_TIME_WINDOW) {

@@ -402,7 +402,7 @@ public class WifiControllerTest {
     @Test
     public void testRestartWifiStackInStaEnabledStateTriggersBugReport() throws Exception {
         enableWifi();
-        mWifiController.sendMessage(CMD_RESTART_WIFI, SelfRecovery.REASON_HAL_CRASH);
+        mWifiController.sendMessage(CMD_RESTART_WIFI, SelfRecovery.REASON_WIFINATIVE_FAILURE);
         mLooper.dispatchAll();
         verify(mWifiStateMachine).takeBugReport(anyString(), anyString());
     }
