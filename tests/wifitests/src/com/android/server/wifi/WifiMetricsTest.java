@@ -291,6 +291,8 @@ public class WifiMetricsTest {
 
     private static final int NUM_SOFT_AP_EVENT_ENTRIES = 3;
     private static final int NUM_SOFT_AP_ASSOCIATED_STATIONS = 3;
+    private static final int SOFT_AP_CHANNEL_FREQUENCY = 2437;
+    private static final int SOFT_AP_CHANNEL_BANDWIDTH = SoftApConnectedClientsEvent.BANDWIDTH_20;
 
     private ScanDetail buildMockScanDetail(boolean hidden, NetworkDetail.HSRelease hSRelease,
             String capabilities) {
@@ -619,7 +621,9 @@ public class WifiMetricsTest {
         mWifiMetrics.addSoftApNumAssociatedStationsChangedEvent(NUM_SOFT_AP_ASSOCIATED_STATIONS,
                 WifiManager.IFACE_IP_MODE_UNSPECIFIED);  // Should be dropped.
         mWifiMetrics.addSoftApUpChangedEvent(false, WifiManager.IFACE_IP_MODE_TETHERED);
-
+        // Channel switch info should be added to the last Soft AP UP event in the list
+        mWifiMetrics.addSoftApChannelSwitchedEvent(SOFT_AP_CHANNEL_FREQUENCY,
+                SOFT_AP_CHANNEL_BANDWIDTH, WifiManager.IFACE_IP_MODE_TETHERED);
         mWifiMetrics.addSoftApUpChangedEvent(true, WifiManager.IFACE_IP_MODE_LOCAL_ONLY);
         mWifiMetrics.addSoftApNumAssociatedStationsChangedEvent(NUM_SOFT_AP_ASSOCIATED_STATIONS,
                 WifiManager.IFACE_IP_MODE_LOCAL_ONLY);
@@ -634,6 +638,10 @@ public class WifiMetricsTest {
         assertEquals(SoftApConnectedClientsEvent.SOFT_AP_UP,
                 mDecodedProto.softApConnectedClientsEventsTethered[0].eventType);
         assertEquals(0, mDecodedProto.softApConnectedClientsEventsTethered[0].numConnectedClients);
+        assertEquals(SOFT_AP_CHANNEL_FREQUENCY,
+                mDecodedProto.softApConnectedClientsEventsTethered[0].channelFrequency);
+        assertEquals(SOFT_AP_CHANNEL_BANDWIDTH,
+                mDecodedProto.softApConnectedClientsEventsTethered[0].channelBandwidth);
         assertEquals(SoftApConnectedClientsEvent.NUM_CLIENTS_CHANGED,
                 mDecodedProto.softApConnectedClientsEventsTethered[1].eventType);
         assertEquals(NUM_SOFT_AP_ASSOCIATED_STATIONS,

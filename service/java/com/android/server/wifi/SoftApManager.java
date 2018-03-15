@@ -89,6 +89,12 @@ public class SoftApManager implements ActiveModeManager {
             mStateMachine.sendMessage(
                     SoftApStateMachine.CMD_NUM_ASSOCIATED_STATIONS_CHANGED, numStations);
         }
+
+        @Override
+        public void onSoftApChannelSwitched(int frequency, int bandwidth) {
+            mStateMachine.sendMessage(
+                    SoftApStateMachine.CMD_SOFT_AP_CHANNEL_SWITCHED, frequency, bandwidth);
+        }
     };
 
     public SoftApManager(@NonNull Context context,
@@ -221,6 +227,7 @@ public class SoftApManager implements ActiveModeManager {
         public static final int CMD_TIMEOUT_TOGGLE_CHANGED = 6;
         public static final int CMD_INTERFACE_DESTROYED = 7;
         public static final int CMD_INTERFACE_DOWN = 8;
+        public static final int CMD_SOFT_AP_CHANNEL_SWITCHED = 9;
 
         private final State mIdleState = new IdleState();
         private final State mStartedState = new StartedState();
@@ -472,6 +479,12 @@ public class SoftApManager implements ActiveModeManager {
                         }
                         Log.d(TAG, "Setting num stations on CMD_NUM_ASSOCIATED_STATIONS_CHANGED");
                         setNumAssociatedStations(message.arg1);
+                        break;
+                    case CMD_SOFT_AP_CHANNEL_SWITCHED:
+                        Log.d(TAG, "Channel switched. Frequency: " + message.arg1 + " Bandwidth: "
+                                + message.arg2);
+                        mWifiMetrics.addSoftApChannelSwitchedEvent(message.arg1, message.arg2,
+                                mMode);
                         break;
                     case CMD_TIMEOUT_TOGGLE_CHANGED:
                         boolean isEnabled = (message.arg1 == 1);
