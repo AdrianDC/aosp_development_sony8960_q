@@ -66,6 +66,7 @@ public class WifiScoreReportTest {
     WifiScoreReport mWifiScoreReport;
     ScanDetailCache mScanDetailCache;
     WifiInfo mWifiInfo;
+    ScoringParams mScoringParams;
     @Mock Context mContext;
     @Mock NetworkAgent mNetworkAgent;
     @Mock Resources mResources;
@@ -123,7 +124,8 @@ public class WifiScoreReportTest {
         int trimSize = 5;
         when(mContext.getResources()).thenReturn(mResources);
         mClock = new FakeClock();
-        mWifiScoreReport = new WifiScoreReport(new ScoringParams(mContext), mClock);
+        mScoringParams = new ScoringParams(mContext);
+        mWifiScoreReport = new WifiScoreReport(mScoringParams, mClock);
     }
 
     /**
@@ -223,6 +225,32 @@ public class WifiScoreReportTest {
         int score = mWifiInfo.score;
         verify(mNetworkAgent, atLeast(1)).sendNetworkScore(score);
         assertTrue(oops, score < CELLULAR_THRESHOLD_SCORE);
+    }
+
+    /**
+     * RSSI that falls rapidly but does not cross entry threshold should not cause handoff
+     *
+     * Expect the score to not drop below the handoff threshold.
+     */
+    @Test
+    public void stayOnIfRssiDoesNotGetBelowEntryThreshold() throws Exception {
+        String oops = "didNotStickLanding";
+        int minScore = 100;
+        mWifiInfo.setLinkSpeed(6); // Mbps
+        mWifiInfo.setFrequency(5220);
+        mWifiScoreReport.enableVerboseLogging(true);
+        mWifiInfo.txSuccessRate = 0.1;
+        mWifiInfo.rxSuccessRate = 0.1;
+        assertTrue(mScoringParams.update("rssi5=-83:-80:-66:-55"));
+        for (int r = -30; r >= -100; r -= 1) {
+            int rssi = Math.max(r, -80);
+            mWifiInfo.setRssi(rssi);
+            oops += " " + mClock.mWallClockMillis + "," + rssi;
+            mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mWifiMetrics);
+            oops += ":" + mWifiInfo.score;
+            if (mWifiInfo.score < minScore) minScore = mWifiInfo.score;
+        }
+        assertTrue(oops, minScore > CELLULAR_THRESHOLD_SCORE);
     }
 
     /**
