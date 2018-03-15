@@ -1379,8 +1379,7 @@ public class WifiAwareDataPathStateManagerTest {
         mDut.onSessionConfigSuccessResponse(transactionId.getValue(), doPublish, pubSubId);
         mMockLooper.dispatchAll();
         inOrder.verify(mMockSessionCallback).onSessionStarted(sessionId.capture());
-        inOrderM.verify(mAwareMetricsMock).recordDiscoverySession(eq(Process.myUid()),
-                eq(doPublish), any());
+        inOrderM.verify(mAwareMetricsMock).recordDiscoverySession(eq(Process.myUid()), any());
         inOrderM.verify(mAwareMetricsMock).recordDiscoveryStatus(Process.myUid(),
                 NanStatusType.SUCCESS, doPublish);
 

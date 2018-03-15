@@ -48,6 +48,7 @@ public class WifiAwareDiscoverySessionState {
     private byte mPubSubId;
     private IWifiAwareDiscoverySessionCallback mCallback;
     private boolean mIsPublishSession;
+    private boolean mIsRangingEnabled;
     private final long mCreationTime;
 
     static class PeerInfo {
@@ -71,12 +72,13 @@ public class WifiAwareDiscoverySessionState {
 
     public WifiAwareDiscoverySessionState(WifiAwareNativeApi wifiAwareNativeApi, int sessionId,
             byte pubSubId, IWifiAwareDiscoverySessionCallback callback, boolean isPublishSession,
-            long creationTime) {
+            boolean isRangingEnabled, long creationTime) {
         mWifiAwareNativeApi = wifiAwareNativeApi;
         mSessionId = sessionId;
         mPubSubId = pubSubId;
         mCallback = callback;
         mIsPublishSession = isPublishSession;
+        mIsRangingEnabled = isRangingEnabled;
         mCreationTime = creationTime;
     }
 
@@ -90,6 +92,10 @@ public class WifiAwareDiscoverySessionState {
 
     public boolean isPublishSession() {
         return mIsPublishSession;
+    }
+
+    public boolean isRangingEnabled() {
+        return mIsRangingEnabled;
     }
 
     public long getCreationTime() {
