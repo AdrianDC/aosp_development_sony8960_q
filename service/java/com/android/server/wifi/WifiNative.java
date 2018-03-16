@@ -1236,7 +1236,7 @@ public class WifiNative {
      */
     public boolean setMacAddress(String interfaceName, MacAddress mac) {
         // TODO(b/72459123): Suppress interface down/up events from this call
-        return mWificondControl.setMacAddress(interfaceName, mac);
+        return mWifiVendorHal.setMacAddress(interfaceName, mac);
     }
 
     /********************************************************

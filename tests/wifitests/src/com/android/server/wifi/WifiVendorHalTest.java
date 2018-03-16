@@ -30,6 +30,7 @@ import static org.mockito.Mockito.anyObject;
 import static org.mockito.Mockito.anyShort;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -75,6 +76,7 @@ import android.hardware.wifi.V1_0.WifiInformationElement;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.net.KeepalivePacketData;
+import android.net.MacAddress;
 import android.net.apf.ApfCapabilities;
 import android.net.wifi.RttManager;
 import android.net.wifi.ScanResult;
@@ -113,6 +115,8 @@ import java.util.Set;
 public class WifiVendorHalTest {
 
     private static final String TEST_IFACE_NAME = "wlan0";
+    private static final MacAddress TEST_MAC_ADDRESS = MacAddress.fromString("ee:33:a2:94:10:92");
+
     WifiVendorHal mWifiVendorHal;
     private WifiStatus mWifiStatusSuccess;
     private WifiStatus mWifiStatusFailure;
@@ -133,6 +137,8 @@ public class WifiVendorHalTest {
     private android.hardware.wifi.V1_2.IWifiChip mIWifiChipV12;
     @Mock
     private IWifiStaIface mIWifiStaIface;
+    @Mock
+    private android.hardware.wifi.V1_2.IWifiStaIface mIWifiStaIfaceV12;
     @Mock
     private IWifiRttController mIWifiRttController;
     private IWifiStaIfaceEventCallback mIWifiStaIfaceEventCallback;
@@ -159,11 +165,17 @@ public class WifiVendorHalTest {
         protected android.hardware.wifi.V1_2.IWifiChip getWifiChipForV1_2Mockable() {
             return null;
         }
+
+        @Override
+        protected android.hardware.wifi.V1_2.IWifiStaIface getWifiStaIfaceForV1_2Mockable(
+                String ifaceName) {
+            return null;
+        }
     }
 
     /**
-     * Spy used to return the V1_2 IWifiChip mock object to simulate the 1.2 HAL running on the
-     * device.
+     * Spy used to return the V1_2 IWifiChip and IWifiStaIface mock objects to simulate
+     * the 1.2 HAL running on the device.
      */
     private class WifiVendorHalSpyV1_2 extends WifiVendorHal {
         WifiVendorHalSpyV1_2(HalDeviceManager halDeviceManager, Looper looper) {
@@ -178,6 +190,12 @@ public class WifiVendorHalTest {
         @Override
         protected android.hardware.wifi.V1_2.IWifiChip getWifiChipForV1_2Mockable() {
             return mIWifiChipV12;
+        }
+
+        @Override
+        protected android.hardware.wifi.V1_2.IWifiStaIface getWifiStaIfaceForV1_2Mockable(
+                String ifaceName) {
+            return mIWifiStaIfaceV12;
         }
     }
 
@@ -2087,6 +2105,57 @@ public class WifiVendorHalTest {
         assertNotNull(mIWifiChipEventCallbackV12);
 
         testAlertCallbackUsingProvidedCallback(mIWifiChipEventCallbackV12);
+    }
+
+    /**
+     * Verifies setMacAddress() success.
+     */
+    @Test
+    public void testSetMacAddressSuccess() throws Exception {
+        // Expose the 1.2 IWifiStaIface.
+        mWifiVendorHal = new WifiVendorHalSpyV1_2(mHalDeviceManager, mLooper.getLooper());
+        byte[] macByteArray = TEST_MAC_ADDRESS.toByteArray();
+        when(mIWifiStaIfaceV12.setMacAddress(macByteArray)).thenReturn(mWifiStatusSuccess);
+
+        assertTrue(mWifiVendorHal.setMacAddress(TEST_IFACE_NAME, TEST_MAC_ADDRESS));
+        verify(mIWifiStaIfaceV12).setMacAddress(macByteArray);
+    }
+
+    /**
+     * Verifies setMacAddress() can handle failure status.
+     */
+    @Test
+    public void testSetMacAddressFailDueToStatusFailure() throws Exception {
+        // Expose the 1.2 IWifiStaIface.
+        mWifiVendorHal = new WifiVendorHalSpyV1_2(mHalDeviceManager, mLooper.getLooper());
+        byte[] macByteArray = TEST_MAC_ADDRESS.toByteArray();
+        when(mIWifiStaIfaceV12.setMacAddress(macByteArray)).thenReturn(mWifiStatusFailure);
+
+        assertFalse(mWifiVendorHal.setMacAddress(TEST_IFACE_NAME, TEST_MAC_ADDRESS));
+        verify(mIWifiStaIfaceV12).setMacAddress(macByteArray);
+    }
+
+    /**
+     * Verifies setMacAddress() can handle RemoteException.
+     */
+    @Test
+    public void testSetMacAddressFailDueToRemoteException() throws Exception {
+        // Expose the 1.2 IWifiStaIface.
+        mWifiVendorHal = new WifiVendorHalSpyV1_2(mHalDeviceManager, mLooper.getLooper());
+        byte[] macByteArray = TEST_MAC_ADDRESS.toByteArray();
+        doThrow(new RemoteException()).when(mIWifiStaIfaceV12).setMacAddress(macByteArray);
+
+        assertFalse(mWifiVendorHal.setMacAddress(TEST_IFACE_NAME, TEST_MAC_ADDRESS));
+        verify(mIWifiStaIfaceV12).setMacAddress(macByteArray);
+    }
+
+    /**
+     * Verifies setMacAddress() does not crash with older HALs.
+     */
+    @Test
+    public void testSetMacAddressDoesNotCrashOnOlderHal() throws Exception {
+        byte[] macByteArray = TEST_MAC_ADDRESS.toByteArray();
+        assertFalse(mWifiVendorHal.setMacAddress(TEST_IFACE_NAME, TEST_MAC_ADDRESS));
     }
 
     private void testAlertCallbackUsingProvidedCallback(IWifiChipEventCallback chipCallback)
