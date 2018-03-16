@@ -82,6 +82,7 @@ import com.android.server.wifi.WifiMetrics;
 import com.android.server.wifi.WifiNative;
 import com.android.server.wifi.aware.WifiAwareMetrics;
 import com.android.server.wifi.nano.WifiMetricsProto;
+import com.android.server.wifi.rtt.RttMetrics;
 import com.android.server.wifi.util.WifiAsyncChannel;
 
 import org.junit.After;
@@ -139,7 +140,8 @@ public class WifiScanningServiceTest {
                 new int[]{5600, 5650, 5660});
 
         mLooper = new TestLooper();
-        mWifiMetrics = new WifiMetrics(mClock, mLooper.getLooper(), new WifiAwareMetrics(mClock));
+        mWifiMetrics = new WifiMetrics(mClock, mLooper.getLooper(), new WifiAwareMetrics(mClock),
+                new RttMetrics(mClock));
         when(mWifiScannerImplFactory
                 .create(any(), any(), any()))
                 .thenReturn(mWifiScannerImpl);

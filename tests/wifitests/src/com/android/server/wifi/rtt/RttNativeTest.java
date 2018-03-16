@@ -44,6 +44,7 @@ import android.net.wifi.rtt.RangingRequest;
 
 import com.android.server.wifi.HalDeviceManager;
 
+import org.hamcrest.core.IsNull;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -395,6 +396,44 @@ public class RttNativeTest {
         collector.checkThat("timestamp", rttResult.timeStampInUs, equalTo(666L));
 
         verifyNoMoreInteractions(mockRttController, mockRttServiceImpl);
+    }
+
+    /**
+     * Validate correct cleanup when a null array of results is provided by HAL.
+     */
+    @Test
+    public void testRangeResultsNullArray() {
+        int cmdId = 66;
+
+        mDut.onResults(cmdId, null);
+        verify(mockRttServiceImpl).onRangingResults(eq(cmdId), mRttResultCaptor.capture());
+
+        collector.checkThat("number of entries", mRttResultCaptor.getValue().size(), equalTo(0));
+    }
+
+    /**
+     * Validate correct cleanup when an array of results containing null entries is provided by HAL.
+     */
+    @Test
+    public void testRangeResultsSomeNulls() {
+        int cmdId = 77;
+
+        ArrayList<RttResult> results = new ArrayList<>();
+        results.add(null);
+        results.add(new RttResult());
+        results.add(null);
+        results.add(null);
+        results.add(new RttResult());
+        results.add(null);
+
+        mDut.onResults(cmdId, results);
+        verify(mockRttServiceImpl).onRangingResults(eq(cmdId), mRttResultCaptor.capture());
+
+        List<RttResult> rttR = mRttResultCaptor.getValue();
+        collector.checkThat("number of entries", rttR.size(), equalTo(2));
+        for (int i = 0; i < rttR.size(); ++i) {
+            collector.checkThat("entry", rttR.get(i), IsNull.notNullValue());
+        }
     }
 
     // Utilities

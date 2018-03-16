@@ -46,6 +46,7 @@ import com.android.server.wifi.nano.WifiMetricsProto.SoftApConnectedClientsEvent
 import com.android.server.wifi.nano.WifiMetricsProto.StaEvent;
 import com.android.server.wifi.nano.WifiMetricsProto.StaEvent.ConfigInfo;
 import com.android.server.wifi.nano.WifiMetricsProto.WpsMetrics;
+import com.android.server.wifi.rtt.RttMetrics;
 import com.android.server.wifi.util.InformationElementUtil;
 import com.android.server.wifi.util.ScanResultUtil;
 
@@ -104,6 +105,7 @@ public class WifiMetrics {
     private boolean mScreenOn;
     private int mWifiState;
     private WifiAwareMetrics mWifiAwareMetrics;
+    private RttMetrics mRttMetrics;
     private final PnoScanMetrics mPnoScanMetrics = new PnoScanMetrics();
     private final WpsMetrics mWpsMetrics = new WpsMetrics();
     private Handler mHandler;
@@ -429,13 +431,15 @@ public class WifiMetrics {
         }
     }
 
-    public WifiMetrics(Clock clock, Looper looper, WifiAwareMetrics awareMetrics) {
+    public WifiMetrics(Clock clock, Looper looper, WifiAwareMetrics awareMetrics,
+            RttMetrics rttMetrics) {
         mClock = clock;
         mCurrentConnectionEvent = null;
         mScreenOn = true;
         mWifiState = WifiMetricsProto.WifiLog.WIFI_DISABLED;
         mRecordStartTimeSec = mClock.getElapsedSinceBootMillis() / 1000;
         mWifiAwareMetrics = awareMetrics;
+        mRttMetrics = rttMetrics;
 
         mHandler = new Handler(looper) {
             public void handleMessage(Message msg) {
@@ -1936,6 +1940,8 @@ public class WifiMetrics {
                         + mWifiLogProto.fullBandAllSingleScanListenerResults);
                 pw.println("mWifiAwareMetrics:");
                 mWifiAwareMetrics.dump(fd, pw, args);
+                pw.println("mRttMetrics:");
+                mRttMetrics.dump(fd, pw, args);
 
                 pw.println("mPnoScanMetrics.numPnoScanAttempts="
                         + mPnoScanMetrics.numPnoScanAttempts);
@@ -2225,6 +2231,7 @@ public class WifiMetrics {
                     makeNumConnectableNetworksBucketArray(
                     mAvailableSavedPasspointProviderBssidsInScanHistogram);
             mWifiLogProto.wifiAwareLog = mWifiAwareMetrics.consolidateProto();
+            mWifiLogProto.wifiRttLog = mRttMetrics.consolidateProto();
 
             mWifiLogProto.pnoScanMetrics = mPnoScanMetrics;
 
@@ -2346,6 +2353,7 @@ public class WifiMetrics {
             mSoftApManagerReturnCodeCounts.clear();
             mStaEventList.clear();
             mWifiAwareMetrics.clear();
+            mRttMetrics.clear();
             mTotalSsidsInScanHistogram.clear();
             mTotalBssidsInScanHistogram.clear();
             mAvailableOpenSsidsInScanHistogram.clear();
@@ -2558,6 +2566,10 @@ public class WifiMetrics {
 
     public WifiWakeMetrics getWakeupMetrics() {
         return mWifiWakeMetrics;
+    }
+
+    public RttMetrics getRttMetrics() {
+        return mRttMetrics;
     }
 
     // Rather than generate a StaEvent for each SUPPLICANT_STATE_CHANGE, cache these in a bitmask

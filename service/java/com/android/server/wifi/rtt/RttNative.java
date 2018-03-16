@@ -29,7 +29,6 @@ import android.hardware.wifi.V1_0.WifiChannelWidthInMhz;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
 import android.net.wifi.rtt.RangingRequest;
-import android.net.wifi.rtt.RangingResult;
 import android.net.wifi.rtt.ResponderConfig;
 import android.os.Handler;
 import android.os.RemoteException;
@@ -40,7 +39,7 @@ import com.android.server.wifi.HalDeviceManager;
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
-import java.util.List;
+import java.util.ListIterator;
 
 /**
  * TBD
@@ -247,8 +246,17 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
     @Override
     public void onResults(int cmdId, ArrayList<RttResult> halResults) {
         if (mDbg) Log.v(TAG, "onResults: cmdId=" + cmdId + ", # of results=" + halResults.size());
-        List<RangingResult> results = new ArrayList<>(halResults.size());
 
+        // sanitize HAL results
+        if (halResults == null) {
+            halResults = new ArrayList<>();
+        }
+        ListIterator<RttResult> lit = halResults.listIterator();
+        while (lit.hasNext()) {
+            if (lit.next() == null) {
+                lit.remove();
+            }
+        }
         mRttService.onRangingResults(cmdId, halResults);
     }
 

@@ -61,13 +61,14 @@ public class RttService extends SystemService {
             HalDeviceManager halDeviceManager = wifiInjector.getHalDeviceManager();
             HandlerThread handlerThread = wifiInjector.getRttHandlerThread();
             WifiPermissionsUtil wifiPermissionsUtil = wifiInjector.getWifiPermissionsUtil();
+            RttMetrics rttMetrics = wifiInjector.getWifiMetrics().getRttMetrics();
 
             IWifiAwareManager awareBinder = (IWifiAwareManager) ServiceManager.getService(
                     Context.WIFI_AWARE_SERVICE);
 
             RttNative rttNative = new RttNative(mImpl, halDeviceManager);
             mImpl.start(handlerThread.getLooper(), wifiInjector.getClock(), awareBinder, rttNative,
-                    wifiPermissionsUtil, wifiInjector.getFrameworkFacade());
+                    rttMetrics, wifiPermissionsUtil, wifiInjector.getFrameworkFacade());
         }
     }
 }
