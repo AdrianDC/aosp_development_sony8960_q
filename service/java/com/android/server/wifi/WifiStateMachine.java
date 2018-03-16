@@ -2226,9 +2226,6 @@ public class WifiStateMachine extends StateMachine {
                 config = mWifiConfigManager.getConfiguredNetwork(msg.arg1);
                 if (config != null) {
                     sb.append(" ").append(config.configKey());
-                    if (config.visibility != null) {
-                        sb.append(" ").append(config.visibility.toString());
-                    }
                 }
                 if (mTargetRoamBSSID != null) {
                     sb.append(" ").append(mTargetRoamBSSID);
@@ -2237,9 +2234,6 @@ public class WifiStateMachine extends StateMachine {
                 config = getCurrentWifiConfiguration();
                 if (config != null) {
                     sb.append(config.configKey());
-                    if (config.visibility != null) {
-                        sb.append(" ").append(config.visibility.toString());
-                    }
                 }
                 break;
             case CMD_START_ROAM:
