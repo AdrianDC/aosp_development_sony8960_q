@@ -59,6 +59,7 @@ LOCAL_JAVA_LIBRARIES := \
 	android.hidl.manager-V1.0-java \
 	bouncycastle \
 	conscrypt \
+	error_prone_annotations \
 	jsr305 \
 	services
 LOCAL_STATIC_JAVA_LIBRARIES := \
