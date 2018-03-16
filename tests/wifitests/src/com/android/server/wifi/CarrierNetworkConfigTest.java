@@ -124,21 +124,32 @@ public class CarrierNetworkConfigTest {
     }
 
     /**
-     * Verify that {@link CarrierNetworkConfig#isCarrierNetwork} will return false when the given
-     * SSID is associated with a carrier network, but IMSI encryption info is not available.
+     * Verify that {@link CarrierNetworkConfig#isCarrierEncryptionInfoAvailable} will return true
+     * when the carrier IMSI encryption info is available.
      *
      * @throws Exception
      */
     @Test
-    public void getExistingCarrierNetworkInfoWhenEncryptionInfoNotAvailable() throws Exception {
-        when(mCarrierConfigManager.getConfigForSubId(TEST_SUBSCRIPTION_ID))
-                .thenReturn(generateTestConfig(TEST_SSID, TEST_STANDARD_EAP_TYPE));
+    public void verifyIsCarrierEncryptionInfoAvailableReturnsTrueWhenEncryptionInfoIsAvailable()
+            throws Exception {
+        assertTrue(mCarrierNetworkConfig.isCarrierEncryptionInfoAvailable());
+    }
+
+    /**
+     * Verify that {@link CarrierNetworkConfig#isCarrierEncryptionInfoAvailable} will return false
+     * when the carrier IMSI encryption info is not available.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void verifyIsCarrierEncryptionInfoAvailableReturnsFalseWhenEncryptionInfoNotAvailable()
+            throws Exception {
         when(mTelephonyManager.getCarrierInfoForImsiEncryption(TelephonyManager.KEY_TYPE_WLAN))
                 .thenReturn(null);
         mBroadcastReceiver.onReceive(mContext,
                 new Intent(CarrierConfigManager.ACTION_CARRIER_CONFIG_CHANGED));
 
-        assertFalse(mCarrierNetworkConfig.isCarrierNetwork(TEST_SSID));
+        assertFalse(mCarrierNetworkConfig.isCarrierEncryptionInfoAvailable());
     }
 
     /**
