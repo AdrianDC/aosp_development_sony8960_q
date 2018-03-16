@@ -97,6 +97,7 @@ public class WifiConnectivityManagerTest {
                 R.integer.config_wifi_framework_max_tx_rate_for_full_scan);
         mFullScanMaxRxPacketRate = mResource.getInteger(
                 R.integer.config_wifi_framework_max_rx_rate_for_full_scan);
+        when(mCarrierNetworkConfig.isCarrierEncryptionInfoAvailable()).thenReturn(true);
     }
 
     /**
@@ -761,6 +762,36 @@ public class WifiConnectivityManagerTest {
                 WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
 
         verify(mCarrierNetworkNotifier).handleScanResults(expectedCarrierNetworks);
+    }
+
+    /**
+     * {@link CarrierNetworkNotifier} does not handle scan results on network selection if carrier
+     * encryption info is not available.
+     *
+     * Expected behavior: CarrierNetworkNotifier does not handle scan results
+     */
+    @Test
+    public void whenNoEncryptionInfoAvailable_CarrierNetworkNotifierDoesNotHandleScanResults() {
+        // no connection candidate selected
+        when(mWifiNS.selectNetwork(anyObject(), anyObject(), anyObject(), anyBoolean(),
+                anyBoolean(), anyBoolean())).thenReturn(null);
+
+        List<ScanDetail> expectedCarrierNetworks = new ArrayList<>();
+        expectedCarrierNetworks.add(
+                new ScanDetail(
+                        new ScanResult(WifiSsid.createFromAsciiEncoded(CANDIDATE_SSID),
+                                CANDIDATE_SSID, CANDIDATE_BSSID, 1245, 0, "[EAP][ESS]", -78, 2450,
+                                1025, 22, 33, 20, 0, 0, true), null));
+
+        when(mWifiNS.getFilteredScanDetailsForCarrierUnsavedNetworks(any()))
+                .thenReturn(expectedCarrierNetworks);
+        when(mCarrierNetworkConfig.isCarrierEncryptionInfoAvailable()).thenReturn(false);
+
+        // Set WiFi to disconnected state to trigger PNO scan
+        mWifiConnectivityManager.handleConnectionStateChanged(
+                WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
+
+        verify(mCarrierNetworkNotifier, never()).handleScanResults(expectedCarrierNetworks);
     }
 
     /**

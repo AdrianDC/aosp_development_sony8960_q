@@ -277,8 +277,11 @@ public class WifiConnectivityManager {
             if (mWifiState == WIFI_STATE_DISCONNECTED) {
                 mOpenNetworkNotifier.handleScanResults(
                         mNetworkSelector.getFilteredScanDetailsForOpenUnsavedNetworks());
-                mCarrierNetworkNotifier.handleScanResults(mNetworkSelector
-                        .getFilteredScanDetailsForCarrierUnsavedNetworks(mCarrierNetworkConfig));
+                if (mCarrierNetworkConfig.isCarrierEncryptionInfoAvailable()) {
+                    mCarrierNetworkNotifier.handleScanResults(
+                            mNetworkSelector.getFilteredScanDetailsForCarrierUnsavedNetworks(
+                                    mCarrierNetworkConfig));
+                }
             }
             return false;
         }

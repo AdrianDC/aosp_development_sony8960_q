@@ -47,6 +47,7 @@ public class CarrierNetworkConfig {
     private static final int CONFIG_ELEMENT_SIZE = 2;
 
     private final Map<String, NetworkInfo> mCarrierNetworkMap;
+    private boolean mIsCarrierImsiEncryptionInfoAvailable = false;
 
     public CarrierNetworkConfig(Context context) {
         mCarrierNetworkMap = new HashMap<>();
@@ -89,6 +90,40 @@ public class CarrierNetworkConfig {
     }
 
     /**
+     * @return True if carrier IMSI encryption info is available, False otherwise.
+     */
+    public boolean isCarrierEncryptionInfoAvailable() {
+        return mIsCarrierImsiEncryptionInfoAvailable;
+    }
+
+    /**
+     * Verify whether carrier IMSI encryption info is available.
+     *
+     * @param context Current application context
+     *
+     * @return True if carrier IMSI encryption info is available, False otherwise.
+     */
+    private boolean verifyCarrierImsiEncryptionInfoIsAvailable(Context context) {
+        TelephonyManager telephonyManager =
+                (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
+        if (telephonyManager == null) {
+            return false;
+        }
+        try {
+            ImsiEncryptionInfo imsiEncryptionInfo = telephonyManager
+                    .getCarrierInfoForImsiEncryption(TelephonyManager.KEY_TYPE_WLAN);
+            if (imsiEncryptionInfo == null) {
+                return false;
+            }
+        } catch (RuntimeException e) {
+            Log.e(TAG, "Failed to get imsi encryption info: " + e.getMessage());
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Utility class for storing carrier network information.
      */
     private static class NetworkInfo {
@@ -108,6 +143,8 @@ public class CarrierNetworkConfig {
      * @param context Current application context
      */
     private void updateNetworkConfig(Context context) {
+        mIsCarrierImsiEncryptionInfoAvailable = verifyCarrierImsiEncryptionInfoIsAvailable(context);
+
         // Reset network map.
         mCarrierNetworkMap.clear();
 
@@ -124,22 +161,6 @@ public class CarrierNetworkConfig {
         }
         List<SubscriptionInfo> subInfoList = subscriptionManager.getActiveSubscriptionInfoList();
         if (subInfoList == null) {
-            return;
-        }
-
-        TelephonyManager telephonyManager = (TelephonyManager) context.getSystemService(
-                Context.TELEPHONY_SERVICE);
-        if (telephonyManager == null) {
-            return;
-        }
-        try {
-            ImsiEncryptionInfo imsiEncryptionInfo = telephonyManager
-                    .getCarrierInfoForImsiEncryption(TelephonyManager.KEY_TYPE_WLAN);
-            if (imsiEncryptionInfo == null) {
-                return;
-            }
-        } catch (RuntimeException e) {
-            Log.e(TAG, "Failed to get imsi encryption info: " + e.getMessage());
             return;
         }
 
