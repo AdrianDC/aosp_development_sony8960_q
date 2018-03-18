@@ -618,8 +618,6 @@ public class WifiNativeInterfaceManagementTest {
         // Trigger wificond death
         mWificondDeathHandlerCaptor.getValue().onDeath();
 
-        validateOnDestroyedClientInterface(false, false, IFACE_NAME_0, mIfaceCallback0,
-                mNetworkObserverCaptor0.getValue());
         mInOrder.verify(mWifiMetrics).incrementNumWificondCrashes();
 
         verify(mStatusListener).onStatusChanged(false);
@@ -640,8 +638,6 @@ public class WifiNativeInterfaceManagementTest {
         // Trigger vendor HAL death
         mWifiVendorHalDeathHandlerCaptor.getValue().onDeath();
 
-        validateOnDestroyedSoftApInterface(false, false, IFACE_NAME_0, mIfaceCallback0,
-                mNetworkObserverCaptor0.getValue());
         mInOrder.verify(mWifiMetrics).incrementNumHalCrashes();
 
         verify(mStatusListener).onStatusChanged(false);
@@ -661,8 +657,6 @@ public class WifiNativeInterfaceManagementTest {
         // Trigger wificond death
         mSupplicantDeathHandlerCaptor.getValue().onDeath();
 
-        validateOnDestroyedClientInterface(false, false, IFACE_NAME_0, mIfaceCallback0,
-                mNetworkObserverCaptor0.getValue());
         mInOrder.verify(mWifiMetrics).incrementNumSupplicantCrashes();
 
         verify(mStatusListener).onStatusChanged(false);
@@ -694,8 +688,6 @@ public class WifiNativeInterfaceManagementTest {
         // Trigger vendor HAL death
         mHostapdDeathHandlerCaptor.getValue().onDeath();
 
-        validateOnDestroyedSoftApInterface(false, false, IFACE_NAME_0, mIfaceCallback0,
-                mNetworkObserverCaptor0.getValue());
         mInOrder.verify(mWifiMetrics).incrementNumHostapdCrashes();
 
         verify(mStatusListener).onStatusChanged(false);

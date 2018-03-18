@@ -77,6 +77,8 @@ import com.android.server.wifi.HalDeviceManager.InterfaceDestroyedListener;
 import com.android.server.wifi.util.BitMask;
 import com.android.server.wifi.util.NativeUtil;
 
+import com.google.errorprone.annotations.CompileTimeConstant;
+
 import libcore.util.NonNull;
 
 import java.util.ArrayList;
@@ -187,7 +189,7 @@ public class WifiVendorHal {
      * @param format string with % placeholders
      * @return LogMessage formatter (remember to .flush())
      */
-    private WifiLog.LogMessage enter(String format) {
+    private WifiLog.LogMessage enter(@CompileTimeConstant final String format) {
         if (mVerboseLog == sNoLog) return sNoLog.info(format);
         return mVerboseLog.trace(format, 1);
     }

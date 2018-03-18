@@ -79,6 +79,14 @@ public class WifiAwareMetricsTest {
     private static final WifiAwareMetrics.HistParms HIST2 = new WifiAwareMetrics.HistParms(-20, 2,
             5, 40, 3);
 
+    // Linear histogram of following buckets:
+    //   <10
+    //   [10, 30)
+    //   [30, 60)
+    //   [60, 100)
+    //   >100
+    private static final int[] HIST_LINEAR = { 10, 30, 60, 100 };
+
     /**
      * Pre-test configuration. Initialize and install mocks.
      */
@@ -287,6 +295,7 @@ public class WifiAwareMetricsTest {
     public void testDiscoverySessionMetrics() {
         final int uid1 = 1005;
         final int uid2 = 1006;
+        final int uid3 = 1007;
         final SparseArray<WifiAwareClientState> clients = new SparseArray<>();
         WifiMetricsProto.WifiAwareLog log;
 
@@ -295,32 +304,59 @@ public class WifiAwareMetricsTest {
                 null, null, false, 0);
         WifiAwareClientState client2 = new WifiAwareClientState(mMockContext, 11, uid2, 0, null,
                 null, null, false, 0);
+        WifiAwareClientState client3 = new WifiAwareClientState(mMockContext, 12, uid3, 0, null,
+                null, null, false, 0);
         clients.put(10, client1);
         clients.put(11, client2);
+        clients.put(12, client3);
 
         // uid1: publish session 1
         client1.addSession(new WifiAwareDiscoverySessionState(null, 100, (byte) 0, null, true,
-                mClock.getElapsedSinceBootMillis()));
-        mDut.recordDiscoverySession(uid1, true, clients);
+                false, mClock.getElapsedSinceBootMillis()));
+        mDut.recordDiscoverySession(uid1, clients);
         mDut.recordDiscoveryStatus(uid1, NanStatusType.SUCCESS, true);
 
         // uid1: publish session 2
         client1.addSession(new WifiAwareDiscoverySessionState(null, 101, (byte) 0, null, true,
-                mClock.getElapsedSinceBootMillis()));
-        mDut.recordDiscoverySession(uid1, true, clients);
+                false, mClock.getElapsedSinceBootMillis()));
+        mDut.recordDiscoverySession(uid1, clients);
         mDut.recordDiscoveryStatus(uid1, NanStatusType.SUCCESS, true);
+
+        // uid3: publish session 3 with ranging
+        client3.addSession(new WifiAwareDiscoverySessionState(null, 111, (byte) 0, null, true,
+                true, mClock.getElapsedSinceBootMillis()));
+        mDut.recordDiscoverySessionWithRanging(uid3, false, -1, -1, clients);
+        mDut.recordDiscoveryStatus(uid3, NanStatusType.SUCCESS, true);
 
         // uid2: subscribe session 1
         client2.addSession(new WifiAwareDiscoverySessionState(null, 102, (byte) 0, null, false,
-                mClock.getElapsedSinceBootMillis()));
-        mDut.recordDiscoverySession(uid2, false, clients);
+                false, mClock.getElapsedSinceBootMillis()));
+        mDut.recordDiscoverySession(uid2, clients);
         mDut.recordDiscoveryStatus(uid2, NanStatusType.SUCCESS, false);
 
         // uid2: publish session 2
         client2.addSession(new WifiAwareDiscoverySessionState(null, 103, (byte) 0, null, true,
-                mClock.getElapsedSinceBootMillis()));
-        mDut.recordDiscoverySession(uid2, false, clients);
+                false, mClock.getElapsedSinceBootMillis()));
+        mDut.recordDiscoverySession(uid2, clients);
         mDut.recordDiscoveryStatus(uid2, NanStatusType.SUCCESS, false);
+
+        // uid3: subscribe session 3 with ranging: min
+        client3.addSession(new WifiAwareDiscoverySessionState(null, 112, (byte) 0, null, false,
+                true, mClock.getElapsedSinceBootMillis()));
+        mDut.recordDiscoverySessionWithRanging(uid3, true, 10, -1, clients);
+        mDut.recordDiscoveryStatus(uid3, NanStatusType.SUCCESS, false);
+
+        // uid3: subscribe session 3 with ranging: max
+        client3.addSession(new WifiAwareDiscoverySessionState(null, 113, (byte) 0, null, false,
+                true, mClock.getElapsedSinceBootMillis()));
+        mDut.recordDiscoverySessionWithRanging(uid3, true, -1, 50, clients);
+        mDut.recordDiscoveryStatus(uid3, NanStatusType.SUCCESS, false);
+
+        // uid3: subscribe session 3 with ranging: minmax
+        client3.addSession(new WifiAwareDiscoverySessionState(null, 114, (byte) 0, null, false,
+                true, mClock.getElapsedSinceBootMillis()));
+        mDut.recordDiscoverySessionWithRanging(uid3, true, 0, 110, clients);
+        mDut.recordDiscoveryStatus(uid3, NanStatusType.SUCCESS, false);
 
         // uid1: delete session 1
         setTime(10);
@@ -335,9 +371,9 @@ public class WifiAwareMetricsTest {
         client2.removeSession(102);
 
         // uid2: subscribe session 3
-        mDut.recordDiscoverySession(uid2, false, clients);
+        mDut.recordDiscoverySession(uid2, clients);
         client2.addSession(new WifiAwareDiscoverySessionState(null, 104, (byte) 0, null, false,
-                mClock.getElapsedSinceBootMillis()));
+                false, mClock.getElapsedSinceBootMillis()));
 
         // a few failures
         mDut.recordDiscoveryStatus(uid1, NanStatusType.INTERNAL_FAILURE, true);
@@ -350,15 +386,15 @@ public class WifiAwareMetricsTest {
 
         collector.checkThat("maxConcurrentPublishInApp", log.maxConcurrentPublishInApp, equalTo(2));
         collector.checkThat("maxConcurrentSubscribeInApp", log.maxConcurrentSubscribeInApp,
-                equalTo(1));
-        collector.checkThat("maxConcurrentDiscoverySessionsInApp",
-                log.maxConcurrentDiscoverySessionsInApp, equalTo(2));
-        collector.checkThat("maxConcurrentPublishInSystem", log.maxConcurrentPublishInSystem,
                 equalTo(3));
+        collector.checkThat("maxConcurrentDiscoverySessionsInApp",
+                log.maxConcurrentDiscoverySessionsInApp, equalTo(4));
+        collector.checkThat("maxConcurrentPublishInSystem", log.maxConcurrentPublishInSystem,
+                equalTo(4));
         collector.checkThat("maxConcurrentSubscribeInSystem", log.maxConcurrentSubscribeInSystem,
-                equalTo(1));
+                equalTo(4));
         collector.checkThat("maxConcurrentDiscoverySessionsInSystem",
-                log.maxConcurrentDiscoverySessionsInSystem, equalTo(4));
+                log.maxConcurrentDiscoverySessionsInSystem, equalTo(8));
         collector.checkThat("histogramPublishStatus.length",
                 log.histogramPublishStatus.length, equalTo(2)); // 2 buckets
         collector.checkThat("histogramSubscribeStatus.length",
@@ -369,6 +405,28 @@ public class WifiAwareMetricsTest {
                 6, 1);
         validateProtoHistBucket("Subscribe Duration[0]", log.histogramSubscribeSessionDurationMs[0],
                 10, 20, 1);
+
+        collector.checkThat("maxConcurrentPublishWithRangingInApp",
+                log.maxConcurrentPublishWithRangingInApp, equalTo(1));
+        collector.checkThat("maxConcurrentSubscribeWithRangingInApp",
+                log.maxConcurrentSubscribeWithRangingInApp, equalTo(3));
+        collector.checkThat("maxConcurrentPublishWithRangingInSystem",
+                log.maxConcurrentPublishWithRangingInSystem, equalTo(1));
+        collector.checkThat("maxConcurrentSubscribeWithRangingInSystem",
+                log.maxConcurrentSubscribeWithRangingInSystem, equalTo(3));
+        collector.checkThat("numSubscribesWithRanging", log.numSubscribesWithRanging, equalTo(3));
+        collector.checkThat("histogramSubscribeGeofenceMin.length",
+                log.histogramSubscribeGeofenceMin.length, equalTo(2));
+        collector.checkThat("histogramSubscribeGeofenceMax.length",
+                log.histogramSubscribeGeofenceMax.length, equalTo(2));
+        validateProtoHistBucket("histogramSubscribeGeofenceMin[0]",
+                log.histogramSubscribeGeofenceMin[0], Integer.MIN_VALUE, 10, 1);
+        validateProtoHistBucket("histogramSubscribeGeofenceMin[1]",
+                log.histogramSubscribeGeofenceMin[1], 10, 30, 1);
+        validateProtoHistBucket("histogramSubscribeGeofenceMax[0]",
+                log.histogramSubscribeGeofenceMax[0], 30, 60, 1);
+        validateProtoHistBucket("histogramSubscribeGeofenceMax[1]",
+                log.histogramSubscribeGeofenceMax[1], 100, Integer.MAX_VALUE, 1);
     }
 
     /**
@@ -569,6 +627,41 @@ public class WifiAwareMetricsTest {
     }
 
     /**
+     * Validate that a set of values are bucketed correctly into the linear histogram, and that
+     * they are converted to a primitive proto-buffer array correctly.
+     */
+    @Test
+    public void testLinearHistBucketing() {
+        SparseIntArray hist = new SparseIntArray();
+
+        bucketValueAndVerify("HIST_LINEAR: x=", -5, hist, HIST_LINEAR, 0, 1);
+        bucketValueAndVerify("HIST_LINEAR: x=", 0, hist, HIST_LINEAR, 0, 2);
+        bucketValueAndVerify("HIST_LINEAR: x=", 1, hist, HIST_LINEAR, 0, 3);
+        bucketValueAndVerify("HIST_LINEAR: x=", 9, hist, HIST_LINEAR, 0, 4);
+        bucketValueAndVerify("HIST_LINEAR: x=", 10, hist, HIST_LINEAR, 1, 1);
+        bucketValueAndVerify("HIST_LINEAR: x=", 20, hist, HIST_LINEAR, 1, 2);
+        bucketValueAndVerify("HIST_LINEAR: x=", 30, hist, HIST_LINEAR, 2, 1);
+        bucketValueAndVerify("HIST_LINEAR: x=", 40, hist, HIST_LINEAR, 2, 2);
+        bucketValueAndVerify("HIST_LINEAR: x=", 50, hist, HIST_LINEAR, 2, 3);
+        bucketValueAndVerify("HIST_LINEAR: x=", 60, hist, HIST_LINEAR, 3, 1);
+        bucketValueAndVerify("HIST_LINEAR: x=", 70, hist, HIST_LINEAR, 3, 2);
+        bucketValueAndVerify("HIST_LINEAR: x=", 80, hist, HIST_LINEAR, 3, 3);
+        bucketValueAndVerify("HIST_LINEAR: x=", 90, hist, HIST_LINEAR, 3, 4);
+        bucketValueAndVerify("HIST_LINEAR: x=", 100, hist, HIST_LINEAR, 4, 1);
+        bucketValueAndVerify("HIST_LINEAR: x=", 110, hist, HIST_LINEAR, 4, 2);
+        bucketValueAndVerify("HIST_LINEAR: x=", 98999, hist, HIST_LINEAR, 4, 3);
+
+        WifiMetricsProto.WifiAwareLog.HistogramBucket[] phb = histogramToProtoArray(hist,
+                HIST_LINEAR);
+        collector.checkThat("Number of buckets", phb.length, equalTo(hist.size()));
+        validateProtoHistBucket("Bucket[0]", phb[0], Integer.MIN_VALUE, 10, 4);
+        validateProtoHistBucket("Bucket[1]", phb[1], 10, 30, 2);
+        validateProtoHistBucket("Bucket[2]", phb[2], 30, 60, 3);
+        validateProtoHistBucket("Bucket[3]", phb[3], 60, 100, 4);
+        validateProtoHistBucket("Bucket[4]", phb[4], 100, Integer.MAX_VALUE, 3);
+    }
+
+    /**
      * Validate the conversion to a NanStatusType proto raw histogram.
      */
     @Test
@@ -630,6 +723,12 @@ public class WifiAwareMetricsTest {
     private void bucketValueAndVerify(String logPrefix, long value, SparseIntArray h,
             WifiAwareMetrics.HistParms hp, int expectedKey, int expectedValue) {
         WifiAwareMetrics.addLogValueToHistogram(value, h, hp);
+        collector.checkThat(logPrefix + value, h.get(expectedKey), equalTo(expectedValue));
+    }
+
+    private void bucketValueAndVerify(String logPrefix, int value, SparseIntArray h,
+            int[] hp, int expectedKey, int expectedValue) {
+        WifiAwareMetrics.addLinearValueToHistogram(value, h, hp);
         collector.checkThat(logPrefix + value, h.get(expectedKey), equalTo(expectedValue));
     }
 

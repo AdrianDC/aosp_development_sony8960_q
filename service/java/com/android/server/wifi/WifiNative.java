@@ -452,15 +452,15 @@ public class WifiNative {
         }
     }
 
-    /** Helper method invoked to cleanup state after one of the native daemon's death. */
+    /**
+     * Helper method invoked to trigger the status changed callback after one of the native
+     * daemon's death.
+     */
     private void onNativeDaemonDeath() {
         synchronized (mLock) {
-            Log.i(TAG, "One of the daemons died. Tearing down everything");
-            teardownAllInterfaces();
             for (StatusListener listener : mStatusListeners) {
                 listener.onStatusChanged(false);
             }
-            // TODO(70572148): Do we need to wait to mark the system ready again?
             for (StatusListener listener : mStatusListeners) {
                 listener.onStatusChanged(true);
             }
