@@ -18,6 +18,7 @@ package com.android.server.wifi;
 
 import android.annotation.NonNull;
 import android.app.ActivityManager;
+import android.app.AppOpsManager;
 import android.content.Context;
 import android.net.NetworkKey;
 import android.net.NetworkScoreManager;
@@ -237,8 +238,11 @@ public class WifiInjector {
         mPasspointNetworkEvaluator = new PasspointNetworkEvaluator(
                 mPasspointManager, mWifiConfigManager, mConnectivityLocalLog);
         mWifiMetrics.setPasspointManager(mPasspointManager);
-        mScanRequestProxy = new ScanRequestProxy(mContext, this, mWifiConfigManager,
-                mWifiPermissionsUtil);
+        mScanRequestProxy = new ScanRequestProxy(mContext,
+                (AppOpsManager) mContext.getSystemService(Context.APP_OPS_SERVICE),
+                (ActivityManager) mContext.getSystemService(Context.ACTIVITY_SERVICE),
+                this, mWifiConfigManager,
+                mWifiPermissionsUtil, mClock);
         // mWifiStateMachine has an implicit dependency on mJavaRuntime due to WifiDiagnostics.
         mJavaRuntime = Runtime.getRuntime();
         mWifiStateMachine = new WifiStateMachine(mContext, mFrameworkFacade,
