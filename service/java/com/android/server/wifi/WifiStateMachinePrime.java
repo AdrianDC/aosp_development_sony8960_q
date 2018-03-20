@@ -80,6 +80,17 @@ public class WifiStateMachinePrime {
     // ScanOnly mode failed
     static final int CMD_SCAN_ONLY_MODE_FAILED                          = BASE + 204;
 
+    // Start Client mode
+    static final int CMD_START_CLIENT_MODE                              = BASE + 300;
+    // Indicates that start client mode failed
+    static final int CMD_START_CLIENT_MODE_FAILURE                      = BASE + 301;
+    // Indicates that client mode stopped
+    static final int CMD_STOP_CLIENT_MODE                               = BASE + 302;
+    // Client mode teardown is complete
+    static final int CMD_CLIENT_MODE_STOPPED                            = BASE + 303;
+    // Client mode failed
+    static final int CMD_CLIENT_MODE_FAILED                             = BASE + 304;
+
     private WifiManager.SoftApCallback mSoftApCallback;
 
     /**
@@ -259,10 +270,30 @@ public class WifiStateMachinePrime {
         }
 
         class ClientModeActiveState extends ModeActiveState {
+            private class ClientListener implements ClientModeManager.Listener {
+                @Override
+                public void onStateChanged(int state) {
+                    Log.d(TAG, "State changed from client mode.");
+                    if (state == WifiManager.WIFI_STATE_UNKNOWN) {
+                        // error while setting up client mode or an unexpected failure.
+                        mModeStateMachine.sendMessage(CMD_CLIENT_MODE_FAILED);
+                    } else if (state == WifiManager.WIFI_STATE_DISABLED) {
+                        // client mode stopped
+                        mModeStateMachine.sendMessage(CMD_CLIENT_MODE_STOPPED);
+                    } else if (state == WifiManager.WIFI_STATE_ENABLED) {
+                        // client mode is ready to go
+                        Log.d(TAG, "client mode active");
+                    } else {
+                        // only care if client mode stopped or started, dropping
+                    }
+                }
+            }
+
             @Override
             public void enter() {
                 Log.d(TAG, "Entering ClientModeActiveState");
-                mManager = new ClientModeManager();
+
+                mManager = mWifiInjector.makeClientModeManager(new ClientListener());
                 // DO NOT CALL START YET
                 // mActiveModemanager.start();
                 mActiveModeManagers.add(mManager);
