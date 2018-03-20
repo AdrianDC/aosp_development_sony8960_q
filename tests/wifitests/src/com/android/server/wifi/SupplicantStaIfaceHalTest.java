@@ -173,8 +173,6 @@ public class SupplicantStaIfaceHalTest {
                 any(IServiceNotification.Stub.class))).thenReturn(true);
         when(mISupplicantMock.linkToDeath(any(IHwBinder.DeathRecipient.class),
                 anyLong())).thenReturn(true);
-        when(mISupplicantStaIfaceMock.linkToDeath(any(IHwBinder.DeathRecipient.class),
-                anyLong())).thenReturn(true);
         mDut = new SupplicantStaIfaceHalSpy(mContext, mWifiMonitor);
     }
 
@@ -1391,21 +1389,6 @@ public class SupplicantStaIfaceHalTest {
     }
 
     /**
-     * Tests the handling of supplicant sta iface death notification.
-     */
-    @Test
-    public void testSupplicantStaIfaceDeathCallback() throws Exception {
-        executeAndValidateInitializationSequence();
-        assertNotNull(mSupplicantStaIfaceDeathCaptor.getValue());
-        assertTrue(mDut.isInitializationComplete());
-
-        mSupplicantStaIfaceDeathCaptor.getValue().serviceDied(5L);
-
-        assertFalse(mDut.isInitializationComplete());
-        verify(mWifiMonitor).broadcastSupplicantDisconnectionEvent(eq(WLAN0_IFACE_NAME));
-    }
-
-    /**
      * Tests the setting of log level.
      */
     @Test
@@ -1600,8 +1583,6 @@ public class SupplicantStaIfaceHalTest {
                     eq(WLAN0_IFACE_NAME));
         }
         if (!causeRemoteException && !getZeroInterfaces && !getNullInterface) {
-            mInOrder.verify(mISupplicantStaIfaceMock).linkToDeath(
-                    mSupplicantStaIfaceDeathCaptor.capture(), anyLong());
             mInOrder.verify(mISupplicantStaIfaceMock)
                     .registerCallback(any(ISupplicantStaIfaceCallback.class));
         }
@@ -1664,8 +1645,6 @@ public class SupplicantStaIfaceHalTest {
                     eq(WLAN0_IFACE_NAME));
         }
         if (!causeRemoteException && !getNullInterface) {
-            mInOrder.verify(mISupplicantStaIfaceMock).linkToDeath(
-                    mSupplicantStaIfaceDeathCaptor.capture(), anyLong());
             mInOrder.verify(mISupplicantStaIfaceMock)
                     .registerCallback(any(ISupplicantStaIfaceCallback.class));
         }
