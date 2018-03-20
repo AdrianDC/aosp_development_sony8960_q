@@ -107,15 +107,17 @@ public class SelfRecoveryTest {
             reset(mWifiController);
         }
 
-        // Verify that further attempts to trigger restarts for are ignored
+        // Verify that further attempts to trigger restarts disable wifi
         mSelfRecovery.trigger(SelfRecovery.REASON_WIFINATIVE_FAILURE);
         verify(mWifiController, never()).sendMessage(eq(WifiController.CMD_RECOVERY_RESTART_WIFI),
                 anyString());
+        verify(mWifiController).sendMessage(eq(WifiController.CMD_RECOVERY_DISABLE_WIFI));
         reset(mWifiController);
 
         mSelfRecovery.trigger(SelfRecovery.REASON_WIFINATIVE_FAILURE);
         verify(mWifiController, never()).sendMessage(eq(WifiController.CMD_RECOVERY_RESTART_WIFI),
                 anyString());
+        verify(mWifiController).sendMessage(eq(WifiController.CMD_RECOVERY_DISABLE_WIFI));
         reset(mWifiController);
 
         // Verify L.R.Watchdog can still restart things (It has its own complex limiter)

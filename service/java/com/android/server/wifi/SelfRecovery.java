@@ -87,8 +87,8 @@ public class SelfRecovery {
             // Ensure there haven't been too many restarts within MAX_RESTARTS_TIME_WINDOW
             if (mPastRestartTimes.size() >= MAX_RESTARTS_IN_TIME_WINDOW) {
                 Log.e(TAG, "Already restarted wifi (" + MAX_RESTARTS_IN_TIME_WINDOW + ") times in"
-                        + " last (" + MAX_RESTARTS_TIME_WINDOW_MILLIS + "ms ). Ignoring...");
-                // TODO: b/74093987  leaving wifi "broken" here, should disable wifi instead
+                        + " last (" + MAX_RESTARTS_TIME_WINDOW_MILLIS + "ms ). Disabling wifi");
+                mWifiController.sendMessage(WifiController.CMD_RECOVERY_DISABLE_WIFI);
                 return;
             }
             mPastRestartTimes.add(mClock.getElapsedSinceBootMillis());
