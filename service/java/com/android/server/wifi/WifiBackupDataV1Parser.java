@@ -211,6 +211,54 @@ class WifiBackupDataV1Parser implements WifiBackupDataParser {
     }
 
     /**
+     * Helper method to mask out any invalid data in parsed WifiConfiguration.
+     *
+     * This is a compatibility layer added to the parsing logic to try and weed out any known
+     * issues in the backup data format from other OEM's.
+     */
+    private static void clearAnyKnownIssuesInParsedConfiguration(WifiConfiguration config) {
+        /**
+         * Fix for b/73987207. Clear any invalid bits in the bitsets.
+         */
+        // |allowedKeyManagement|
+        if (config.allowedKeyManagement.length()
+                > WifiConfiguration.KeyMgmt.strings.length) {
+            config.allowedKeyManagement.clear(
+                    WifiConfiguration.KeyMgmt.strings.length,
+                    config.allowedKeyManagement.length());
+        }
+        // |allowedProtocols|
+        if (config.allowedProtocols.length()
+                > WifiConfiguration.Protocol.strings.length) {
+            config.allowedProtocols.clear(
+                    WifiConfiguration.Protocol.strings.length,
+                    config.allowedProtocols.length());
+        }
+        // |allowedAuthAlgorithms|
+        if (config.allowedAuthAlgorithms.length()
+                > WifiConfiguration.AuthAlgorithm.strings.length) {
+            config.allowedAuthAlgorithms.clear(
+                    WifiConfiguration.AuthAlgorithm.strings.length,
+                    config.allowedAuthAlgorithms.length());
+        }
+        // |allowedGroupCiphers|
+        if (config.allowedGroupCiphers.length()
+                > WifiConfiguration.GroupCipher.strings.length) {
+            config.allowedGroupCiphers.clear(
+                    WifiConfiguration.GroupCipher.strings.length,
+                    config.allowedGroupCiphers.length());
+        }
+        // |allowedPairwiseCiphers|
+        if (config.allowedPairwiseCiphers.length()
+                > WifiConfiguration.PairwiseCipher.strings.length) {
+            config.allowedPairwiseCiphers.clear(
+                    WifiConfiguration.PairwiseCipher.strings.length,
+                    config.allowedPairwiseCiphers.length());
+        }
+        // Add any other fixable issues discovered from other OEM's here.
+    }
+
+    /**
      * Parses the configuration data elements from the provided XML stream to a
      * WifiConfiguration object.
      * Looping through the tags makes it easy to add elements in the future minor versions if
@@ -300,6 +348,7 @@ class WifiBackupDataV1Parser implements WifiBackupDataParser {
                             "Unknown value name found: " + valueName[0]);
             }
         }
+        clearAnyKnownIssuesInParsedConfiguration(configuration);
         return Pair.create(configKeyInData, configuration);
     }
 
