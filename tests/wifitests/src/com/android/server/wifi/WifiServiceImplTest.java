@@ -1025,7 +1025,7 @@ public class WifiServiceImplTest {
         setupWifiStateMachineHandlerForRunWithScissors();
         doReturn(false).when(mHandlerSpyForWsmRunWithScissors)
                 .runWithScissors(any(), anyLong());
-        mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
+        mWifiServiceImpl.startScan(SCAN_PACKAGE_NAME);
         verify(mScanRequestProxy, never()).startScan(Process.myUid(), SCAN_PACKAGE_NAME);
     }
 
@@ -2523,7 +2523,7 @@ public class WifiServiceImplTest {
         TestUtil.sendIdleModeChanged(mBroadcastReceiverCaptor.getValue(), mContext);
 
         // Send a scan request while the device is idle.
-        mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
+        mWifiServiceImpl.startScan(SCAN_PACKAGE_NAME);
         // No scans must be made yet as the device is idle.
         verify(mScanRequestProxy, never()).startScan(Process.myUid(), SCAN_PACKAGE_NAME);
 
@@ -2540,7 +2540,7 @@ public class WifiServiceImplTest {
 
         // Send another scan request. The device is not idle anymore, so it must be executed
         // immediately.
-        mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
+        mWifiServiceImpl.startScan(SCAN_PACKAGE_NAME);
         verify(mScanRequestProxy).startScan(Process.myUid(), SCAN_PACKAGE_NAME);
     }
 
