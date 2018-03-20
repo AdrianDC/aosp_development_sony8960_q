@@ -92,8 +92,6 @@ import android.os.UserHandle;
 import android.os.UserManager;
 import android.os.WorkSource;
 import android.provider.Settings;
-import android.util.ArrayMap;
-import android.util.ArraySet;
 import android.util.Log;
 import android.util.MutableInt;
 import android.util.Slog;
@@ -159,14 +157,12 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private final Context mContext;
     private final FrameworkFacade mFacade;
     private final Clock mClock;
-    private final ArraySet<String> mBackgroundThrottlePackageWhitelist = new ArraySet<>();
 
     private final PowerManager mPowerManager;
     private final AppOpsManager mAppOps;
     private final UserManager mUserManager;
     private final ActivityManager mActivityManager;
     private final WifiCountryCode mCountryCode;
-    private long mBackgroundThrottleInterval;
     // Debug counter tracking scan requests sent by WifiManager
     private int scanRequestCounter = 0;
 
@@ -180,9 +176,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private final WifiInjector mWifiInjector;
     /* Backup/Restore Module */
     private final WifiBackupRestore mWifiBackupRestore;
-
-    // Map of package name of background scan apps and last scan timestamp.
-    private final ArrayMap<String, Long> mLastScanTimestamps;
 
     private WifiLog mLog;
 
@@ -482,9 +475,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mWifiPermissionsUtil = mWifiInjector.getWifiPermissionsUtil();
         mLog = mWifiInjector.makeLog(TAG);
         mFrameworkFacade = wifiInjector.getFrameworkFacade();
-        mLastScanTimestamps = new ArrayMap<>();
-        updateBackgroundThrottleInterval();
-        updateBackgroundThrottlingWhitelist();
         mIfaceIpModes = new ConcurrentHashMap<>();
         mLocalOnlyHotspotRequests = new HashMap<>();
         enableVerboseLoggingInternal(getVerboseLoggingLevel());
@@ -524,7 +514,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 (wifiEnabled ? "enabled" : "disabled"));
 
         registerForScanModeChange();
-        registerForBackgroundThrottleChanges();
         mContext.registerReceiver(
                 new BroadcastReceiver() {
                     @Override
@@ -629,18 +618,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
         int callingUid = Binder.getCallingUid();
         mLog.info("startScan uid=%").c(callingUid).flush();
-        // Check and throttle background apps for wifi scan.
-        if (isRequestFromBackground(packageName)) {
-            long lastScanMs = mLastScanTimestamps.getOrDefault(packageName, 0L);
-            long elapsedRealtime = mClock.getElapsedSinceBootMillis();
-
-            if (lastScanMs != 0 && (elapsedRealtime - lastScanMs) < mBackgroundThrottleInterval) {
-                sendFailedScanBroadcast();
-                return;
-            }
-            // Proceed with the scan request and record the time.
-            mLastScanTimestamps.put(packageName, elapsedRealtime);
-        }
         synchronized (this) {
             if (mInIdleMode) {
                 // Need to send an immediate scan result broadcast in case the
@@ -656,7 +633,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             }
         }
         boolean success = mWifiInjector.getWifiStateMachineHandler().runWithScissors(() -> {
-            if (!mScanRequestProxy.startScan(callingUid)) {
+            if (!mScanRequestProxy.startScan(callingUid, packageName)) {
                 Log.e(TAG, "Failed to start scan");
             }
         }, RUN_WITH_SCISSORS_TIMEOUT_MILLIS);
@@ -681,29 +658,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             Binder.restoreCallingIdentity(callingIdentity);
         }
 
-    }
-
-    // Check if the request comes from background.
-    private boolean isRequestFromBackground(String packageName) {
-        // Requests from system or wifi are not background.
-        if (Binder.getCallingUid() == Process.SYSTEM_UID
-                || Binder.getCallingUid() == Process.WIFI_UID) {
-            return false;
-        }
-        mAppOps.checkPackage(Binder.getCallingUid(), packageName);
-        if (mBackgroundThrottlePackageWhitelist.contains(packageName)) {
-            return false;
-        }
-
-        // getPackageImportance requires PACKAGE_USAGE_STATS permission, so clearing the incoming
-        // identify so the permission check can be done on system process where wifi runs in.
-        long callingIdentity = Binder.clearCallingIdentity();
-        try {
-            return mActivityManager.getPackageImportance(packageName)
-                    > BACKGROUND_IMPORTANCE_CUTOFF;
-        } finally {
-            Binder.restoreCallingIdentity(callingIdentity);
-        }
     }
 
     /**
@@ -2412,51 +2366,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 Settings.Global.getUriFor(Settings.Global.WIFI_SCAN_ALWAYS_AVAILABLE),
                 false, contentObserver);
 
-    }
-
-    // Monitors settings changes related to background wifi scan throttling.
-    private void registerForBackgroundThrottleChanges() {
-        mFrameworkFacade.registerContentObserver(
-                mContext,
-                Settings.Global.getUriFor(
-                        Settings.Global.WIFI_SCAN_BACKGROUND_THROTTLE_INTERVAL_MS),
-                false,
-                new ContentObserver(null) {
-                    @Override
-                    public void onChange(boolean selfChange) {
-                        updateBackgroundThrottleInterval();
-                    }
-                }
-        );
-        mFrameworkFacade.registerContentObserver(
-                mContext,
-                Settings.Global.getUriFor(
-                        Settings.Global.WIFI_SCAN_BACKGROUND_THROTTLE_PACKAGE_WHITELIST),
-                false,
-                new ContentObserver(null) {
-                    @Override
-                    public void onChange(boolean selfChange) {
-                        updateBackgroundThrottlingWhitelist();
-                    }
-                }
-        );
-    }
-
-    private void updateBackgroundThrottleInterval() {
-        mBackgroundThrottleInterval = mFrameworkFacade.getLongSetting(
-                mContext,
-                Settings.Global.WIFI_SCAN_BACKGROUND_THROTTLE_INTERVAL_MS,
-                DEFAULT_SCAN_BACKGROUND_THROTTLE_INTERVAL_MS);
-    }
-
-    private void updateBackgroundThrottlingWhitelist() {
-        String setting = mFrameworkFacade.getStringSetting(
-                mContext,
-                Settings.Global.WIFI_SCAN_BACKGROUND_THROTTLE_PACKAGE_WHITELIST);
-        mBackgroundThrottlePackageWhitelist.clear();
-        if (setting != null) {
-            mBackgroundThrottlePackageWhitelist.addAll(Arrays.asList(setting.split(",")));
-        }
     }
 
     private void registerForBroadcasts() {
