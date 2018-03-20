@@ -454,6 +454,17 @@ public class WifiInjector {
     }
 
     /**
+     * Create a ClientModeManager
+     *
+     * @param listener listener for ClientModeManager state changes
+     * @return a new instance of ClientModeManager
+     */
+    public ClientModeManager makeClientModeManager(ClientModeManager.Listener listener) {
+        return new ClientModeManager(mContext, mWifiStateMachineHandlerThread.getLooper(),
+                mWifiNative, listener, mWifiMetrics, mScanRequestProxy);
+    }
+
+    /**
      * Create a WifiLog instance.
      * @param tag module name to include in all log messages
      */
