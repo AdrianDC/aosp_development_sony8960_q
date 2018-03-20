@@ -1057,8 +1057,6 @@ public class WifiStateMachine extends StateMachine {
         mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.RX_HS20_ANQP_ICON_EVENT,
                 getHandler());
         mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.SUP_CONNECTION_EVENT, getHandler());
-        mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.SUP_DISCONNECTION_EVENT,
-                getHandler());
         mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT,
                 getHandler());
         mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.SUP_REQUEST_IDENTITY,
@@ -3535,7 +3533,6 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_REASSOCIATE:
                 case CMD_RELOAD_TLS_AND_RECONNECT:
                 case WifiMonitor.SUP_CONNECTION_EVENT:
-                case WifiMonitor.SUP_DISCONNECTION_EVENT:
                 case WifiMonitor.NETWORK_CONNECTION_EVENT:
                 case WifiMonitor.NETWORK_DISCONNECTION_EVENT:
                 case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
@@ -3882,10 +3879,6 @@ public class WifiStateMachine extends StateMachine {
                     sendSupplicantConnectionChangedBroadcast(true);
                     transitionTo(mSupplicantStartedState);
                     break;
-                case WifiMonitor.SUP_DISCONNECTION_EVENT:
-                    // since control is split between WSM and WSMP - do not worry about supplicant
-                    // dying if we haven't seen it up yet
-                    break;
                 case CMD_START_SUPPLICANT:
                 case CMD_STOP_SUPPLICANT:
                 case CMD_STOP_AP:
@@ -3973,19 +3966,6 @@ public class WifiStateMachine extends StateMachine {
             logStateAndMessage(message, this);
 
             switch(message.what) {
-                case WifiMonitor.SUP_DISCONNECTION_EVENT:  /* Supplicant connection lost */
-                    // first check if we are expecting a mode switch
-                    if (mModeChange) {
-                        logd("expecting a mode change, do not restart supplicant");
-                        return HANDLED;
-                    }
-                    loge("Connection lost, restart supplicant");
-                    handleSupplicantConnectionLoss(true);
-                    handleNetworkDisconnect();
-                    mSupplicantStateTracker.sendMessage(CMD_RESET_SUPPLICANT_STATE);
-                    sendMessage(CMD_START_SUPPLICANT);
-                    transitionTo(mInitialState);
-                    break;
                 case CMD_TARGET_BSSID:
                     // Trying to associate to this BSSID
                     if (message.obj != null) {
@@ -4160,9 +4140,6 @@ public class WifiStateMachine extends StateMachine {
                 break;
             case WifiMonitor.SUP_CONNECTION_EVENT:
                 s = "SUP_CONNECTION_EVENT";
-                break;
-            case WifiMonitor.SUP_DISCONNECTION_EVENT:
-                s = "SUP_DISCONNECTION_EVENT";
                 break;
             case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
                 s = "SUPPLICANT_STATE_CHANGE_EVENT";
