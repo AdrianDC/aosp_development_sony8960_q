@@ -1043,7 +1043,20 @@ public class WifiStateMachineTest {
         assertEquals(sFreq, wifiInfo.getFrequency());
         assertTrue(sWifiSsid.equals(wifiInfo.getWifiSsid()));
 
+        verify(mWifiStateTracker).updateState(eq(WifiStateTracker.CONNECTED));
         assertEquals("ConnectedState", getCurrentState().getName());
+    }
+
+    /**
+     * Verify that WifiStateTracker is called if wifi is disabled while connected.
+     */
+    @Test
+    public void verifyWifiStateTrackerUpdatedWhenDisabled() throws Exception {
+        connect();
+
+        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE);
+        mLooper.dispatchAll();
+        verify(mWifiStateTracker).updateState(eq(WifiStateTracker.DISCONNECTED));
     }
 
     /**
@@ -1200,6 +1213,7 @@ public class WifiStateMachineTest {
                 eq(WifiConfiguration.NetworkSelectionStatus.DISABLED_AUTHENTICATION_FAILURE));
 
         assertEquals("DisconnectedState", getCurrentState().getName());
+
     }
 
     /**
@@ -1300,6 +1314,7 @@ public class WifiStateMachineTest {
                 new StateChangeResult(0, sWifiSsid, sBSSID, SupplicantState.DISCONNECTED));
         mLooper.dispatchAll();
 
+        verify(mWifiStateTracker).updateState(eq(WifiStateTracker.DISCONNECTED));
         assertEquals("DisconnectedState", getCurrentState().getName());
     }
 
@@ -1883,6 +1898,7 @@ public class WifiStateMachineTest {
         // WifiInfo is reset() and state set to DISCONNECTED
         mWsm.setOperationalMode(WifiStateMachine.SCAN_ONLY_MODE);
         mLooper.dispatchAll();
+
         assertEquals(WifiStateMachine.SCAN_ONLY_MODE, mWsm.getOperationalModeForTest());
         assertEquals("ScanModeState", getCurrentState().getName());
         assertEquals(WifiManager.WIFI_STATE_DISABLED, mWsm.syncGetWifiState());
