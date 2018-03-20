@@ -76,21 +76,23 @@ public class WifiController extends StateMachine {
 
     private static final int BASE = Protocol.BASE_WIFI_CONTROLLER;
 
-    static final int CMD_EMERGENCY_MODE_CHANGED        = BASE + 1;
-    static final int CMD_SCAN_ALWAYS_MODE_CHANGED      = BASE + 7;
-    static final int CMD_WIFI_TOGGLED                  = BASE + 8;
-    static final int CMD_AIRPLANE_TOGGLED              = BASE + 9;
-    static final int CMD_SET_AP                        = BASE + 10;
-    static final int CMD_DEFERRED_TOGGLE               = BASE + 11;
-    static final int CMD_USER_PRESENT                  = BASE + 12;
-    static final int CMD_AP_START_FAILURE              = BASE + 13;
-    static final int CMD_EMERGENCY_CALL_STATE_CHANGED  = BASE + 14;
-    static final int CMD_AP_STOPPED                    = BASE + 15;
-    static final int CMD_STA_START_FAILURE             = BASE + 16;
+    static final int CMD_EMERGENCY_MODE_CHANGED                 = BASE + 1;
+    static final int CMD_SCAN_ALWAYS_MODE_CHANGED               = BASE + 7;
+    static final int CMD_WIFI_TOGGLED                           = BASE + 8;
+    static final int CMD_AIRPLANE_TOGGLED                       = BASE + 9;
+    static final int CMD_SET_AP                                 = BASE + 10;
+    static final int CMD_DEFERRED_TOGGLE                        = BASE + 11;
+    static final int CMD_USER_PRESENT                           = BASE + 12;
+    static final int CMD_AP_START_FAILURE                       = BASE + 13;
+    static final int CMD_EMERGENCY_CALL_STATE_CHANGED           = BASE + 14;
+    static final int CMD_AP_STOPPED                             = BASE + 15;
+    static final int CMD_STA_START_FAILURE                      = BASE + 16;
     // Command used to trigger a wifi stack restart when in active mode
-    static final int CMD_RESTART_WIFI                  = BASE + 17;
+    static final int CMD_RECOVERY_RESTART_WIFI                  = BASE + 17;
     // Internal command used to complete wifi stack restart
-    private static final int CMD_RESTART_WIFI_CONTINUE = BASE + 18;
+    private static final int CMD_RECOVERY_RESTART_WIFI_CONTINUE = BASE + 18;
+    // Command to disable wifi when SelfRecovery is throttled or otherwise not doing full recovery
+    static final int CMD_RECOVERY_DISABLE_WIFI                  = BASE + 19;
 
     private DefaultState mDefaultState = new DefaultState();
     private StaEnabledState mStaEnabledState = new StaEnabledState();
@@ -215,8 +217,9 @@ public class WifiController extends StateMachine {
                 case CMD_AP_START_FAILURE:
                 case CMD_AP_STOPPED:
                 case CMD_STA_START_FAILURE:
-                case CMD_RESTART_WIFI:
-                case CMD_RESTART_WIFI_CONTINUE:
+                case CMD_RECOVERY_RESTART_WIFI:
+                case CMD_RECOVERY_RESTART_WIFI_CONTINUE:
+                case CMD_RECOVERY_DISABLE_WIFI:
                     break;
                 case CMD_USER_PRESENT:
                     mFirstUserSignOnSeen = true;
@@ -297,7 +300,7 @@ public class WifiController extends StateMachine {
                     log("DEFERRED_TOGGLE handled");
                     sendMessage((Message)(msg.obj));
                     break;
-                case CMD_RESTART_WIFI_CONTINUE:
+                case CMD_RECOVERY_RESTART_WIFI_CONTINUE:
                     transitionTo(mDeviceActiveState);
                     break;
                 default:
@@ -649,7 +652,7 @@ public class WifiController extends StateMachine {
                 }
                 mFirstUserSignOnSeen = true;
                 return HANDLED;
-            } else if (msg.what == CMD_RESTART_WIFI) {
+            } else if (msg.what == CMD_RECOVERY_RESTART_WIFI) {
                 final String bugTitle = "Wi-Fi BugReport";
                 final String bugDetail;
                 if (msg.obj != null && msg.arg1 < SelfRecovery.REASON_STRINGS.length
@@ -663,9 +666,12 @@ public class WifiController extends StateMachine {
                         mWifiStateMachine.takeBugReport(bugTitle, bugDetail);
                     });
                 }
-                deferMessage(obtainMessage(CMD_RESTART_WIFI_CONTINUE));
+                deferMessage(obtainMessage(CMD_RECOVERY_RESTART_WIFI_CONTINUE));
                 transitionTo(mApStaDisabledState);
                 return HANDLED;
+            } else if (msg.what == CMD_RECOVERY_DISABLE_WIFI) {
+                loge("Recovery has been throttled, disable wifi");
+                transitionTo(mApStaDisabledState);
             }
             return NOT_HANDLED;
         }

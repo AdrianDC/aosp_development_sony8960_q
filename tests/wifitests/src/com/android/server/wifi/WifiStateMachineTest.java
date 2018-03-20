@@ -1776,18 +1776,127 @@ public class WifiStateMachineTest {
     }
 
     /**
-     * Test verifying that interface onDown callbacks are not currently hooked up.
+     * Test verifying that interface onDown callback triggers SelfRecovery when Supplicant has
+     * already reported the driver is not active.
      */
     @Test
-    public void testInterfaceOnDownDoesNotTriggerClientModeShutdown() throws Exception {
-        connect();
+    public void testInterfaceOnDownInClientModeTriggersSelfRecovery() throws Exception {
+        // Trigger initialize to capture the death handler registration.
+        loadComponentsInStaMode();
+
+        // make sure we mark the iface up
+        mInterfaceCallbackCaptor.getValue().onUp(WIFI_IFACE_NAME);
+
+        // make sure supplicant has been reported as inactive
+        when(mWifiNative.isInterfaceUp(eq(WIFI_IFACE_NAME))).thenReturn(true);
+        mWsm.sendMessage(WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0, 0,
+                new StateChangeResult(0, WifiSsid.createFromAsciiEncoded(""), null,
+                        SupplicantState.INTERFACE_DISABLED));
+        mLooper.dispatchAll();
 
         // trigger onDown for the client interface
         mInterfaceCallbackCaptor.getValue().onDown(WIFI_IFACE_NAME);
         mLooper.dispatchAll();
 
-        // since this is not handled yet, should not trigger a disconnect
-        assertEquals("ConnectedState", getCurrentState().getName());
+        // WSM should trigger self recovery, but not disconnect until externally triggered
+        verify(mSelfRecovery).trigger(eq(SelfRecovery.REASON_STA_IFACE_DOWN));
+    }
+
+    /**
+     * Test verifying that interface onDown callback does not trigger SelfRecovery when
+     * Supplicant reports that the driver is active.
+     */
+    @Test
+    public void testInterfaceOnDownInClientModeDoesNotTriggerSelfRecoveryIfDriverActive()
+            throws Exception {
+        // Trigger initialize to capture the death handler registration.
+        loadComponentsInStaMode();
+
+        // make sure we mark the iface up
+        mInterfaceCallbackCaptor.getValue().onUp(WIFI_IFACE_NAME);
+        mLooper.dispatchAll();
+
+        // make sure supplicant has been reported as active
+        mWsm.sendMessage(WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0, 0,
+                new StateChangeResult(0, WifiSsid.createFromAsciiEncoded(""), null,
+                        SupplicantState.DISCONNECTED));
+        mLooper.dispatchAll();
+
+        // trigger onDown for the client interface
+        mInterfaceCallbackCaptor.getValue().onDown(WIFI_IFACE_NAME);
+        mLooper.dispatchAll();
+
+        // WSM should trigger self recovery, but not disconnect until externally triggered
+        verify(mSelfRecovery, never()).trigger(eq(SelfRecovery.REASON_STA_IFACE_DOWN));
+    }
+
+    /**
+     * Test verifying that Supplicant update for inactive driver does not trigger SelfRecovery
+     * when the interface is reported down.
+     */
+    @Test
+    public void testSupplicantUpdateDriverInactiveInClientModeTriggersSelfRecovery()
+            throws Exception {
+        // Trigger initialize to capture the death handler registration.
+        loadComponentsInStaMode();
+
+        when(mWifiNative.isInterfaceUp(eq(WIFI_IFACE_NAME))).thenReturn(false);
+
+        mWsm.sendMessage(WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0, 0,
+                new StateChangeResult(0, WifiSsid.createFromAsciiEncoded(""), null,
+                        SupplicantState.INTERFACE_DISABLED));
+        mLooper.dispatchAll();
+
+        // WSM should trigger self recovery, but not disconnect until externally triggered
+        verify(mSelfRecovery, never()).trigger(eq(SelfRecovery.REASON_STA_IFACE_DOWN));
+    }
+
+    /**
+     * Test verifying that interface Supplicant update for inactive driver does not trigger
+     * SelfRecovery when WifiNative reports the interface is up.
+     */
+    @Test
+    public void testSupplicantUpdateDriverInactiveIfaceUpClientModeDoesNotTriggerSelfRecovery()
+            throws Exception {
+        // Trigger initialize to capture the death handler registration.
+        loadComponentsInStaMode();
+
+        when(mWifiNative.isInterfaceUp(eq(WIFI_IFACE_NAME))).thenReturn(true);
+
+        // make sure supplicant has been reported as inactive
+        mWsm.sendMessage(WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0, 0,
+                new StateChangeResult(0, WifiSsid.createFromAsciiEncoded(""), null,
+                        SupplicantState.INTERFACE_DISABLED));
+        mLooper.dispatchAll();
+
+        // WSM should trigger self recovery, but not disconnect until externally triggered
+        verify(mSelfRecovery, never()).trigger(eq(SelfRecovery.REASON_STA_IFACE_DOWN));
+    }
+
+    /**
+     * Test verifying that interface onDown callback does not trigger SelfRecovery when
+     * MacRandomization is enabled.
+     */
+    @Test
+    public void testInterfaceOnDownInClientModeDoesNotTriggerSelfRecoveryWithMacRand()
+            throws Exception {
+        when(mFrameworkFacade.getIntegerSetting(mContext,
+                Settings.Global.WIFI_CONNECTED_MAC_RANDOMIZATION_ENABLED, 0)).thenReturn(1);
+        mContentObserver.onChange(false);
+
+        // Trigger initialize to capture the death handler registration.
+        loadComponentsInStaMode();
+
+        // make sure we mark the iface up
+        mInterfaceCallbackCaptor.getValue().onUp(WIFI_IFACE_NAME);
+        mLooper.dispatchAll();
+
+        // trigger onDown for the client interface
+        mInterfaceCallbackCaptor.getValue().onDown(WIFI_IFACE_NAME);
+        mLooper.dispatchAll();
+
+        // WSM should trigger self recovery, but not disconnect until externally triggered
+        verify(mSelfRecovery, never()).trigger(eq(SelfRecovery.REASON_STA_IFACE_DOWN));
     }
 
     /**
