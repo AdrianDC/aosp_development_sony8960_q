@@ -637,7 +637,7 @@ public class WifiStateMachineTest {
         // But if someone tells us to enter connect mode, we start up supplicant
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
         mLooper.dispatchAll();
-        assertEquals("SupplicantStartingState", getCurrentState().getName());
+        assertEquals("DisconnectedState", getCurrentState().getName());
     }
 
     /**
@@ -852,7 +852,7 @@ public class WifiStateMachineTest {
     }
 
     /**
-     * Helper method to move through SupplicantStarting and SupplicantStarted states.
+     * Helper method to move through startup states.
      */
     private void startSupplicantAndDispatchMessages() throws Exception {
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
@@ -861,25 +861,11 @@ public class WifiStateMachineTest {
         // this will be removed when interface management is dynamic
         verify(mWifiNative, atLeastOnce()).teardownAllInterfaces();
 
-        assertEquals("SupplicantStartingState", getCurrentState().getName());
-
-        when(mWifiNative.setDeviceName(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
-        when(mWifiNative.setManufacturer(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
-        when(mWifiNative.setModelName(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
-        when(mWifiNative.setModelNumber(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
-        when(mWifiNative.setSerialNumber(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
-        when(mWifiNative.setConfigMethods(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
-        when(mWifiNative.setDeviceType(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
-        when(mWifiNative.setSerialNumber(eq(WIFI_IFACE_NAME), anyString())).thenReturn(true);
-        when(mWifiNative.setScanningMacOui(eq(WIFI_IFACE_NAME), any(byte[].class)))
-                .thenReturn(true);
-
-        mWsm.sendMessage(WifiMonitor.SUP_CONNECTION_EVENT);
-        mLooper.dispatchAll();
-
         verify(mWifiNative, atLeastOnce())
                 .setupInterfaceForClientMode(eq(false), mInterfaceCallbackCaptor.capture());
         verify(mWifiLastResortWatchdog, atLeastOnce()).clearAllFailureCounts();
+
+        assertEquals("DisconnectedState", getCurrentState().getName());
     }
 
     private void addNetworkAndVerifySuccess(boolean isHidden) throws Exception {

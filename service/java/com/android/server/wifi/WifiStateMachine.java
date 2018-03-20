@@ -335,8 +335,6 @@ public class WifiStateMachine extends StateMachine {
      */
     public static final String SUPPLICANT_BSSID_ANY = "any";
 
-    private int mSupplicantRestartCount = 0;
-
     /**
      * The link properties of the wifi interface.
      * Do not modify this directly; use updateLinkProperties instead.
@@ -780,8 +778,6 @@ public class WifiStateMachine extends StateMachine {
     private State mDefaultState = new DefaultState();
     /* Temporary initial state */
     private State mInitialState = new InitialState();
-    /* Driver loaded, waiting for supplicant to start */
-    private State mSupplicantStartingState = new SupplicantStartingState();
     /* Driver loaded and supplicant ready */
     private State mSupplicantStartedState = new SupplicantStartedState();
     /* Scan for networks, no connection will be established */
@@ -1003,7 +999,6 @@ public class WifiStateMachine extends StateMachine {
         // CHECKSTYLE:OFF IndentationCheck
         addState(mDefaultState);
             addState(mInitialState, mDefaultState);
-                addState(mSupplicantStartingState, mInitialState);
                 addState(mSupplicantStartedState, mInitialState);
                     addState(mConnectModeState, mSupplicantStartedState);
                         addState(mL2ConnectedState, mConnectModeState);
@@ -1056,7 +1051,6 @@ public class WifiStateMachine extends StateMachine {
                 getHandler());
         mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.RX_HS20_ANQP_ICON_EVENT,
                 getHandler());
-        mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.SUP_CONNECTION_EVENT, getHandler());
         mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT,
                 getHandler());
         mWifiMonitor.registerHandler(mInterfaceName, WifiMonitor.SUP_REQUEST_IDENTITY,
@@ -3532,7 +3526,6 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_RECONNECT:
                 case CMD_REASSOCIATE:
                 case CMD_RELOAD_TLS_AND_RECONNECT:
-                case WifiMonitor.SUP_CONNECTION_EVENT:
                 case WifiMonitor.NETWORK_CONNECTION_EVENT:
                 case WifiMonitor.NETWORK_DISCONNECTION_EVENT:
                 case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
@@ -3818,7 +3811,7 @@ public class WifiStateMachine extends StateMachine {
                     mWifiMonitor.startMonitoring(mInterfaceName);
                     mWifiInjector.getWifiLastResortWatchdog().clearAllFailureCounts();
                     setSupplicantLogLevel();
-                    transitionTo(mSupplicantStartingState);
+                    transitionTo(mSupplicantStartedState);
                     break;
                 case CMD_SET_OPERATIONAL_MODE:
                     if (message.arg1 == CONNECT_MODE) {
@@ -3853,48 +3846,25 @@ public class WifiStateMachine extends StateMachine {
         }
     }
 
-    class SupplicantStartingState extends State {
-
-        @Override
-        public boolean processMessage(Message message) {
-            logStateAndMessage(message, this);
-
-            switch(message.what) {
-                case WifiMonitor.SUP_CONNECTION_EVENT:
-                    if (mVerboseLoggingEnabled) log("Supplicant connection established");
-
-                    mSupplicantRestartCount = 0;
-                    /* Reset the supplicant state to indicate the supplicant
-                     * state is not known at this time */
-                    mSupplicantStateTracker.sendMessage(CMD_RESET_SUPPLICANT_STATE);
-                    /* Initialize data structures */
-                    mLastBssid = null;
-                    mLastNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
-                    mLastSignalLevel = -1;
-                    mWifiInfo.setMacAddress(mWifiNative.getMacAddress(mInterfaceName));
-                    // Attempt to migrate data out of legacy store.
-                    if (!mWifiConfigManager.migrateFromLegacyStore()) {
-                        Log.e(TAG, "Failed to migrate from legacy config store");
-                    }
-                    sendSupplicantConnectionChangedBroadcast(true);
-                    transitionTo(mSupplicantStartedState);
-                    break;
-                case CMD_START_SUPPLICANT:
-                case CMD_STOP_SUPPLICANT:
-                case CMD_STOP_AP:
-                default:
-                    return NOT_HANDLED;
-            }
-            return HANDLED;
-        }
-    }
-
     class SupplicantStartedState extends State {
         @Override
         public void enter() {
             if (mVerboseLoggingEnabled) {
                 logd("SupplicantStartedState enter");
             }
+
+            // reset state related to supplicant starting
+            mSupplicantStateTracker.sendMessage(CMD_RESET_SUPPLICANT_STATE);
+            // Initialize data structures
+            mLastBssid = null;
+            mLastNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
+            mLastSignalLevel = -1;
+            mWifiInfo.setMacAddress(mWifiNative.getMacAddress(mInterfaceName));
+            // Attempt to migrate data out of legacy store.
+            if (!mWifiConfigManager.migrateFromLegacyStore()) {
+                Log.e(TAG, "Failed to migrate from legacy config store");
+            }
+            sendSupplicantConnectionChangedBroadcast(true);
 
             mWifiNative.setExternalSim(mInterfaceName, true);
 
@@ -4137,9 +4107,6 @@ public class WifiStateMachine extends StateMachine {
                 break;
             case WifiManager.FORGET_NETWORK:
                 s = "FORGET_NETWORK";
-                break;
-            case WifiMonitor.SUP_CONNECTION_EVENT:
-                s = "SUP_CONNECTION_EVENT";
                 break;
             case WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT:
                 s = "SUPPLICANT_STATE_CHANGE_EVENT";
