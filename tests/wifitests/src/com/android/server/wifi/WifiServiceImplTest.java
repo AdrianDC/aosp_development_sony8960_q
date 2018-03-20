@@ -89,7 +89,6 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.os.UserManager;
 import android.os.test.TestLooper;
-import android.provider.Settings;
 import android.support.test.filters.SmallTest;
 
 import com.android.internal.os.PowerProfile;
@@ -126,9 +125,7 @@ public class WifiServiceImplTest {
 
     private static final String TAG = "WifiServiceImplTest";
     private static final String SCAN_PACKAGE_NAME = "scanPackage";
-    private static final String WHITE_LIST_SCAN_PACKAGE_NAME = "whiteListScanPackage";
     private static final int DEFAULT_VERBOSE_LOGGING = 0;
-    private static final long WIFI_BACKGROUND_SCAN_INTERVAL = 10000;
     private static final String ANDROID_SYSTEM_PACKAGE = "android";
     private static final String TEST_PACKAGE_NAME = "TestPackage";
     private static final String SYSUI_PACKAGE_NAME = "com.android.systemui";
@@ -286,15 +283,6 @@ public class WifiServiceImplTest {
                 anyBoolean(), any());
         when(mContext.getSystemService(Context.ACTIVITY_SERVICE)).thenReturn(mActivityManager);
         when(mContext.getSystemService(Context.APP_OPS_SERVICE)).thenReturn(mAppOpsManager);
-        when(mFrameworkFacade.getLongSetting(
-                eq(mContext),
-                eq(Settings.Global.WIFI_SCAN_BACKGROUND_THROTTLE_INTERVAL_MS),
-                anyLong()))
-                .thenReturn(WIFI_BACKGROUND_SCAN_INTERVAL);
-        when(mFrameworkFacade.getStringSetting(
-                eq(mContext),
-                eq(Settings.Global.WIFI_SCAN_BACKGROUND_THROTTLE_PACKAGE_WHITELIST)))
-                .thenReturn(WHITE_LIST_SCAN_PACKAGE_NAME);
         IPowerManager powerManagerService = mock(IPowerManager.class);
         mPowerManager = new PowerManager(mContext, powerManagerService, new Handler());
         when(mContext.getSystemServiceName(PowerManager.class)).thenReturn(Context.POWER_SERVICE);
@@ -1029,80 +1017,6 @@ public class WifiServiceImplTest {
     }
 
     /**
-     * Ensure foreground apps can always do wifi scans.
-     */
-    @Test
-    public void testWifiScanStartedForeground() {
-        setupWifiStateMachineHandlerForRunWithScissors();
-
-        when(mActivityManager.getPackageImportance(SCAN_PACKAGE_NAME)).thenReturn(
-                ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE);
-        mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
-        verify(mScanRequestProxy).startScan(Process.myUid());
-        verifyCheckChangePermission(SCAN_PACKAGE_NAME);
-    }
-
-    /**
-     * Ensure background apps get throttled when the previous scan is too close.
-     */
-    @Test
-    public void testWifiScanBackgroundThrottled() {
-        setupWifiStateMachineHandlerForRunWithScissors();
-
-        when(mActivityManager.getPackageImportance(SCAN_PACKAGE_NAME)).thenReturn(
-                ActivityManager.RunningAppProcessInfo.IMPORTANCE_CACHED);
-        long startMs = 1000;
-        when(mClock.getElapsedSinceBootMillis()).thenReturn(startMs);
-        mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
-        verify(mScanRequestProxy).startScan(Process.myUid());
-
-        when(mClock.getElapsedSinceBootMillis()).thenReturn(
-                startMs + WIFI_BACKGROUND_SCAN_INTERVAL - 1000);
-        mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
-        verify(mScanRequestProxy, times(1)).startScan(Process.myUid());
-    }
-
-    /**
-     * Ensure background apps can do wifi scan when the throttle interval reached.
-     */
-    @Test
-    public void testWifiScanBackgroundNotThrottled() {
-        setupWifiStateMachineHandlerForRunWithScissors();
-
-        when(mActivityManager.getPackageImportance(SCAN_PACKAGE_NAME)).thenReturn(
-                ActivityManager.RunningAppProcessInfo.IMPORTANCE_CACHED);
-        long startMs = 1000;
-        when(mClock.getElapsedSinceBootMillis()).thenReturn(startMs);
-        mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
-        verify(mScanRequestProxy).startScan(Process.myUid());
-
-        when(mClock.getElapsedSinceBootMillis()).thenReturn(
-                startMs + WIFI_BACKGROUND_SCAN_INTERVAL + 1000);
-        mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
-        verify(mScanRequestProxy, times(2)).startScan(Process.myUid());
-    }
-
-    /**
-     * Ensure background apps can do wifi scan when the throttle interval reached.
-     */
-    @Test
-    public void testWifiScanBackgroundWhiteListed() {
-        setupWifiStateMachineHandlerForRunWithScissors();
-
-        when(mActivityManager.getPackageImportance(WHITE_LIST_SCAN_PACKAGE_NAME)).thenReturn(
-                ActivityManager.RunningAppProcessInfo.IMPORTANCE_CACHED);
-        long startMs = 1000;
-        when(mClock.getElapsedSinceBootMillis()).thenReturn(startMs);
-        mWifiServiceImpl.startScan(null, null, WHITE_LIST_SCAN_PACKAGE_NAME);
-        verify(mScanRequestProxy).startScan(Process.myUid());
-
-        when(mClock.getElapsedSinceBootMillis()).thenReturn(
-                startMs + WIFI_BACKGROUND_SCAN_INTERVAL - 1000);
-        mWifiServiceImpl.startScan(null, null, WHITE_LIST_SCAN_PACKAGE_NAME);
-        verify(mScanRequestProxy, times(2)).startScan(Process.myUid());
-    }
-
-    /**
      * Ensure that we handle scan request failure when posting the runnable to handler fails.
      */
     @Ignore
@@ -1111,11 +1025,8 @@ public class WifiServiceImplTest {
         setupWifiStateMachineHandlerForRunWithScissors();
         doReturn(false).when(mHandlerSpyForWsmRunWithScissors)
                 .runWithScissors(any(), anyLong());
-
-        when(mActivityManager.getPackageImportance(SCAN_PACKAGE_NAME)).thenReturn(
-                ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND_SERVICE);
         mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
-        verify(mScanRequestProxy, never()).startScan(Process.myUid());
+        verify(mScanRequestProxy, never()).startScan(Process.myUid(), SCAN_PACKAGE_NAME);
     }
 
     static final String TEST_SSID = "Sid's Place";
@@ -2614,14 +2525,14 @@ public class WifiServiceImplTest {
         // Send a scan request while the device is idle.
         mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
         // No scans must be made yet as the device is idle.
-        verify(mScanRequestProxy, never()).startScan(Process.myUid());
+        verify(mScanRequestProxy, never()).startScan(Process.myUid(), SCAN_PACKAGE_NAME);
 
         // Tell the wifi service that idle mode ended.
         when(mPowerManager.isDeviceIdleMode()).thenReturn(false);
         TestUtil.sendIdleModeChanged(mBroadcastReceiverCaptor.getValue(), mContext);
 
         // Must scan now.
-        verify(mScanRequestProxy, times(1)).startScan(Process.myUid());
+        verify(mScanRequestProxy).startScan(Process.myUid(), TEST_PACKAGE_NAME);
         // The app ops check is executed with this package's identity (not the identity of the
         // original remote caller who requested the scan while idle).
         verify(mAppOpsManager).noteOp(
@@ -2630,7 +2541,7 @@ public class WifiServiceImplTest {
         // Send another scan request. The device is not idle anymore, so it must be executed
         // immediately.
         mWifiServiceImpl.startScan(null, null, SCAN_PACKAGE_NAME);
-        verify(mScanRequestProxy, times(2)).startScan(Process.myUid());
+        verify(mScanRequestProxy).startScan(Process.myUid(), SCAN_PACKAGE_NAME);
     }
 
     private class IdleModeIntentMatcher implements ArgumentMatcher<IntentFilter> {
