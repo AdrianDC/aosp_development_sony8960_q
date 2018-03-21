@@ -3771,8 +3771,8 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_WIFINATIVE_FAILURE:
                     Log.e(TAG, "One of the native daemons died unexpectedly. Triggering recovery");
                     mWifiDiagnostics.captureBugReportData(
-                            WifiDiagnostics.REPORT_REASON_WIFICOND_CRASH);
-                    mWifiInjector.getSelfRecovery().trigger(SelfRecovery.REASON_WIFICOND_CRASH);
+                            WifiDiagnostics.REPORT_REASON_WIFINATIVE_FAILURE);
+                    mWifiInjector.getSelfRecovery().trigger(SelfRecovery.REASON_WIFINATIVE_FAILURE);
                     break;
                 default:
                     return NOT_HANDLED;
@@ -5399,7 +5399,6 @@ public class WifiStateMachine extends StateMachine {
         }
 
         setNetworkDetailedState(DetailedState.CONNECTED);
-        mWifiConfigManager.updateNetworkAfterConnect(mLastNetworkId);
         sendNetworkStateChangeBroadcast(mLastBssid);
     }
 

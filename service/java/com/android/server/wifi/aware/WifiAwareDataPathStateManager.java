@@ -373,6 +373,10 @@ public class WifiAwareDataPathStateManager {
             return null;
         }
 
+        if (nnri.peerDiscoveryMac == null) {
+            // the "accept anyone" request is now specific
+            nnri.peerDiscoveryMac = mac;
+        }
         nnri.interfaceName = selectInterfaceForRequest(nnri);
         if (nnri.interfaceName == null) {
             Log.w(TAG,
@@ -385,10 +389,6 @@ public class WifiAwareDataPathStateManager {
         nnri.state = AwareNetworkRequestInformation.STATE_RESPONDER_WAIT_FOR_RESPOND_RESPONSE;
         nnri.ndpId = ndpId;
         nnri.startTimestamp = SystemClock.elapsedRealtime();
-        if (nnri.peerDiscoveryMac == null) {
-            // the "accept anyone" request is now specific
-            nnri.peerDiscoveryMac = mac;
-        }
         mMgr.respondToDataPathRequest(true, ndpId, nnri.interfaceName, nnri.networkSpecifier.pmk,
                 nnri.networkSpecifier.passphrase, nnri.networkSpecifier.isOutOfBand());
 
