@@ -137,7 +137,7 @@ public class SupplicantStaIfaceHal {
     private final HwRemoteBinder.DeathRecipient mSupplicantDeathRecipient =
             cookie -> {
                 synchronized (mLock) {
-                    Log.w(TAG, "ISupplicant/ISupplicantStaIface died: cookie=" + cookie);
+                    Log.w(TAG, "ISupplicant died: cookie=" + cookie);
                     supplicantServiceDiedHandler();
                 }
             };
@@ -257,23 +257,6 @@ public class SupplicantStaIfaceHal {
         return true;
     }
 
-    private boolean linkToSupplicantStaIfaceDeath(ISupplicantStaIface iface) {
-        synchronized (mLock) {
-            if (iface == null) return false;
-            try {
-                if (!iface.linkToDeath(mSupplicantDeathRecipient, 0)) {
-                    Log.wtf(TAG, "Error on linkToDeath on ISupplicantStaIface");
-                    supplicantServiceDiedHandler();
-                    return false;
-                }
-            } catch (RemoteException e) {
-                Log.e(TAG, "ISupplicantStaIface.linkToDeath exception", e);
-                return false;
-            }
-            return true;
-        }
-    }
-
     private int getCurrentNetworkId(@NonNull String ifaceName) {
         synchronized (mLock) {
             WifiConfiguration currentConfig = getCurrentNetworkLocalConfig(ifaceName);
@@ -304,9 +287,6 @@ public class SupplicantStaIfaceHal {
             return false;
         }
         ISupplicantStaIface iface = getStaIfaceMockable(ifaceHwBinder);
-        if (!linkToSupplicantStaIfaceDeath(iface)) {
-            return false;
-        }
         ISupplicantStaIfaceCallback callback = new SupplicantStaIfaceHalCallback(ifaceName);
         if (!registerCallback(iface, callback)) {
             return false;
