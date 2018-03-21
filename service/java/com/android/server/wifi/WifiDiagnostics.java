@@ -77,8 +77,7 @@ class WifiDiagnostics extends BaseWifiDiagnostics {
     public static final int REPORT_REASON_UNEXPECTED_DISCONNECT     = 5;
     public static final int REPORT_REASON_SCAN_FAILURE              = 6;
     public static final int REPORT_REASON_USER_ACTION               = 7;
-    public static final int REPORT_REASON_WIFICOND_CRASH            = 8;
-    public static final int REPORT_REASON_HAL_CRASH                 = 9;
+    public static final int REPORT_REASON_WIFINATIVE_FAILURE        = 8;
 
     /** number of bug reports to hold */
     public static final int MAX_BUG_REPORTS                         = 4;

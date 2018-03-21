@@ -52,16 +52,9 @@ public class SelfRecoveryTest {
 
         when(mClock.getElapsedSinceBootMillis())
                 .thenReturn(SelfRecovery.MAX_RESTARTS_TIME_WINDOW_MILLIS + 1);
-        mSelfRecovery.trigger(SelfRecovery.REASON_HAL_CRASH);
+        mSelfRecovery.trigger(SelfRecovery.REASON_WIFINATIVE_FAILURE);
         verify(mWifiController).sendMessage(eq(WifiController.CMD_RESTART_WIFI), anyInt());
         reset(mWifiController);
-
-        when(mClock.getElapsedSinceBootMillis())
-                .thenReturn(2 * (SelfRecovery.MAX_RESTARTS_TIME_WINDOW_MILLIS + 1));
-        mSelfRecovery.trigger(SelfRecovery.REASON_WIFICOND_CRASH);
-        verify(mWifiController).sendMessage(eq(WifiController.CMD_RESTART_WIFI), anyInt());
-        reset(mWifiController);
-
     }
 
     /**
@@ -88,27 +81,27 @@ public class SelfRecoveryTest {
         // Fill up the SelfRecovery's restart time window buffer, ensure all the restart triggers
         // aren't ignored
         for (int i = 0; i < SelfRecovery.MAX_RESTARTS_IN_TIME_WINDOW / 2; i++) {
-            mSelfRecovery.trigger(SelfRecovery.REASON_HAL_CRASH);
+            mSelfRecovery.trigger(SelfRecovery.REASON_WIFINATIVE_FAILURE);
             verify(mWifiController).sendMessage(eq(WifiController.CMD_RESTART_WIFI), anyInt());
             reset(mWifiController);
 
-            mSelfRecovery.trigger(SelfRecovery.REASON_WIFICOND_CRASH);
+            mSelfRecovery.trigger(SelfRecovery.REASON_WIFINATIVE_FAILURE);
             verify(mWifiController).sendMessage(eq(WifiController.CMD_RESTART_WIFI), anyInt());
             reset(mWifiController);
         }
         if ((SelfRecovery.MAX_RESTARTS_IN_TIME_WINDOW % 2) == 1) {
-            mSelfRecovery.trigger(SelfRecovery.REASON_WIFICOND_CRASH);
+            mSelfRecovery.trigger(SelfRecovery.REASON_WIFINATIVE_FAILURE);
             verify(mWifiController).sendMessage(eq(WifiController.CMD_RESTART_WIFI), anyInt());
             reset(mWifiController);
         }
 
         // Verify that further attempts to trigger restarts for are ignored
-        mSelfRecovery.trigger(SelfRecovery.REASON_HAL_CRASH);
+        mSelfRecovery.trigger(SelfRecovery.REASON_WIFINATIVE_FAILURE);
         verify(mWifiController, never()).sendMessage(eq(WifiController.CMD_RESTART_WIFI),
                 anyString());
         reset(mWifiController);
 
-        mSelfRecovery.trigger(SelfRecovery.REASON_WIFICOND_CRASH);
+        mSelfRecovery.trigger(SelfRecovery.REASON_WIFINATIVE_FAILURE);
         verify(mWifiController, never()).sendMessage(eq(WifiController.CMD_RESTART_WIFI),
                 anyString());
         reset(mWifiController);
@@ -127,7 +120,7 @@ public class SelfRecoveryTest {
 
         when(mClock.getElapsedSinceBootMillis())
                 .thenReturn(SelfRecovery.MAX_RESTARTS_TIME_WINDOW_MILLIS + 1);
-        mSelfRecovery.trigger(SelfRecovery.REASON_HAL_CRASH);
+        mSelfRecovery.trigger(SelfRecovery.REASON_WIFINATIVE_FAILURE);
         verify(mWifiController).sendMessage(eq(WifiController.CMD_RESTART_WIFI), anyInt());
         reset(mWifiController);
     }

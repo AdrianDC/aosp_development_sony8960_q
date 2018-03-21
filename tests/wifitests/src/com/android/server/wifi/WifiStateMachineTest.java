@@ -1732,8 +1732,9 @@ public class WifiStateMachineTest {
         // Now trigger the death notification.
         mStatusListenerCaptor.getValue().onStatusChanged(false);
         mLooper.dispatchAll();
-        verify(mSelfRecovery).trigger(eq(SelfRecovery.REASON_WIFICOND_CRASH));
-        verify(mWifiDiagnostics).captureBugReportData(WifiDiagnostics.REPORT_REASON_WIFICOND_CRASH);
+        verify(mSelfRecovery).trigger(eq(SelfRecovery.REASON_WIFINATIVE_FAILURE));
+        verify(mWifiDiagnostics).captureBugReportData(
+                WifiDiagnostics.REPORT_REASON_WIFINATIVE_FAILURE);
     }
 
     /**
