@@ -224,7 +224,8 @@ public class HalDeviceManager {
      */
     public IWifiStaIface createStaIface(boolean lowPrioritySta,
             @Nullable InterfaceDestroyedListener destroyedListener, @Nullable Handler handler) {
-        return (IWifiStaIface) createIface(IfaceType.STA, destroyedListener, handler);
+        return (IWifiStaIface) createIface(IfaceType.STA, lowPrioritySta, destroyedListener,
+                handler);
     }
 
     /**
@@ -232,7 +233,7 @@ public class HalDeviceManager {
      */
     public IWifiApIface createApIface(@Nullable InterfaceDestroyedListener destroyedListener,
             @Nullable Handler handler) {
-        return (IWifiApIface) createIface(IfaceType.AP, destroyedListener, handler);
+        return (IWifiApIface) createIface(IfaceType.AP, false, destroyedListener, handler);
     }
 
     /**
@@ -240,7 +241,7 @@ public class HalDeviceManager {
      */
     public IWifiP2pIface createP2pIface(@Nullable InterfaceDestroyedListener destroyedListener,
             @Nullable Handler handler) {
-        return (IWifiP2pIface) createIface(IfaceType.P2P, destroyedListener, handler);
+        return (IWifiP2pIface) createIface(IfaceType.P2P, false, destroyedListener, handler);
     }
 
     /**
@@ -248,7 +249,7 @@ public class HalDeviceManager {
      */
     public IWifiNanIface createNanIface(@Nullable InterfaceDestroyedListener destroyedListener,
             @Nullable Handler handler) {
-        return (IWifiNanIface) createIface(IfaceType.NAN, destroyedListener, handler);
+        return (IWifiNanIface) createIface(IfaceType.NAN, false, destroyedListener, handler);
     }
 
     /**
@@ -516,14 +517,15 @@ public class HalDeviceManager {
         public int type;
         public Set<InterfaceDestroyedListenerProxy> destroyedListeners = new HashSet<>();
         public long creationTime;
+        public boolean isLowPriority;
 
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
             sb.append("{name=").append(name).append(", type=").append(type)
                     .append(", destroyedListeners.size()=").append(destroyedListeners.size())
-                    .append(", creationTime=").append(creationTime)
-                    .append("}");
+                    .append(", creationTime=").append(creationTime).append(
+                    ", isLowPriority=").append(isLowPriority).append("}");
             return sb.toString();
         }
     }
@@ -1311,9 +1313,11 @@ public class HalDeviceManager {
         return results;
     }
 
-    private IWifiIface createIface(int ifaceType, InterfaceDestroyedListener destroyedListener,
-            Handler handler) {
-        if (mDbg) Log.d(TAG, "createIface: ifaceType=" + ifaceType);
+    private IWifiIface createIface(int ifaceType, boolean lowPriority,
+            InterfaceDestroyedListener destroyedListener, Handler handler) {
+        if (mDbg) {
+            Log.d(TAG, "createIface: ifaceType=" + ifaceType + ", lowPriority=" + lowPriority);
+        }
 
         synchronized (mLock) {
             WifiChipInfo[] chipInfos = getAllChipInfo();
@@ -1329,8 +1333,8 @@ public class HalDeviceManager {
                 return null;
             }
 
-            IWifiIface iface = createIfaceIfPossible(chipInfos, ifaceType, destroyedListener,
-                    handler);
+            IWifiIface iface = createIfaceIfPossible(chipInfos, ifaceType, lowPriority,
+                    destroyedListener, handler);
             if (iface != null) { // means that some configuration has changed
                 if (!dispatchAvailableForRequestListeners()) {
                     return null; // catastrophic failure - shut down
@@ -1342,10 +1346,10 @@ public class HalDeviceManager {
     }
 
     private IWifiIface createIfaceIfPossible(WifiChipInfo[] chipInfos, int ifaceType,
-            InterfaceDestroyedListener destroyedListener, Handler handler) {
+            boolean lowPriority, InterfaceDestroyedListener destroyedListener, Handler handler) {
         if (VDBG) {
             Log.d(TAG, "createIfaceIfPossible: chipInfos=" + Arrays.deepToString(chipInfos)
-                    + ", ifaceType=" + ifaceType);
+                    + ", ifaceType=" + ifaceType + ", lowPriority=" + lowPriority);
         }
         synchronized (mLock) {
             IfaceCreationData bestIfaceCreationProposal = null;
@@ -1361,7 +1365,7 @@ public class HalDeviceManager {
 
                         for (int[] expandedIfaceCombo: expandedIfaceCombos) {
                             IfaceCreationData currentProposal = canIfaceComboSupportRequest(
-                                    chipInfo, chipMode, expandedIfaceCombo, ifaceType);
+                                    chipInfo, chipMode, expandedIfaceCombo, ifaceType, lowPriority);
                             if (compareIfaceCreationData(currentProposal,
                                     bestIfaceCreationProposal)) {
                                 if (VDBG) Log.d(TAG, "new proposal accepted");
@@ -1387,6 +1391,7 @@ public class HalDeviceManager {
                                         cacheEntry.name, destroyedListener, handler));
                     }
                     cacheEntry.creationTime = mClock.getUptimeSinceBootMillis();
+                    cacheEntry.isLowPriority = lowPriority;
 
                     if (mDbg) Log.d(TAG, "createIfaceIfPossible: added cacheEntry=" + cacheEntry);
                     mInterfaceInfoCache.put(
@@ -1419,7 +1424,7 @@ public class HalDeviceManager {
 
                     for (int[] expandedIfaceCombo: expandedIfaceCombos) {
                         if (canIfaceComboSupportRequest(chipInfo, chipMode, expandedIfaceCombo,
-                                ifaceType) != null) {
+                                ifaceType, false) != null) {
                             return true;
                         }
                     }
@@ -1492,10 +1497,11 @@ public class HalDeviceManager {
      *   requested interface
      */
     private IfaceCreationData canIfaceComboSupportRequest(WifiChipInfo chipInfo,
-            IWifiChip.ChipMode chipMode, int[] chipIfaceCombo, int ifaceType) {
+            IWifiChip.ChipMode chipMode, int[] chipIfaceCombo, int ifaceType, boolean lowPriority) {
         if (VDBG) {
             Log.d(TAG, "canIfaceComboSupportRequest: chipInfo=" + chipInfo + ", chipMode="
-                    + chipMode + ", chipIfaceCombo=" + chipIfaceCombo + ", ifaceType=" + ifaceType);
+                    + chipMode + ", chipIfaceCombo=" + chipIfaceCombo + ", ifaceType=" + ifaceType
+                    + ", lowPriority=" + lowPriority);
         }
 
         // short-circuit: does the chipIfaceCombo even support the requested type?
@@ -1512,8 +1518,15 @@ public class HalDeviceManager {
         if (isChipModeChangeProposed) {
             for (int type: IFACE_TYPES_BY_PRIORITY) {
                 if (chipInfo.ifaces[type].length != 0) {
+                    if (lowPriority) {
+                        if (VDBG) {
+                            Log.d(TAG, "Couldn't delete existing type " + type
+                                    + " interfaces for a low priority request");
+                        }
+                        return null;
+                    }
                     if (!allowedToDeleteIfaceTypeForRequestedType(type, ifaceType,
-                            chipInfo.ifaces)) {
+                            chipInfo.ifaces, chipInfo.ifaces[type].length)) {
                         if (VDBG) {
                             Log.d(TAG, "Couldn't delete existing type " + type
                                     + " interfaces for requested type");
@@ -1543,14 +1556,23 @@ public class HalDeviceManager {
             }
 
             if (tooManyInterfaces > 0) { // may need to delete some
-                if (!allowedToDeleteIfaceTypeForRequestedType(type, ifaceType, chipInfo.ifaces)) {
+                if (lowPriority) {
+                    if (VDBG) {
+                        Log.d(TAG, "Couldn't delete existing type " + type
+                                + " interfaces for a low priority request");
+                    }
+                    return null;
+                }
+
+                if (!allowedToDeleteIfaceTypeForRequestedType(type, ifaceType, chipInfo.ifaces,
+                        tooManyInterfaces)) {
                     if (VDBG) {
                         Log.d(TAG, "Would need to delete some higher priority interfaces");
                     }
                     return null;
                 }
 
-                // delete the most recently created interfaces
+                // delete the most recently created interfaces or LOW priority interfaces
                 interfacesToBeRemovedFirst = selectInterfacesToDelete(tooManyInterfaces,
                         chipInfo.ifaces[type]);
             }
@@ -1631,10 +1653,24 @@ public class HalDeviceManager {
      * 4. Request for AP or STA will destroy any other interface
      * 5. Request for P2P will destroy NAN-only (but will destroy a second STA per #3)
      * 6. Request for NAN will not destroy any interface (but will destroy a second STA per #3)
-
+     *
+     * Note: the 'numNecessaryInterfaces' is used to specify how many interfaces would be needed to
+     * be deleted. This is used to determine whether there are that many low priority interfaces
+     * of the requested type to delete.
      */
     private boolean allowedToDeleteIfaceTypeForRequestedType(int existingIfaceType,
-            int requestedIfaceType, WifiIfaceInfo[][] currentIfaces) {
+            int requestedIfaceType, WifiIfaceInfo[][] currentIfaces, int numNecessaryInterfaces) {
+        // rule 0: check for any low priority interfaces
+        int numAvailableLowPriorityInterfaces = 0;
+        for (InterfaceCacheEntry entry : mInterfaceInfoCache.values()) {
+            if (entry.type == existingIfaceType && entry.isLowPriority) {
+                numAvailableLowPriorityInterfaces++;
+            }
+        }
+        if (numAvailableLowPriorityInterfaces >= numNecessaryInterfaces) {
+            return true;
+        }
+
         // rule 1
         if (existingIfaceType == requestedIfaceType) {
             return false;
@@ -1667,7 +1703,7 @@ public class HalDeviceManager {
     /**
      * Selects the interfaces to delete.
      *
-     * Rule: select the most recently created interfaces in order.
+     * Rule: select low priority interfaces and then other interfaces in order of creation time.
      *
      * @param excessInterfaces Number of interfaces which need to be selected.
      * @param interfaces Array of interfaces.
@@ -1680,7 +1716,8 @@ public class HalDeviceManager {
         }
 
         boolean lookupError = false;
-        LongSparseArray<WifiIfaceInfo> orderedList = new LongSparseArray(interfaces.length);
+        LongSparseArray<WifiIfaceInfo> orderedListLowPriority = new LongSparseArray<>();
+        LongSparseArray<WifiIfaceInfo> orderedList = new LongSparseArray<>();
         for (WifiIfaceInfo info : interfaces) {
             InterfaceCacheEntry cacheEntry = mInterfaceInfoCache.get(
                     Pair.create(info.name, getType(info.iface)));
@@ -1690,16 +1727,26 @@ public class HalDeviceManager {
                 lookupError = true;
                 break;
             }
-            orderedList.append(cacheEntry.creationTime, info);
+            if (cacheEntry.isLowPriority) {
+                orderedListLowPriority.append(cacheEntry.creationTime, info);
+            } else {
+                orderedList.append(cacheEntry.creationTime, info);
+            }
         }
 
         if (lookupError) {
-            Log.e(TAG, "selectInterfacesToDelete: falling back to arbitary selection");
+            Log.e(TAG, "selectInterfacesToDelete: falling back to arbitrary selection");
             return Arrays.asList(Arrays.copyOf(interfaces, excessInterfaces));
         } else {
             List<WifiIfaceInfo> result = new ArrayList<>(excessInterfaces);
             for (int i = 0; i < excessInterfaces; ++i) {
-                result.add(orderedList.valueAt(orderedList.size() - i - 1));
+                int lowPriorityNextIndex = orderedListLowPriority.size() - i - 1;
+                if (lowPriorityNextIndex >= 0) {
+                    result.add(orderedListLowPriority.valueAt(lowPriorityNextIndex));
+                } else {
+                    result.add(orderedList.valueAt(
+                            orderedList.size() - i + orderedListLowPriority.size() - 1));
+                }
             }
             return result;
         }
