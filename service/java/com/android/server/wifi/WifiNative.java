@@ -531,6 +531,7 @@ public class WifiNative {
                 Log.d(TAG, "Interface status unchanged from " + isUp + ", Ignoring...");
                 return;
             }
+            Log.i(TAG, "Interface link state changed=" + iface.name + ", isUp=" + isUp);
             if (isUp) {
                 iface.externalListener.onUp(iface.name);
             } else {
@@ -554,7 +555,6 @@ public class WifiNative {
         @Override
         public void interfaceLinkStateChanged(String ifaceName, boolean isUp) {
             synchronized (mLock) {
-                Log.i(TAG, "Interface link state changed=" + ifaceName + ", isUp=" + isUp);
                 final Iface ifaceWithId = mIfaceMgr.getIface(mInterfaceId);
                 if (ifaceWithId == null) {
                     Log.e(TAG, "Received iface up/down notification on an invalid iface="
