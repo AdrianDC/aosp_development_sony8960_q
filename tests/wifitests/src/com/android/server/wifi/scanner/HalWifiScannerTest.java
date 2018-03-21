@@ -37,4 +37,6 @@ public class HalWifiScannerTest extends BaseWifiScannerImplTest {
         mScanner = new HalWifiScannerImpl(mContext, BaseWifiScannerImplTest.IFACE_NAME,
                 mWifiNative, mWifiMonitor, mLooper.getLooper(), mClock);
     }
+
+    // Subtle: tests are inherited from base class.
 }
