@@ -136,6 +136,24 @@ public class WifiMonitor {
         ifaceWhatHandlers.add(handler);
     }
 
+    /**
+     * Deregister the given |handler|
+     * @param iface
+     * @param what
+     * @param handler
+     */
+    public synchronized void deregisterHandler(String iface, int what, Handler handler) {
+        SparseArray<Set<Handler>> ifaceHandlers = mHandlerMap.get(iface);
+        if (ifaceHandlers == null) {
+            return;
+        }
+        Set<Handler> ifaceWhatHandlers = ifaceHandlers.get(what);
+        if (ifaceWhatHandlers == null) {
+            return;
+        }
+        ifaceWhatHandlers.remove(handler);
+    }
+
     private final Map<String, Boolean> mMonitoringMap = new HashMap<>();
     private boolean isMonitoring(String iface) {
         Boolean val = mMonitoringMap.get(iface);
