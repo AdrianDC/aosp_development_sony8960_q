@@ -2250,7 +2250,7 @@ public class NfcService implements DeviceHostListener {
                 intent.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
                 intent.putExtra(NfcAdapter.EXTRA_AID, aid);
                 intent.putExtra(NfcAdapter.EXTRA_DATA, data);
-                intent.putExtra(NfcAdapter.EXTRA_SE_NAME, reader);
+                intent.putExtra(NfcAdapter.EXTRA_SECURE_ELEMENT_NAME, reader);
                 for (int i = 0; i < nfcAccess.length; i++) {
                     if (nfcAccess[i]) {
                         intent.setPackage(mNfcEventInstalledPackages.get(i).packageName);
