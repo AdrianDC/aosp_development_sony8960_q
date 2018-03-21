@@ -902,12 +902,6 @@ public class WifiStateMachine extends StateMachine {
 
         mWifiScoreReport = new WifiScoreReport(mContext, mClock);
 
-        mUserWantsSuspendOpt.set(mFacade.getIntegerSetting(mContext,
-                Settings.Global.WIFI_SUSPEND_OPTIMIZATIONS_ENABLED, 1) == 1);
-
-        mEnableConnectedMacRandomization.set(mFacade.getIntegerSetting(mContext,
-                Settings.Global.WIFI_CONNECTED_MAC_RANDOMIZATION_ENABLED, 0) == 1);
-
         mNetworkCapabilitiesFilter.addTransportType(NetworkCapabilities.TRANSPORT_WIFI);
         mNetworkCapabilitiesFilter.addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
         mNetworkCapabilitiesFilter.addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
@@ -951,10 +945,7 @@ public class WifiStateMachine extends StateMachine {
                 new ContentObserver(getHandler()) {
                     @Override
                     public void onChange(boolean selfChange) {
-                        mEnableConnectedMacRandomization.set(mFacade.getIntegerSetting(mContext,
-                                Settings.Global.WIFI_CONNECTED_MAC_RANDOMIZATION_ENABLED, 0) == 1);
-                        Log.i(TAG, "EnableConnectedMacRandomization Setting changed to "
-                                + mEnableConnectedMacRandomization);
+                        updateConnectedMacRandomizationSetting();
                     }
                 });
 
@@ -966,6 +957,11 @@ public class WifiStateMachine extends StateMachine {
                     }
                 },
                 new IntentFilter(Intent.ACTION_LOCKED_BOOT_COMPLETED));
+
+        mUserWantsSuspendOpt.set(mFacade.getIntegerSetting(mContext,
+                Settings.Global.WIFI_SUSPEND_OPTIMIZATIONS_ENABLED, 1) == 1);
+
+        updateConnectedMacRandomizationSetting();
 
         PowerManager powerManager = (PowerManager) mContext.getSystemService(Context.POWER_SERVICE);
         mWakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, getName());
@@ -3380,6 +3376,19 @@ public class WifiStateMachine extends StateMachine {
         }
     }
 
+    /**
+     * Update whether Connected MAC Randomization is enabled in WifiStateMachine
+     * and WifiInfo.
+     */
+    private void updateConnectedMacRandomizationSetting() {
+        int macRandomizationFlag = mFacade.getIntegerSetting(
+                mContext, Settings.Global.WIFI_CONNECTED_MAC_RANDOMIZATION_ENABLED, 0);
+        boolean macRandomizationEnabled = (macRandomizationFlag == 1);
+        mEnableConnectedMacRandomization.set(macRandomizationEnabled);
+        mWifiInfo.setEnableConnectedMacRandomization(macRandomizationEnabled);
+        Log.d(TAG, "EnableConnectedMacRandomization Setting changed to "
+                + macRandomizationEnabled);
+    }
 
     /********************************************************
      * HSM states
