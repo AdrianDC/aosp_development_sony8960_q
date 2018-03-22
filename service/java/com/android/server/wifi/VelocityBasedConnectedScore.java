@@ -16,10 +16,8 @@
 
 package com.android.server.wifi;
 
-import android.content.Context;
 import android.net.wifi.WifiInfo;
 
-import com.android.internal.R;
 import com.android.server.wifi.util.KalmanFilter;
 import com.android.server.wifi.util.Matrix;
 
@@ -29,23 +27,16 @@ import com.android.server.wifi.util.Matrix;
  */
 public class VelocityBasedConnectedScore extends ConnectedScore {
 
-    // Device configs. The values are examples.
-    private final int mThresholdMinimumRssi5;      // -82
-    private final int mThresholdMinimumRssi24;     // -85
+    private final ScoringParams mScoringParams;
 
-    private int mFrequency = 5000;
-    private double mThresholdMinimumRssi;
+    private int mFrequency = ScoringParams.BAND5;
     private double mThresholdAdjustment;
     private final KalmanFilter mFilter;
     private long mLastMillis;
 
-    public VelocityBasedConnectedScore(Context context, Clock clock) {
+    public VelocityBasedConnectedScore(ScoringParams scoringParams, Clock clock) {
         super(clock);
-        mThresholdMinimumRssi5 = context.getResources().getInteger(
-                R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_5GHz);
-        mThresholdMinimumRssi24 = context.getResources().getInteger(
-                R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_24GHz);
-        mThresholdMinimumRssi = mThresholdMinimumRssi5;
+        mScoringParams = scoringParams;
         mFilter = new KalmanFilter();
         mFilter.mH = new Matrix(2, new double[]{1.0, 0.0});
         mFilter.mR = new Matrix(1, new double[]{1.0});
@@ -71,7 +62,6 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
     @Override
     public void reset() {
         mLastMillis = 0;
-        mThresholdAdjustment = 0.0;
     }
 
     /**
@@ -114,8 +104,6 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
             // Consider resetting or partially resetting threshold adjustment
             // Consider checking bssid
             mFrequency = frequency;
-            mThresholdMinimumRssi =
-                    mFrequency >= 5000 ? mThresholdMinimumRssi5 : mThresholdMinimumRssi24;
         }
         updateUsingRssi(wifiInfo.getRssi(), millis, mDefaultRssiStandardDeviation);
         adjustThreshold(wifiInfo);
@@ -142,7 +130,7 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
      * Returns the adjusted RSSI threshold
      */
     public double getAdjustedRssiThreshold() {
-        return mThresholdMinimumRssi + mThresholdAdjustment;
+        return mScoringParams.getExitRssi(mFrequency) + mThresholdAdjustment;
     }
 
     private double mMinimumPpsForMeasuringSuccess = 2.0;
@@ -178,7 +166,7 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
     @Override
     public int generateScore() {
         double badRssi = getAdjustedRssiThreshold();
-        double horizonSeconds = 15.0;
+        double horizonSeconds = mScoringParams.getHorizonSeconds();
         Matrix x = new Matrix(mFilter.mx);
         double filteredRssi = x.get(0, 0);
         setDeltaTimeSeconds(horizonSeconds);
