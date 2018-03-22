@@ -179,6 +179,7 @@ public class WifiNetworkSelectorTest {
         // simulate a disconnected state
         when(mWifiInfo.is24GHz()).thenReturn(true);
         when(mWifiInfo.is5GHz()).thenReturn(false);
+        when(mWifiInfo.getFrequency()).thenReturn(2400);
         when(mWifiInfo.getRssi()).thenReturn(-70);
         when(mWifiInfo.getNetworkId()).thenReturn(WifiConfiguration.INVALID_NETWORK_ID);
         when(mWifiInfo.getBSSID()).thenReturn(null);
@@ -361,6 +362,7 @@ public class WifiNetworkSelectorTest {
         when(mWifiInfo.getBSSID()).thenReturn(bssids[0]);
         when(mWifiInfo.is24GHz()).thenReturn(false);
         when(mWifiInfo.is5GHz()).thenReturn(true);
+        when(mWifiInfo.getFrequency()).thenReturn(5000);
 
         when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime()
                 + WifiNetworkSelector.MINIMUM_NETWORK_SELECTION_INTERVAL_MS + 2000);
@@ -407,6 +409,7 @@ public class WifiNetworkSelectorTest {
         when(mWifiInfo.getBSSID()).thenReturn(bssids[0]);
         when(mWifiInfo.is24GHz()).thenReturn(false);
         when(mWifiInfo.is5GHz()).thenReturn(true);
+        when(mWifiInfo.getFrequency()).thenReturn(5000);
         when(mWifiInfo.getRssi()).thenReturn(levels[0]);
 
         when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime()
@@ -483,6 +486,7 @@ public class WifiNetworkSelectorTest {
         when(mWifiInfo.getBSSID()).thenReturn(bssids[0]);
         when(mWifiInfo.is24GHz()).thenReturn(true);
         when(mWifiInfo.is5GHz()).thenReturn(false);
+        when(mWifiInfo.getFrequency()).thenReturn(2400);
         when(mWifiInfo.getRssi()).thenReturn(levels[0]);
         when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime()
                 + WifiNetworkSelector.MINIMUM_NETWORK_SELECTION_INTERVAL_MS + 2000);
@@ -910,6 +914,7 @@ public class WifiNetworkSelectorTest {
         when(mWifiInfo.getBSSID()).thenReturn(bssids[0]);
         when(mWifiInfo.is24GHz()).thenReturn(!ScanResult.is5GHz(freqs[0]));
         when(mWifiInfo.is5GHz()).thenReturn(ScanResult.is5GHz(freqs[0]));
+        when(mWifiInfo.getFrequency()).thenReturn(freqs[0]);
 
         when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime()
                 + WifiNetworkSelector.MINIMUM_NETWORK_SELECTION_INTERVAL_MS + 2000);
