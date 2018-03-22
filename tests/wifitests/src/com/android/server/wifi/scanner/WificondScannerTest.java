@@ -47,15 +47,16 @@ import java.util.regex.Pattern;
  */
 @SmallTest
 public class WificondScannerTest extends BaseWifiScannerImplTest {
-
+    WifiMonitor mWifiMonitorSpy;
     @Before
     public void setup() throws Exception {
         setupMockChannels(mWifiNative,
                 new int[]{2400, 2450},
                 new int[]{5150, 5175},
                 new int[]{5600, 5650});
+        mWifiMonitorSpy = spy(mWifiMonitor);
         mScanner = new WificondScannerImpl(mContext, BaseWifiScannerImplTest.IFACE_NAME,
-                mWifiNative, mWifiMonitor, new WificondChannelHelper(mWifiNative),
+                mWifiNative, mWifiMonitorSpy, new WificondChannelHelper(mWifiNative),
                 mLooper.getLooper(), mClock);
     }
 
@@ -166,6 +167,17 @@ public class WificondScannerTest extends BaseWifiScannerImplTest {
     @Test
     public void dumpContainsNativeScanResults() {
         assertDumpContainsRequestLog("Latest native scan results:");
+    }
+
+    @Test
+    public void cleanupDeregistersHandlers() {
+        mScanner.cleanup();
+        verify(mWifiMonitorSpy, times(1)).deregisterHandler(anyString(),
+                eq(WifiMonitor.SCAN_FAILED_EVENT), any());
+        verify(mWifiMonitorSpy, times(1)).deregisterHandler(anyString(),
+                eq(WifiMonitor.PNO_SCAN_RESULTS_EVENT), any());
+        verify(mWifiMonitorSpy, times(1)).deregisterHandler(anyString(),
+                eq(WifiMonitor.SCAN_RESULTS_EVENT), any());
     }
 
     private void assertDumpContainsRequestLog(String log) {

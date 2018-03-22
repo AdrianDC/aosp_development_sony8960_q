@@ -41,7 +41,7 @@ public class WifiAwareDiscoverySessionState {
     private static final boolean VDBG = false; // STOPSHIP if true
     /* package */ boolean mDbg = false;
 
-    private int mNextPeerIdToBeAllocated = 100; // used to create a unique peer ID
+    private static int sNextPeerIdToBeAllocated = 100; // used to create a unique peer ID
 
     private final WifiAwareNativeApi mWifiAwareNativeApi;
     private int mSessionId;
@@ -298,7 +298,7 @@ public class WifiAwareDiscoverySessionState {
             }
         }
 
-        int newPeerId = mNextPeerIdToBeAllocated++;
+        int newPeerId = sNextPeerIdToBeAllocated++;
         PeerInfo newPeerInfo = new PeerInfo(requestorInstanceId, peerMac);
         mPeerInfoByRequestorInstanceId.put(newPeerId, newPeerInfo);
 

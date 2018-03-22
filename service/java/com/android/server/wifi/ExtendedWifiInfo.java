@@ -26,11 +26,15 @@ public class ExtendedWifiInfo extends WifiInfo {
     private static final double FILTER_TIME_CONSTANT = 3000.0;
 
     private long mLastPacketCountUpdateTimeStamp = RESET_TIME_STAMP;
+    private boolean mEnableConnectedMacRandomization = false;
 
     @Override
     public void reset() {
         super.reset();
         mLastPacketCountUpdateTimeStamp = RESET_TIME_STAMP;
+        if (mEnableConnectedMacRandomization) {
+            setMacAddress(DEFAULT_MAC_ADDRESS);
+        }
     }
 
     /**
@@ -119,5 +123,13 @@ public class ExtendedWifiInfo extends WifiInfo {
         rxSuccess = rxPackets;
     }
 
+    /**
+     * Updates whether Connected MAC Randomization is enabled.
+     *
+     * @hide
+     */
+    public void setEnableConnectedMacRandomization(boolean enableConnectedMacRandomization) {
+        mEnableConnectedMacRandomization = enableConnectedMacRandomization;
+    }
 
 }
