@@ -217,9 +217,14 @@ public class WifiController extends StateMachine {
                 case CMD_AP_START_FAILURE:
                 case CMD_AP_STOPPED:
                 case CMD_STA_START_FAILURE:
-                case CMD_RECOVERY_RESTART_WIFI:
                 case CMD_RECOVERY_RESTART_WIFI_CONTINUE:
                 case CMD_RECOVERY_DISABLE_WIFI:
+                    break;
+                case CMD_RECOVERY_RESTART_WIFI:
+                    // TODO:b/72850700 : when softap is split out, we need to fully disable wifi
+                    // here (like airplane mode toggle).
+                    deferMessage(obtainMessage(CMD_RECOVERY_RESTART_WIFI_CONTINUE));
+                    transitionTo(mApStaDisabledState);
                     break;
                 case CMD_USER_PRESENT:
                     mFirstUserSignOnSeen = true;
@@ -301,7 +306,15 @@ public class WifiController extends StateMachine {
                     sendMessage((Message)(msg.obj));
                     break;
                 case CMD_RECOVERY_RESTART_WIFI_CONTINUE:
-                    transitionTo(mDeviceActiveState);
+                    if (mSettingsStore.isWifiToggleEnabled()) {
+                        // wifi is currently disabled but the toggle is on, must have had an
+                        // interface down before the recovery triggered
+                        transitionTo(mDeviceActiveState);
+                        break;
+                    } else if (checkScanOnlyModeAvailable()) {
+                        transitionTo(mStaDisabledWithScanState);
+                        break;
+                    }
                     break;
                 default:
                     return NOT_HANDLED;
@@ -563,6 +576,14 @@ public class WifiController extends StateMachine {
                     mWifiStateMachine.setHostApRunning(null, false);
                     transitionTo(getNextWifiState());
                     break;
+                case CMD_RECOVERY_RESTART_WIFI:
+                case CMD_RECOVERY_DISABLE_WIFI:
+                    // note: this will need to fully shutdown wifi when softap mode is removed from
+                    // the state machine
+                    loge("Recovery triggered while in softap active, disable");
+                    mWifiStateMachinePrime.disableWifi();
+                    transitionTo(getNextWifiState());
+                    break;
                 default:
                     return NOT_HANDLED;
             }
@@ -604,6 +625,10 @@ public class WifiController extends StateMachine {
                     // out of emergency callback mode
                     decrementCountAndReturnToAppropriateState();
                 }
+                return HANDLED;
+            } else if (msg.what == CMD_RECOVERY_RESTART_WIFI
+                    || msg.what == CMD_RECOVERY_DISABLE_WIFI) {
+                // do not want to restart wifi if we are in emergency mode
                 return HANDLED;
             } else {
                 return NOT_HANDLED;

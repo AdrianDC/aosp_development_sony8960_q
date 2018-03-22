@@ -30,6 +30,7 @@ import com.android.internal.app.IBatteryStats;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.invocation.InvocationOnMock;
@@ -56,10 +57,16 @@ public class WifiStateMachinePrimeTest {
     @Mock SoftApManager mSoftApManager;
     @Mock DefaultModeManager mDefaultModeManager;
     @Mock IBatteryStats mBatteryStats;
+    @Mock SelfRecovery mSelfRecovery;
+    @Mock BaseWifiDiagnostics mWifiDiagnostics;
     ScanOnlyModeManager.Listener mScanOnlyListener;
     WifiManager.SoftApCallback mSoftApManagerCallback;
     @Mock WifiManager.SoftApCallback mSoftApStateMachineCallback;
+    WifiNative.StatusListener mWifiNativeStatusListener;
     WifiStateMachinePrime mWifiStateMachinePrime;
+
+    final ArgumentCaptor<WifiNative.StatusListener> mStatusListenerCaptor =
+            ArgumentCaptor.forClass(WifiNative.StatusListener.class);
 
     /**
      * Set up the test environment.
@@ -71,8 +78,14 @@ public class WifiStateMachinePrimeTest {
         MockitoAnnotations.initMocks(this);
         mLooper = new TestLooper();
 
+        when(mWifiInjector.getSelfRecovery()).thenReturn(mSelfRecovery);
+        when(mWifiInjector.makeWifiDiagnostics(eq(mWifiNative))).thenReturn(mWifiDiagnostics);
+
         mWifiStateMachinePrime = createWifiStateMachinePrime();
         mLooper.dispatchAll();
+
+        verify(mWifiNative).registerStatusListener(mStatusListenerCaptor.capture());
+        mWifiNativeStatusListener = mStatusListenerCaptor.getValue();
 
         mWifiStateMachinePrime.registerSoftApCallback(mSoftApStateMachineCallback);
     }
@@ -538,5 +551,29 @@ public class WifiStateMachinePrimeTest {
         mWifiStateMachinePrime.disableWifi();
         // since we start up in disabled, this should not re-enter the disabled state
         verify(mWifiNative).teardownAllInterfaces();
+    }
+
+    /**
+     * Trigger recovery and a bug report if we see a native failure.
+     */
+    @Test
+    public void handleWifiNativeFailure() throws Exception {
+        mWifiNativeStatusListener.onStatusChanged(false);
+        mLooper.dispatchAll();
+        verify(mWifiDiagnostics).captureBugReportData(
+                WifiDiagnostics.REPORT_REASON_WIFINATIVE_FAILURE);
+        verify(mSelfRecovery).trigger(eq(SelfRecovery.REASON_WIFINATIVE_FAILURE));
+    }
+
+    /**
+     * Verify an onStatusChanged callback with "true" does not trigger recovery.
+     */
+    @Test
+    public void handleWifiNativeStatusReady() throws Exception {
+        mWifiNativeStatusListener.onStatusChanged(true);
+        mLooper.dispatchAll();
+        verify(mWifiDiagnostics, never()).captureBugReportData(
+                WifiDiagnostics.REPORT_REASON_WIFINATIVE_FAILURE);
+        verify(mSelfRecovery, never()).trigger(eq(SelfRecovery.REASON_WIFINATIVE_FAILURE));
     }
 }

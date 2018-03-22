@@ -19,6 +19,7 @@ package com.android.server.wifi;
 import android.annotation.NonNull;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
+import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.os.RemoteException;
@@ -29,6 +30,7 @@ import com.android.internal.app.IBatteryStats;
 import com.android.internal.util.Protocol;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
+import com.android.server.wifi.WifiNative.StatusListener;
 
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -53,6 +55,8 @@ public class WifiStateMachinePrime {
     private final Looper mLooper;
     private final WifiNative mWifiNative;
     private final IBatteryStats mBatteryStats;
+    private final SelfRecovery mSelfRecovery;
+    private BaseWifiDiagnostics mWifiDiagnostics;
 
     private Queue<SoftApModeConfiguration> mApConfigQueue = new ConcurrentLinkedQueue<>();
 
@@ -91,6 +95,8 @@ public class WifiStateMachinePrime {
     // Client mode failed
     static final int CMD_CLIENT_MODE_FAILED                             = BASE + 304;
 
+    private StatusListener mWifiNativeStatusListener;
+
     private WifiManager.SoftApCallback mSoftApCallback;
 
     /**
@@ -111,7 +117,11 @@ public class WifiStateMachinePrime {
         mActiveModeManagers = new ArraySet();
         mDefaultModeManager = defaultModeManager;
         mBatteryStats = batteryStats;
+        mSelfRecovery = mWifiInjector.getSelfRecovery();
+        mWifiDiagnostics = mWifiInjector.makeWifiDiagnostics(mWifiNative);
         mModeStateMachine = new ModeStateMachine();
+        mWifiNativeStatusListener = new WifiNativeStatusListener();
+        mWifiNative.registerStatusListener(mWifiNativeStatusListener);
     }
 
     /**
@@ -325,9 +335,11 @@ public class WifiStateMachinePrime {
                 public void onStateChanged(int state) {
                     Log.d(TAG, "State changed from scan only mode.");
                     if (state == WifiManager.WIFI_STATE_UNKNOWN) {
+                        Log.d(TAG, "ScanOnly mode failed");
                         // error while setting up scan mode or an unexpected failure.
                         mModeStateMachine.sendMessage(CMD_SCAN_ONLY_MODE_FAILED);
                     } else if (state == WifiManager.WIFI_STATE_DISABLED) {
+                        Log.d(TAG, "ScanOnly mode stopped");
                         //scan only mode stopped
                         mModeStateMachine.sendMessage(CMD_SCAN_ONLY_MODE_STOPPED);
                     } else if (state == WifiManager.WIFI_STATE_ENABLED) {
@@ -473,4 +485,23 @@ public class WifiStateMachinePrime {
         }
     }
 
+    // callback used to receive callbacks about underlying native failures
+    private final class WifiNativeStatusListener implements StatusListener {
+        Handler mHandler = new Handler(mLooper);
+
+        @Override
+        public void onStatusChanged(boolean isReady) {
+            if (!isReady) {
+                mHandler.post(() -> {
+                    Log.e(TAG, "One of the native daemons died. Triggering recovery");
+                    mWifiDiagnostics.captureBugReportData(
+                            WifiDiagnostics.REPORT_REASON_WIFINATIVE_FAILURE);
+
+                    // immediately trigger SelfRecovery if we receive a notice about an
+                    // underlying daemon failure
+                    mWifiInjector.getSelfRecovery().trigger(SelfRecovery.REASON_WIFINATIVE_FAILURE);
+                });
+            }
+        }
+    };
 }

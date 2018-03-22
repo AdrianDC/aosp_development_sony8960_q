@@ -69,8 +69,6 @@ public class ScanOnlyModeManagerTest {
     @Mock ScanRequestProxy mScanRequestProxy;
     @Mock WakeupController mWakeupController;
 
-    final ArgumentCaptor<WifiNative.StatusListener> mStatusListenerCaptor =
-            ArgumentCaptor.forClass(WifiNative.StatusListener.class);
     final ArgumentCaptor<WifiNative.InterfaceCallback> mInterfaceCallbackCaptor =
             ArgumentCaptor.forClass(WifiNative.InterfaceCallback.class);
 
@@ -94,7 +92,6 @@ public class ScanOnlyModeManagerTest {
         mScanOnlyModeManager.start();
         mLooper.dispatchAll();
 
-        verify(mWifiNative).registerStatusListener(mStatusListenerCaptor.capture());
         verify(mWifiNative).setupInterfaceForClientMode(eq(true),
                 mInterfaceCallbackCaptor.capture());
 
@@ -128,37 +125,6 @@ public class ScanOnlyModeManagerTest {
     @Test
     public void scanModeStartAndVerifyEnabled() throws Exception {
         startScanOnlyModeAndVerifyEnabled();
-    }
-
-    /**
-     * ScanMode idle state does not crash when a native status update comes before entering the
-     * active state.
-     */
-    @Test
-    public void scanModeNativeUpdateBeforeStartDoesNotCrash() throws Exception {
-        verify(mWifiNative).registerStatusListener(mStatusListenerCaptor.capture());
-
-        mStatusListenerCaptor.getValue().onStatusChanged(false);
-        mLooper.dispatchAll();
-        verifyNoMoreInteractions(mContext, mListener);
-
-        verify(mScanRequestProxy, never()).clearScanResults();
-    }
-
-    /**
-     * ScanMode increments failure metrics when failing to setup client mode.
-     */
-    @Test
-    public void detectAndReportErrorWhenSetupForClientWifiNativeFailure() throws Exception {
-        when(mWifiNative.setupInterfaceForClientMode(anyBoolean(), any())).thenReturn(null);
-        mScanOnlyModeManager.start();
-        mLooper.dispatchAll();
-
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext, atLeastOnce()).sendStickyBroadcastAsUser(intentCaptor.capture(),
-                eq(UserHandle.ALL));
-        checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
-        checkWifiStateChangeListenerUpdate(WIFI_STATE_UNKNOWN);
     }
 
     /**
@@ -271,41 +237,6 @@ public class ScanOnlyModeManagerTest {
         reset(mContext, mListener);
         mInterfaceCallbackCaptor.getValue().onDown(OTHER_INTERFACE_NAME);
 
-        mLooper.dispatchAll();
-
-        verifyNoMoreInteractions(mContext, mListener);
-
-        verify(mScanRequestProxy, never()).clearScanResults();
-    }
-
-
-    /**
-     * Testing the handling of a WifiNative failure status change notification.
-     */
-    @Test
-    public void scanModeStartedStopsOnNativeFailure() throws Exception {
-        startScanOnlyModeAndVerifyEnabled();
-        reset(mContext);
-        mStatusListenerCaptor.getValue().onStatusChanged(false);
-        mLooper.dispatchAll();
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(),
-                                                   eq(UserHandle.ALL));
-
-        checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
-        checkWifiStateChangeListenerUpdate(WIFI_STATE_UNKNOWN);
-        checkWifiStateChangeListenerUpdate(WIFI_STATE_DISABLED);
-        verify(mScanRequestProxy).clearScanResults();
-    }
-
-    /**
-     * WifiNative callback that does not indicate failure should not stop Scan mode.
-     */
-    @Test
-    public void scanModeStartedDoesNotStopOnNativeSuccessUpdate() throws Exception {
-        startScanOnlyModeAndVerifyEnabled();
-        reset(mContext, mListener);
-        mStatusListenerCaptor.getValue().onStatusChanged(true);
         mLooper.dispatchAll();
 
         verifyNoMoreInteractions(mContext, mListener);

@@ -65,8 +65,6 @@ public class ClientModeManagerTest {
     @Mock WifiMonitor mWifiMonitor;
     @Mock ScanRequestProxy mScanRequestProxy;
 
-    final ArgumentCaptor<WifiNative.StatusListener> mStatusListenerCaptor =
-            ArgumentCaptor.forClass(WifiNative.StatusListener.class);
     final ArgumentCaptor<WifiNative.InterfaceCallback> mInterfaceCallbackCaptor =
             ArgumentCaptor.forClass(WifiNative.InterfaceCallback.class);
 
@@ -92,7 +90,6 @@ public class ClientModeManagerTest {
         mClientModeManager.start();
         mLooper.dispatchAll();
 
-        verify(mWifiNative).registerStatusListener(mStatusListenerCaptor.capture());
         verify(mWifiNative).setupInterfaceForClientMode(
                 eq(false), mInterfaceCallbackCaptor.capture());
 
@@ -157,7 +154,7 @@ public class ClientModeManagerTest {
 
         List<Intent> intents = intentCaptor.getAllValues();
         assertEquals(3, intents.size());
-        checkWifiStateChangedBroadcast(intents.get(0), WIFI_STATE_DISABLING, WIFI_STATE_ENABLED);
+        checkWifiStateChangedBroadcast(intents.get(0), WIFI_STATE_DISABLING, WIFI_STATE_UNKNOWN);
         checkWifiScanStateChangedBroadcast(intents.get(1), WIFI_STATE_DISABLED);
         checkWifiStateChangedBroadcast(intents.get(2), WIFI_STATE_DISABLED, WIFI_STATE_DISABLING);
         checkWifiStateChangeListenerUpdate(WIFI_STATE_DISABLED);
@@ -265,40 +262,6 @@ public class ClientModeManagerTest {
         mLooper.dispatchAll();
         verifyNotificationsForFailure();
     }
-
-    /**
-     * Testing the handling of a wifinative failure status change notification.
-     */
-    @Test
-    public void clientModeStartedStopsOnNativeFailure() throws Exception {
-        startClientModeAndVerifyEnabled();
-        reset(mContext, mScanRequestProxy, mListener);
-        mStatusListenerCaptor.getValue().onStatusChanged(false);
-        mLooper.dispatchNext();
-
-        checkWifiStateChangeListenerUpdate(WIFI_STATE_UNKNOWN);
-
-        mLooper.dispatchAll();
-
-        verifyNotificationsForFailure();
-    }
-
-    /**
-     * Testing that handling of a wifinative callback that is not a failuer does not stop client
-     * mode.
-     */
-    @Test
-    public void clientModeStartedAndStaysUpOnNativeNonFailureCallback() throws Exception {
-        startClientModeAndVerifyEnabled();
-        reset(mContext, mScanRequestProxy, mListener);
-        mStatusListenerCaptor.getValue().onStatusChanged(true);
-        mLooper.dispatchAll();
-
-        verify(mListener, never()).onStateChanged(eq(WIFI_STATE_UNKNOWN));
-        verify(mListener, never()).onStateChanged(eq(WIFI_STATE_DISABLING));
-        verify(mListener, never()).onStateChanged(eq(WIFI_STATE_DISABLED));
-    }
-
 
     /**
      * Testing the handling of an interface destroyed notification.

@@ -97,7 +97,6 @@ import com.android.internal.util.Protocol;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 import com.android.server.wifi.WifiNative.InterfaceCallback;
-import com.android.server.wifi.WifiNative.StatusListener;
 import com.android.server.wifi.hotspot2.AnqpEvent;
 import com.android.server.wifi.hotspot2.IconEvent;
 import com.android.server.wifi.hotspot2.NetworkDetail;
@@ -220,12 +219,6 @@ public class WifiStateMachine extends StateMachine {
     private int mLastSignalLevel = -1;
     private String mLastBssid;
     private int mLastNetworkId; // The network Id we successfully joined
-
-    private final StatusListener mWifiNativeStatusListener = (boolean isReady) -> {
-        if (!isReady) {
-            sendMessage(CMD_WIFINATIVE_FAILURE);
-        }
-    };
 
     private final InterfaceCallback mWifiNativeInterfaceCallback = new InterfaceCallback() {
         @Override
@@ -697,9 +690,6 @@ public class WifiStateMachine extends StateMachine {
 
     /* used to indicate that the foreground user was switched */
     static final int CMD_USER_STOP                                      = BASE + 207;
-
-    /* Signals that one of the native daemons is dead. */
-    private static final int CMD_WIFINATIVE_FAILURE                     = BASE + 250;
 
     /* Indicates that diagnostics should time out a connection start event. */
     private static final int CMD_DIAGS_CONNECT_TIMEOUT                  = BASE + 252;
@@ -3530,7 +3520,6 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_DISABLE_P2P_WATCHDOG_TIMER:
                 case CMD_DISABLE_EPHEMERAL_NETWORK:
                 case CMD_SELECT_TX_POWER_SCENARIO:
-                case CMD_WIFINATIVE_FAILURE:
                 case CMD_INTERFACE_DESTROYED:
                 case CMD_INTERFACE_DOWN:
                 case CMD_INTERFACE_STATUS_CHANGED:
@@ -3744,10 +3733,6 @@ public class WifiStateMachine extends StateMachine {
             // supplicant
             sendWifiScanAvailable(false);
 
-            mWifiNative.registerStatusListener(mWifiNativeStatusListener);
-            // TODO: This teardown should ideally be handled in STOP_SUPPLICANT to be consistent
-            // with other mode managers. But, client mode is not yet controlled by
-            // WifiStateMachinePrime.
             // TODO: Remove this big hammer. We cannot support concurrent interfaces with this!
             mWifiNative.teardownAllInterfaces();
             mInterfaceName = null;
@@ -3794,12 +3779,6 @@ public class WifiStateMachine extends StateMachine {
                     } else {
                         return NOT_HANDLED;
                     }
-                case CMD_WIFINATIVE_FAILURE:
-                    Log.e(TAG, "One of the native daemons died unexpectedly. Triggering recovery");
-                    mWifiDiagnostics.captureBugReportData(
-                            WifiDiagnostics.REPORT_REASON_WIFINATIVE_FAILURE);
-                    mWifiInjector.getSelfRecovery().trigger(SelfRecovery.REASON_WIFINATIVE_FAILURE);
-                    break;
                 case CMD_INTERFACE_STATUS_CHANGED:
                     boolean isUp = message.arg1 == 1;
                     // For now, this message can be triggered due to link state and/or interface
