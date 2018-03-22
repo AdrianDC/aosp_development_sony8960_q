@@ -900,7 +900,7 @@ public class WifiStateMachine extends StateMachine {
 
         mCountryCode = countryCode;
 
-        mWifiScoreReport = new WifiScoreReport(mContext, mClock);
+        mWifiScoreReport = new WifiScoreReport(mWifiInjector.getScoringParams(), mClock);
 
         mNetworkCapabilitiesFilter.addTransportType(NetworkCapabilities.TRANSPORT_WIFI);
         mNetworkCapabilitiesFilter.addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);

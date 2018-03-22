@@ -563,7 +563,8 @@ public class WifiConnectivityManager {
     /**
      * WifiConnectivityManager constructor
      */
-    WifiConnectivityManager(Context context, WifiStateMachine stateMachine,
+    WifiConnectivityManager(Context context, ScoringParams scoringParams,
+            WifiStateMachine stateMachine,
             WifiScanner scanner, WifiConfigManager configManager, WifiInfo wifiInfo,
             WifiNetworkSelector networkSelector, WifiConnectivityHelper connectivityHelper,
             WifiLastResortWatchdog wifiLastResortWatchdog, OpenNetworkNotifier openNetworkNotifier,
@@ -588,9 +589,10 @@ public class WifiConnectivityManager {
         mAlarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         mEventHandler = new Handler(looper);
         mClock = clock;
-        mScoringParams = new ScoringParams(context);
+        mScoringParams = scoringParams;
         mConnectionAttemptTimeStamps = new LinkedList<>();
 
+        //TODO(b/74793980) - handle these more dynamically
         mMin5GHzRssi = mScoringParams.getEntryRssi(ScoringParams.BAND5);
         mMin24GHzRssi = mScoringParams.getEntryRssi(ScoringParams.BAND2);
         mBand5GHzBonus = context.getResources().getInteger(

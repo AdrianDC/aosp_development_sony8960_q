@@ -46,9 +46,10 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
     private final int mSecurityAward;
     private final ScoringParams mScoringParams;
 
-    SavedNetworkEvaluator(final Context context, WifiConfigManager configManager, Clock clock,
+    SavedNetworkEvaluator(final Context context, ScoringParams scoringParams,
+            WifiConfigManager configManager, Clock clock,
             LocalLog localLog, WifiConnectivityHelper connectivityHelper) {
-        mScoringParams = new ScoringParams(context);
+        mScoringParams = scoringParams;
         mWifiConfigManager = configManager;
         mClock = clock;
         mLocalLog = localLog;

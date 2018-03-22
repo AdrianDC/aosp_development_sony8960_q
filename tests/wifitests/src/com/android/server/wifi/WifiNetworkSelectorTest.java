@@ -65,7 +65,9 @@ public class WifiNetworkSelectorTest {
         setupWifiInfo();
         mLocalLog = new LocalLog(512);
 
-        mWifiNetworkSelector = new WifiNetworkSelector(mContext, mWifiConfigManager, mClock,
+        mWifiNetworkSelector = new WifiNetworkSelector(mContext,
+                new ScoringParams(mContext),
+                mWifiConfigManager, mClock,
                 mLocalLog);
         mWifiNetworkSelector.registerNetworkEvaluator(mDummyEvaluator, 1);
         mDummyEvaluator.setEvaluatorToSelectCandidate(true);

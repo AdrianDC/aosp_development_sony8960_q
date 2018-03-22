@@ -89,6 +89,7 @@ public class WifiInjector {
     private final SupplicantP2pIfaceHal mSupplicantP2pIfaceHal;
     private final HostapdHal mHostapdHal;
     private final WifiVendorHal mWifiVendorHal;
+    private final ScoringParams mScoringParams;
     private final WifiStateMachine mWifiStateMachine;
     private final WifiStateMachinePrime mWifiStateMachinePrime;
     private final WifiSettingsStore mSettingsStore;
@@ -223,10 +224,13 @@ public class WifiInjector {
         mWifiMetrics.setWifiConfigManager(mWifiConfigManager);
         mWifiConnectivityHelper = new WifiConnectivityHelper(mWifiNative);
         mConnectivityLocalLog = new LocalLog(ActivityManager.isLowRamDeviceStatic() ? 256 : 512);
-        mWifiNetworkSelector = new WifiNetworkSelector(mContext, mWifiConfigManager, mClock,
+        mScoringParams = new ScoringParams(mContext, mFrameworkFacade,
+                new Handler(wifiStateMachineLooper));
+        mWifiNetworkSelector = new WifiNetworkSelector(mContext, mScoringParams,
+                mWifiConfigManager, mClock,
                 mConnectivityLocalLog);
         mWifiMetrics.setWifiNetworkSelector(mWifiNetworkSelector);
-        mSavedNetworkEvaluator = new SavedNetworkEvaluator(mContext,
+        mSavedNetworkEvaluator = new SavedNetworkEvaluator(mContext, mScoringParams,
                 mWifiConfigManager, mClock, mConnectivityLocalLog, mWifiConnectivityHelper);
         mScoredNetworkEvaluator = new ScoredNetworkEvaluator(context, wifiStateMachineLooper,
                 mFrameworkFacade, mNetworkScoreManager, mWifiConfigManager, mConnectivityLocalLog,
@@ -413,6 +417,10 @@ public class WifiInjector {
         return mWakeupController;
     }
 
+    public ScoringParams getScoringParams() {
+        return mScoringParams;
+    }
+
     public TelephonyManager makeTelephonyManager() {
         // may not be available when WiFi starts
         return (TelephonyManager) mContext.getSystemService(Context.TELEPHONY_SERVICE);
@@ -507,7 +515,8 @@ public class WifiInjector {
      */
     public WifiConnectivityManager makeWifiConnectivityManager(WifiInfo wifiInfo,
                                                                boolean hasConnectionRequests) {
-        return new WifiConnectivityManager(mContext, mWifiStateMachine, getWifiScanner(),
+        return new WifiConnectivityManager(mContext, getScoringParams(),
+                mWifiStateMachine, getWifiScanner(),
                 mWifiConfigManager, wifiInfo, mWifiNetworkSelector, mWifiConnectivityHelper,
                 mWifiLastResortWatchdog, mOpenNetworkNotifier, mCarrierNetworkNotifier,
                 mCarrierNetworkConfig, mWifiMetrics, mWifiStateMachineHandlerThread.getLooper(),

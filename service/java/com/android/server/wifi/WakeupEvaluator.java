@@ -35,7 +35,7 @@ public class WakeupEvaluator {
      * Constructs a {@link WakeupEvaluator} using the given context.
      */
     public static WakeupEvaluator fromContext(Context context) {
-        ScoringParams scoringParams = new ScoringParams(context);
+        ScoringParams scoringParams = new ScoringParams(context); // TODO(b/74793980) - replumb
         return new WakeupEvaluator(scoringParams.getEntryRssi(ScoringParams.BAND2),
                                    scoringParams.getEntryRssi(ScoringParams.BAND5));
     }
