@@ -281,6 +281,8 @@ public class WifiMetrics {
         public static final int FAILURE_ROAM_TIMEOUT = 9;
         // DHCP failure
         public static final int FAILURE_DHCP = 10;
+        // ASSOCIATION_TIMED_OUT
+        public static final int FAILURE_ASSOCIATION_TIMED_OUT = 11;
 
         RouterFingerPrint mRouterFingerPrint;
         private long mRealStartTime;
@@ -369,6 +371,10 @@ public class WifiMetrics {
                         break;
                     case FAILURE_DHCP:
                         sb.append("DHCP");
+                        break;
+                    case FAILURE_ASSOCIATION_TIMED_OUT:
+                        sb.append("ASSOCIATION_TIMED_OUT");
+                        break;
                     default:
                         sb.append("UNKNOWN");
                         break;

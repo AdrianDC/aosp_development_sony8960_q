@@ -977,6 +977,26 @@ public class WifiMetricsTest {
     }
 
     /**
+     * Test that WifiMetrics is serializing/deserializing association time out events.
+     */
+    @Test
+    public void testMetricsAssociationTimedOut() throws Exception {
+        mWifiMetrics.startConnectionEvent(null, "RED",
+                WifiMetricsProto.ConnectionEvent.ROAM_NONE);
+        mWifiMetrics.endConnectionEvent(
+                WifiMetrics.ConnectionEvent.FAILURE_ASSOCIATION_TIMED_OUT,
+                WifiMetricsProto.ConnectionEvent.HLF_NONE);
+
+        //Dump proto and deserialize
+        //This should clear all the metrics in mWifiMetrics,
+        dumpProtoAndDeserialize();
+        //Check there is only 1 connection events
+        assertEquals(mDecodedProto.connectionEvent.length, 1);
+        assertEquals(mDecodedProto.connectionEvent[0].level2FailureCode,
+                WifiMetrics.ConnectionEvent.FAILURE_ASSOCIATION_TIMED_OUT);
+    }
+
+    /**
      * Test that WifiMetrics is being cleared after dumping via proto
      */
     @Test
