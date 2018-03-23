@@ -271,7 +271,7 @@ public class AvailableNetworkNotifier {
             clearPendingNotification(true /* resetRepeatTime */);
             return;
         }
-        if (availableNetworks.isEmpty()) {
+        if (availableNetworks.isEmpty() && mState == STATE_SHOWING_RECOMMENDATION_NOTIFICATION) {
             clearPendingNotification(false /* resetRepeatTime */);
             return;
         }
@@ -340,7 +340,7 @@ public class AvailableNetworkNotifier {
             return;
         }
 
-        postNotification(mNotificationBuilder.createNetworkConnectedNotification(
+        postNotification(mNotificationBuilder.createNetworkConnectedNotification(mTag,
                 mRecommendedNetwork));
 
         Log.d(mTag, "User connected to recommended network: " + mRecommendedNetwork.SSID);
@@ -363,7 +363,7 @@ public class AvailableNetworkNotifier {
         if (mState != STATE_CONNECTING_IN_NOTIFICATION) {
             return;
         }
-        postNotification(mNotificationBuilder.createNetworkFailedNotification());
+        postNotification(mNotificationBuilder.createNetworkFailedNotification(mTag));
 
         Log.d(mTag, "User failed to connect to recommended network: " + mRecommendedNetwork.SSID);
         mWifiMetrics.incrementConnectToNetworkNotification(mTag,
@@ -412,7 +412,7 @@ public class AvailableNetworkNotifier {
         if (mState != STATE_SHOWING_RECOMMENDATION_NOTIFICATION) {
             return;
         }
-        postNotification(mNotificationBuilder.createNetworkConnectingNotification(
+        postNotification(mNotificationBuilder.createNetworkConnectingNotification(mTag,
                 mRecommendedNetwork));
         mWifiMetrics.incrementConnectToNetworkNotification(mTag,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_CONNECTING_TO_NETWORK);
