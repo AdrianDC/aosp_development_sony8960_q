@@ -552,7 +552,7 @@ public class WifiNative {
                 }
                 return;
             }
-            Log.i(TAG, "Interface link state changed on " + iface + ", isUp=" + isUp);
+            Log.i(TAG, "Interface state changed on " + iface + ", isUp=" + isUp);
             if (isUp) {
                 iface.externalListener.onUp(iface.name);
             } else {
@@ -573,8 +573,9 @@ public class WifiNative {
             mInterfaceId = id;
         }
 
+        // TODO(b/76219766): We may need to listen for link state changes in SoftAp mode.
         @Override
-        public void interfaceLinkStateChanged(String ifaceName, boolean isUp) {
+        public void interfaceStatusChanged(String ifaceName, boolean isUp) {
             synchronized (mLock) {
                 final Iface ifaceWithId = mIfaceMgr.getIface(mInterfaceId);
                 if (ifaceWithId == null) {
