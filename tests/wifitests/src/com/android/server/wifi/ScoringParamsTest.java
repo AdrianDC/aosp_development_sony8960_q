@@ -29,6 +29,7 @@ import static org.mockito.Mockito.when;
 import android.content.Context;
 import android.content.res.Resources;
 import android.database.ContentObserver;
+import android.net.wifi.WifiInfo;
 import android.os.Handler;
 import android.provider.Settings;
 import android.support.test.filters.SmallTest;
@@ -65,7 +66,7 @@ public class ScoringParamsTest {
      * Check that thresholds are properly ordered, and in range.
      */
     private void checkThresholds(int frequency) {
-        assertTrue(-127 <= mScoringParams.getExitRssi(frequency));
+        assertTrue(-127 < mScoringParams.getExitRssi(frequency));
         assertTrue(mScoringParams.getExitRssi(frequency)
                 <= mScoringParams.getEntryRssi(frequency));
         assertTrue(mScoringParams.getEntryRssi(frequency)
@@ -164,6 +165,8 @@ public class ScoringParamsTest {
         assertFalse("Must be negative", mScoringParams.update("rssi2=0:1:2:3"));
         assertFalse("Must be ordered", mScoringParams.update("rssi5=-88:-89:-66:-55"));
         assertFalse("Must be not too negative", mScoringParams.update("rssi5=-128:-77:-66:-55"));
+        String what = "rssi5=" + WifiInfo.INVALID_RSSI + ":-77:-66:-55";
+        assertFalse(what, mScoringParams.update(what));
         assertEquals(before, mScoringParams.toString());
     }
 

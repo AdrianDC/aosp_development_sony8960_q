@@ -19,6 +19,7 @@ package com.android.server.wifi;
 import android.annotation.NonNull;
 import android.content.Context;
 import android.database.ContentObserver;
+import android.net.wifi.WifiInfo;
 import android.os.Handler;
 import android.provider.Settings;
 import android.util.KeyValueListParser;
@@ -45,12 +46,18 @@ public class ScoringParams {
      * be checked for consistency before activating them.
      */
     private class Values {
+        /** RSSI thresholds for 2.4 GHz band (dBm) */
         public static final String KEY_RSSI2 = "rssi2";
-        public static final String KEY_RSSI5 = "rssi5";
-        public static final String KEY_HORIZON = "horizon"; // number of seconds for rssi forecast
-
         public final int[] rssi2 = {-83, -80, -73, -60};
+
+        /** RSSI thresholds for 5 GHz band (dBm) */
+        public static final String KEY_RSSI5 = "rssi5";
         public final int[] rssi5 = {-80, -77, -70, -57};
+
+        /** Number of seconds for RSSI forecast */
+        public static final String KEY_HORIZON = "horizon";
+        public static final int MIN_HORIZON = -9;
+        public static final int MAX_HORIZON = 60;
         public int horizon = 15;
 
         Values() {
@@ -69,13 +76,14 @@ public class ScoringParams {
         public void validate() throws IllegalArgumentException {
             validateRssiArray(rssi2);
             validateRssiArray(rssi5);
-            validateRange(horizon, -9, 60);
+            validateRange(horizon, MIN_HORIZON, MAX_HORIZON);
         }
 
         private void validateRssiArray(int[] rssi) throws IllegalArgumentException {
-            int low = -127;
+            int low = WifiInfo.MIN_RSSI;
+            int high = Math.min(WifiInfo.MAX_RSSI, -1); // Stricter than Wifiinfo
             for (int i = 0; i < rssi.length; i++) {
-                validateRange(rssi[i], low, -1);
+                validateRange(rssi[i], low, high);
                 low = rssi[i];
             }
         }
