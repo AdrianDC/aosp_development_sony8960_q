@@ -947,6 +947,11 @@ public class WificondControlTest {
         apInterfaceCallbackCaptor.getValue().onNumAssociatedStationsChanged(numStations);
         verify(mSoftApListener).onNumAssociatedStationsChanged(eq(numStations));
 
+        int channelFrequency = 2437;
+        int channelBandwidth = IApInterfaceEventCallback.BANDWIDTH_20;
+        apInterfaceCallbackCaptor.getValue().onSoftApChannelSwitched(channelFrequency,
+                channelBandwidth);
+        verify(mSoftApListener).onSoftApChannelSwitched(eq(channelFrequency), eq(channelBandwidth));
     }
 
     /**

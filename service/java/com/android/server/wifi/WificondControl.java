@@ -154,6 +154,11 @@ public class WificondControl implements IBinder.DeathRecipient {
         public void onNumAssociatedStationsChanged(int numStations) {
             mSoftApListener.onNumAssociatedStationsChanged(numStations);
         }
+
+        @Override
+        public void onSoftApChannelSwitched(int frequency, int bandwidth) {
+            mSoftApListener.onSoftApChannelSwitched(frequency, bandwidth);
+        }
     }
 
     /**

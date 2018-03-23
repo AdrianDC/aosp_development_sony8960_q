@@ -39,6 +39,7 @@ import android.content.Intent;
 import android.content.res.Resources;
 import android.database.ContentObserver;
 import android.net.Uri;
+import android.net.wifi.IApInterfaceEventCallback;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
 import android.os.UserHandle;
@@ -626,6 +627,21 @@ public class SoftApManagerTest {
         verifyNoMoreInteractions(mContext, mCallback, mWifiNative);
     }
 
+    @Test
+    public void updatesMetricsOnChannelSwitchedEvent() throws Exception {
+        SoftApModeConfiguration apConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
+        startSoftApAndVerifyEnabled(apConfig);
+
+        final int channelFrequency = 2437;
+        final int channelBandwidth = IApInterfaceEventCallback.BANDWIDTH_20;
+        mSoftApListenerCaptor.getValue().onSoftApChannelSwitched(channelFrequency,
+                channelBandwidth);
+        mLooper.dispatchAll();
+
+        verify(mWifiMetrics).addSoftApChannelSwitchedEvent(channelFrequency, channelBandwidth,
+                apConfig.getTargetMode());
+    }
 
     @Test
     public void updatesNumAssociatedStations() throws Exception {

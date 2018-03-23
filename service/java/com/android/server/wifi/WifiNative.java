@@ -1116,6 +1116,11 @@ public class WifiNative {
          * Invoked when the number of associated stations changes.
          */
         void onNumAssociatedStationsChanged(int numStations);
+
+        /**
+         * Invoked when the channel switch event happens.
+         */
+        void onSoftApChannelSwitched(int frequency, int bandwidth);
     }
 
     private static final int CONNECT_TO_HOSTAPD_RETRY_INTERVAL_MS = 100;
