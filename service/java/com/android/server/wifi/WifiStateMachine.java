@@ -2892,17 +2892,6 @@ public class WifiStateMachine extends StateMachine {
         mLastNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
     }
 
-    private void handleSupplicantConnectionLoss(boolean killSupplicant) {
-        /* Socket connection can be lost when we do a graceful shutdown
-        * or when the driver is hung. Ensure supplicant is stopped here.
-        */
-        if (killSupplicant) {
-            mWifiMonitor.stopAllMonitoring();
-        }
-        sendSupplicantConnectionChangedBroadcast(false);
-        setWifiState(WIFI_STATE_DISABLED);
-    }
-
     void handlePreDhcpSetup() {
         if (!mBluetoothConnectionActive) {
             /*
@@ -3754,9 +3743,6 @@ public class WifiStateMachine extends StateMachine {
             // supplicant
             sendWifiScanAvailable(false);
 
-            // Tearing down the client interfaces below is going to stop our supplicant.
-            mWifiMonitor.stopAllMonitoring();
-
             mWifiNative.registerStatusListener(mWifiNativeStatusListener);
             // TODO: This teardown should ideally be handled in STOP_SUPPLICANT to be consistent
             // with other mode managers. But, client mode is not yet controlled by
@@ -3770,7 +3756,6 @@ public class WifiStateMachine extends StateMachine {
         @Override
         public void enter() {
             mIfaceIsUp = false;
-            mWifiMonitor.stopAllMonitoring();
             mWifiStateTracker.updateState(WifiStateTracker.INVALID);
             cleanup();
             sendMessage(CMD_START_SUPPLICANT);
@@ -3798,7 +3783,6 @@ public class WifiStateMachine extends StateMachine {
                     mIpClient.setMulticastFilter(true);
                     if (mVerboseLoggingEnabled) log("Supplicant start successful");
                     registerForWifiMonitorEvents();
-                    mWifiMonitor.startMonitoring(mInterfaceName);
                     mWifiInjector.getWifiLastResortWatchdog().clearAllFailureCounts();
                     setSupplicantLogLevel();
                     transitionTo(mSupplicantStartedState);
