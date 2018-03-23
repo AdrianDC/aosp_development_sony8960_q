@@ -60,6 +60,8 @@ public class WifiStateMachinePrimeTest {
     @Mock SelfRecovery mSelfRecovery;
     @Mock BaseWifiDiagnostics mWifiDiagnostics;
     ScanOnlyModeManager.Listener mScanOnlyListener;
+    ScanOnlyModeCallback mScanOnlyCallback = new ScanOnlyModeCallback();
+    ClientModeCallback mClientModeCallback = new ClientModeCallback();
     WifiManager.SoftApCallback mSoftApManagerCallback;
     @Mock WifiManager.SoftApCallback mSoftApStateMachineCallback;
     WifiNative.StatusListener mWifiNativeStatusListener;
@@ -88,6 +90,8 @@ public class WifiStateMachinePrimeTest {
         mWifiNativeStatusListener = mStatusListenerCaptor.getValue();
 
         mWifiStateMachinePrime.registerSoftApCallback(mSoftApStateMachineCallback);
+        mWifiStateMachinePrime.registerScanOnlyCallback(mScanOnlyCallback);
+        mWifiStateMachinePrime.registerClientModeCallback(mClientModeCallback);
     }
 
     private WifiStateMachinePrime createWifiStateMachinePrime() {
@@ -104,6 +108,24 @@ public class WifiStateMachinePrimeTest {
     @After
     public void cleanUp() throws Exception {
         mWifiStateMachinePrime = null;
+    }
+
+    private class ClientModeCallback implements ClientModeManager.Listener {
+        public int currentState = WifiManager.WIFI_STATE_UNKNOWN;
+
+        @Override
+        public void onStateChanged(int state) {
+            currentState = state;
+        }
+    }
+
+    private class ScanOnlyModeCallback implements ScanOnlyModeManager.Listener {
+        public int currentState = WifiManager.WIFI_STATE_UNKNOWN;
+
+        @Override
+        public void onStateChanged(int state) {
+            currentState = state;
+        }
     }
 
     private void enterSoftApActiveMode() throws Exception {
@@ -127,6 +149,9 @@ public class WifiStateMachinePrimeTest {
                         any(ScanOnlyModeManager.Listener.class));
         mWifiStateMachinePrime.enterScanOnlyMode();
         mLooper.dispatchAll();
+        mScanOnlyListener.onStateChanged(WifiManager.WIFI_STATE_ENABLED);
+        mLooper.dispatchAll();
+
         assertEquals(SCAN_ONLY_MODE_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
         verify(mScanOnlyModeManager).start();
         verify(mBatteryStats).noteWifiOn();
@@ -321,6 +346,7 @@ public class WifiStateMachinePrimeTest {
         verify(mScanOnlyModeManager).stop();
         verify(mWifiNative, times(3)).teardownAllInterfaces();
         verify(mBatteryStats).noteWifiOff();
+        assertEquals(WifiManager.WIFI_STATE_UNKNOWN, mScanOnlyCallback.currentState);
     }
 
     /**

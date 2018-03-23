@@ -597,7 +597,7 @@ public class WifiStateMachineTest {
     @Test
     public void shouldRequireSupplicantStartupToLeaveInitialState() throws Exception {
         when(mWifiNative.setupInterfaceForClientMode(anyBoolean(), any())).thenReturn(null);
-        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE, null);
         mLooper.dispatchAll();
         assertEquals("DefaultState", getCurrentState().getName());
         // we should be sending a wifi enabling update
@@ -609,7 +609,7 @@ public class WifiStateMachineTest {
     public void loadComponentsFailure() throws Exception {
         when(mWifiNative.setupInterfaceForClientMode(anyBoolean(), any())).thenReturn(null);
 
-        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE, null);
         mLooper.dispatchAll();
         assertEquals("DefaultState", getCurrentState().getName());
     }
@@ -620,7 +620,7 @@ public class WifiStateMachineTest {
         assertEquals("DefaultState", getCurrentState().getName());
         assertEquals(WifiStateMachine.DISABLED_MODE, mWsm.getOperationalModeForTest());
 
-        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE);
+        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
         mLooper.dispatchAll();
         assertEquals(WifiStateMachine.DISABLED_MODE, mWsm.getOperationalModeForTest());
         assertEquals("DefaultState", getCurrentState().getName());
@@ -634,7 +634,7 @@ public class WifiStateMachineTest {
         assertEquals(WifiStateMachine.DISABLED_MODE, mWsm.getOperationalModeForTest());
 
         // But if someone tells us to enter connect mode, we start up supplicant
-        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE, null);
         mLooper.dispatchAll();
         assertEquals("DisconnectedState", getCurrentState().getName());
     }
@@ -649,7 +649,7 @@ public class WifiStateMachineTest {
         assertEquals("DefaultState", getCurrentState().getName());
         assertEquals(WifiManager.WIFI_STATE_DISABLED, mWsm.syncGetWifiState());
 
-        mWsm.setOperationalMode(WifiStateMachine.SCAN_ONLY_MODE);
+        mWsm.setOperationalMode(WifiStateMachine.SCAN_ONLY_MODE, null);
         mLooper.dispatchAll();
         assertEquals(WifiStateMachine.SCAN_ONLY_MODE, mWsm.getOperationalModeForTest());
         assertEquals("ScanModeState", getCurrentState().getName());
@@ -671,7 +671,7 @@ public class WifiStateMachineTest {
         reset(mContext);
 
         // now go back to scan mode with "wifi disabled" to verify the reported wifi state.
-        mWsm.setOperationalMode(WifiStateMachine.SCAN_ONLY_WITH_WIFI_OFF_MODE);
+        mWsm.setOperationalMode(WifiStateMachine.SCAN_ONLY_WITH_WIFI_OFF_MODE, null);
         mLooper.dispatchAll();
         assertEquals(WifiStateMachine.SCAN_ONLY_WITH_WIFI_OFF_MODE,
                      mWsm.getOperationalModeForTest());
@@ -854,7 +854,7 @@ public class WifiStateMachineTest {
      * Helper method to move through startup states.
      */
     private void startSupplicantAndDispatchMessages() throws Exception {
-        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE, null);
         mLooper.dispatchAll();
 
         // this will be removed when interface management is dynamic
@@ -1043,7 +1043,7 @@ public class WifiStateMachineTest {
     public void verifyWifiStateTrackerUpdatedWhenDisabled() throws Exception {
         connect();
 
-        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE);
+        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
         mLooper.dispatchAll();
         verify(mWifiStateTracker).updateState(eq(WifiStateTracker.DISCONNECTED));
     }
@@ -2015,7 +2015,7 @@ public class WifiStateMachineTest {
 
         // Set WSM to SCAN_ONLY_MODE, verify state and wifi disabled in ConnectivityManager, and
         // WifiInfo is reset() and state set to DISCONNECTED
-        mWsm.setOperationalMode(WifiStateMachine.SCAN_ONLY_MODE);
+        mWsm.setOperationalMode(WifiStateMachine.SCAN_ONLY_MODE, null);
         mLooper.dispatchAll();
 
         assertEquals(WifiStateMachine.SCAN_ONLY_MODE, mWsm.getOperationalModeForTest());

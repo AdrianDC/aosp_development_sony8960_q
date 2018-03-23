@@ -296,6 +296,8 @@ public class WifiStateMachine extends StateMachine {
     // variable indicating we are expecting a mode switch - do not attempt recovery for failures
     private boolean mModeChange = false;
 
+    private ClientModeManager.Listener mClientModeCallback = null;
+
     private boolean mBluetoothConnectionActive = false;
 
     private PowerManager.WakeLock mSuspendWakeLock;
@@ -1544,9 +1546,12 @@ public class WifiStateMachine extends StateMachine {
     /**
      * TODO: doc
      */
-    public void setOperationalMode(int mode) {
+    public void setOperationalMode(int mode, ClientModeManager.Listener callback) {
         if (mVerboseLoggingEnabled) log("setting operational mode to " + String.valueOf(mode));
         mModeChange = true;
+        if (callback != null) {
+            mClientModeCallback = callback;
+        }
         sendMessage(CMD_SET_OPERATIONAL_MODE, mode, 0);
     }
 
@@ -2539,6 +2544,17 @@ public class WifiStateMachine extends StateMachine {
         mWifiState.set(wifiState);
 
         if (mVerboseLoggingEnabled) log("setWifiState: " + syncGetWifiStateByName());
+
+        // first let WifiController know what is going on
+        if (mClientModeCallback != null) {
+            mClientModeCallback.onStateChanged(wifiState);
+            // once this instance of client mode is complete, remove the callback so we don't
+            // confuse ourselves
+            if (wifiState == WifiManager.WIFI_STATE_UNKNOWN
+                    || wifiState == WifiManager.WIFI_STATE_DISABLED) {
+                mClientModeCallback = null;
+            }
+        }
 
         final Intent intent = new Intent(WifiManager.WIFI_STATE_CHANGED_ACTION);
         intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);

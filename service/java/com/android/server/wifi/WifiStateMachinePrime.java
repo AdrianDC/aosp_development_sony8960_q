@@ -98,12 +98,29 @@ public class WifiStateMachinePrime {
     private StatusListener mWifiNativeStatusListener;
 
     private WifiManager.SoftApCallback mSoftApCallback;
+    private ScanOnlyModeManager.Listener mScanOnlyCallback;
+    private ClientModeManager.Listener mClientModeCallback;
 
     /**
      * Called from WifiServiceImpl to register a callback for notifications from SoftApManager
      */
-    public void registerSoftApCallback(WifiManager.SoftApCallback callback) {
+    public void registerSoftApCallback(@NonNull WifiManager.SoftApCallback callback) {
         mSoftApCallback = callback;
+    }
+
+    /**
+     * Called from WifiController to register a callback for notifications from ScanOnlyModeManager
+     */
+    public void registerScanOnlyCallback(@NonNull ScanOnlyModeManager.Listener callback) {
+        mScanOnlyCallback = callback;
+    }
+
+    /**
+     * Called from WifiController to register a callback for notifications from ClientModeManager
+     */
+    public void registerClientModeCallback(@NonNull ClientModeManager.Listener callback) {
+        // uncomment when client mode moves here
+        // mClientModeCallback = callback;
     }
 
     WifiStateMachinePrime(WifiInjector wifiInjector,
@@ -376,10 +393,14 @@ public class WifiStateMachinePrime {
                         break;
                     case CMD_SCAN_ONLY_MODE_FAILED:
                         Log.d(TAG, "ScanOnlyMode failed, return to WifiDisabledState.");
+                        // notify WifiController that ScanOnlyMode failed
+                        mScanOnlyCallback.onStateChanged(WifiManager.WIFI_STATE_UNKNOWN);
                         mModeStateMachine.transitionTo(mWifiDisabledState);
                         break;
                     case CMD_SCAN_ONLY_MODE_STOPPED:
                         Log.d(TAG, "ScanOnlyMode stopped, return to WifiDisabledState.");
+                        // notify WifiController that ScanOnlyMode stopped
+                        mScanOnlyCallback.onStateChanged(WifiManager.WIFI_STATE_DISABLED);
                         mModeStateMachine.transitionTo(mWifiDisabledState);
                         break;
                     default:
