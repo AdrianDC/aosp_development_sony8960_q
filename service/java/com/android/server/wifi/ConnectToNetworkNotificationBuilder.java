@@ -96,6 +96,7 @@ public class ConnectToNetworkNotificationBuilder {
                 mResources.getText(R.string.wifi_available_action_all_networks),
                 getPrivateBroadcast(ACTION_PICK_WIFI_NETWORK, notifierTag)).build();
         return createNotificationBuilder(title, network.SSID, notifierTag)
+                .setContentIntent(getPrivateBroadcast(ACTION_PICK_WIFI_NETWORK, notifierTag))
                 .addAction(connectAction)
                 .addAction(allNetworksAction)
                 .build();
