@@ -47,6 +47,7 @@ import android.net.ip.IpClient;
 import android.net.wifi.ScanResult;
 import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
@@ -1275,6 +1276,63 @@ public class WifiStateMachineTest {
                 eq(WifiConfiguration.NetworkSelectionStatus.DISABLED_BY_WRONG_PASSWORD));
 
         assertEquals("DisconnectedState", getCurrentState().getName());
+    }
+
+    /**
+     * Verify that the function resetCarrierKeysForImsiEncryption() in TelephonyManager
+     * is called when a Authentication failure is detected with a vendor specific EAP Error
+     * of certification expired while using EAP-SIM
+     * In this test case, it is assumed that the network had been connected previously.
+     */
+    @Test
+    public void testEapSimErrorVendorSpecific() throws Exception {
+        initializeAndAddNetworkAndVerifySuccess();
+
+        mLooper.startAutoDispatch();
+        mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true);
+        mLooper.stopAutoDispatch();
+
+        verify(mWifiConfigManager).enableNetwork(eq(0), eq(true), anyInt());
+
+        WifiConfiguration config = new WifiConfiguration();
+        config.getNetworkSelectionStatus().setHasEverConnected(true);
+        config.enterpriseConfig.setEapMethod(WifiEnterpriseConfig.Eap.SIM);
+        when(mWifiConfigManager.getConfiguredNetwork(anyInt())).thenReturn(config);
+
+        mWsm.sendMessage(WifiMonitor.AUTHENTICATION_FAILURE_EVENT,
+                WifiManager.ERROR_AUTH_FAILURE_EAP_FAILURE,
+                WifiNative.EAP_SIM_VENDOR_SPECIFIC_CERT_EXPIRED);
+        mLooper.dispatchAll();
+
+        verify(mTelephonyManager).resetCarrierKeysForImsiEncryption();
+    }
+
+    /**
+     * Verify that the function resetCarrierKeysForImsiEncryption() in TelephonyManager
+     * is not called when a Authentication failure is detected with a vendor specific EAP Error
+     * of certification expired while using other methods than EAP-SIM, EAP-AKA, or EAP-AKA'.
+     */
+    @Test
+    public void testEapTlsErrorVendorSpecific() throws Exception {
+        initializeAndAddNetworkAndVerifySuccess();
+
+        mLooper.startAutoDispatch();
+        mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true);
+        mLooper.stopAutoDispatch();
+
+        verify(mWifiConfigManager).enableNetwork(eq(0), eq(true), anyInt());
+
+        WifiConfiguration config = new WifiConfiguration();
+        config.getNetworkSelectionStatus().setHasEverConnected(true);
+        config.enterpriseConfig.setEapMethod(WifiEnterpriseConfig.Eap.TLS);
+        when(mWifiConfigManager.getConfiguredNetwork(anyInt())).thenReturn(config);
+
+        mWsm.sendMessage(WifiMonitor.AUTHENTICATION_FAILURE_EVENT,
+                WifiManager.ERROR_AUTH_FAILURE_EAP_FAILURE,
+                WifiNative.EAP_SIM_VENDOR_SPECIFIC_CERT_EXPIRED);
+        mLooper.dispatchAll();
+
+        verify(mTelephonyManager, never()).resetCarrierKeysForImsiEncryption();
     }
 
     @Test
