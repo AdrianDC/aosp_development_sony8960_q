@@ -601,13 +601,15 @@ public class WifiNative {
     // So simulate the HalDeviceManager behavior by triggering the destroy listener for
     // any active interface.
     private String handleIfaceCreationWhenVendorHalNotSupported(@NonNull Iface newIface) {
-        Iface existingIface = mIfaceMgr.removeExistingIface(newIface.id);
-        if (existingIface != null) {
-            onInterfaceDestroyed(existingIface);
-            Log.i(TAG, "Successfully torn down " + existingIface);
+        synchronized (mLock) {
+            Iface existingIface = mIfaceMgr.removeExistingIface(newIface.id);
+            if (existingIface != null) {
+                onInterfaceDestroyed(existingIface);
+                Log.i(TAG, "Successfully torn down " + existingIface);
+            }
+            // Return the interface name directly from the system property.
+            return mPropertyService.getString("wifi.interface", "wlan0");
         }
-        // Return the interface name directly from the system property.
-        return mPropertyService.getString("wifi.interface", "wlan0");
     }
 
     /**
@@ -648,10 +650,12 @@ public class WifiNative {
     // So simulate the HalDeviceManager behavior by triggering the destroy listener for
     // the interface.
     private boolean handleIfaceRemovalWhenVendorHalNotSupported(@NonNull Iface iface) {
-        mIfaceMgr.removeIface(iface.id);
-        onInterfaceDestroyed(iface);
-        Log.i(TAG, "Successfully torn down " + iface);
-        return true;
+        synchronized (mLock) {
+            mIfaceMgr.removeIface(iface.id);
+            onInterfaceDestroyed(iface);
+            Log.i(TAG, "Successfully torn down " + iface);
+            return true;
+        }
     }
 
     /**
@@ -984,7 +988,9 @@ public class WifiNative {
      * c) When there are 2 or more client interface, returns the name of any client interface.
      */
     public String getClientInterfaceName() {
-        return mIfaceMgr.findAnyStaIfaceName();
+        synchronized (mLock) {
+            return mIfaceMgr.findAnyStaIfaceName();
+        }
     }
 
     /**
@@ -1003,7 +1009,9 @@ public class WifiNative {
      * c) When there are 2 or more softap interface, returns the name of any softap interface.
      */
     public String getSoftApInterfaceName() {
-        return mIfaceMgr.findAnyApIfaceName();
+        synchronized (mLock) {
+            return mIfaceMgr.findAnyApIfaceName();
+        }
     }
 
     /********************************************************
