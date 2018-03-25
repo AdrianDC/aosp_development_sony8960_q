@@ -1270,8 +1270,37 @@ public class WifiMetrics {
                 return;
             }
 
-            event.timeStampMillis = mClock.getWallClockMillis();
+            event.timeStampMillis = mClock.getElapsedSinceBootMillis();
             softApEventList.add(event);
+        }
+    }
+
+    /**
+     * Updates current soft AP events with channel info
+     */
+    public void addSoftApChannelSwitchedEvent(int frequency, int bandwidth, int mode) {
+        synchronized (mLock) {
+            List<SoftApConnectedClientsEvent> softApEventList;
+            switch (mode) {
+                case WifiManager.IFACE_IP_MODE_TETHERED:
+                    softApEventList = mSoftApEventListTethered;
+                    break;
+                case WifiManager.IFACE_IP_MODE_LOCAL_ONLY:
+                    softApEventList = mSoftApEventListLocalOnly;
+                    break;
+                default:
+                    return;
+            }
+
+            for (int index = softApEventList.size() - 1; index >= 0; index--) {
+                SoftApConnectedClientsEvent event = softApEventList.get(index);
+
+                if (event != null && event.eventType == SoftApConnectedClientsEvent.SOFT_AP_UP) {
+                    event.channelFrequency = frequency;
+                    event.channelBandwidth = bandwidth;
+                    break;
+                }
+            }
         }
     }
 
@@ -1848,6 +1877,8 @@ public class WifiMetrics {
                     eventLine.append("event_type=" + event.eventType);
                     eventLine.append(",time_stamp_millis=" + event.timeStampMillis);
                     eventLine.append(",num_connected_clients=" + event.numConnectedClients);
+                    eventLine.append(",channel_frequency=" + event.channelFrequency);
+                    eventLine.append(",channel_bandwidth=" + event.channelBandwidth);
                     pw.println(eventLine.toString());
                 }
                 pw.println("mSoftApLocalOnlyEvents:");
@@ -1856,6 +1887,8 @@ public class WifiMetrics {
                     eventLine.append("event_type=" + event.eventType);
                     eventLine.append(",time_stamp_millis=" + event.timeStampMillis);
                     eventLine.append(",num_connected_clients=" + event.numConnectedClients);
+                    eventLine.append(",channel_frequency=" + event.channelFrequency);
+                    eventLine.append(",channel_bandwidth=" + event.channelBandwidth);
                     pw.println(eventLine.toString());
                 }
 

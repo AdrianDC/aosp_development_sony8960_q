@@ -19,7 +19,6 @@ package com.android.server.wifi;
 import android.content.Context;
 import android.net.wifi.ScanResult;
 
-import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.util.Collection;
@@ -36,11 +35,9 @@ public class WakeupEvaluator {
      * Constructs a {@link WakeupEvaluator} using the given context.
      */
     public static WakeupEvaluator fromContext(Context context) {
-        int minimumRssi24 = context.getResources().getInteger(
-                R.integer.config_wifi_framework_wifi_score_entry_rssi_threshold_24GHz);
-        int minimumRssi5 = context.getResources().getInteger(
-                R.integer.config_wifi_framework_wifi_score_entry_rssi_threshold_5GHz);
-        return new WakeupEvaluator(minimumRssi24, minimumRssi5);
+        ScoringParams scoringParams = new ScoringParams(context); // TODO(b/74793980) - replumb
+        return new WakeupEvaluator(scoringParams.getEntryRssi(ScoringParams.BAND2),
+                                   scoringParams.getEntryRssi(ScoringParams.BAND5));
     }
 
     @VisibleForTesting

@@ -304,7 +304,9 @@ public class WifiConnectivityManagerTest {
     }
 
     WifiConnectivityManager createConnectivityManager() {
-        return new WifiConnectivityManager(mContext, mWifiStateMachine, mWifiScanner,
+        return new WifiConnectivityManager(mContext,
+                new ScoringParams(mContext),
+                mWifiStateMachine, mWifiScanner,
                 mWifiConfigManager, mWifiInfo, mWifiNS, mWifiConnectivityHelper,
                 mWifiLastResortWatchdog, mOpenNetworkNotifier, mCarrierNetworkNotifier,
                 mCarrierNetworkConfig, mWifiMetrics, mLooper.getLooper(), mClock, mLocalLog, true,

@@ -900,7 +900,7 @@ public class WifiStateMachine extends StateMachine {
 
         mCountryCode = countryCode;
 
-        mWifiScoreReport = new WifiScoreReport(mContext, mClock);
+        mWifiScoreReport = new WifiScoreReport(mWifiInjector.getScoringParams(), mClock);
 
         mNetworkCapabilitiesFilter.addTransportType(NetworkCapabilities.TRANSPORT_WIFI);
         mNetworkCapabilitiesFilter.addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
@@ -5065,6 +5065,7 @@ public class WifiStateMachine extends StateMachine {
             }
             mCountryCode.setReadyForChange(true);
             mWifiMetrics.setWifiState(WifiMetricsProto.WifiLog.WIFI_DISCONNECTED);
+            mWifiStateTracker.updateState(WifiStateTracker.DISCONNECTED);
         }
 
         @Override
@@ -5817,8 +5818,8 @@ public class WifiStateMachine extends StateMachine {
                     WifiConnectivityManager.WIFI_STATE_DISCONNECTED);
 
             mDisconnectedTimeStamp = mClock.getWallClockMillis();
-            mWifiStateTracker.updateState(WifiStateTracker.DISCONNECTED);
         }
+
         @Override
         public boolean processMessage(Message message) {
             boolean ret = HANDLED;

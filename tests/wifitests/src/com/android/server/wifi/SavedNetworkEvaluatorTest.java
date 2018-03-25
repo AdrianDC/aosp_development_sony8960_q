@@ -72,7 +72,8 @@ public class SavedNetworkEvaluatorTest {
         mThresholdSaturatedRssi5G = mResource.getInteger(
                 R.integer.config_wifi_framework_wifi_score_good_rssi_threshold_5GHz);
 
-        mSavedNetworkEvaluator = new SavedNetworkEvaluator(mContext, mWifiConfigManager,
+        mSavedNetworkEvaluator = new SavedNetworkEvaluator(mContext,
+                new ScoringParams(mContext), mWifiConfigManager,
                 mClock, mLocalLog, mWifiConnectivityHelper);
     }
 

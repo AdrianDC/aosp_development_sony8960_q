@@ -57,10 +57,7 @@ public class WifiNetworkSelector {
     private volatile List<Pair<ScanDetail, WifiConfiguration>> mConnectableNetworks =
             new ArrayList<>();
     private List<ScanDetail> mFilteredNetworks = new ArrayList<>();
-    private final int mThresholdQualifiedRssi24;
-    private final int mThresholdQualifiedRssi5;
-    private final int mThresholdMinimumRssi24;
-    private final int mThresholdMinimumRssi5;
+    private final ScoringParams mScoringParams;
     private final int mStayOnNetworkMinimumTxRate;
     private final int mStayOnNetworkMinimumRxRate;
     private final boolean mEnableAutoJoinWhenAssociated;
@@ -149,9 +146,8 @@ public class WifiNetworkSelector {
         }
 
         int currentRssi = wifiInfo.getRssi();
-        boolean hasQualifiedRssi =
-                (wifiInfo.is24GHz() && (currentRssi > mThresholdQualifiedRssi24))
-                        || (wifiInfo.is5GHz() && (currentRssi > mThresholdQualifiedRssi5));
+        boolean hasQualifiedRssi = currentRssi
+                > mScoringParams.getSufficientRssi(wifiInfo.getFrequency());
         boolean hasActiveStream = (wifiInfo.txSuccessRate > mStayOnNetworkMinimumTxRate)
                 || (wifiInfo.rxSuccessRate > mStayOnNetworkMinimumRxRate);
         if (hasQualifiedRssi && hasActiveStream) {
@@ -262,8 +258,7 @@ public class WifiNetworkSelector {
      * Compares ScanResult level against the minimum threshold for its band, returns true if lower
      */
     public boolean isSignalTooWeak(ScanResult scanResult) {
-        return ((scanResult.is24GHz() && scanResult.level < mThresholdMinimumRssi24)
-                || (scanResult.is5GHz() && scanResult.level < mThresholdMinimumRssi5));
+        return (scanResult.level < mScoringParams.getEntryRssi(scanResult.frequency));
     }
 
     private List<ScanDetail> filterScanResults(List<ScanDetail> scanDetails,
@@ -597,20 +592,14 @@ public class WifiNetworkSelector {
         return true;
     }
 
-    WifiNetworkSelector(Context context, WifiConfigManager configManager, Clock clock,
+    WifiNetworkSelector(Context context, ScoringParams scoringParams,
+            WifiConfigManager configManager, Clock clock,
             LocalLog localLog) {
         mWifiConfigManager = configManager;
         mClock = clock;
+        mScoringParams = scoringParams;
         mLocalLog = localLog;
 
-        mThresholdQualifiedRssi24 = context.getResources().getInteger(
-                R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_24GHz);
-        mThresholdQualifiedRssi5 = context.getResources().getInteger(
-                R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_5GHz);
-        mThresholdMinimumRssi24 = context.getResources().getInteger(
-                R.integer.config_wifi_framework_wifi_score_entry_rssi_threshold_24GHz);
-        mThresholdMinimumRssi5 = context.getResources().getInteger(
-                R.integer.config_wifi_framework_wifi_score_entry_rssi_threshold_5GHz);
         mEnableAutoJoinWhenAssociated = context.getResources().getBoolean(
                 R.bool.config_wifi_framework_enable_associated_network_selection);
         mStayOnNetworkMinimumTxRate = context.getResources().getInteger(

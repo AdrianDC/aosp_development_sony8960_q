@@ -493,7 +493,8 @@ public class CarrierNetworkNotifierTest {
 
         verify(mWifiStateMachine).sendMessage(any(Message.class));
         // Connecting Notification
-        verify(mNotificationBuilder).createNetworkConnectingNotification(mDummyNetwork);
+        verify(mNotificationBuilder).createNetworkConnectingNotification(CARRIER_NET_NOTIFIER_TAG,
+                mDummyNetwork);
         verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_CONNECTING_TO_NETWORK);
         verify(mWifiMetrics).incrementConnectToNetworkNotificationAction(CARRIER_NET_NOTIFIER_TAG,
@@ -579,7 +580,8 @@ public class CarrierNetworkNotifierTest {
         mBroadcastReceiver.onReceive(mContext, createIntent(ACTION_CONNECT_TO_NETWORK));
 
         // Connecting Notification
-        verify(mNotificationBuilder).createNetworkConnectingNotification(mDummyNetwork);
+        verify(mNotificationBuilder).createNetworkConnectingNotification(CARRIER_NET_NOTIFIER_TAG,
+                mDummyNetwork);
         verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_CONNECTING_TO_NETWORK);
         verify(mWifiMetrics).incrementConnectToNetworkNotificationAction(CARRIER_NET_NOTIFIER_TAG,
@@ -590,7 +592,8 @@ public class CarrierNetworkNotifierTest {
         mNotificationController.handleWifiConnected();
 
         // Connected Notification
-        verify(mNotificationBuilder).createNetworkConnectedNotification(mDummyNetwork);
+        verify(mNotificationBuilder).createNetworkConnectedNotification(CARRIER_NET_NOTIFIER_TAG,
+                mDummyNetwork);
         verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_CONNECTED_TO_NETWORK);
         verify(mNotificationManager, times(3)).notify(anyInt(), any());
@@ -628,7 +631,8 @@ public class CarrierNetworkNotifierTest {
         mBroadcastReceiver.onReceive(mContext, createIntent(ACTION_CONNECT_TO_NETWORK));
 
         // Connecting Notification
-        verify(mNotificationBuilder).createNetworkConnectingNotification(mDummyNetwork);
+        verify(mNotificationBuilder).createNetworkConnectingNotification(CARRIER_NET_NOTIFIER_TAG,
+                mDummyNetwork);
         verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_CONNECTING_TO_NETWORK);
         verify(mWifiMetrics).incrementConnectToNetworkNotificationAction(CARRIER_NET_NOTIFIER_TAG,
@@ -639,7 +643,7 @@ public class CarrierNetworkNotifierTest {
         mNotificationController.handleConnectionFailure();
 
         // Failed to Connect Notification
-        verify(mNotificationBuilder).createNetworkFailedNotification();
+        verify(mNotificationBuilder).createNetworkFailedNotification(CARRIER_NET_NOTIFIER_TAG);
         verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_FAILED_TO_CONNECT);
         verify(mNotificationManager, times(3)).notify(anyInt(), any());
@@ -668,7 +672,8 @@ public class CarrierNetworkNotifierTest {
         Message connectMessage = connectMessageCaptor.getValue();
 
         // Connecting Notification
-        verify(mNotificationBuilder).createNetworkConnectingNotification(mDummyNetwork);
+        verify(mNotificationBuilder).createNetworkConnectingNotification(CARRIER_NET_NOTIFIER_TAG,
+                mDummyNetwork);
         verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_CONNECTING_TO_NETWORK);
         verify(mWifiMetrics).incrementConnectToNetworkNotificationAction(CARRIER_NET_NOTIFIER_TAG,
@@ -682,7 +687,7 @@ public class CarrierNetworkNotifierTest {
         mLooper.dispatchAll();
 
         // Failed to Connect Notification
-        verify(mNotificationBuilder).createNetworkFailedNotification();
+        verify(mNotificationBuilder).createNetworkFailedNotification(CARRIER_NET_NOTIFIER_TAG);
         verify(mWifiMetrics).incrementConnectToNetworkNotification(CARRIER_NET_NOTIFIER_TAG,
                 ConnectToNetworkNotificationAndActionCount.NOTIFICATION_FAILED_TO_CONNECT);
         verify(mWifiMetrics).incrementNumNetworkConnectMessageFailedToSend(

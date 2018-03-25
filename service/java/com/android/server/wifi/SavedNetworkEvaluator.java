@@ -44,11 +44,12 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
     private final int mBand5GHzAward;
     private final int mLastSelectionAward;
     private final int mSecurityAward;
-    private final int mThresholdSaturatedRssi24;
-    private final int mThresholdSaturatedRssi5;
+    private final ScoringParams mScoringParams;
 
-    SavedNetworkEvaluator(final Context context, WifiConfigManager configManager, Clock clock,
+    SavedNetworkEvaluator(final Context context, ScoringParams scoringParams,
+            WifiConfigManager configManager, Clock clock,
             LocalLog localLog, WifiConnectivityHelper connectivityHelper) {
+        mScoringParams = scoringParams;
         mWifiConfigManager = configManager;
         mClock = clock;
         mLocalLog = localLog;
@@ -68,10 +69,6 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
                 R.integer.config_wifi_framework_SECURITY_AWARD);
         mBand5GHzAward = context.getResources().getInteger(
                 R.integer.config_wifi_framework_5GHz_preference_boost_factor);
-        mThresholdSaturatedRssi24 = context.getResources().getInteger(
-                R.integer.config_wifi_framework_wifi_score_good_rssi_threshold_24GHz);
-        mThresholdSaturatedRssi5 = context.getResources().getInteger(
-                R.integer.config_wifi_framework_wifi_score_good_rssi_threshold_5GHz);
     }
 
     private void localLog(String log) {
@@ -162,7 +159,7 @@ public class SavedNetworkEvaluator implements WifiNetworkSelector.NetworkEvaluat
         sbuf.append("[ ").append(scanResult.SSID).append(" ").append(scanResult.BSSID)
                 .append(" RSSI:").append(scanResult.level).append(" ] ");
         // Calculate the RSSI score.
-        int rssiSaturationThreshold = is5GHz ? mThresholdSaturatedRssi5 : mThresholdSaturatedRssi24;
+        int rssiSaturationThreshold = mScoringParams.getGoodRssi(scanResult.frequency);
         int rssi = scanResult.level < rssiSaturationThreshold ? scanResult.level
                 : rssiSaturationThreshold;
         score += (rssi + mRssiScoreOffset) * mRssiScoreSlope;
