@@ -43,6 +43,7 @@ public class WakeupLock {
 
     private final WifiConfigManager mWifiConfigManager;
     private final Map<ScanResultMatchInfo, Integer> mLockedNetworks = new ArrayMap<>();
+    private boolean mVerboseLoggingEnabled;
 
     public WakeupLock(WifiConfigManager wifiConfigManager) {
         mWifiConfigManager = wifiConfigManager;
@@ -84,6 +85,9 @@ public class WakeupLock {
 
             // if present in scan list, reset to max
             if (scanResultList.contains(entry.getKey())) {
+                if (mVerboseLoggingEnabled) {
+                    Log.d(TAG, "Found network in lock: " + entry.getKey().networkSsid);
+                }
                 entry.setValue(CONSECUTIVE_MISSED_SCANS_REQUIRED_TO_EVICT);
                 continue;
             }
@@ -91,6 +95,7 @@ public class WakeupLock {
             // decrement and remove if necessary
             entry.setValue(entry.getValue() - 1);
             if (entry.getValue() <= 0) {
+                Log.d(TAG, "Removed network from lock: " + entry.getKey().networkSsid);
                 it.remove();
                 hasChanged = true;
             }
@@ -120,6 +125,11 @@ public class WakeupLock {
         for (Map.Entry<ScanResultMatchInfo, Integer> entry : mLockedNetworks.entrySet()) {
             pw.println(entry.getKey() + ", scans to evict: " + entry.getValue());
         }
+    }
+
+    /** Set whether verbose logging is enabled. */
+    public void enableVerboseLogging(boolean enabled) {
+        mVerboseLoggingEnabled = enabled;
     }
 
     private class WakeupLockDataSource
