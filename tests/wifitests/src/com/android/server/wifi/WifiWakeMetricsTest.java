@@ -17,8 +17,10 @@
 package com.android.server.wifi;
 
 import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.assertFalse;
 import static junit.framework.Assert.assertNotNull;
 import static junit.framework.Assert.assertNull;
+import static junit.framework.Assert.assertTrue;
 
 import com.android.server.wifi.nano.WifiMetricsProto.WifiWakeStats;
 
@@ -40,6 +42,8 @@ public class WifiWakeMetricsTest {
         WifiWakeStats wifiWakeStats = mWifiWakeMetrics.buildProto();
         assertNotNull(wifiWakeStats);
         assertEquals(wifiWakeStats.numSessions, 0);
+        assertEquals(wifiWakeStats.numWakeups, 0);
+        assertEquals(wifiWakeStats.numIgnoredStarts, 0);
         assertEquals(wifiWakeStats.sessions.length, 0);
     }
 
@@ -57,6 +61,7 @@ public class WifiWakeMetricsTest {
         WifiWakeStats wifiWakeStats = mWifiWakeMetrics.buildProto();
         assertNotNull(wifiWakeStats);
         assertEquals(wifiWakeStats.numSessions, 3);
+        assertEquals(wifiWakeStats.numWakeups, 0);
         assertEquals(wifiWakeStats.sessions.length, 3);
     }
 
@@ -65,12 +70,16 @@ public class WifiWakeMetricsTest {
         int numSessions = WifiWakeMetrics.MAX_RECORDED_SESSIONS + 1;
         for (int i = 0; i < numSessions; i++) {
             mWifiWakeMetrics.recordStartEvent(i);
+            mWifiWakeMetrics.recordInitializeEvent(i, i);
+            mWifiWakeMetrics.recordUnlockEvent(i);
+            mWifiWakeMetrics.recordWakeupEvent(i);
             mWifiWakeMetrics.recordResetEvent(i);
         }
 
         WifiWakeStats wifiWakeStats = mWifiWakeMetrics.buildProto();
         assertNotNull(wifiWakeStats);
         assertEquals(wifiWakeStats.numSessions, numSessions);
+        assertEquals(wifiWakeStats.numWakeups, numSessions);
         assertEquals(wifiWakeStats.sessions.length, WifiWakeMetrics.MAX_RECORDED_SESSIONS);
 
         // ensure that the first (not last) MAX_RECORDED_SESSIONS are recorded
@@ -78,7 +87,54 @@ public class WifiWakeMetricsTest {
             WifiWakeStats.Session session = wifiWakeStats.sessions[i];
             assertNotNull(session);
             assertEquals(session.lockedNetworksAtStart, i);
+            assertEquals(session.lockedNetworksAtInitialize, i);
         }
+    }
+
+    @Test
+    public void buildProtoCountsWakes() {
+        mWifiWakeMetrics.recordStartEvent(0 /* numNetworks */);
+        mWifiWakeMetrics.recordWakeupEvent(3 /* numScans */);
+        mWifiWakeMetrics.recordResetEvent(3 /* numScans */);
+
+        mWifiWakeMetrics.recordStartEvent(1 /* numNetworks */);
+        mWifiWakeMetrics.recordWakeupEvent(3 /* numScans */);
+        mWifiWakeMetrics.recordResetEvent(3 /* numScans */);
+
+        mWifiWakeMetrics.recordStartEvent(2 /* numNetworks */);
+        mWifiWakeMetrics.recordResetEvent(0 /* numScans */);
+
+        WifiWakeStats wifiWakeStats = mWifiWakeMetrics.buildProto();
+        assertNotNull(wifiWakeStats);
+        assertEquals(wifiWakeStats.numSessions, 3);
+        assertEquals(wifiWakeStats.numWakeups, 2);
+        assertEquals(wifiWakeStats.sessions.length, 3);
+    }
+
+    @Test
+    public void buildProtoDoesNotCountWakeInCurrentSession() {
+        mWifiWakeMetrics.recordStartEvent(1 /* numNetworks */);
+        mWifiWakeMetrics.recordResetEvent(0 /* numScans */);
+
+        mWifiWakeMetrics.recordStartEvent(2 /* numNetworks */);
+        mWifiWakeMetrics.recordWakeupEvent(3 /* numScans */);
+
+        WifiWakeStats wifiWakeStats = mWifiWakeMetrics.buildProto();
+        assertNotNull(wifiWakeStats);
+        assertEquals(wifiWakeStats.numSessions, 1);
+        assertEquals(wifiWakeStats.numWakeups, 0);
+        assertEquals(wifiWakeStats.sessions.length, 1);
+    }
+
+    @Test
+    public void buildProtoCountsIgnoredStarts() {
+        mWifiWakeMetrics.recordIgnoredStart();
+        mWifiWakeMetrics.recordIgnoredStart();
+        mWifiWakeMetrics.recordIgnoredStart();
+
+        WifiWakeStats wifiWakeStats = mWifiWakeMetrics.buildProto();
+        assertNotNull(wifiWakeStats);
+        assertEquals(wifiWakeStats.numIgnoredStarts, 3);
     }
 
     @Test
@@ -130,24 +186,31 @@ public class WifiWakeMetricsTest {
     @Test
     public void clearRemovesSessions() {
         mWifiWakeMetrics.recordStartEvent(0 /* numNetworks */);
-        mWifiWakeMetrics.recordResetEvent(0 /* numScans */);
+        mWifiWakeMetrics.recordWakeupEvent(3 /* numScans */);
+        mWifiWakeMetrics.recordResetEvent(3 /* numScans */);
 
         mWifiWakeMetrics.recordStartEvent(0 /* numNetworks */);
         mWifiWakeMetrics.recordResetEvent(0 /* numScans */);
 
         mWifiWakeMetrics.recordStartEvent(0 /* numNetworks */);
+        mWifiWakeMetrics.recordIgnoredStart();
+        mWifiWakeMetrics.recordIgnoredStart();
         mWifiWakeMetrics.recordResetEvent(0 /* numScans */);
 
         // verify sessions
         WifiWakeStats wifiWakeStats = mWifiWakeMetrics.buildProto();
         assertNotNull(wifiWakeStats);
         assertEquals(wifiWakeStats.numSessions, 3);
+        assertEquals(wifiWakeStats.numWakeups, 1);
+        assertEquals(wifiWakeStats.numIgnoredStarts, 2);
         assertEquals(wifiWakeStats.sessions.length, 3);
 
         mWifiWakeMetrics.clear();
         wifiWakeStats = mWifiWakeMetrics.buildProto();
         assertNotNull(wifiWakeStats);
         assertEquals(wifiWakeStats.numSessions, 0);
+        assertEquals(wifiWakeStats.numWakeups, 0);
+        assertEquals(wifiWakeStats.numIgnoredStarts, 0);
         assertEquals(wifiWakeStats.sessions.length, 0);
     }
 
@@ -209,18 +272,21 @@ public class WifiWakeMetricsTest {
         WifiWakeMetrics.Session session =
                 new WifiWakeMetrics.Session(1 /* numNetworks */, 1000 /* timestamp */);
 
-        session.recordUnlockEvent(1 /* numScans */, 1100 /* timestamp */);
-        session.recordWakeupEvent(2 /* numScans */, 1200 /* timestamp */);
-        session.recordResetEvent(3 /* numScans */, 1300 /* timestamp */);
+        session.recordInitializeEvent(1 /* numScans */, 2 /* numNetworks */, 1100 /* timestamp */);
+        session.recordUnlockEvent(2 /* numScans */, 1200 /* timestamp */);
+        session.recordWakeupEvent(3 /* numScans */, 1300 /* timestamp */);
+        session.recordResetEvent(4 /* numScans */, 1400 /* timestamp */);
 
         WifiWakeStats.Session sessionProto = session.buildProto();
         assertNotNull(sessionProto);
         assertEquals(sessionProto.lockedNetworksAtStart, 1);
+        assertEquals(sessionProto.lockedNetworksAtInitialize, 2);
         assertEquals(sessionProto.startTimeMillis, 1000);
 
-        verifyEventProto(sessionProto.unlockEvent, 1, 100);
-        verifyEventProto(sessionProto.wakeupEvent, 2, 200);
-        verifyEventProto(sessionProto.resetEvent, 3, 300);
+        verifyEventProto(sessionProto.initializeEvent, 1, 100);
+        verifyEventProto(sessionProto.unlockEvent, 2, 200);
+        verifyEventProto(sessionProto.wakeupEvent, 3, 300);
+        verifyEventProto(sessionProto.resetEvent, 4, 400);
     }
 
     @Test
@@ -236,6 +302,22 @@ public class WifiWakeMetricsTest {
         session.recordResetEvent(2 /* numScans */, 1200 /* timestamp */);
         assertEquals(session.mResetEvent.mNumScans, 1);
         assertEquals(session.mResetEvent.mElapsedTime, 100);
+    }
+
+    @Test
+    public void session_hasWakeupTriggered() {
+        WifiWakeMetrics.Session session =
+                new WifiWakeMetrics.Session(0 /* numNetworks */, 1000 /* timestamp */);
+        assertFalse(session.hasWakeupTriggered());
+
+        session.recordInitializeEvent(3 /* numScans */, 0 /* numNetworks */, 1100 /* timestamp */);
+        assertFalse(session.hasWakeupTriggered());
+
+        session.recordWakeupEvent(3 /* numScans */, 1100 /* timestamp */);
+        assertTrue(session.hasWakeupTriggered());
+
+        session.recordResetEvent(3 /* numScans */, 1100 /* timestamp */);
+        assertTrue(session.hasWakeupTriggered());
     }
 
     @Test
