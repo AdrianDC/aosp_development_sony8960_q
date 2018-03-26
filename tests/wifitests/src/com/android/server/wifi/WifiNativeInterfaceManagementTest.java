@@ -474,7 +474,7 @@ public class WifiNativeInterfaceManagementTest {
                 false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
                 mNetworkObserverCaptor0);
 
-        mNetworkObserverCaptor0.getValue().interfaceLinkStateChanged(IFACE_NAME_0, false);
+        mNetworkObserverCaptor0.getValue().interfaceStatusChanged(IFACE_NAME_0, false);
 
         verifyNoMoreInteractions(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal,
                 mHostapdHal, mNwManagementService, mIfaceCallback0, mIfaceCallback1, mWifiMetrics);
@@ -489,7 +489,7 @@ public class WifiNativeInterfaceManagementTest {
                 false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
                 mNetworkObserverCaptor0);
 
-        mNetworkObserverCaptor0.getValue().interfaceLinkStateChanged(IFACE_NAME_0, true);
+        mNetworkObserverCaptor0.getValue().interfaceStatusChanged(IFACE_NAME_0, true);
         mInOrder.verify(mIfaceCallback0).onUp(IFACE_NAME_0);
 
         verifyNoMoreInteractions(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal,
@@ -506,10 +506,10 @@ public class WifiNativeInterfaceManagementTest {
                 false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
                 mNetworkObserverCaptor0);
 
-        mNetworkObserverCaptor0.getValue().interfaceLinkStateChanged(IFACE_NAME_0, true);
+        mNetworkObserverCaptor0.getValue().interfaceStatusChanged(IFACE_NAME_0, true);
         mInOrder.verify(mIfaceCallback0).onUp(IFACE_NAME_0);
 
-        mNetworkObserverCaptor0.getValue().interfaceLinkStateChanged(IFACE_NAME_0, false);
+        mNetworkObserverCaptor0.getValue().interfaceStatusChanged(IFACE_NAME_0, false);
         mInOrder.verify(mIfaceCallback0).onDown(IFACE_NAME_0);
 
         verifyNoMoreInteractions(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal,
@@ -526,10 +526,10 @@ public class WifiNativeInterfaceManagementTest {
                 false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
                 mNetworkObserverCaptor0);
 
-        mNetworkObserverCaptor0.getValue().interfaceLinkStateChanged(IFACE_NAME_0, true);
+        mNetworkObserverCaptor0.getValue().interfaceStatusChanged(IFACE_NAME_0, true);
         mInOrder.verify(mIfaceCallback0).onUp(IFACE_NAME_0);
 
-        mNetworkObserverCaptor0.getValue().interfaceLinkStateChanged(IFACE_NAME_0, true);
+        mNetworkObserverCaptor0.getValue().interfaceStatusChanged(IFACE_NAME_0, true);
 
         verifyNoMoreInteractions(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal,
                 mHostapdHal, mNwManagementService, mIfaceCallback0, mIfaceCallback1, mWifiMetrics);
@@ -545,7 +545,7 @@ public class WifiNativeInterfaceManagementTest {
                 false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
                 mNetworkObserverCaptor0);
 
-        mNetworkObserverCaptor0.getValue().interfaceLinkStateChanged(IFACE_NAME_1, true);
+        mNetworkObserverCaptor0.getValue().interfaceStatusChanged(IFACE_NAME_1, true);
 
         verifyNoMoreInteractions(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal,
                 mHostapdHal, mNwManagementService, mIfaceCallback0, mIfaceCallback1, mWifiMetrics);
@@ -593,10 +593,10 @@ public class WifiNativeInterfaceManagementTest {
         mInOrder.verify(mNwManagementService).getInterfaceConfig(IFACE_NAME_0);
 
         // Step (c) - Iface up on old iface, ignored!
-        mNetworkObserverCaptor0.getValue().interfaceLinkStateChanged(IFACE_NAME_0, true);
+        mNetworkObserverCaptor0.getValue().interfaceStatusChanged(IFACE_NAME_0, true);
 
         // Step (d) - Iface up on new iface, handled!
-        mNetworkObserverCaptor1.getValue().interfaceLinkStateChanged(IFACE_NAME_0, true);
+        mNetworkObserverCaptor1.getValue().interfaceStatusChanged(IFACE_NAME_0, true);
         mInOrder.verify(mIfaceCallback1).onUp(IFACE_NAME_0);
 
         // Execute a teardown of the softap interface to ensure that the new iface removal works.
