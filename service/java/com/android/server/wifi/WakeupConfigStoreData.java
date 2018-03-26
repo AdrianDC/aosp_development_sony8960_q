@@ -17,6 +17,7 @@
 package com.android.server.wifi;
 
 import android.util.ArraySet;
+import android.util.Log;
 
 import com.android.server.wifi.WifiConfigStore.StoreData;
 import com.android.server.wifi.util.XmlUtil;
@@ -141,7 +142,10 @@ public class WakeupConfigStoreData implements StoreData {
     public void deserializeData(XmlPullParser in, int outerTagDepth, boolean shared)
             throws XmlPullParserException, IOException {
         if (!shared) {
-            mHasBeenRead = true;
+            if (!mHasBeenRead) {
+                Log.d(TAG, "WifiWake user data has been read");
+                mHasBeenRead = true;
+            }
         }
 
         // Ignore empty reads.
