@@ -96,6 +96,7 @@ public class WifiMetrics {
     public static final int MAX_TOTAL_PASSPOINT_APS_BUCKET = 50;
     public static final int MAX_TOTAL_PASSPOINT_UNIQUE_ESS_BUCKET = 20;
     public static final int MAX_PASSPOINT_APS_PER_UNIQUE_ESS_BUCKET = 50;
+    public static final int MAX_TOTAL_80211MC_APS_BUCKET = 20;
     private static final int CONNECT_TO_NETWORK_NOTIFICATION_ACTION_KEY_MULTIPLIER = 1000;
     // Max limit for number of soft AP related events, extra events will be dropped.
     private static final int MAX_NUM_SOFT_AP_EVENTS = 256;
@@ -186,6 +187,8 @@ public class WifiMetrics {
     private final SparseIntArray mObservedHotspotR2EssInScanHistogram = new SparseIntArray();
     private final SparseIntArray mObservedHotspotR1ApsPerEssInScanHistogram = new SparseIntArray();
     private final SparseIntArray mObservedHotspotR2ApsPerEssInScanHistogram = new SparseIntArray();
+
+    private final SparseIntArray mObserved80211mcApInScanHistogram = new SparseIntArray();
 
     /** Wifi power metrics*/
     private WifiPowerMetrics mWifiPowerMetrics = new WifiPowerMetrics();
@@ -1442,6 +1445,7 @@ public class WifiMetrics {
             int passpointR2Aps = 0;
             Map<ANQPNetworkKey, Integer> passpointR1UniqueEss = new HashMap<>();
             Map<ANQPNetworkKey, Integer> passpointR2UniqueEss = new HashMap<>();
+            int supporting80211mcAps = 0;
             for (ScanDetail scanDetail : scanDetails) {
                 NetworkDetail networkDetail = scanDetail.getNetworkDetail();
                 ScanResult scanResult = scanDetail.getScanResult();
@@ -1510,6 +1514,9 @@ public class WifiMetrics {
                     savedPasspointProviderProfiles.add(passpointProvider);
                     savedPasspointProviderBssids++;
                 }
+                if (networkDetail.is80211McResponderSupport()) {
+                    supporting80211mcAps++;
+                }
             }
             mWifiLogProto.fullBandAllSingleScanListenerResults++;
             incrementTotalScanSsids(mTotalSsidsInScanHistogram, ssids.size());
@@ -1537,6 +1544,7 @@ public class WifiMetrics {
             for (Integer count : passpointR2UniqueEss.values()) {
                 incrementPasspointPerUniqueEss(mObservedHotspotR2ApsPerEssInScanHistogram, count);
             }
+            increment80211mcAps(mObserved80211mcApInScanHistogram, supporting80211mcAps);
         }
     }
 
@@ -1874,6 +1882,9 @@ public class WifiMetrics {
                 pw.println("mWifiLogProto.observedHotspotR2ApsPerEssInScanHistogram="
                         + mObservedHotspotR2ApsPerEssInScanHistogram);
 
+                pw.println("mWifiLogProto.observed80211mcSupportingApsInScanHistogram"
+                        + mObserved80211mcApInScanHistogram);
+
                 pw.println("mSoftApTetheredEvents:");
                 for (SoftApConnectedClientsEvent event : mSoftApEventListTethered) {
                     StringBuilder eventLine = new StringBuilder();
@@ -2187,6 +2198,9 @@ public class WifiMetrics {
                     makeNumConnectableNetworksBucketArray(
                             mObservedHotspotR2ApsPerEssInScanHistogram);
 
+            mWifiLogProto.observed80211McSupportingApsInScanHistogram =
+                    makeNumConnectableNetworksBucketArray(mObserved80211mcApInScanHistogram);
+
             if (mSoftApEventListTethered.size() > 0) {
                 mWifiLogProto.softApConnectedClientsEventsTethered =
                         mSoftApEventListTethered.toArray(
@@ -2265,6 +2279,7 @@ public class WifiMetrics {
             mSoftApEventListLocalOnly.clear();
             mWpsMetrics.clear();
             mWifiWakeMetrics.clear();
+            mObserved80211mcApInScanHistogram.clear();
         }
     }
 
@@ -2686,6 +2701,9 @@ public class WifiMetrics {
     }
     private void incrementPasspointPerUniqueEss(SparseIntArray sia, int element) {
         increment(sia, Math.min(element, MAX_PASSPOINT_APS_PER_UNIQUE_ESS_BUCKET));
+    }
+    private void increment80211mcAps(SparseIntArray sia, int element) {
+        increment(sia, Math.min(element, MAX_TOTAL_80211MC_APS_BUCKET));
     }
     private void increment(SparseIntArray sia, int element) {
         int count = sia.get(element);
