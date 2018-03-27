@@ -1049,7 +1049,8 @@ public class WifiServiceImplTest {
     public void testConnectedIdsAreHiddenFromAppWithoutPermission() throws Exception {
         setupForGetConnectionInfo();
 
-        when(mWifiPermissionsUtil.canAccessScanResults(anyString(), anyInt())).thenReturn(false);
+        doThrow(new SecurityException()).when(mWifiPermissionsUtil).enforceCanAccessScanResults(
+                anyString(), anyInt());
 
         WifiInfo connectionInfo = mWifiServiceImpl.getConnectionInfo(TEST_PACKAGE);
 
@@ -1059,14 +1060,14 @@ public class WifiServiceImplTest {
 
     /**
      * Test that connected SSID and BSSID are not exposed to an app that does not have the
-     * appropriate permissions, when canAccessScanResults raises a SecurityException.
+     * appropriate permissions, when enforceCanAccessScanResults raises a SecurityException.
      */
     @Test
     public void testConnectedIdsAreHiddenOnSecurityException() throws Exception {
         setupForGetConnectionInfo();
 
-        when(mWifiPermissionsUtil.canAccessScanResults(anyString(), anyInt()))
-                .thenThrow(new SecurityException());
+        doThrow(new SecurityException()).when(mWifiPermissionsUtil).enforceCanAccessScanResults(
+                anyString(), anyInt());
 
         WifiInfo connectionInfo = mWifiServiceImpl.getConnectionInfo(TEST_PACKAGE);
 
@@ -1081,8 +1082,6 @@ public class WifiServiceImplTest {
     @Test
     public void testConnectedIdsAreVisibleFromPermittedApp() throws Exception {
         setupForGetConnectionInfo();
-
-        when(mWifiPermissionsUtil.canAccessScanResults(anyString(), anyInt())).thenReturn(true);
 
         WifiInfo connectionInfo = mWifiServiceImpl.getConnectionInfo(TEST_PACKAGE);
 
@@ -1105,7 +1104,6 @@ public class WifiServiceImplTest {
         when(mScanRequestProxy.getScanResults()).thenReturn(scanResultList);
 
         String packageName = "test.com";
-        when(mWifiPermissionsUtil.canAccessScanResults(eq(packageName), anyInt())).thenReturn(true);
         List<ScanResult> retrievedScanResultList = mWifiServiceImpl.getScanResults(packageName);
         verify(mScanRequestProxy).getScanResults();
 
@@ -1131,7 +1129,6 @@ public class WifiServiceImplTest {
         when(mScanRequestProxy.getScanResults()).thenReturn(scanResultList);
 
         String packageName = "test.com";
-        when(mWifiPermissionsUtil.canAccessScanResults(eq(packageName), anyInt())).thenReturn(true);
         List<ScanResult> retrievedScanResultList = mWifiServiceImpl.getScanResults(packageName);
         verify(mScanRequestProxy, never()).getScanResults();
 

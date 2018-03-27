@@ -114,13 +114,12 @@ public class ScoredNetworkEvaluator implements WifiNetworkSelector.NetworkEvalua
         String packageName = mNetworkScoreManager.getActiveScorerPackage();
         if (networkScorerAppData == null || packageName == null) return false;
         int uid = networkScorerAppData.packageUid;
-        boolean allow;
         try {
-            allow = mWifiPermissionsUtil.canAccessScanResults(packageName, uid);
+            mWifiPermissionsUtil.enforceCanAccessScanResults(packageName, uid);
+            return true;
         } catch (SecurityException e) {
-            allow = false;
+            return false;
         }
-        return allow;
     }
 
     @Override

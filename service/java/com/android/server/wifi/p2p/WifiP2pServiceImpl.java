@@ -3459,7 +3459,6 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
          */
         private WifiP2pDeviceList getPeers(Bundle pkg, int uid) {
             String pkgName = pkg.getString(WifiP2pManager.CALLING_PACKAGE);
-            boolean scanPermission = false;
             WifiPermissionsUtil wifiPermissionsUtil;
             // getPeers() is guaranteed to be invoked after Wifi Service is up
             // This ensures getInstance() will return a non-null object now
@@ -3468,13 +3467,10 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             }
             wifiPermissionsUtil = mWifiInjector.getWifiPermissionsUtil();
             try {
-                scanPermission = wifiPermissionsUtil.canAccessScanResults(pkgName, uid);
-            } catch (SecurityException e) {
-                Log.e(TAG, "Security Exception, cannot access peer list");
-            }
-            if (scanPermission) {
+                wifiPermissionsUtil.enforceCanAccessScanResults(pkgName, uid);
                 return new WifiP2pDeviceList(mPeers);
-            } else {
+            } catch (SecurityException e) {
+                Log.v(TAG, "Security Exception, cannot access peer list");
                 return new WifiP2pDeviceList();
             }
         }

@@ -88,9 +88,6 @@ public class ScoredNetworkEvaluatorTest {
                 Settings.Global.NETWORK_RECOMMENDATIONS_ENABLED, 0))
                 .thenReturn(1);
 
-        when(mWifiPermissionsUtil.canAccessScanResults(eq(TEST_PACKAGE_NAME), anyInt()))
-                .thenReturn(true);
-
         ArgumentCaptor<ContentObserver> observerCaptor =
                 ArgumentCaptor.forClass(ContentObserver.class);
         mScoreCache = new WifiNetworkScoreCache(mContext);
@@ -234,8 +231,8 @@ public class ScoredNetworkEvaluatorTest {
         int[] securities = {SECURITY_PSK, SECURITY_NONE};
         int[] levels = {mThresholdQualifiedRssi2G + 8, mThresholdQualifiedRssi2G + 10};
 
-        when(mWifiPermissionsUtil.canAccessScanResults(any(), anyInt()))
-                .thenReturn(false);
+        doThrow(new SecurityException()).when(mWifiPermissionsUtil).enforceCanAccessScanResults(
+                any(), anyInt());
 
         ScanDetailsAndWifiConfigs scanDetailsAndConfigs = WifiNetworkSelectorTestUtil
                 .setupScanDetailsAndConfigStore(
@@ -244,7 +241,8 @@ public class ScoredNetworkEvaluatorTest {
         mScoredNetworkEvaluator.update(scanDetailsAndConfigs.getScanDetails());
 
         verify(mNetworkScoreManager, never()).requestScores(any());
-        verify(mWifiPermissionsUtil).canAccessScanResults(eq(TEST_PACKAGE_NAME), eq(TEST_UID));
+        verify(mWifiPermissionsUtil).enforceCanAccessScanResults(
+                eq(TEST_PACKAGE_NAME), eq(TEST_UID));
     }
 
     @Test
@@ -256,8 +254,8 @@ public class ScoredNetworkEvaluatorTest {
         int[] securities = {SECURITY_PSK, SECURITY_NONE};
         int[] levels = {mThresholdQualifiedRssi2G + 8, mThresholdQualifiedRssi2G + 10};
 
-        when(mWifiPermissionsUtil.canAccessScanResults(any(), anyInt()))
-                .thenThrow(new SecurityException());
+        doThrow(new SecurityException()).when(mWifiPermissionsUtil).enforceCanAccessScanResults(
+                any(), anyInt());
 
         ScanDetailsAndWifiConfigs scanDetailsAndConfigs = WifiNetworkSelectorTestUtil
                 .setupScanDetailsAndConfigStore(
@@ -266,7 +264,8 @@ public class ScoredNetworkEvaluatorTest {
         mScoredNetworkEvaluator.update(scanDetailsAndConfigs.getScanDetails());
 
         verify(mNetworkScoreManager, never()).requestScores(any());
-        verify(mWifiPermissionsUtil).canAccessScanResults(eq(TEST_PACKAGE_NAME), eq(TEST_UID));
+        verify(mWifiPermissionsUtil).enforceCanAccessScanResults(
+                eq(TEST_PACKAGE_NAME), eq(TEST_UID));
     }
 
     /**
