@@ -1515,7 +1515,63 @@ public class WifiMetricsTest {
                 a(WifiMetrics.MAX_TOTAL_PASSPOINT_UNIQUE_ESS_BUCKET), a(1));
         verifyHist(mDecodedProto.observedHotspotR2EssInScanHistogram, 1,
                 a(WifiMetrics.MAX_TOTAL_PASSPOINT_UNIQUE_ESS_BUCKET), a(1));
+    }
 
+    /**
+     * Test that IEEE 802.11mc scan results are collected correctly and that relevant
+     * bounds are observed.
+     */
+    @Test
+    public void testObserved80211mcAps() throws Exception {
+        ScanDetail mockScanDetailNon80211mc = mock(ScanDetail.class);
+        ScanDetail mockScanDetail80211mc = mock(ScanDetail.class);
+        NetworkDetail mockNetworkDetailNon80211mc = mock(NetworkDetail.class);
+        NetworkDetail mockNetworkDetail80211mc = mock(NetworkDetail.class);
+        when(mockNetworkDetail80211mc.is80211McResponderSupport()).thenReturn(true);
+        ScanResult mockScanResult = mock(ScanResult.class);
+        mockScanResult.capabilities = "";
+        when(mockScanDetailNon80211mc.getNetworkDetail()).thenReturn(mockNetworkDetailNon80211mc);
+        when(mockScanDetail80211mc.getNetworkDetail()).thenReturn(mockNetworkDetail80211mc);
+        when(mockScanDetailNon80211mc.getScanResult()).thenReturn(mockScanResult);
+        when(mockScanDetail80211mc.getScanResult()).thenReturn(mockScanResult);
+        List<ScanDetail> scan = new ArrayList<ScanDetail>();
+
+        // 4 scans (a few non-802.11mc supporting APs on each)
+        //  scan1: no 802.11mc supporting APs
+
+        scan.add(mockScanDetailNon80211mc);
+        scan.add(mockScanDetailNon80211mc);
+        mWifiMetrics.incrementAvailableNetworksHistograms(scan, true);
+
+        //  scan2: 2 802.11mc supporting APs
+        scan.clear();
+        scan.add(mockScanDetailNon80211mc);
+        scan.add(mockScanDetail80211mc);
+        scan.add(mockScanDetail80211mc);
+        mWifiMetrics.incrementAvailableNetworksHistograms(scan, true);
+
+        //  scan3: 100 802.11mc supporting APs (> limit)
+        scan.clear();
+        scan.add(mockScanDetailNon80211mc);
+        scan.add(mockScanDetailNon80211mc);
+        scan.add(mockScanDetailNon80211mc);
+        for (int i = 0; i < 100; ++i) {
+            scan.add(mockScanDetail80211mc);
+        }
+        mWifiMetrics.incrementAvailableNetworksHistograms(scan, true);
+
+        //  scan4: 2 802.11mc supporting APs
+        scan.clear();
+        scan.add(mockScanDetailNon80211mc);
+        scan.add(mockScanDetail80211mc);
+        scan.add(mockScanDetail80211mc);
+        scan.add(mockScanDetailNon80211mc);
+        mWifiMetrics.incrementAvailableNetworksHistograms(scan, true);
+
+        dumpProtoAndDeserialize();
+
+        verifyHist(mDecodedProto.observed80211McSupportingApsInScanHistogram, 3,
+                a(0, 2, WifiMetrics.MAX_TOTAL_80211MC_APS_BUCKET), a(1, 2, 1));
     }
 
     /**
