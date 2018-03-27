@@ -63,10 +63,10 @@ import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
-import android.net.IpConfiguration;
 import android.net.wifi.ISoftApCallback;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiConfiguration.KeyMgmt;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
@@ -351,24 +351,6 @@ public class WifiServiceImplTest {
     }
 
     /**
-     * Tests the isValid() check for StaticIpConfigurations, ensuring that configurations with null
-     * ipAddress are rejected, and configurations with ipAddresses are valid.
-     */
-    @Test
-    public void testStaticIpConfigurationValidityCheck() {
-        WifiConfiguration conf = WifiConfigurationTestUtil.createOpenNetwork();
-        IpConfiguration ipConf =
-                WifiConfigurationTestUtil.createStaticIpConfigurationWithStaticProxy();
-        conf.setIpConfiguration(ipConf);
-        // Ensure staticIpConfiguration with IP Address is valid
-        assertTrue(mWifiServiceImpl.isValid(conf));
-        ipConf.staticIpConfiguration.ipAddress = null;
-        // Ensure staticIpConfiguration with null IP Address it is not valid
-        conf.setIpConfiguration(ipConf);
-        assertFalse(mWifiServiceImpl.isValid(conf));
-    }
-
-    /**
      * Ensure WifiMetrics.dump() is the only dump called when 'dumpsys wifi WifiMetricsProto' is
      * called. This is required to support simple metrics collection via dumpsys
      */
@@ -381,7 +363,6 @@ public class WifiServiceImplTest {
         verify(mWifiStateMachine, never())
                 .dump(any(FileDescriptor.class), any(PrintWriter.class), any(String[].class));
     }
-
 
     /**
      * Ensure WifiServiceImpl.dump() doesn't throw an NPE when executed with null args
@@ -806,8 +787,9 @@ public class WifiServiceImplTest {
     @Test
     public void testSetWifiApConfigurationSuccess() {
         when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt())).thenReturn(true);
-        WifiConfiguration apConfig = new WifiConfiguration();
-        mWifiServiceImpl.setWifiApConfiguration(apConfig, TEST_PACKAGE_NAME);
+        WifiConfiguration apConfig = createValidSoftApConfiguration();
+
+        assertTrue(mWifiServiceImpl.setWifiApConfiguration(apConfig, TEST_PACKAGE_NAME));
         mLooper.dispatchAll();
         verifyCheckChangePermission(TEST_PACKAGE_NAME);
         verify(mWifiApConfigStore).setApConfiguration(eq(apConfig));
@@ -819,8 +801,19 @@ public class WifiServiceImplTest {
     @Test
     public void testSetWifiApConfigurationNullConfigNotSaved() {
         when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt())).thenReturn(true);
-        mWifiServiceImpl.setWifiApConfiguration(null, TEST_PACKAGE_NAME);
+        assertFalse(mWifiServiceImpl.setWifiApConfiguration(null, TEST_PACKAGE_NAME));
         verify(mWifiApConfigStore, never()).setApConfiguration(isNull(WifiConfiguration.class));
+    }
+
+    /**
+     * Ensure that an invalid config does not overwrite the saved ap config.
+     */
+    @Test
+    public void testSetWifiApConfigurationWithInvalidConfigNotSaved() {
+        when(mWifiPermissionsUtil.checkConfigOverridePermission(anyInt())).thenReturn(true);
+        assertFalse(mWifiServiceImpl.setWifiApConfiguration(new WifiConfiguration(),
+                                                            TEST_PACKAGE_NAME));
+        verify(mWifiApConfigStore, never()).setApConfiguration(any());
     }
 
     /**
@@ -974,7 +967,7 @@ public class WifiServiceImplTest {
      */
     @Test
     public void testStartSoftApWithPermissionsAndValidConfig() {
-        WifiConfiguration config = new WifiConfiguration();
+        WifiConfiguration config = createValidSoftApConfiguration();
         boolean result = mWifiServiceImpl.startSoftAp(config);
         assertTrue(result);
         verify(mWifiController)
@@ -2556,5 +2549,15 @@ public class WifiServiceImplTest {
                 android.Manifest.permission.CHANGE_WIFI_STATE, "WifiService");
         verify(mAppOpsManager, atLeastOnce()).noteOp(
                 AppOpsManager.OPSTR_CHANGE_WIFI_STATE, Process.myUid(), callingPackageName);
+    }
+
+    private WifiConfiguration createValidSoftApConfiguration() {
+        WifiConfiguration apConfig = new WifiConfiguration();
+        apConfig.SSID = "TestAp";
+        apConfig.preSharedKey = "thisIsABadPassword";
+        apConfig.allowedKeyManagement.set(KeyMgmt.WPA2_PSK);
+        apConfig.apBand = WifiConfiguration.AP_BAND_2GHZ;
+
+        return apConfig;
     }
 }
