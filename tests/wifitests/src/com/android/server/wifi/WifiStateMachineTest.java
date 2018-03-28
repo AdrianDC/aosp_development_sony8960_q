@@ -1208,7 +1208,7 @@ public class WifiStateMachineTest {
         config.getNetworkSelectionStatus().setHasEverConnected(true);
         when(mWifiConfigManager.getConfiguredNetwork(anyInt())).thenReturn(config);
 
-        mWsm.sendMessage(WifiMonitor.AUTHENTICATION_FAILURE_EVENT, 0,
+        mWsm.sendMessage(WifiMonitor.AUTHENTICATION_FAILURE_EVENT,
                 WifiManager.ERROR_AUTH_FAILURE_WRONG_PSWD);
         mLooper.dispatchAll();
 
@@ -1240,7 +1240,7 @@ public class WifiStateMachineTest {
         config.getNetworkSelectionStatus().setHasEverConnected(false);
         when(mWifiConfigManager.getConfiguredNetwork(anyInt())).thenReturn(config);
 
-        mWsm.sendMessage(WifiMonitor.AUTHENTICATION_FAILURE_EVENT, 0,
+        mWsm.sendMessage(WifiMonitor.AUTHENTICATION_FAILURE_EVENT,
                 WifiManager.ERROR_AUTH_FAILURE_WRONG_PSWD);
         mLooper.dispatchAll();
 
@@ -1267,7 +1267,7 @@ public class WifiStateMachineTest {
 
         when(mWifiConfigManager.getConfiguredNetwork(anyInt())).thenReturn(null);
 
-        mWsm.sendMessage(WifiMonitor.AUTHENTICATION_FAILURE_EVENT, 0,
+        mWsm.sendMessage(WifiMonitor.AUTHENTICATION_FAILURE_EVENT,
                 WifiManager.ERROR_AUTH_FAILURE_WRONG_PSWD);
         mLooper.dispatchAll();
 

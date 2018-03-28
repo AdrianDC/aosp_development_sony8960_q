@@ -449,9 +449,11 @@ public class WifiMonitor {
      *               {@link android.net.wifi.WifiManager#ERROR_AUTH_FAILURE_TIMEOUT},
      *               {@link android.net.wifi.WifiManager#ERROR_AUTH_FAILURE_WRONG_PSWD},
      *               {@link android.net.wifi.WifiManager#ERROR_AUTH_FAILURE_EAP_FAILURE}
+     * @param errorCode Error code associated with the authentication failure event.
+     *               A value of -1 is used when no error code is reported.
      */
-    public void broadcastAuthenticationFailureEvent(String iface, int reason) {
-        sendMessage(iface, AUTHENTICATION_FAILURE_EVENT, 0, reason);
+    public void broadcastAuthenticationFailureEvent(String iface, int reason, int errorCode) {
+        sendMessage(iface, AUTHENTICATION_FAILURE_EVENT, reason, errorCode);
     }
 
     /**
