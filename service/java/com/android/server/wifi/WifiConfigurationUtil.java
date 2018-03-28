@@ -521,11 +521,10 @@ public class WifiConfigurationUtil {
      * Create a PnoNetwork object from the provided WifiConfiguration.
      *
      * @param config      Configuration corresponding to the network.
-     * @param newPriority New priority to be assigned to the network.
      * @return PnoNetwork object corresponding to the network.
      */
     public static WifiScanner.PnoSettings.PnoNetwork createPnoNetwork(
-            WifiConfiguration config, int newPriority) {
+            WifiConfiguration config) {
         WifiScanner.PnoSettings.PnoNetwork pnoNetwork =
                 new WifiScanner.PnoSettings.PnoNetwork(config.SSID);
         if (config.hiddenSSID) {
