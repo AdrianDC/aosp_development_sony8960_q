@@ -293,18 +293,18 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
                     config.burstPeriod = 0;
                     config.numBurst = 0;
                     config.numFramesPerBurst = 5;
-                    config.numRetriesPerRttFrame = 3;
+                    config.numRetriesPerRttFrame = 0; // irrelevant for 2-sided RTT
                     config.numRetriesPerFtmr = 3;
-                    config.burstDuration = 15;
+                    config.burstDuration = 9;
                 } else { // AP + all non-NAN requests
                     config.mustRequestLci = isCalledFromPrivilegedContext;
                     config.mustRequestLcr = isCalledFromPrivilegedContext;
                     config.burstPeriod = 0;
                     config.numBurst = 0;
                     config.numFramesPerBurst = 8;
-                    config.numRetriesPerRttFrame = 0;
-                    config.numRetriesPerFtmr = 0;
-                    config.burstDuration = 15;
+                    config.numRetriesPerRttFrame = (config.type == RttType.TWO_SIDED ? 0 : 3);
+                    config.numRetriesPerFtmr = 3;
+                    config.burstDuration = 9;
 
                     if (cap != null) { // constrain parameters per device capabilities
                         config.mustRequestLci = config.mustRequestLci && cap.lciSupported;
