@@ -54,6 +54,10 @@ public class ScoringParams {
         public static final String KEY_RSSI5 = "rssi5";
         public final int[] rssi5 = {-80, -77, -70, -57};
 
+        /** Guidelines based on packet rates (packets/sec) */
+        public static final String KEY_PPS = "pps";
+        public final int[] pps = {0, 1, 100};
+
         /** Number of seconds for RSSI forecast */
         public static final String KEY_HORIZON = "horizon";
         public static final int MIN_HORIZON = -9;
@@ -70,12 +74,16 @@ public class ScoringParams {
             for (int i = 0; i < rssi5.length; i++) {
                 rssi5[i] = source.rssi5[i];
             }
+            for (int i = 0; i < pps.length; i++) {
+                pps[i] = source.pps[i];
+            }
             horizon = source.horizon;
         }
 
         public void validate() throws IllegalArgumentException {
             validateRssiArray(rssi2);
             validateRssiArray(rssi5);
+            validateOrderedNonNegativeArray(pps);
             validateRange(horizon, MIN_HORIZON, MAX_HORIZON);
         }
 
@@ -94,6 +102,16 @@ public class ScoringParams {
             }
         }
 
+        private void validateOrderedNonNegativeArray(int[] a) throws IllegalArgumentException {
+            int low = 0;
+            for (int i = 0; i < a.length; i++) {
+                if (a[i] < low) {
+                    throw new IllegalArgumentException();
+                }
+                low = a[i];
+            }
+        }
+
         public void parseString(String kvList) throws IllegalArgumentException {
             KeyValueListParser parser = new KeyValueListParser(',');
             parser.setString(kvList);
@@ -102,6 +120,7 @@ public class ScoringParams {
             }
             updateIntArray(rssi2, parser, KEY_RSSI2);
             updateIntArray(rssi5, parser, KEY_RSSI5);
+            updateIntArray(pps, parser, KEY_PPS);
             horizon = updateInt(parser, KEY_HORIZON, horizon);
         }
 
@@ -134,6 +153,9 @@ public class ScoringParams {
             appendInts(sb, rssi2);
             appendKey(sb, KEY_RSSI5);
             appendInts(sb, rssi5);
+            //TODO(b/74613347) - leave these out, pending unit test updates
+            // appendKey(sb, KEY_PPS);
+            // appendInts(sb, pps);
             appendKey(sb, KEY_HORIZON);
             sb.append(horizon);
             return sb.toString();
@@ -295,6 +317,14 @@ public class ScoringParams {
      */
     public int getHorizonSeconds() {
         return mVal.horizon;
+    }
+
+    /**
+     * Returns a packet rate that should be considered acceptable for staying on wifi,
+     * no matter how bad the RSSI gets (packets per second).
+     */
+    public int getYippeeSkippyPacketsPerSecond() {
+        return mVal.pps[2];
     }
 
     private static final int MINIMUM_5GHZ_BAND_FREQUENCY_IN_MEGAHERTZ = 5000;
