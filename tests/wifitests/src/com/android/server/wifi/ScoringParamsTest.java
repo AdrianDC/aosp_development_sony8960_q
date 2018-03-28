@@ -29,6 +29,7 @@ import static org.mockito.Mockito.when;
 import android.content.Context;
 import android.content.res.Resources;
 import android.database.ContentObserver;
+import android.net.wifi.WifiInfo;
 import android.os.Handler;
 import android.provider.Settings;
 import android.support.test.filters.SmallTest;
@@ -65,7 +66,7 @@ public class ScoringParamsTest {
      * Check that thresholds are properly ordered, and in range.
      */
     private void checkThresholds(int frequency) {
-        assertTrue(-127 <= mScoringParams.getExitRssi(frequency));
+        assertTrue(-127 < mScoringParams.getExitRssi(frequency));
         assertTrue(mScoringParams.getExitRssi(frequency)
                 <= mScoringParams.getEntryRssi(frequency));
         assertTrue(mScoringParams.getEntryRssi(frequency)
@@ -120,6 +121,7 @@ public class ScoringParamsTest {
         assertTrue(mScoringParams.update(partial));
         String after = mScoringParams.toString();
         assertTrue(after + " should contain " + partial, after.contains(partial));
+        assertEquals(before.replaceAll("rssi5=.*,", partial + ","), after);
     }
 
     /**
@@ -133,11 +135,79 @@ public class ScoringParamsTest {
         assertFalse(mScoringParams.update("42"));
         assertFalse(mScoringParams.update(" "));
         assertFalse(mScoringParams.update("horizon=flat"));
+        assertFalse(mScoringParams.update("horizon=+"));
         assertFalse(mScoringParams.update(",,,,,,,,,,,,,,,,,,"));
         assertFalse(mScoringParams.update("rssi2=-86"));
         assertFalse(mScoringParams.update("rssi2=-99:-88:-77:-66:-55"));
         assertFalse(mScoringParams.update("rssi5=one:two:three:four"));
         assertEquals(before, mScoringParams.toString());
+    }
+
+    /**
+     * Duplicate keys not allowed
+     */
+    @Test
+    public void testDuplicateKeysNotAllowed() throws Exception {
+        mScoringParams = new ScoringParams();
+        String before = mScoringParams.toString();
+        String partial = "rssi5=-88:-77:-66:-55";
+        assertFalse(mScoringParams.update(partial + "," + partial));
+        assertEquals(before, mScoringParams.toString());
+    }
+
+    /**
+     * Range and ordering checks for rssi values should work
+     */
+    @Test
+    public void testRssiRangeChecks() throws Exception {
+        mScoringParams = new ScoringParams();
+        String before = mScoringParams.toString();
+        assertFalse("Must be negative", mScoringParams.update("rssi2=0:1:2:3"));
+        assertFalse("Must be ordered", mScoringParams.update("rssi5=-88:-89:-66:-55"));
+        assertFalse("Must be not too negative", mScoringParams.update("rssi5=-128:-77:-66:-55"));
+        String what = "rssi5=" + WifiInfo.INVALID_RSSI + ":-77:-66:-55";
+        assertFalse(what, mScoringParams.update(what));
+        assertEquals(before, mScoringParams.toString());
+    }
+
+    /**
+     * Range checks should catch wild values
+     */
+    @Test
+    public void testScalarRangeChecks() throws Exception {
+        mScoringParams = new ScoringParams();
+        assertTrue(mScoringParams.update("horizon=60"));
+        assertFalse(mScoringParams.update("horizon=61"));
+        assertTrue(mScoringParams.update("horizon=-9")); // Not recommended, but shouldn't break
+        assertFalse(mScoringParams.update("horizon=-10"));
+    }
+
+    /**
+     * Check character set
+     */
+    @Test
+    public void testBadCharacterChecks() throws Exception {
+        mScoringParams = new ScoringParams();
+        String before = mScoringParams.toString();
+        assertFalse(mScoringParams.update("\007ding\007=7"));
+        assertTrue(mScoringParams.update("unknown_key=14,ThatThing=987654321"));
+        assertEquals(before, mScoringParams.toString());
+    }
+
+    /**
+     * Sanitize should hide garbage characters and truncate length
+     */
+    @Test
+    public void testSanitize() throws Exception {
+        mScoringParams = new ScoringParams();
+        String longKey = "A123456789_123456789_123456789_123456789_123456789";
+        String longVal = "9.99999999999999999999999999999999999999999999999";
+        String param100 = longKey + "=" + longVal;
+        assertEquals(param100, mScoringParams.sanitize(param100));
+        assertEquals(101, mScoringParams.sanitize(param100 + "00000000000").length());
+        assertEquals(param100.substring(0, 90),
+                mScoringParams.sanitize(param100 + "00000000000").substring(0, 90));
+        assertEquals("q?=???", mScoringParams.sanitize("q\b= ~["));
     }
 
     /**
