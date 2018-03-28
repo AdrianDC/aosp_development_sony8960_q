@@ -1062,12 +1062,12 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
 
                     if (peer.peerHandle == null) {
                         finalResults.add(
-                                new RangingResult(errorCode, peer.macAddress, 0, 0, 0, null, null,
-                                        0));
+                                new RangingResult(errorCode, peer.macAddress, 0, 0, 0, 0, 0, null,
+                                        null, 0));
                     } else {
                         finalResults.add(
-                                new RangingResult(errorCode, peer.peerHandle, 0, 0, 0, null, null,
-                                        0));
+                                new RangingResult(errorCode, peer.peerHandle, 0, 0, 0, 0, 0, null,
+                                        null, 0));
                     }
                 } else {
                     int status = resultForRequest.status == RttStatus.SUCCESS
@@ -1079,15 +1079,25 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                         lci = NativeUtil.byteArrayFromArrayList(resultForRequest.lci.data);
                         lcr = NativeUtil.byteArrayFromArrayList(resultForRequest.lcr.data);
                     }
+                    if (resultForRequest.successNumber <= 1
+                            && resultForRequest.distanceSdInMm != 0) {
+                        if (mDbg) {
+                            Log.w(TAG, "postProcessResults: non-zero distance stdev with 0||1 num "
+                                    + "samples!? result=" + resultForRequest);
+                        }
+                        resultForRequest.distanceSdInMm = 0;
+                    }
                     if (peer.peerHandle == null) {
                         finalResults.add(new RangingResult(status, peer.macAddress,
                                 resultForRequest.distanceInMm, resultForRequest.distanceSdInMm,
-                                resultForRequest.rssi / -2, lci, lcr,
+                                resultForRequest.rssi / -2, resultForRequest.numberPerBurstPeer,
+                                resultForRequest.successNumber, lci, lcr,
                                 resultForRequest.timeStampInUs / CONVERSION_US_TO_MS));
                     } else {
                         finalResults.add(new RangingResult(status, peer.peerHandle,
                                 resultForRequest.distanceInMm, resultForRequest.distanceSdInMm,
-                                resultForRequest.rssi / -2, lci, lcr,
+                                resultForRequest.rssi / -2, resultForRequest.numberPerBurstPeer,
+                                resultForRequest.successNumber, lci, lcr,
                                 resultForRequest.timeStampInUs / CONVERSION_US_TO_MS));
                     }
                 }
