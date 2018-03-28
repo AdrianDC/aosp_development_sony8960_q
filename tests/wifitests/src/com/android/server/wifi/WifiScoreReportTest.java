@@ -82,6 +82,9 @@ public class WifiScoreReportTest {
                 R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_5GHz))
             .thenReturn(-82);
         when(resources.getInteger(
+                R.integer.config_wifi_framework_wifi_score_entry_rssi_threshold_5GHz))
+            .thenReturn(-77);
+        when(resources.getInteger(
                 R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_5GHz))
             .thenReturn(-70);
         when(resources.getInteger(
@@ -90,6 +93,9 @@ public class WifiScoreReportTest {
         when(resources.getInteger(
                 R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_24GHz))
             .thenReturn(-85);
+        when(resources.getInteger(
+                R.integer.config_wifi_framework_wifi_score_entry_rssi_threshold_24GHz))
+            .thenReturn(-80);
         when(resources.getInteger(
                 R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_24GHz))
             .thenReturn(-73);
@@ -214,6 +220,7 @@ public class WifiScoreReportTest {
     @Test
     public void giveUpOnBadRssiAggressively() throws Exception {
         String oops = "giveUpOnBadRssiAggressively";
+        mWifiInfo.setFrequency(5220);
         for (int rssi = -60; rssi >= -83; rssi -= 1) {
             mWifiInfo.setRssi(rssi);
             oops += " " + mClock.mWallClockMillis + "," + rssi;
