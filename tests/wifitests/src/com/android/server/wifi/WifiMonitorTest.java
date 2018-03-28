@@ -348,16 +348,33 @@ public class WifiMonitorTest {
         mWifiMonitor.registerHandler(
                 WLAN_IFACE_NAME, WifiMonitor.AUTHENTICATION_FAILURE_EVENT, mHandlerSpy);
         int reason = WifiManager.ERROR_AUTH_FAILURE_WRONG_PSWD;
-        mWifiMonitor.broadcastAuthenticationFailureEvent(WLAN_IFACE_NAME, reason);
+        mWifiMonitor.broadcastAuthenticationFailureEvent(WLAN_IFACE_NAME, reason, -1);
         mLooper.dispatchAll();
 
         ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
         verify(mHandlerSpy).handleMessage(messageCaptor.capture());
         assertEquals(WifiMonitor.AUTHENTICATION_FAILURE_EVENT, messageCaptor.getValue().what);
-        assertEquals(reason, messageCaptor.getValue().arg2);
-
+        assertEquals(reason, messageCaptor.getValue().arg1);
     }
 
+    /**
+     * Broadcast authentication failure test (EAP Error).
+     */
+    @Test
+    public void testBroadcastAuthenticationFailureEapErrorEvent() {
+        mWifiMonitor.registerHandler(
+                WLAN_IFACE_NAME, WifiMonitor.AUTHENTICATION_FAILURE_EVENT, mHandlerSpy);
+        int reason = WifiManager.ERROR_AUTH_FAILURE_EAP_FAILURE;
+	int errorCode = WifiNative.EAP_SIM_VENDOR_SPECIFIC_CERT_EXPIRED;
+        mWifiMonitor.broadcastAuthenticationFailureEvent(WLAN_IFACE_NAME, reason, errorCode);
+        mLooper.dispatchAll();
+
+        ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(mHandlerSpy).handleMessage(messageCaptor.capture());
+        assertEquals(WifiMonitor.AUTHENTICATION_FAILURE_EVENT, messageCaptor.getValue().what);
+        assertEquals(reason, messageCaptor.getValue().arg1);
+	assertEquals(errorCode, messageCaptor.getValue().arg2);
+    }
 
     /**
      * Broadcast association rejection test.

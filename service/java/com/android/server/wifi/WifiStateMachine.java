@@ -61,7 +61,6 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
-import android.net.wifi.WifiSsid;
 import android.net.wifi.hotspot2.IProvisioningCallback;
 import android.net.wifi.hotspot2.OsuProvider;
 import android.net.wifi.hotspot2.PasspointConfiguration;
@@ -2786,23 +2785,12 @@ public class WifiStateMachine extends StateMachine {
                     + mNetworkInfo.getDetailedState() + " and new state=" + state
                     + " hidden=" + hidden);
         }
-        if (mNetworkInfo.getExtraInfo() != null && mWifiInfo.getSSID() != null
-                && !mWifiInfo.getSSID().equals(WifiSsid.NONE)) {
-            // Always indicate that SSID has changed
-            if (!mNetworkInfo.getExtraInfo().equals(mWifiInfo.getSSID())) {
-                if (mVerboseLoggingEnabled) {
-                    log("setDetailed state send new extra info" + mWifiInfo.getSSID());
-                }
-                mNetworkInfo.setExtraInfo(mWifiInfo.getSSID());
-                sendNetworkStateChangeBroadcast(null);
-            }
-        }
         if (hidden == true) {
             return false;
         }
 
         if (state != mNetworkInfo.getDetailedState()) {
-            mNetworkInfo.setDetailedState(state, null, mWifiInfo.getSSID());
+            mNetworkInfo.setDetailedState(state, null, null);
             if (mNetworkAgent != null) {
                 mNetworkAgent.sendNetworkInfo(mNetworkInfo);
             }
@@ -4319,7 +4307,7 @@ public class WifiStateMachine extends StateMachine {
                     int disableReason = WifiConfiguration.NetworkSelectionStatus
                             .DISABLED_AUTHENTICATION_FAILURE;
                     // Check if this is a permanent wrong password failure.
-                    if (isPermanentWrongPasswordFailure(mTargetNetworkId, message.arg2)) {
+                    if (isPermanentWrongPasswordFailure(mTargetNetworkId, message.arg1)) {
                         disableReason = WifiConfiguration.NetworkSelectionStatus
                                 .DISABLED_BY_WRONG_PASSWORD;
                         WifiConfiguration targetedNetwork =

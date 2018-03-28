@@ -478,13 +478,13 @@ public class WifiConfigurationUtilTest {
     /**
      * Verify the instance of {@link android.net.wifi.WifiScanner.PnoSettings.PnoNetwork} created
      * for an open network using {@link WifiConfigurationUtil#createPnoNetwork(
-     * WifiConfiguration, int)}.
+     * WifiConfiguration)}.
      */
     @Test
     public void testCreatePnoNetworkWithOpenNetwork() {
         WifiConfiguration network = WifiConfigurationTestUtil.createOpenNetwork();
         WifiScanner.PnoSettings.PnoNetwork pnoNetwork =
-                WifiConfigurationUtil.createPnoNetwork(network, 1);
+                WifiConfigurationUtil.createPnoNetwork(network);
         assertEquals(network.SSID, pnoNetwork.ssid);
         assertEquals(
                 WifiScanner.PnoSettings.PnoNetwork.FLAG_A_BAND
@@ -495,13 +495,13 @@ public class WifiConfigurationUtilTest {
     /**
      * Verify the instance of {@link android.net.wifi.WifiScanner.PnoSettings.PnoNetwork} created
      * for an open hidden network using {@link WifiConfigurationUtil#createPnoNetwork(
-     * WifiConfiguration, int)}.
+     * WifiConfiguration)}.
      */
     @Test
     public void testCreatePnoNetworkWithOpenHiddenNetwork() {
         WifiConfiguration network = WifiConfigurationTestUtil.createOpenHiddenNetwork();
         WifiScanner.PnoSettings.PnoNetwork pnoNetwork =
-                WifiConfigurationUtil.createPnoNetwork(network, 1);
+                WifiConfigurationUtil.createPnoNetwork(network);
         assertEquals(network.SSID, pnoNetwork.ssid);
         assertEquals(
                 WifiScanner.PnoSettings.PnoNetwork.FLAG_A_BAND
@@ -512,14 +512,14 @@ public class WifiConfigurationUtilTest {
 
     /**
      * Verify the instance of {@link android.net.wifi.WifiScanner.PnoSettings.PnoNetwork} created
-     * for a PSK network using {@link WifiConfigurationUtil#createPnoNetwork(WifiConfiguration, int)
+     * for a PSK network using {@link WifiConfigurationUtil#createPnoNetwork(WifiConfiguration)
      * }.
      */
     @Test
     public void testCreatePnoNetworkWithPskNetwork() {
         WifiConfiguration network = WifiConfigurationTestUtil.createPskNetwork();
         WifiScanner.PnoSettings.PnoNetwork pnoNetwork =
-                WifiConfigurationUtil.createPnoNetwork(network, 1);
+                WifiConfigurationUtil.createPnoNetwork(network);
         assertEquals(network.SSID, pnoNetwork.ssid);
         assertEquals(
                 WifiScanner.PnoSettings.PnoNetwork.FLAG_A_BAND
@@ -601,14 +601,14 @@ public class WifiConfigurationUtilTest {
 
     /**
      * Verify the instance of {@link android.net.wifi.WifiScanner.PnoSettings.PnoNetwork} created
-     * for a EAP network using {@link WifiConfigurationUtil#createPnoNetwork(WifiConfiguration, int)
+     * for a EAP network using {@link WifiConfigurationUtil#createPnoNetwork(WifiConfiguration)
      * }.
      */
     @Test
     public void testCreatePnoNetworkWithEapNetwork() {
         WifiConfiguration network = WifiConfigurationTestUtil.createEapNetwork();
         WifiScanner.PnoSettings.PnoNetwork pnoNetwork =
-                WifiConfigurationUtil.createPnoNetwork(network, 1);
+                WifiConfigurationUtil.createPnoNetwork(network);
         assertEquals(network.SSID, pnoNetwork.ssid);
         assertEquals(
                 WifiScanner.PnoSettings.PnoNetwork.FLAG_A_BAND

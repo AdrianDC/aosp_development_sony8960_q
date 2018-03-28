@@ -97,6 +97,8 @@ public class SupplicantStaIfaceHalTest {
     private android.hardware.wifi.supplicant.V1_1.ISupplicant mISupplicantMockV1_1;
     private @Mock ISupplicantIface mISupplicantIfaceMock;
     private @Mock ISupplicantStaIface mISupplicantStaIfaceMock;
+    private @Mock android.hardware.wifi.supplicant.V1_1.ISupplicantStaIface
+            mISupplicantStaIfaceMockV1_1;
     private @Mock Context mContext;
     private @Mock WifiMonitor mWifiMonitor;
     private @Mock SupplicantStaNetworkHal mSupplicantStaNetworkMock;
@@ -108,6 +110,8 @@ public class SupplicantStaIfaceHalTest {
     ISupplicant.IfaceInfo mP2pIface;
     ArrayList<ISupplicant.IfaceInfo> mIfaceInfoList;
     ISupplicantStaIfaceCallback mISupplicantStaIfaceCallback;
+    android.hardware.wifi.supplicant.V1_1.ISupplicantStaIfaceCallback
+            mISupplicantStaIfaceCallbackV1_1;
     private SupplicantStaIfaceHal mDut;
     private ArgumentCaptor<IHwBinder.DeathRecipient> mServiceManagerDeathCaptor =
             ArgumentCaptor.forClass(IHwBinder.DeathRecipient.class);
@@ -143,6 +147,12 @@ public class SupplicantStaIfaceHalTest {
         @Override
         protected ISupplicantStaIface getStaIfaceMockable(ISupplicantIface iface) {
             return mISupplicantStaIfaceMock;
+        }
+
+        @Override
+        protected android.hardware.wifi.supplicant.V1_1.ISupplicantStaIface
+                getStaIfaceMockableV1_1(ISupplicantIface iface) {
+            return mISupplicantStaIfaceMockV1_1;
         }
 
         @Override
@@ -1171,11 +1181,11 @@ public class SupplicantStaIfaceHalTest {
         int reasonCode = 3;
         mISupplicantStaIfaceCallback.onDisconnected(
                 NativeUtil.macAddressToByteArray(BSSID), true, reasonCode);
-        verify(mWifiMonitor, times(0)).broadcastAuthenticationFailureEvent(any(), anyInt());
+        verify(mWifiMonitor, times(0)).broadcastAuthenticationFailureEvent(any(), anyInt(), anyInt());
 
         mISupplicantStaIfaceCallback.onDisconnected(
                 NativeUtil.macAddressToByteArray(BSSID), false, reasonCode);
-        verify(mWifiMonitor, times(0)).broadcastAuthenticationFailureEvent(any(), anyInt());
+        verify(mWifiMonitor, times(0)).broadcastAuthenticationFailureEvent(any(), anyInt(), anyInt());
 
         mISupplicantStaIfaceCallback.onStateChanged(
                 ISupplicantStaIfaceCallback.State.FOURWAY_HANDSHAKE,
@@ -1188,8 +1198,7 @@ public class SupplicantStaIfaceHalTest {
                 NativeUtil.macAddressToByteArray(BSSID), false, reasonCode);
 
         verify(mWifiMonitor, times(2)).broadcastAuthenticationFailureEvent(eq(WLAN0_IFACE_NAME),
-                eq(WifiManager.ERROR_AUTH_FAILURE_WRONG_PSWD));
-
+                eq(WifiManager.ERROR_AUTH_FAILURE_WRONG_PSWD), eq(-1));
     }
 
      /**
@@ -1211,7 +1220,8 @@ public class SupplicantStaIfaceHalTest {
                 NativeUtil.decodeSsid(SUPPLICANT_SSID));
         mISupplicantStaIfaceCallback.onDisconnected(
                 NativeUtil.macAddressToByteArray(BSSID), true, reasonCode);
-        verify(mWifiMonitor, times(0)).broadcastAuthenticationFailureEvent(any(), anyInt());
+        verify(mWifiMonitor, times(0)).broadcastAuthenticationFailureEvent(any(), anyInt(),
+                anyInt());
     }
 
     /**
@@ -1225,8 +1235,8 @@ public class SupplicantStaIfaceHalTest {
         int reasonCode = ISupplicantStaIfaceCallback.ReasonCode.IEEE_802_1X_AUTH_FAILED;
         mISupplicantStaIfaceCallback.onDisconnected(
                 NativeUtil.macAddressToByteArray(BSSID), false, reasonCode);
-        verify(mWifiMonitor).broadcastAuthenticationFailureEvent(eq(WLAN0_IFACE_NAME),
-                eq(WifiManager.ERROR_AUTH_FAILURE_EAP_FAILURE));
+        verify(mWifiMonitor, times(0)).broadcastAuthenticationFailureEvent(any(), anyInt(),
+                anyInt());
     }
 
     /**
@@ -1255,7 +1265,7 @@ public class SupplicantStaIfaceHalTest {
         mISupplicantStaIfaceCallback.onAuthenticationTimeout(
                 NativeUtil.macAddressToByteArray(BSSID));
         verify(mWifiMonitor).broadcastAuthenticationFailureEvent(eq(WLAN0_IFACE_NAME),
-                eq(WifiManager.ERROR_AUTH_FAILURE_TIMEOUT));
+                eq(WifiManager.ERROR_AUTH_FAILURE_TIMEOUT), eq(-1));
     }
 
     /**
@@ -1291,12 +1301,14 @@ public class SupplicantStaIfaceHalTest {
      */
     @Test
     public void testEapFailureCallback() throws Exception {
-        executeAndValidateInitializationSequence();
-        assertNotNull(mISupplicantStaIfaceCallback);
+        int eapFailureCode = WifiNative.EAP_SIM_VENDOR_SPECIFIC_CERT_EXPIRED;
+        testInitialize_successV1_1();
+        assertNotNull(mISupplicantStaIfaceCallbackV1_1);
 
-        mISupplicantStaIfaceCallback.onEapFailure();
-        verify(mWifiMonitor).broadcastAuthenticationFailureEvent(eq(WLAN0_IFACE_NAME),
-                eq(WifiManager.ERROR_AUTH_FAILURE_EAP_FAILURE));
+        mISupplicantStaIfaceCallbackV1_1.onEapFailure_1_1(eapFailureCode);
+        verify(mWifiMonitor).broadcastAuthenticationFailureEvent(
+                eq(WLAN0_IFACE_NAME), eq(WifiManager.ERROR_AUTH_FAILURE_EAP_FAILURE),
+                eq(eapFailureCode));
     }
 
     /**
@@ -1611,16 +1623,18 @@ public class SupplicantStaIfaceHalTest {
         }
         /** Callback registeration */
         doAnswer(new MockAnswerUtil.AnswerWithArguments() {
-            public SupplicantStatus answer(ISupplicantStaIfaceCallback cb)
+            public SupplicantStatus answer(
+                    android.hardware.wifi.supplicant.V1_1.ISupplicantStaIfaceCallback cb)
                     throws RemoteException {
-                mISupplicantStaIfaceCallback = cb;
+                mISupplicantStaIfaceCallbackV1_1 = cb;
                 return mStatusSuccess;
             }
-        }).when(mISupplicantStaIfaceMock)
-                .registerCallback(any(ISupplicantStaIfaceCallback.class));
+        }).when(mISupplicantStaIfaceMockV1_1)
+                .registerCallback_1_1(
+                any(android.hardware.wifi.supplicant.V1_1.ISupplicantStaIfaceCallback.class));
 
         mInOrder = inOrder(mServiceManagerMock, mISupplicantMock, mISupplicantMockV1_1,
-                mISupplicantStaIfaceMock, mWifiMonitor);
+                mISupplicantStaIfaceMockV1_1, mWifiMonitor);
         // Initialize SupplicantStaIfaceHal, should call serviceManager.registerForNotifications
         assertTrue(mDut.initialize());
         // verify: service manager initialization sequence
@@ -1645,8 +1659,9 @@ public class SupplicantStaIfaceHalTest {
                     eq(WLAN0_IFACE_NAME));
         }
         if (!causeRemoteException && !getNullInterface) {
-            mInOrder.verify(mISupplicantStaIfaceMock)
-                    .registerCallback(any(ISupplicantStaIfaceCallback.class));
+            mInOrder.verify(mISupplicantStaIfaceMockV1_1)
+                    .registerCallback_1_1(
+                    any(android.hardware.wifi.supplicant.V1_1.ISupplicantStaIfaceCallback.class));
         }
 
         // Ensure we don't try to use the listInterfaces method from 1.0 version.
