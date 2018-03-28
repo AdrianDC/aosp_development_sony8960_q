@@ -502,6 +502,27 @@ public class WifiNativeInterfaceManagementTest {
      */
     @Test
     public void testSetupClientInterfaceAndTriggerInterfaceUpFollowedByDown() throws Exception {
+        executeAndValidateSetupClientInterface(
+                false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
+                mNetworkObserverCaptor0);
+
+        mNetworkObserverCaptor0.getValue().interfaceStatusChanged(IFACE_NAME_0, true);
+        mInOrder.verify(mIfaceCallback0).onUp(IFACE_NAME_0);
+
+        mNetworkObserverCaptor0.getValue().interfaceStatusChanged(IFACE_NAME_0, false);
+        mInOrder.verify(mIfaceCallback0).onDown(IFACE_NAME_0);
+        mInOrder.verify(mWifiMetrics).incrementNumClientInterfaceDown();
+
+        verifyNoMoreInteractions(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal,
+                mHostapdHal, mNwManagementService, mIfaceCallback0, mIfaceCallback1, mWifiMetrics);
+    }
+
+    /**
+     * Verifies the setup of a softap interface and trigger an interface up event, followed by a
+     * down event.
+     */
+    @Test
+    public void testSetupSoftApInterfaceAndTriggerInterfaceUpFollowedByDown() throws Exception {
         executeAndValidateSetupSoftApInterface(
                 false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
                 mNetworkObserverCaptor0);
@@ -511,6 +532,7 @@ public class WifiNativeInterfaceManagementTest {
 
         mNetworkObserverCaptor0.getValue().interfaceStatusChanged(IFACE_NAME_0, false);
         mInOrder.verify(mIfaceCallback0).onDown(IFACE_NAME_0);
+        mInOrder.verify(mWifiMetrics).incrementNumSoftApInterfaceDown();
 
         verifyNoMoreInteractions(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal,
                 mHostapdHal, mNwManagementService, mIfaceCallback0, mIfaceCallback1, mWifiMetrics);

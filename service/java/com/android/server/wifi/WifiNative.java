@@ -557,6 +557,11 @@ public class WifiNative {
                 iface.externalListener.onUp(iface.name);
             } else {
                 iface.externalListener.onDown(iface.name);
+                if (iface.type == Iface.IFACE_TYPE_STA) {
+                    mWifiMetrics.incrementNumClientInterfaceDown();
+                } else if (iface.type == Iface.IFACE_TYPE_AP) {
+                    mWifiMetrics.incrementNumSoftApInterfaceDown();
+                }
             }
             iface.isUp = isUp;
         }

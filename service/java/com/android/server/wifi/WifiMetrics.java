@@ -1401,6 +1401,24 @@ public class WifiMetrics {
     }
 
     /**
+     * Increment number of times we got client interface down.
+     */
+    public void incrementNumClientInterfaceDown() {
+        synchronized (mLock) {
+            mWifiLogProto.numClientInterfaceDown++;
+        }
+    }
+
+    /**
+     * Increment number of times we got client interface down.
+     */
+    public void incrementNumSoftApInterfaceDown() {
+        synchronized (mLock) {
+            mWifiLogProto.numSoftApInterfaceDown++;
+        }
+    }
+
+    /**
      * Increment number of times Passpoint provider being installed.
      */
     public void incrementNumPasspointProviderInstallation() {
