@@ -93,7 +93,8 @@ public class ScoringParamsTest {
     @Test
     public void testToString() throws Exception {
         mScoringParams = new ScoringParams();
-        String expect = "rssi2=-83:-80:-73:-60,rssi5=-80:-77:-70:-57,horizon=15";
+        String expect =
+                "rssi2=-83:-80:-73:-60,rssi5=-80:-77:-70:-57,pps=0:1:100,horizon=15,nud=0";
         String actual = mScoringParams.toString();
         assertEquals(expect, actual);
     }
@@ -104,7 +105,8 @@ public class ScoringParamsTest {
     @Test
     public void testUpdateEverything() throws Exception {
         mScoringParams = new ScoringParams();
-        String params = "rssi2=-86:-84:-77:-10,rssi5=-88:-77:-66:-55,horizon=3";
+        String params =
+                "rssi2=-86:-84:-77:-10,rssi5=-88:-77:-66:-55,pps=1:10:30,horizon=3,nud=3";
         assertTrue(mScoringParams.update(params));
         assertEquals(params, mScoringParams.toString());
     }
@@ -121,7 +123,7 @@ public class ScoringParamsTest {
         assertTrue(mScoringParams.update(partial));
         String after = mScoringParams.toString();
         assertTrue(after + " should contain " + partial, after.contains(partial));
-        assertEquals(before.replaceAll("rssi5=.*,", partial + ","), after);
+        assertEquals(before.replaceAll("rssi5=[^,]*,", partial + ","), after);
     }
 
     /**
@@ -140,6 +142,11 @@ public class ScoringParamsTest {
         assertFalse(mScoringParams.update("rssi2=-86"));
         assertFalse(mScoringParams.update("rssi2=-99:-88:-77:-66:-55"));
         assertFalse(mScoringParams.update("rssi5=one:two:three:four"));
+        assertFalse(mScoringParams.update("nud=-1"));
+        assertFalse(mScoringParams.update("nud=11"));
+        assertFalse(mScoringParams.update("pps=1:2:3:4"));
+        assertFalse(mScoringParams.update("pps=1:0:9"));
+        assertFalse(mScoringParams.update("pps=packets-per-second"));
         assertEquals(before, mScoringParams.toString());
     }
 
@@ -180,6 +187,16 @@ public class ScoringParamsTest {
         assertFalse(mScoringParams.update("horizon=61"));
         assertTrue(mScoringParams.update("horizon=-9")); // Not recommended, but shouldn't break
         assertFalse(mScoringParams.update("horizon=-10"));
+    }
+
+    /**
+     * Test that nud is hooked up
+     */
+    @Test
+    public void testNudKnob() throws Exception {
+        mScoringParams = new ScoringParams();
+        assertTrue(mScoringParams.update("nud=6"));
+        assertEquals(6, mScoringParams.getNudKnob());
     }
 
     /**
