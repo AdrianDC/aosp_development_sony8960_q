@@ -33,6 +33,7 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.NetworkSelectionStatus;
 import android.net.wifi.WifiEnterpriseConfig;
+import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.os.Process;
@@ -1454,7 +1455,7 @@ public class WifiConfigManagerTest {
     }
 
     /**
-     * Verifies that randomized MAC address is masked out to "0:0:0:0:0:0" when we return
+     * Verifies that randomized MAC address is masked out when we return
      * external configs except when explicitly asked for MAC address.
      */
     @Test
@@ -3797,9 +3798,10 @@ public class WifiConfigManagerTest {
 
     private void assertRandomizedMacAddressMaskedInWifiConfiguration(
             WifiConfiguration configuration) {
+        MacAddress defaultMac = MacAddress.fromString(WifiInfo.DEFAULT_MAC_ADDRESS);
         MacAddress randomizedMacAddress = configuration.getRandomizedMacAddress();
         if (randomizedMacAddress != null) {
-            assertEquals(MacAddress.ALL_ZEROS_ADDRESS, randomizedMacAddress);
+            assertEquals(defaultMac, randomizedMacAddress);
         }
     }
 

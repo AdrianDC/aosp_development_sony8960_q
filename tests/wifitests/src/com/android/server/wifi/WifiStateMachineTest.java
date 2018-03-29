@@ -2435,4 +2435,33 @@ public class WifiStateMachineTest {
         verify(mWifiNative, never()).setMacAddress(eq(WIFI_IFACE_NAME), any(MacAddress.class));
         assertEquals(mWsm.getWifiInfo().getMacAddress(), oldMac);
     }
+
+    /**
+     * Verifies that we don't set MAC address when config returns an invalid MAC address.
+     */
+    @Test
+    public void testDoNotSetMacWhenInvalid() throws Exception {
+        initializeAndAddNetworkAndVerifySuccess();
+        assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
+        assertEquals(WifiManager.WIFI_STATE_ENABLED, mWsm.syncGetWifiState());
+
+        when(mFrameworkFacade.getIntegerSetting(mContext,
+                Settings.Global.WIFI_CONNECTED_MAC_RANDOMIZATION_ENABLED, 0)).thenReturn(1);
+        mContentObserver.onChange(false);
+        when(mWifiNative.getMacAddress(WIFI_IFACE_NAME))
+                .thenReturn(TEST_GLOBAL_MAC_ADDRESS.toString());
+
+        WifiConfiguration config = mock(WifiConfiguration.class);
+        when(config.getOrCreateRandomizedMacAddress())
+                .thenReturn(MacAddress.fromString(WifiInfo.DEFAULT_MAC_ADDRESS));
+        when(config.getNetworkSelectionStatus())
+                .thenReturn(new WifiConfiguration.NetworkSelectionStatus());
+        when(mWifiConfigManager.getConfiguredNetworkWithoutMasking(0)).thenReturn(config);
+
+        mWsm.sendMessage(WifiStateMachine.CMD_START_CONNECT, 0, 0, sBSSID);
+        mLooper.dispatchAll();
+
+        verify(config).getOrCreateRandomizedMacAddress();
+        verify(mWifiNative, never()).setMacAddress(eq(WIFI_IFACE_NAME), any(MacAddress.class));
+    }
 }

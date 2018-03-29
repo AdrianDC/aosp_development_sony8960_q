@@ -431,11 +431,12 @@ public class WifiConfigManager {
     /**
      * Helper method to mask randomized MAC address from the provided WifiConfiguration Object.
      * This is needed when the network configurations are being requested via the public
-     * WifiManager API's. This method puts "0:0:0:0:0:0" as the MAC address.
+     * WifiManager API's. This method puts "02:00:00:00:00:00" as the MAC address.
      * @param configuration WifiConfiguration to hide the MAC address
      */
     private void maskRandomizedMacAddressInWifiConfiguration(WifiConfiguration configuration) {
-        configuration.setRandomizedMacAddress(MacAddress.ALL_ZEROS_ADDRESS);
+        MacAddress defaultMac = MacAddress.fromString(WifiInfo.DEFAULT_MAC_ADDRESS);
+        configuration.setRandomizedMacAddress(defaultMac);
     }
 
     /**

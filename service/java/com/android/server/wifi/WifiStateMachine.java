@@ -3363,7 +3363,9 @@ public class WifiStateMachine extends StateMachine {
         MacAddress newMac = config.getOrCreateRandomizedMacAddress();
         mWifiConfigManager.setNetworkRandomizedMacAddress(config.networkId, newMac);
 
-        if (currentMac.equals(newMac)) {
+        if (!WifiConfiguration.isValidMacAddressForRandomization(newMac)) {
+            Log.wtf(TAG, "Config generated an invalid MAC address");
+        } else if (currentMac.equals(newMac)) {
             Log.i(TAG, "No changes in MAC address");
         } else {
             Log.i(TAG, "ConnectedMacRandomization SSID(" + config.getPrintableSsid()
