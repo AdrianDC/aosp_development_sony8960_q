@@ -129,17 +129,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * TODO:
- * Deprecate WIFI_STATE_UNKNOWN
- */
-
-/**
  * Track the state of Wifi connectivity. All event handling is done here,
  * and all changes in connectivity state are initiated here.
  *
  * Wi-Fi now supports three modes of operation: Client, SoftAp and p2p
  * In the current implementation, we support concurrent wifi p2p and wifi operation.
- * The WifiStateMachine handles SoftAp and Client operations while WifiP2pService
+ * The WifiStateMachine handles Client operations while WifiP2pService
  * handles p2p operation.
  *
  * @hide
@@ -195,7 +190,6 @@ public class WifiStateMachine extends StateMachine {
     private ConnectivityManager mCm;
     private BaseWifiDiagnostics mWifiDiagnostics;
     private ScanRequestProxy mScanRequestProxy;
-    private WifiApConfigStore mWifiApConfigStore;
     private final boolean mP2pSupported;
     private final AtomicBoolean mP2pConnected = new AtomicBoolean(false);
     private boolean mTemporarilyDisconnectWifi = false;
@@ -243,15 +237,6 @@ public class WifiStateMachine extends StateMachine {
         }
     };
     private boolean mIpReachabilityDisconnectEnabled = true;
-
-    private WifiManager.SoftApCallback mSoftApCallback;
-
-    /**
-     * Called from WifiServiceImpl to register a callback for notifications from SoftApManager
-     */
-    public void registerSoftApCallback(WifiManager.SoftApCallback callback) {
-        mSoftApCallback = callback;
-    }
 
     private void processRssiThreshold(byte curRssi, int reason,
             WifiNative.WifiRssiEventHandler rssiHandler) {
@@ -465,15 +450,6 @@ public class WifiStateMachine extends StateMachine {
     static final int CMD_STATIC_IP_FAILURE                              = BASE + 16;
     /* Interface status change */
     static final int CMD_INTERFACE_STATUS_CHANGED                       = BASE + 20;
-
-    /* Start the soft access point */
-    static final int CMD_START_AP                                       = BASE + 21;
-    /* Indicates soft ap start failed */
-    static final int CMD_START_AP_FAILURE                               = BASE + 22;
-    /* Stop the soft access point */
-    static final int CMD_STOP_AP                                        = BASE + 23;
-    /* Soft access point teardown is completed. */
-    static final int CMD_AP_STOPPED                                     = BASE + 24;
 
     static final int CMD_BLUETOOTH_ADAPTER_STATE_CHANGE                 = BASE + 31;
 
@@ -766,8 +742,6 @@ public class WifiStateMachine extends StateMachine {
     private State mDefaultState = new DefaultState();
     /* Temporary initial state */
     private State mInitialState = new InitialState();
-    /* Scan for networks, no connection will be established */
-    private State mScanModeState = new ScanModeState();
     /* Connecting to an access point */
     private State mConnectModeState = new ConnectModeState();
     /* Connected at 802.11 (L2) level */
@@ -782,8 +756,6 @@ public class WifiStateMachine extends StateMachine {
     private State mDisconnectingState = new DisconnectingState();
     /* Network is not connected, supplicant assoc+auth is not complete */
     private State mDisconnectedState = new DisconnectedState();
-    /* Soft ap state */
-    private State mSoftApState = new SoftApState();
 
     /**
      * One of  {@link WifiManager#WIFI_STATE_DISABLED},
@@ -992,8 +964,6 @@ public class WifiStateMachine extends StateMachine {
                         addState(mRoamingState, mL2ConnectedState);
                     addState(mDisconnectingState, mConnectModeState);
                     addState(mDisconnectedState, mConnectModeState);
-            addState(mScanModeState, mDefaultState);
-            addState(mSoftApState, mDefaultState);
         // CHECKSTYLE:ON IndentationCheck
 
         setInitialState(mDefaultState);
@@ -1437,17 +1407,6 @@ public class WifiStateMachine extends StateMachine {
 
     int stopRssiMonitoringOffload() {
         return mWifiNative.stopRssiMonitoring(mInterfaceName);
-    }
-
-    /**
-     * TODO: doc
-     */
-    public void setHostApRunning(SoftApModeConfiguration wifiConfig, boolean enable) {
-        if (enable) {
-            sendMessage(CMD_START_AP, wifiConfig);
-        } else {
-            sendMessage(CMD_STOP_AP);
-        }
     }
 
     /**
@@ -3485,9 +3444,6 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_SCREEN_STATE_CHANGED:
                     handleScreenStateChanged(message.arg1 != 0);
                     break;
-                case CMD_START_AP_FAILURE:
-                case CMD_STOP_AP:
-                case CMD_AP_STOPPED:
                 case CMD_DISCONNECT:
                 case CMD_RECONNECT:
                 case CMD_REASSOCIATE:
@@ -3521,9 +3477,6 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_INTERFACE_STATUS_CHANGED:
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
                     break;
-                case CMD_START_AP:
-                    transitionTo(mSoftApState);
-                    break;
                 case CMD_SET_OPERATIONAL_MODE:
                     mOperationalMode = message.arg1;
                     // now processing the mode change - we will start setting up new state and want
@@ -3535,9 +3488,6 @@ public class WifiStateMachine extends StateMachine {
                         break;
                     } else if (mOperationalMode == CONNECT_MODE) {
                         transitionTo(mDisconnectedState);
-                    } else if (mOperationalMode == SCAN_ONLY_MODE
-                            || mOperationalMode == SCAN_ONLY_WITH_WIFI_OFF_MODE) {
-                        transitionTo(mScanModeState);
                     } else {
                         Log.e(TAG, "set operational mode with invalid mode: " + mOperationalMode);
                         mOperationalMode = DISABLED_MODE;
@@ -3809,35 +3759,6 @@ public class WifiStateMachine extends StateMachine {
             return HANDLED;
         }
     }
-
-    class ScanModeState extends State {
-        private int mLastOperationMode;
-        @Override
-        public void enter() {
-            logd("entering ScanModeState");
-            mWifiStateTracker.updateState(WifiStateTracker.SCAN_MODE);
-        }
-
-        @Override
-        public void exit() {}
-
-        @Override
-        public boolean processMessage(Message message) {
-            logStateAndMessage(message, this);
-
-            if (message.what == CMD_SET_OPERATIONAL_MODE) {
-                int operationMode = message.arg1;
-                if (operationMode == SCAN_ONLY_MODE
-                        || operationMode == SCAN_ONLY_WITH_WIFI_OFF_MODE) {
-                    // nothing to do, stay here...
-                    return HANDLED;
-                }
-                return NOT_HANDLED;
-            }
-            return NOT_HANDLED;
-        }
-    }
-
 
     String smToString(Message message) {
         return smToString(message.what);
@@ -5847,115 +5768,6 @@ public class WifiStateMachine extends StateMachine {
         public void exit() {
             mWifiConnectivityManager.handleConnectionStateChanged(
                      WifiConnectivityManager.WIFI_STATE_TRANSITIONING);
-        }
-    }
-
-    class SoftApState extends State {
-        private SoftApManager mSoftApManager;
-        private String mIfaceName;
-        private int mMode;
-
-        /*
-        private class SoftApCallbackImpl implements WifiManager.SoftApCallback {
-            @Override
-            public void onStateChanged(int state, int reason) {
-                if (state == WIFI_AP_STATE_DISABLED) {
-                    sendMessage(CMD_AP_STOPPED);
-                } else if (state == WIFI_AP_STATE_FAILED) {
-                    sendMessage(CMD_START_AP_FAILURE);
-                }
-
-                setWifiApState(state, reason, mIfaceName, mMode);
-
-                if (mSoftApCallback != null) {
-                    mSoftApCallback.onStateChanged(state, reason);
-                }
-            }
-
-            @Override
-            public void onNumClientsChanged(int numClients) {
-                if (mSoftApCallback != null) {
-                    mSoftApCallback.onNumClientsChanged(numClients);
-                }
-            }
-        }
-        */
-
-        @Override
-        public void enter() {
-            final Message message = getCurrentMessage();
-            if (message.what != CMD_START_AP) {
-                throw new RuntimeException("Illegal transition to SoftApState: " + message);
-            }
-            /*
-            SoftApModeConfiguration config = (SoftApModeConfiguration) message.obj;
-            mMode = config.getTargetMode();
-
-            IApInterface apInterface = null;
-            Pair<Integer, IApInterface> statusAndInterface =
-                    mWifiNative.setupForSoftApMode(mInterfaceName);
-            if (statusAndInterface.first == WifiNative.SETUP_SUCCESS) {
-                apInterface = statusAndInterface.second;
-            } else {
-                incrementMetricsForSetupFailure(statusAndInterface.first);
-            }
-            if (apInterface == null) {
-                setWifiApState(WIFI_AP_STATE_FAILED,
-                        WifiManager.SAP_START_FAILURE_GENERAL, null, mMode);
-                // Transition to InitialState to reset the driver/HAL back to the initial state.
-                transitionTo(mInitialState);
-                return;
-            }
-
-            try {
-                mIfaceName = apInterface.getInterfaceName();
-            } catch (RemoteException e) {
-                // Failed to get the interface name. This is not a good sign and we should report
-                // a failure and switch back to the initial state to reset the driver and HAL.
-                setWifiApState(WIFI_AP_STATE_FAILED,
-                        WifiManager.SAP_START_FAILURE_GENERAL, null, mMode);
-                transitionTo(mInitialState);
-                return;
-            }
-
-            checkAndSetConnectivityInstance();
-            mSoftApManager = mWifiInjector.makeSoftApManager(mNwService,
-                                                             new SoftApCallbackImpl(),
-                                                             config);
-            mSoftApManager.start();
-            mWifiStateTracker.updateState(WifiStateTracker.SOFT_AP);
-            */
-        }
-
-        @Override
-        public void exit() {
-            mSoftApManager = null;
-            mIfaceName = null;
-            mMode = WifiManager.IFACE_IP_MODE_UNSPECIFIED;
-        }
-
-        @Override
-        public boolean processMessage(Message message) {
-            logStateAndMessage(message, this);
-
-            switch(message.what) {
-                case CMD_START_AP:
-                    /* Ignore start command when it is starting/started. */
-                    break;
-                case CMD_STOP_AP:
-                    //mSoftApManager.stop();
-                    transitionTo(mDefaultState);
-                    break;
-                case CMD_START_AP_FAILURE:
-                    transitionTo(mDefaultState);
-                    break;
-                case CMD_AP_STOPPED:
-                    transitionTo(mDefaultState);
-                    break;
-                default:
-                    return NOT_HANDLED;
-            }
-            return HANDLED;
         }
     }
 

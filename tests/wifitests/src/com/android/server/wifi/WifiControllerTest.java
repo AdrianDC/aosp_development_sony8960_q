@@ -429,7 +429,9 @@ public class WifiControllerTest {
         reset(mWifiStateMachine);
         mWifiController.sendMessage(CMD_RECOVERY_DISABLE_WIFI);
         mLooper.dispatchAll();
-        verify(mWifiStateMachine).setOperationalMode(eq(WifiStateMachine.DISABLED_MODE), any());
+        // disabled will be called twice: exit DeviceActive and for enter ApStaDisabled
+        verify(mWifiStateMachine, times(2)).setOperationalMode(
+                eq(WifiStateMachine.DISABLED_MODE), any());
     }
 
     /**

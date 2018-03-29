@@ -19,6 +19,7 @@ package com.android.server.wifi;
 import android.annotation.NonNull;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
+import android.os.BatteryStats;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
@@ -379,6 +380,7 @@ public class WifiStateMachinePrime {
                 mManager.start();
                 mActiveModeManagers.add(mManager);
                 updateBatteryStatsWifiState(true);
+                updateBatteryStatsScanModeActive();
             }
 
             @Override
@@ -501,6 +503,14 @@ public class WifiStateMachinePrime {
             } else {
                 mBatteryStats.noteWifiOff();
             }
+        } catch (RemoteException e) {
+            Log.e(TAG, "Failed to note battery stats in wifi");
+        }
+    }
+
+    private void updateBatteryStatsScanModeActive() {
+        try {
+            mBatteryStats.noteWifiState(BatteryStats.WIFI_STATE_OFF_SCANNING, null);
         } catch (RemoteException e) {
             Log.e(TAG, "Failed to note battery stats in wifi");
         }

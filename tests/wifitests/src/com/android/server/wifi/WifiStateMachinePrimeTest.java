@@ -21,6 +21,7 @@ import static org.mockito.Mockito.*;
 
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
+import android.os.BatteryStats;
 import android.os.test.TestLooper;
 import android.support.test.filters.SmallTest;
 import android.util.Log;
@@ -155,6 +156,7 @@ public class WifiStateMachinePrimeTest {
         assertEquals(SCAN_ONLY_MODE_STATE_STRING, mWifiStateMachinePrime.getCurrentMode());
         verify(mScanOnlyModeManager).start();
         verify(mBatteryStats).noteWifiOn();
+        verify(mBatteryStats).noteWifiState(eq(BatteryStats.WIFI_STATE_OFF_SCANNING), eq(null));
     }
 
     /**

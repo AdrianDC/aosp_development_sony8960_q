@@ -336,9 +336,6 @@ public class WifiStateMachineTest {
     OsuProvider mOsuProvider;
     ContentObserver mContentObserver;
 
-    final ArgumentCaptor<WifiManager.SoftApCallback> mSoftApCallbackCaptor =
-            ArgumentCaptor.forClass(WifiManager.SoftApCallback.class);
-
     @Mock WifiScanner mWifiScanner;
     @Mock SupplicantStateTracker mSupplicantStateTracker;
     @Mock WifiMetrics mWifiMetrics;
@@ -353,7 +350,6 @@ public class WifiStateMachineTest {
     @Mock WifiConfigManager mWifiConfigManager;
     @Mock WifiNative mWifiNative;
     @Mock WifiConnectivityManager mWifiConnectivityManager;
-    @Mock SoftApManager mSoftApManager;
     @Mock WifiStateTracker mWifiStateTracker;
     @Mock PasspointManager mPasspointManager;
     @Mock SelfRecovery mSelfRecovery;
@@ -573,27 +569,6 @@ public class WifiStateMachineTest {
         assertEquals("DisconnectedState", getCurrentState().getName());
     }
 
-    private void loadComponentsInApMode(int mode) throws Exception {
-        SoftApModeConfiguration config = new SoftApModeConfiguration(mode, new WifiConfiguration());
-        mWsm.setHostApRunning(config, true);
-        mLooper.dispatchAll();
-
-        assertEquals("SoftApState", getCurrentState().getName());
-
-        verify(mWifiNative, never()).setupInterfaceForSoftApMode(any());
-        verify(mSoftApManager, never()).start();
-    }
-
-    @Test
-    public void loadComponentsInApModeForTethering() throws Exception {
-        loadComponentsInApMode(WifiManager.IFACE_IP_MODE_TETHERED);
-    }
-
-    @Test
-    public void loadComponentsInApModeForLOHS() throws Exception {
-        loadComponentsInApMode(WifiManager.IFACE_IP_MODE_LOCAL_ONLY);
-    }
-
     @Test
     public void shouldRequireSupplicantStartupToLeaveInitialState() throws Exception {
         when(mWifiNative.setupInterfaceForClientMode(anyBoolean(), any())).thenReturn(null);
@@ -649,14 +624,6 @@ public class WifiStateMachineTest {
         assertEquals("DefaultState", getCurrentState().getName());
         assertEquals(WifiManager.WIFI_STATE_DISABLED, mWsm.syncGetWifiState());
 
-        mWsm.setOperationalMode(WifiStateMachine.SCAN_ONLY_MODE, null);
-        mLooper.dispatchAll();
-        assertEquals(WifiStateMachine.SCAN_ONLY_MODE, mWsm.getOperationalModeForTest());
-        assertEquals("ScanModeState", getCurrentState().getName());
-        assertEquals(WifiManager.WIFI_STATE_DISABLED, mWsm.syncGetWifiState());
-        verify(mContext, never()).sendStickyBroadcastAsUser(
-                (Intent) argThat(new WifiEnablingStateIntentMatcher()), any());
-
         // switch to connect mode and verify wifi is reported as enabled
         startSupplicantAndDispatchMessages();
 
@@ -670,22 +637,11 @@ public class WifiStateMachineTest {
         // not on the next transition
         reset(mContext);
 
-        // now go back to scan mode with "wifi disabled" to verify the reported wifi state.
-        mWsm.setOperationalMode(WifiStateMachine.SCAN_ONLY_WITH_WIFI_OFF_MODE, null);
+        // now disable wifi and verify the reported wifi state
+        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
         mLooper.dispatchAll();
-        assertEquals(WifiStateMachine.SCAN_ONLY_WITH_WIFI_OFF_MODE,
-                     mWsm.getOperationalModeForTest());
-        assertEquals("ScanModeState", getCurrentState().getName());
-        assertEquals(WifiManager.WIFI_STATE_DISABLED, mWsm.syncGetWifiState());
-        verify(mContext, never()).sendStickyBroadcastAsUser(
-                (Intent) argThat(new WifiEnablingStateIntentMatcher()), any());
-
-        // now go to AP mode
-        SoftApModeConfiguration config = new SoftApModeConfiguration(
-                WifiManager.IFACE_IP_MODE_TETHERED, new WifiConfiguration());
-        mWsm.setHostApRunning(config, true);
-        mLooper.dispatchAll();
-        assertEquals("SoftApState", getCurrentState().getName());
+        assertEquals(WifiStateMachine.DISABLED_MODE, mWsm.getOperationalModeForTest());
+        assertEquals("DefaultState", getCurrentState().getName());
         assertEquals(WifiManager.WIFI_STATE_DISABLED, mWsm.syncGetWifiState());
         verify(mContext, never()).sendStickyBroadcastAsUser(
                 (Intent) argThat(new WifiEnablingStateIntentMatcher()), any());
@@ -1710,8 +1666,7 @@ public class WifiStateMachineTest {
      * client mode.
      */
     @Test
-    public void syncStartSubscriptionProvisioningInAPMode() throws Exception {
-        loadComponentsInApMode(WifiManager.IFACE_IP_MODE_LOCAL_ONLY);
+    public void syncStartSubscriptionProvisioningNoOpWifiDisabled() throws Exception {
         mLooper.startAutoDispatch();
         assertEquals(false, mWsm.syncStartSubscriptionProvisioning(
                 OTHER_USER_UID, mOsuProvider, mProvisioningCallback, mWsmAsyncChannel));
@@ -2013,13 +1968,13 @@ public class WifiStateMachineTest {
         assertEquals(sBSSID, wifiInfo.getBSSID());
         assertEquals(SupplicantState.COMPLETED, wifiInfo.getSupplicantState());
 
-        // Set WSM to SCAN_ONLY_MODE, verify state and wifi disabled in ConnectivityManager, and
+        // Set WSM to DISABLED_MODE, verify state and wifi disabled in ConnectivityManager, and
         // WifiInfo is reset() and state set to DISCONNECTED
-        mWsm.setOperationalMode(WifiStateMachine.SCAN_ONLY_MODE, null);
+        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
         mLooper.dispatchAll();
 
-        assertEquals(WifiStateMachine.SCAN_ONLY_MODE, mWsm.getOperationalModeForTest());
-        assertEquals("ScanModeState", getCurrentState().getName());
+        assertEquals(WifiStateMachine.DISABLED_MODE, mWsm.getOperationalModeForTest());
+        assertEquals("DefaultState", getCurrentState().getName());
         assertEquals(WifiManager.WIFI_STATE_DISABLED, mWsm.syncGetWifiState());
         inOrder.verify(mWifiConnectivityManager).setWifiEnabled(eq(false));
         assertNull(wifiInfo.getBSSID());

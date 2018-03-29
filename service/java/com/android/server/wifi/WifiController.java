@@ -340,8 +340,6 @@ public class WifiController extends StateMachine {
                         if (msg.arg2 == 0) { // previous wifi state has not been saved yet
                             mSettingsStore.setWifiSavedState(WifiSettingsStore.WIFI_DISABLED);
                         }
-                        mWifiStateMachine.setHostApRunning((SoftApModeConfiguration) msg.obj,
-                                true);
                         mWifiStateMachinePrime.enterSoftAPMode((SoftApModeConfiguration) msg.obj);
                         transitionTo(mApEnabledState);
                     }
@@ -436,7 +434,6 @@ public class WifiController extends StateMachine {
                     if (msg.arg1 == 1) {
                         // remeber that we were enabled
                         mSettingsStore.setWifiSavedState(WifiSettingsStore.WIFI_ENABLED);
-                        mWifiStateMachine.setHostApRunning((SoftApModeConfiguration) msg.obj, true);
                         mWifiStateMachinePrime.enterSoftAPMode((SoftApModeConfiguration) msg.obj);
                         transitionTo(mApEnabledState);
                         // we should just go directly to ApEnabled since we will kill interfaces
@@ -462,7 +459,7 @@ public class WifiController extends StateMachine {
         public void enter() {
             // first send the message to WSM to trigger the transition and act as a shadow
             mWifiStateMachine.setOperationalMode(
-                    WifiStateMachine.SCAN_ONLY_WITH_WIFI_OFF_MODE, null);
+                    WifiStateMachine.DISABLED_MODE, null);
 
             // now trigger the actual mode switch in WifiStateMachinePrime
             mWifiStateMachinePrime.enterScanOnlyMode();
@@ -509,7 +506,6 @@ public class WifiController extends StateMachine {
                     if (msg.arg1 == 1) {
                         mSettingsStore.setWifiSavedState(WifiSettingsStore.WIFI_DISABLED);
 
-                        mWifiStateMachine.setHostApRunning((SoftApModeConfiguration) msg.obj, true);
                         mWifiStateMachinePrime.enterSoftAPMode((SoftApModeConfiguration) msg.obj);
                         transitionTo(mApEnabledState);
                         // we should just go directly to ApEnabled since we will kill interfaces
@@ -584,27 +580,23 @@ public class WifiController extends StateMachine {
             switch (msg.what) {
                 case CMD_AIRPLANE_TOGGLED:
                     if (mSettingsStore.isAirplaneModeOn()) {
-                        mWifiStateMachine.setHostApRunning(null, false);
                         mWifiStateMachinePrime.disableWifi();
                         mPendingState = mApStaDisabledState;
                     }
                     break;
                 case CMD_WIFI_TOGGLED:
                     if (mSettingsStore.isWifiToggleEnabled()) {
-                        mWifiStateMachine.setHostApRunning(null, false);
                         mWifiStateMachinePrime.disableWifi();
                         mPendingState = mDeviceActiveState;
                     }
                     break;
                 case CMD_SET_AP:
                     if (msg.arg1 == 0) {
-                        mWifiStateMachine.setHostApRunning(null, false);
                         mWifiStateMachinePrime.disableWifi();
                         mPendingState = getNextWifiState();
                     }
                     break;
                 case CMD_AP_STOPPED:
-                    mWifiStateMachine.setHostApRunning(null, false);
                     if (mPendingState == null) {
                         /**
                          * Stop triggered internally, either tether notification
@@ -617,13 +609,11 @@ public class WifiController extends StateMachine {
                 case CMD_EMERGENCY_CALL_STATE_CHANGED:
                 case CMD_EMERGENCY_MODE_CHANGED:
                     if (msg.arg1 == 1) {
-                        mWifiStateMachine.setHostApRunning(null, false);
                         mWifiStateMachinePrime.disableWifi();
                         mPendingState = mEcmState;
                     }
                     break;
                 case CMD_AP_START_FAILURE:
-                    mWifiStateMachine.setHostApRunning(null, false);
                     transitionTo(getNextWifiState());
                     break;
                 case CMD_RECOVERY_RESTART_WIFI:
@@ -715,6 +705,12 @@ public class WifiController extends StateMachine {
                                                  mClientModeCallback);
             mWifiStateMachinePrime.enterClientMode();
             mWifiStateMachine.setHighPerfModeEnabled(false);
+        }
+
+        @Override
+        public void exit() {
+            // need to get WSM out of connect mode (since it doesn't control anything else)
+            mWifiStateMachine.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
         }
 
         @Override
