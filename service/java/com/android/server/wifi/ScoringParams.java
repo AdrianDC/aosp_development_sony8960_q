@@ -19,6 +19,7 @@ package com.android.server.wifi;
 import android.annotation.NonNull;
 import android.content.Context;
 import android.database.ContentObserver;
+import android.net.wifi.WifiInfo;
 import android.os.Handler;
 import android.provider.Settings;
 import android.util.KeyValueListParser;
@@ -45,12 +46,18 @@ public class ScoringParams {
      * be checked for consistency before activating them.
      */
     private class Values {
+        /** RSSI thresholds for 2.4 GHz band (dBm) */
         public static final String KEY_RSSI2 = "rssi2";
-        public static final String KEY_RSSI5 = "rssi5";
-        public static final String KEY_HORIZON = "horizon"; // number of seconds for rssi forecast
-
         public final int[] rssi2 = {-83, -80, -73, -60};
+
+        /** RSSI thresholds for 5 GHz band (dBm) */
+        public static final String KEY_RSSI5 = "rssi5";
         public final int[] rssi5 = {-80, -77, -70, -57};
+
+        /** Number of seconds for RSSI forecast */
+        public static final String KEY_HORIZON = "horizon";
+        public static final int MIN_HORIZON = -9;
+        public static final int MAX_HORIZON = 60;
         public int horizon = 15;
 
         Values() {
@@ -66,9 +73,33 @@ public class ScoringParams {
             horizon = source.horizon;
         }
 
+        public void validate() throws IllegalArgumentException {
+            validateRssiArray(rssi2);
+            validateRssiArray(rssi5);
+            validateRange(horizon, MIN_HORIZON, MAX_HORIZON);
+        }
+
+        private void validateRssiArray(int[] rssi) throws IllegalArgumentException {
+            int low = WifiInfo.MIN_RSSI;
+            int high = Math.min(WifiInfo.MAX_RSSI, -1); // Stricter than Wifiinfo
+            for (int i = 0; i < rssi.length; i++) {
+                validateRange(rssi[i], low, high);
+                low = rssi[i];
+            }
+        }
+
+        private void validateRange(int k, int low, int high) throws IllegalArgumentException {
+            if (k < low || k > high) {
+                throw new IllegalArgumentException();
+            }
+        }
+
         public void parseString(String kvList) throws IllegalArgumentException {
             KeyValueListParser parser = new KeyValueListParser(',');
             parser.setString(kvList);
+            if (parser.size() != ("" + kvList).split(",").length) {
+                throw new IllegalArgumentException("dup keys");
+            }
             updateIntArray(rssi2, parser, KEY_RSSI2);
             updateIntArray(rssi5, parser, KEY_RSSI5);
             horizon = updateInt(parser, KEY_HORIZON, horizon);
@@ -153,6 +184,11 @@ public class ScoringParams {
                 R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_5GHz);
         mVal.rssi5[GOOD] = context.getResources().getInteger(
                 R.integer.config_wifi_framework_wifi_score_good_rssi_threshold_5GHz);
+        try {
+            mVal.validate();
+        } catch (IllegalArgumentException e) {
+            Log.wtf(TAG, "Inconsistent config_wifi_framework_ resources: " + this, e);
+        }
     }
 
     private void setupContentObserver(Context context, FrameworkFacade facade, Handler handler) {
@@ -166,7 +202,8 @@ public class ScoringParams {
                 if (params != null) {
                     self.update(defaults);
                     if (!self.update(params)) {
-                        Log.e(TAG, "Error in " + Settings.Global.WIFI_SCORE_PARAMS + ": " + params);
+                        Log.e(TAG, "Error in " + Settings.Global.WIFI_SCORE_PARAMS + ": "
+                                + sanitize(params));
                     }
                 }
                 Log.i(TAG, self.toString());
@@ -179,6 +216,8 @@ public class ScoringParams {
         observer.onChange(false);
     }
 
+    private static final String COMMA_KEY_VAL_STAR = "^(,[A-Za-z_][A-Za-z0-9_]*=[0-9.:+-]+)*$";
+
     /**
      * Updates the parameters from the given parameter string.
      * If any errors are detected, no change is made.
@@ -186,14 +225,34 @@ public class ScoringParams {
      * @return true for success
      */
     public boolean update(String kvList) {
+        if (kvList == null || "".equals(kvList)) {
+            return true;
+        }
+        if (!("," + kvList).matches(COMMA_KEY_VAL_STAR)) {
+            return false;
+        }
         Values v = new Values(mVal);
         try {
             v.parseString(kvList);
+            v.validate();
             mVal = v;
             return true;
         } catch (IllegalArgumentException e) {
             return false;
         }
+    }
+
+    /**
+     * Sanitize a string to make it safe for printing.
+     * @param params is the untrusted string
+     * @return string with questionable characters replaced with question marks
+     */
+    public String sanitize(String params) {
+        String printable = params.replaceAll("[^A-Za-z_0-9=,:.+-]", "?");
+        if (printable.length() > 100) {
+            printable = printable.substring(0, 98) + "...";
+        }
+        return printable;
     }
 
     /** Constant to denote someplace in the 2.4 GHz band */

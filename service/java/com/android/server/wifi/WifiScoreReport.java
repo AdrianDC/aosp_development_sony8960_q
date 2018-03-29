@@ -43,6 +43,7 @@ public class WifiScoreReport {
     private String mReport;
     private boolean mReportValid = false;
 
+    private final ScoringParams mScoringParams;
     private final Clock mClock;
     private int mSessionNumber = 0;
 
@@ -50,6 +51,7 @@ public class WifiScoreReport {
     VelocityBasedConnectedScore mVelocityBasedConnectedScore;
 
     WifiScoreReport(ScoringParams scoringParams, Clock clock) {
+        mScoringParams = scoringParams;
         mClock = clock;
         mAggressiveConnectedScore = new AggressiveConnectedScore(scoringParams, clock);
         mVelocityBasedConnectedScore = new VelocityBasedConnectedScore(scoringParams, clock);
@@ -126,6 +128,20 @@ public class WifiScoreReport {
 
         score = s2;
 
+        if (wifiInfo.score > ConnectedScore.WIFI_TRANSITION_SCORE
+                 && score <= ConnectedScore.WIFI_TRANSITION_SCORE) {
+            // We don't want to trigger a downward breach unless the rssi is
+            // below the entry threshold.  There is noise in the measured rssi, and
+            // the kalman-filtered rssi is affected by the trend, so check them both.
+            // TODO(b/74613347) skip this if there are other indications to support the low score
+            int entry = mScoringParams.getEntryRssi(wifiInfo.getFrequency());
+            if (mVelocityBasedConnectedScore.getFilteredRssi() >= entry
+                    || wifiInfo.getRssi() >= entry) {
+                // Stay a notch above the transition score to reduce ambiguity.
+                score = ConnectedScore.WIFI_TRANSITION_SCORE + 1;
+            }
+        }
+
         //sanitize boundaries
         if (score > NetworkAgent.WIFI_BASE_SCORE) {
             score = NetworkAgent.WIFI_BASE_SCORE;
@@ -134,7 +150,7 @@ public class WifiScoreReport {
             score = 0;
         }
 
-        logLinkMetrics(wifiInfo, millis, netId, s1, s2);
+        logLinkMetrics(wifiInfo, millis, netId, s1, s2, score);
 
         //report score
         if (score != wifiInfo.score) {
@@ -163,7 +179,7 @@ public class WifiScoreReport {
      * Data logging for dumpsys
      */
     private void logLinkMetrics(WifiInfo wifiInfo, long now, int netId,
-                                int s1, int s2) {
+                                int s1, int s2, int score) {
         if (now < FIRST_REASONABLE_WALL_CLOCK) return;
         double rssi = wifiInfo.getRssi();
         double filteredRssi = mVelocityBasedConnectedScore.getFilteredRssi();
@@ -178,11 +194,11 @@ public class WifiScoreReport {
         try {
             String timestamp = new SimpleDateFormat("MM-dd HH:mm:ss.SSS").format(new Date(now));
             s = String.format(Locale.US, // Use US to avoid comma/decimal confusion
-                    "%s,%d,%d,%.1f,%.1f,%.1f,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%d",
+                    "%s,%d,%d,%.1f,%.1f,%.1f,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%d,%d",
                     timestamp, mSessionNumber, netId,
                     rssi, filteredRssi, rssiThreshold, freq, linkSpeed,
                     txSuccessRate, txRetriesRate, txBadRate, rxSuccessRate,
-                    s1, s2);
+                    s1, s2, score);
         } catch (Exception e) {
             Log.e(TAG, "format problem", e);
             return;
@@ -212,7 +228,7 @@ public class WifiScoreReport {
             history = new LinkedList<>(mLinkMetricsHistory);
         }
         pw.println("time,session,netid,rssi,filtered_rssi,rssi_threshold,"
-                + "freq,linkspeed,tx_good,tx_retry,tx_bad,rx_pps,s1,s2");
+                + "freq,linkspeed,tx_good,tx_retry,tx_bad,rx_pps,s1,s2,score");
         for (String line : history) {
             pw.println(line);
         }

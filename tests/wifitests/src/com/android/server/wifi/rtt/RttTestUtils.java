@@ -115,11 +115,11 @@ public class RttTestUtils {
                 if (peer.peerHandle == null) {
                     rangingResult = new RangingResult(RangingResult.STATUS_SUCCESS,
                             peer.macAddress, rangeCmBase++, rangeStdDevCmBase++, rssiBase++,
-                            null, null, rangeTimestampBase++);
+                            8, 5, null, null, rangeTimestampBase++);
                 } else {
                     rangingResult = new RangingResult(RangingResult.STATUS_SUCCESS,
                             peer.peerHandle, rangeCmBase++, rangeStdDevCmBase++, rssiBase++,
-                            null, null, rangeTimestampBase++);
+                            8, 5, null, null, rangeTimestampBase++);
                 }
                 results.add(rangingResult);
                 halResults.add(getMatchingRttResult(rangingResult, peer.macAddress));
@@ -127,13 +127,13 @@ public class RttTestUtils {
         } else {
             results.add(new RangingResult(RangingResult.STATUS_SUCCESS,
                     MacAddress.fromString("10:01:02:03:04:05"), rangeCmBase++,
-                    rangeStdDevCmBase++, rssiBase++, null, null, rangeTimestampBase++));
+                    rangeStdDevCmBase++, rssiBase++, 8, 4, null, null, rangeTimestampBase++));
             results.add(new RangingResult(RangingResult.STATUS_SUCCESS,
                     MacAddress.fromString("1A:0B:0C:0D:0E:0F"), rangeCmBase++,
-                    rangeStdDevCmBase++, rssiBase++, null, null, rangeTimestampBase++));
+                    rangeStdDevCmBase++, rssiBase++, 9, 3, null, null, rangeTimestampBase++));
             results.add(new RangingResult(RangingResult.STATUS_SUCCESS,
                     MacAddress.fromString("08:09:08:07:06:05"), rangeCmBase++,
-                    rangeStdDevCmBase++, rssiBase++, null, null, rangeTimestampBase++));
+                    rangeStdDevCmBase++, rssiBase++, 10, 2, null, null, rangeTimestampBase++));
             halResults.add(getMatchingRttResult(results.get(0), null));
             halResults.add(getMatchingRttResult(results.get(1), null));
             halResults.add(getMatchingRttResult(results.get(2), null));
@@ -152,6 +152,8 @@ public class RttTestUtils {
         rttResult.distanceInMm = rangingResult.getDistanceMm();
         rttResult.distanceSdInMm = rangingResult.getDistanceStdDevMm();
         rttResult.rssi = rangingResult.getRssi() * -2;
+        rttResult.numberPerBurstPeer = (byte) rangingResult.getNumAttemptedMeasurements();
+        rttResult.successNumber = rangingResult.getNumSuccessfulMeasurements();
         rttResult.timeStampInUs = rangingResult.getRangingTimestampMillis() * 1000;
 
         return rttResult;
