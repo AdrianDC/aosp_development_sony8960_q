@@ -88,6 +88,22 @@ public class WifiPermissionsUtil {
     }
 
     /**
+     * Checks if the app has the permission to access Wi-Fi state or not.
+     *
+     * @param uid uid of the app.
+     * @return true if the app does have the permission, false otherwise.
+     */
+    public boolean checkWifiAccessPermission(int uid) {
+        try {
+            int permission = mWifiPermissionsWrapper.getAccessWifiStatePermission(uid);
+            return (permission == PackageManager.PERMISSION_GRANTED);
+        } catch (RemoteException e) {
+            mLog.err("Error checking for permission: %").r(e.getMessage()).flush();
+            return false;
+        }
+    }
+
+    /**
      * Check and enforce Coarse Location permission.
      *
      * @param pkgName PackageName of the application requesting access
@@ -163,11 +179,22 @@ public class WifiPermissionsUtil {
         // Coarse Location permission to have access to location information.
         boolean canAppPackageUseLocation = isLocationModeEnabled(pkgName)
                         && checkCallersLocationPermission(pkgName, uid);
+        // "Connectivity" apps can access scan results if they have both the location permission and
+        // (ACCESS_WIFI_STATE or CHANGE_WIFI_STATE), if wifi is enabled and location is off.
+        // While subtle, the requirement of having wifi enabled is enforced by the lack of private
+        // information when wifi is toggled off and we will not enter Scan mode if Location is
+        // toggled off.
+        boolean appTypeConnectivity = checkCallersLocationPermission(pkgName, uid)
+                && (checkChangePermission(uid) || checkWifiAccessPermission(uid));
+
         // If neither caller or app has location access, there is no need to check
         // any other permissions. Deny access to scan results.
         if (!canCallingUidAccessLocation && !canAppPackageUseLocation) {
-            mLog.tC("Denied: no location permission");
-            return false;
+            // also check if it is a connectivity app
+            if (!appTypeConnectivity) {
+                mLog.tC("Denied: no location permission");
+                return false;
+            }
         }
         // Check if Wifi Scan request is an operation allowed for this App.
         if (!isScanAllowedbyApps(pkgName, uid)) {
