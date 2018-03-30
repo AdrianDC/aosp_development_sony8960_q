@@ -251,8 +251,16 @@ public class WifiMetricsTest {
     private static final int NUM_SOFTAP_FAILED_NO_CHANNEL = 1;
     private static final int NUM_HAL_CRASHES = 11;
     private static final int NUM_WIFICOND_CRASHES = 12;
+    private static final int NUM_SUPPLICANT_CRASHES = 23;
+    private static final int NUM_HOSTAPD_CRASHES = 7;
     private static final int NUM_WIFI_ON_FAILURE_DUE_TO_HAL = 13;
     private static final int NUM_WIFI_ON_FAILURE_DUE_TO_WIFICOND = 14;
+    private static final int NUM_WIFI_ON_FAILURE_DUE_TO_SUPPLICANT = 20;
+    private static final int NUM_SOFTAP_ON_FAILURE_DUE_TO_HAL = 23;
+    private static final int NUM_SOFTAP_ON_FAILURE_DUE_TO_WIFICOND = 19;
+    private static final int NUM_SOFTAP_ON_FAILURE_DUE_TO_HOSTAPD = 31;
+    private static final int NUM_SOFTAP_INTERFACE_DOWN = 65;
+    private static final int NUM_CLIENT_INTERFACE_DOWN = 12;
     private static final int NUM_PASSPOINT_PROVIDERS = 4;
     private static final int NUM_PASSPOINT_PROVIDER_INSTALLATION = 5;
     private static final int NUM_PASSPOINT_PROVIDER_INSTALL_SUCCESS = 4;
@@ -519,11 +527,35 @@ public class WifiMetricsTest {
         for (int i = 0; i < NUM_WIFICOND_CRASHES; i++) {
             mWifiMetrics.incrementNumWificondCrashes();
         }
+        for (int i = 0; i < NUM_SUPPLICANT_CRASHES; i++) {
+            mWifiMetrics.incrementNumSupplicantCrashes();
+        }
+        for (int i = 0; i < NUM_HOSTAPD_CRASHES; i++) {
+            mWifiMetrics.incrementNumHostapdCrashes();
+        }
         for (int i = 0; i < NUM_WIFI_ON_FAILURE_DUE_TO_HAL; i++) {
-            mWifiMetrics.incrementNumWifiOnFailureDueToHal();
+            mWifiMetrics.incrementNumSetupClientInterfaceFailureDueToHal();
         }
         for (int i = 0; i < NUM_WIFI_ON_FAILURE_DUE_TO_WIFICOND; i++) {
-            mWifiMetrics.incrementNumWifiOnFailureDueToWificond();
+            mWifiMetrics.incrementNumSetupClientInterfaceFailureDueToWificond();
+        }
+        for (int i = 0; i < NUM_WIFI_ON_FAILURE_DUE_TO_SUPPLICANT; i++) {
+            mWifiMetrics.incrementNumSetupClientInterfaceFailureDueToSupplicant();
+        }
+        for (int i = 0; i < NUM_SOFTAP_ON_FAILURE_DUE_TO_HAL; i++) {
+            mWifiMetrics.incrementNumSetupSoftApInterfaceFailureDueToHal();
+        }
+        for (int i = 0; i < NUM_SOFTAP_ON_FAILURE_DUE_TO_WIFICOND; i++) {
+            mWifiMetrics.incrementNumSetupSoftApInterfaceFailureDueToWificond();
+        }
+        for (int i = 0; i < NUM_SOFTAP_ON_FAILURE_DUE_TO_HOSTAPD; i++) {
+            mWifiMetrics.incrementNumSetupSoftApInterfaceFailureDueToHostapd();
+        }
+        for (int i = 0; i < NUM_SOFTAP_INTERFACE_DOWN; i++) {
+            mWifiMetrics.incrementNumSoftApInterfaceDown();
+        }
+        for (int i = 0; i < NUM_CLIENT_INTERFACE_DOWN; i++) {
+            mWifiMetrics.incrementNumClientInterfaceDown();
         }
         for (int i = 0; i < NUM_PASSPOINT_PROVIDER_INSTALLATION; i++) {
             mWifiMetrics.incrementNumPasspointProviderInstallation();
@@ -793,9 +825,22 @@ public class WifiMetricsTest {
                      mDecodedProto.softApReturnCode[2].count);
         assertEquals(NUM_HAL_CRASHES, mDecodedProto.numHalCrashes);
         assertEquals(NUM_WIFICOND_CRASHES, mDecodedProto.numWificondCrashes);
-        assertEquals(NUM_WIFI_ON_FAILURE_DUE_TO_HAL, mDecodedProto.numWifiOnFailureDueToHal);
+        assertEquals(NUM_SUPPLICANT_CRASHES, mDecodedProto.numSupplicantCrashes);
+        assertEquals(NUM_HOSTAPD_CRASHES, mDecodedProto.numHostapdCrashes);
+        assertEquals(NUM_WIFI_ON_FAILURE_DUE_TO_HAL,
+                mDecodedProto.numSetupClientInterfaceFailureDueToHal);
         assertEquals(NUM_WIFI_ON_FAILURE_DUE_TO_WIFICOND,
-                mDecodedProto.numWifiOnFailureDueToWificond);
+                mDecodedProto.numSetupClientInterfaceFailureDueToWificond);
+        assertEquals(NUM_WIFI_ON_FAILURE_DUE_TO_SUPPLICANT,
+                mDecodedProto.numSetupClientInterfaceFailureDueToSupplicant);
+        assertEquals(NUM_SOFTAP_ON_FAILURE_DUE_TO_HAL,
+                mDecodedProto.numSetupSoftApInterfaceFailureDueToHal);
+        assertEquals(NUM_SOFTAP_ON_FAILURE_DUE_TO_WIFICOND,
+                mDecodedProto.numSetupSoftApInterfaceFailureDueToWificond);
+        assertEquals(NUM_SOFTAP_ON_FAILURE_DUE_TO_HOSTAPD,
+                mDecodedProto.numSetupSoftApInterfaceFailureDueToHostapd);
+        assertEquals(NUM_CLIENT_INTERFACE_DOWN, mDecodedProto.numClientInterfaceDown);
+        assertEquals(NUM_SOFTAP_INTERFACE_DOWN, mDecodedProto.numSoftApInterfaceDown);
         assertEquals(NUM_PASSPOINT_PROVIDERS, mDecodedProto.numPasspointProviders);
         assertEquals(NUM_PASSPOINT_PROVIDER_INSTALLATION,
                 mDecodedProto.numPasspointProviderInstallation);
