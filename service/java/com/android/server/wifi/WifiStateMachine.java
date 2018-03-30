@@ -4320,8 +4320,9 @@ public class WifiStateMachine extends StateMachine {
                     mSupplicantStateTracker.sendMessage(WifiMonitor.AUTHENTICATION_FAILURE_EVENT);
                     int disableReason = WifiConfiguration.NetworkSelectionStatus
                             .DISABLED_AUTHENTICATION_FAILURE;
+                    reasonCode = message.arg1;
                     // Check if this is a permanent wrong password failure.
-                    if (isPermanentWrongPasswordFailure(mTargetNetworkId, message.arg1)) {
+                    if (isPermanentWrongPasswordFailure(mTargetNetworkId, reasonCode)) {
                         disableReason = WifiConfiguration.NetworkSelectionStatus
                                 .DISABLED_BY_WRONG_PASSWORD;
                         WifiConfiguration targetedNetwork =
@@ -4330,6 +4331,8 @@ public class WifiStateMachine extends StateMachine {
                             mWrongPasswordNotifier.onWrongPasswordError(
                                     targetedNetwork.SSID);
                         }
+                    } else if (reasonCode == WifiManager.ERROR_AUTH_FAILURE_EAP_FAILURE) {
+                        handleEapAuthFailure(mTargetNetworkId, message.arg2);
                     }
                     mWifiConfigManager.updateNetworkSelectionStatus(
                             mTargetNetworkId, disableReason);
@@ -4858,6 +4861,25 @@ public class WifiStateMachine extends StateMachine {
             return false;
         }
         return TextUtils.equals(config.FQDN, providerFqdn);
+    }
+
+    private void handleEapAuthFailure(int networkId, int errorCode) {
+        WifiConfiguration targetedNetwork =
+                mWifiConfigManager.getConfiguredNetwork(mTargetNetworkId);
+        if (targetedNetwork != null) {
+            switch (targetedNetwork.enterpriseConfig.getEapMethod()) {
+                case WifiEnterpriseConfig.Eap.SIM:
+                case WifiEnterpriseConfig.Eap.AKA:
+                case WifiEnterpriseConfig.Eap.AKA_PRIME:
+                    if (errorCode == WifiNative.EAP_SIM_VENDOR_SPECIFIC_CERT_EXPIRED) {
+                        getTelephonyManager().resetCarrierKeysForImsiEncryption();
+                    }
+                    break;
+
+                default:
+                    // Do Nothing
+            }
+        }
     }
 
     private class WifiNetworkAgent extends NetworkAgent {
