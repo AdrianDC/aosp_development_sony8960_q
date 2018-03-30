@@ -199,12 +199,10 @@ public class ScoringParams {
             public void onChange(boolean selfChange) {
                 String params = facade.getStringSetting(
                         context, Settings.Global.WIFI_SCORE_PARAMS);
-                if (params != null) {
-                    self.update(defaults);
-                    if (!self.update(params)) {
-                        Log.e(TAG, "Error in " + Settings.Global.WIFI_SCORE_PARAMS + ": "
-                                + sanitize(params));
-                    }
+                self.update(defaults);
+                if (!self.update(params)) {
+                    Log.e(TAG, "Error in " + Settings.Global.WIFI_SCORE_PARAMS + ": "
+                            + sanitize(params));
                 }
                 Log.i(TAG, self.toString());
             }
@@ -248,6 +246,7 @@ public class ScoringParams {
      * @return string with questionable characters replaced with question marks
      */
     public String sanitize(String params) {
+        if (params == null) return "";
         String printable = params.replaceAll("[^A-Za-z_0-9=,:.+-]", "?");
         if (printable.length() > 100) {
             printable = printable.substring(0, 98) + "...";
