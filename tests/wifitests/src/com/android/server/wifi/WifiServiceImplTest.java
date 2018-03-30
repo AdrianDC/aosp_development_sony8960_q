@@ -2613,6 +2613,9 @@ public class WifiServiceImplTest {
         mBroadcastReceiverCaptor.getValue().onReceive(mContext, intent);
 
         verify(mWifiStateMachine).removeAppConfigs(packageName, uid);
+
+        mLooper.dispatchAll();
+        verify(mScanRequestProxy).clearScanRequestTimestampsForApp(packageName, uid);
     }
 
     @Test
@@ -2629,6 +2632,9 @@ public class WifiServiceImplTest {
         mBroadcastReceiverCaptor.getValue().onReceive(mContext, intent);
 
         verify(mWifiStateMachine, never()).removeAppConfigs(anyString(), anyInt());
+
+        mLooper.dispatchAll();
+        verify(mScanRequestProxy, never()).clearScanRequestTimestampsForApp(anyString(), anyInt());
     }
 
     @Test
@@ -2645,6 +2651,9 @@ public class WifiServiceImplTest {
         mBroadcastReceiverCaptor.getValue().onReceive(mContext, intent);
 
         verify(mWifiStateMachine, never()).removeAppConfigs(anyString(), anyInt());
+
+        mLooper.dispatchAll();
+        verify(mScanRequestProxy, never()).clearScanRequestTimestampsForApp(anyString(), anyInt());
     }
 
     @Test
