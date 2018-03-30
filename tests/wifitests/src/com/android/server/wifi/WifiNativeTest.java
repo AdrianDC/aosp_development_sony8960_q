@@ -566,12 +566,12 @@ public class WifiNativeTest {
     }
 
     /**
-     * Verifies that setMacAddress() calls underlying WificondControl.
+     * Verifies that setMacAddress() calls underlying WifiVendorHal.
      */
     @Test
     public void testSetMacAddress() throws Exception {
         mWifiNative.setMacAddress(WIFI_IFACE_NAME, TEST_MAC_ADDRESS);
-        verify(mWificondControl).setMacAddress(WIFI_IFACE_NAME, TEST_MAC_ADDRESS);
+        verify(mWifiVendorHal).setMacAddress(WIFI_IFACE_NAME, TEST_MAC_ADDRESS);
     }
 
     /**
