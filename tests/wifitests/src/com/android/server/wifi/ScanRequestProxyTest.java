@@ -67,6 +67,7 @@ public class ScanRequestProxyTest {
     @Mock private WifiConfigManager mWifiConfigManager;
     @Mock private WifiScanner mWifiScanner;
     @Mock private WifiPermissionsUtil mWifiPermissionsUtil;
+    @Mock private WifiMetrics mWifiMetrics;
     @Mock private Clock mClock;
     private ArgumentCaptor<WorkSource> mWorkSourceArgumentCaptor =
             ArgumentCaptor.forClass(WorkSource.class);
@@ -97,11 +98,12 @@ public class ScanRequestProxyTest {
 
         mScanRequestProxy =
             new ScanRequestProxy(mContext, mAppOps, mActivityManager, mWifiInjector,
-                    mWifiConfigManager, mWifiPermissionsUtil, mClock);
+                    mWifiConfigManager, mWifiPermissionsUtil, mWifiMetrics, mClock);
     }
 
     @After
     public void cleanUp() throws Exception {
+        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext, mWifiMetrics);
         validateMockitoUsage();
     }
 
@@ -113,8 +115,6 @@ public class ScanRequestProxyTest {
         when(mWifiInjector.getWifiScanner()).thenReturn(null);
         assertFalse(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_1));
         validateScanResultsFailureBroadcastSent(TEST_PACKAGE_NAME_1);
-
-        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
     }
 
     /**
@@ -128,7 +128,7 @@ public class ScanRequestProxyTest {
         assertTrue(mWorkSourceArgumentCaptor.getValue().equals(new WorkSource(TEST_UID)));
         validateScanSettings(mScanSettingsArgumentCaptor.getValue(), false);
 
-        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+        verify(mWifiMetrics).incrementExternalAppOneshotScanRequestsCount();
     }
 
     /**
@@ -142,8 +142,6 @@ public class ScanRequestProxyTest {
 
         assertTrue(mWorkSourceArgumentCaptor.getValue().equals(new WorkSource(TEST_UID)));
         validateScanSettings(mScanSettingsArgumentCaptor.getValue(), false, true);
-
-        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
     }
 
 
@@ -160,7 +158,7 @@ public class ScanRequestProxyTest {
         assertTrue(mWorkSourceArgumentCaptor.getValue().equals(new WorkSource(TEST_UID)));
         validateScanSettings(mScanSettingsArgumentCaptor.getValue(), false);
 
-        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+        verify(mWifiMetrics).incrementExternalAppOneshotScanRequestsCount();
     }
 
     /**
@@ -176,7 +174,7 @@ public class ScanRequestProxyTest {
         assertTrue(mWorkSourceArgumentCaptor.getValue().equals(new WorkSource(TEST_UID)));
         validateScanSettings(mScanSettingsArgumentCaptor.getValue(), true);
 
-        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+        verify(mWifiMetrics).incrementExternalAppOneshotScanRequestsCount();
     }
 
     /**
@@ -196,7 +194,7 @@ public class ScanRequestProxyTest {
                 mTestScanDatas1[0].getResults(),
                 mScanRequestProxy.getScanResults().stream().toArray(ScanResult[]::new));
 
-        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+        verify(mWifiMetrics).incrementExternalAppOneshotScanRequestsCount();
     }
 
     /**
@@ -214,7 +212,7 @@ public class ScanRequestProxyTest {
         // Ensure scan results in the cache is empty.
         assertTrue(mScanRequestProxy.getScanResults().isEmpty());
 
-        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+        verify(mWifiMetrics).incrementExternalAppOneshotScanRequestsCount();
     }
 
     /**
@@ -244,7 +242,7 @@ public class ScanRequestProxyTest {
                 mTestScanDatas2[0].getResults(),
                 mScanRequestProxy.getScanResults().stream().toArray(ScanResult[]::new));
 
-        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+        verify(mWifiMetrics, times(2)).incrementExternalAppOneshotScanRequestsCount();
     }
 
     /**
@@ -274,7 +272,7 @@ public class ScanRequestProxyTest {
                 mTestScanDatas1[0].getResults(),
                 mScanRequestProxy.getScanResults().stream().toArray(ScanResult[]::new));
 
-        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+        verify(mWifiMetrics, times(2)).incrementExternalAppOneshotScanRequestsCount();
     }
 
     /**
@@ -314,8 +312,9 @@ public class ScanRequestProxyTest {
                 mTestScanDatas2[0].getResults(),
                 mScanRequestProxy.getScanResults().stream().toArray(ScanResult[]::new));
 
-        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+        verify(mWifiMetrics, times(2)).incrementExternalAppOneshotScanRequestsCount();
     }
+
 
     /**
      * Verify processing of a new scan request after a previous scan success.
@@ -346,7 +345,7 @@ public class ScanRequestProxyTest {
                 mTestScanDatas2[0].getResults(),
                 mScanRequestProxy.getScanResults().stream().toArray(ScanResult[]::new));
 
-        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+        verify(mWifiMetrics, times(2)).incrementExternalAppOneshotScanRequestsCount();
     }
 
     /**
@@ -379,7 +378,7 @@ public class ScanRequestProxyTest {
                 mTestScanDatas2[0].getResults(),
                 mScanRequestProxy.getScanResults().stream().toArray(ScanResult[]::new));
 
-        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+        verify(mWifiMetrics, times(2)).incrementExternalAppOneshotScanRequestsCount();
     }
 
 
@@ -411,7 +410,7 @@ public class ScanRequestProxyTest {
                 mTestScanDatas2[0].getResults(),
                 mScanRequestProxy.getScanResults().stream().toArray(ScanResult[]::new));
 
-        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+        verify(mWifiMetrics, times(2)).incrementExternalAppOneshotScanRequestsCount();
     }
 
     /**
@@ -432,7 +431,8 @@ public class ScanRequestProxyTest {
 
         mScanRequestProxy.clearScanResults();
         assertTrue(mScanRequestProxy.getScanResults().isEmpty());
-        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+
+        verify(mWifiMetrics).incrementExternalAppOneshotScanRequestsCount();
     }
 
     /**
@@ -455,7 +455,7 @@ public class ScanRequestProxyTest {
 
         assertNotEquals(listener1, listener2);
 
-        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+        verify(mWifiMetrics, times(2)).incrementExternalAppOneshotScanRequestsCount();
     }
 
     /**
@@ -477,7 +477,8 @@ public class ScanRequestProxyTest {
         assertFalse(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_1));
         validateScanResultsFailureBroadcastSent(TEST_PACKAGE_NAME_1);
 
-        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+        verify(mWifiMetrics, times(2)).incrementExternalAppOneshotScanRequestsCount();
+        verify(mWifiMetrics).incrementExternalForegroundAppOneshotScanRequestsThrottledCount();
     }
 
     /**
@@ -499,7 +500,7 @@ public class ScanRequestProxyTest {
         assertTrue(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_1));
         mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
 
-        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+        verify(mWifiMetrics, times(2)).incrementExternalAppOneshotScanRequestsCount();
     }
 
     /**
@@ -522,8 +523,6 @@ public class ScanRequestProxyTest {
         // Make scan request 2 from the same package name & ensure that it is not throttled.
         assertTrue(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_1));
         mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
-
-        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
     }
 
     /**
@@ -545,7 +544,8 @@ public class ScanRequestProxyTest {
         assertTrue(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_2));
         mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
 
-        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+        verify(mWifiMetrics, times(3)).incrementExternalAppOneshotScanRequestsCount();
+        verify(mWifiMetrics).incrementExternalForegroundAppOneshotScanRequestsThrottledCount();
     }
 
     /**
@@ -569,7 +569,8 @@ public class ScanRequestProxyTest {
         assertFalse(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_2));
         validateScanResultsFailureBroadcastSent(TEST_PACKAGE_NAME_2);
 
-        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+        verify(mWifiMetrics, times(2)).incrementExternalAppOneshotScanRequestsCount();
+        verify(mWifiMetrics).incrementExternalBackgroundAppOneshotScanRequestsThrottledCount();
     }
 
     /**
@@ -596,7 +597,7 @@ public class ScanRequestProxyTest {
         assertTrue(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_2));
         mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
 
-        verifyNoMoreInteractions(mWifiScanner, mWifiConfigManager, mContext);
+        verify(mWifiMetrics, times(2)).incrementExternalAppOneshotScanRequestsCount();
     }
 
     private void validateScanSettings(WifiScanner.ScanSettings scanSettings,

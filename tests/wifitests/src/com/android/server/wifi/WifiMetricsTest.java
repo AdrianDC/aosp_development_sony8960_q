@@ -238,6 +238,9 @@ public class WifiMetricsTest {
     private static final int NUM_HOTSPOT2_R2_NETWORK_SCAN_RESULTS = 2;
     private static final int NUM_SCANS = 5;
     private static final int NUM_CONNECTIVITY_ONESHOT_SCAN_EVENT = 4;
+    private static final int NUM_EXTERNAL_APP_ONESHOT_SCAN_REQUESTS = 15;
+    private static final int NUM_EXTERNAL_FOREGROUND_APP_ONESHOT_SCAN_REQUESTS_THROTTLED = 10;
+    private static final int NUM_EXTERNAL_BACKGROUND_APP_ONESHOT_SCAN_REQUESTS_THROTTLED = 16;
     private static final int NUM_TOTAL_SCAN_RESULTS = 8;
     private static final int MIN_RSSI_LEVEL = -127;
     private static final int MAX_RSSI_LEVEL = 0;
@@ -497,7 +500,15 @@ public class WifiMetricsTest {
         for (int i = 0; i < NUM_CONNECTIVITY_ONESHOT_SCAN_EVENT; i++) {
             mWifiMetrics.incrementConnectivityOneshotScanCount();
         }
-
+        for (int i = 0; i < NUM_EXTERNAL_APP_ONESHOT_SCAN_REQUESTS; i++) {
+            mWifiMetrics.incrementExternalAppOneshotScanRequestsCount();
+        }
+        for (int i = 0; i < NUM_EXTERNAL_FOREGROUND_APP_ONESHOT_SCAN_REQUESTS_THROTTLED; i++) {
+            mWifiMetrics.incrementExternalForegroundAppOneshotScanRequestsThrottledCount();
+        }
+        for (int i = 0; i < NUM_EXTERNAL_BACKGROUND_APP_ONESHOT_SCAN_REQUESTS_THROTTLED; i++) {
+            mWifiMetrics.incrementExternalBackgroundAppOneshotScanRequestsThrottledCount();
+        }
         for (int score = WIFI_SCORE_RANGE_MIN; score < NUM_WIFI_SCORES_TO_INCREMENT; score++) {
             for (int offset = 0; offset <= score; offset++) {
                 mWifiMetrics.incrementWifiScoreCount(WIFI_SCORE_RANGE_MIN + score);
@@ -796,6 +807,12 @@ public class WifiMetricsTest {
                 mDecodedProto.numScans);
         assertEquals(NUM_CONNECTIVITY_ONESHOT_SCAN_EVENT,
                 mDecodedProto.numConnectivityOneshotScans);
+        assertEquals(NUM_EXTERNAL_APP_ONESHOT_SCAN_REQUESTS,
+                mDecodedProto.numExternalAppOneshotScanRequests);
+        assertEquals(NUM_EXTERNAL_FOREGROUND_APP_ONESHOT_SCAN_REQUESTS_THROTTLED,
+                mDecodedProto.numExternalForegroundAppOneshotScanRequestsThrottled);
+        assertEquals(NUM_EXTERNAL_BACKGROUND_APP_ONESHOT_SCAN_REQUESTS_THROTTLED,
+                mDecodedProto.numExternalBackgroundAppOneshotScanRequestsThrottled);
 
         for (int score_index = 0; score_index < NUM_WIFI_SCORES_TO_INCREMENT; score_index++) {
             assertEquals(WIFI_SCORE_RANGE_MIN + score_index,
