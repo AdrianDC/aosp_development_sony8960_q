@@ -48,7 +48,6 @@ import java.io.PrintWriter;
  */
 public class WifiScoreReportTest {
 
-    private static final int CELLULAR_THRESHOLD_SCORE = 50;
 
     class FakeClock extends Clock {
         long mWallClockMillis = 1500000000000L;
@@ -189,7 +188,7 @@ public class WifiScoreReportTest {
             mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mWifiMetrics);
         }
         int score = mWifiInfo.score;
-        assertTrue(score > CELLULAR_THRESHOLD_SCORE);
+        assertTrue(score > ConnectedScore.WIFI_TRANSITION_SCORE);
     }
 
     /**
@@ -212,7 +211,7 @@ public class WifiScoreReportTest {
             mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mWifiMetrics);
         }
         int score = mWifiInfo.score;
-        assertTrue(score < CELLULAR_THRESHOLD_SCORE);
+        assertTrue(score < ConnectedScore.WIFI_TRANSITION_SCORE);
         verify(mNetworkAgent, atLeast(1)).sendNetworkScore(score);
     }
 
@@ -231,7 +230,7 @@ public class WifiScoreReportTest {
         }
         int score = mWifiInfo.score;
         verify(mNetworkAgent, atLeast(1)).sendNetworkScore(score);
-        assertTrue(oops, score < CELLULAR_THRESHOLD_SCORE);
+        assertTrue(oops, score < ConnectedScore.WIFI_TRANSITION_SCORE);
     }
 
     /**
@@ -257,7 +256,7 @@ public class WifiScoreReportTest {
             oops += ":" + mWifiInfo.score;
             if (mWifiInfo.score < minScore) minScore = mWifiInfo.score;
         }
-        assertTrue(oops, minScore > CELLULAR_THRESHOLD_SCORE);
+        assertTrue(oops, minScore > ConnectedScore.WIFI_TRANSITION_SCORE);
     }
 
     /**

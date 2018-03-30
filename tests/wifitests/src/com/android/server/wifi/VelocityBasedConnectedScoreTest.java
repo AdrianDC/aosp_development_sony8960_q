@@ -37,7 +37,6 @@ import org.mockito.Spy;
  */
 public class VelocityBasedConnectedScoreTest {
 
-    private static final int CELLULAR_THRESHOLD_SCORE = 50;
 
     class FakeClock extends Clock {
         long mWallClockMillis = 1500000000000L;
@@ -109,7 +108,7 @@ public class VelocityBasedConnectedScoreTest {
                     mClock.getWallClockMillis());
         }
         int score = mVelocityBasedConnectedScore.generateScore();
-        assertTrue(score > CELLULAR_THRESHOLD_SCORE);
+        assertTrue(score > ConnectedScore.WIFI_TRANSITION_SCORE);
     }
 
     /**
@@ -130,6 +129,6 @@ public class VelocityBasedConnectedScoreTest {
                     mClock.getWallClockMillis());
         }
         int score = mVelocityBasedConnectedScore.generateScore();
-        assertTrue(score < CELLULAR_THRESHOLD_SCORE);
+        assertTrue(score < ConnectedScore.WIFI_TRANSITION_SCORE);
     }
 }
