@@ -260,6 +260,35 @@ public class WifiScoreReportTest {
     }
 
     /**
+     * Don't breach if the success rates are great
+     *
+     * Ramp the RSSI down, but maintain a high packet throughput
+     *
+     * Expect score to stay above above threshold.
+     */
+    @Test
+    public void allowTerribleRssiIfDataIsMovingWell() throws Exception {
+        mWifiInfo.txSuccessRate = mScoringParams.getYippeeSkippyPacketsPerSecond() + 0.1;
+        mWifiInfo.rxSuccessRate = mScoringParams.getYippeeSkippyPacketsPerSecond() + 0.1;
+        assertTrue(mWifiInfo.txSuccessRate > 10);
+        mWifiInfo.setFrequency(5220);
+        for (int r = -30; r >= -200; r -= 2) {
+            mWifiInfo.setRssi(r);
+            mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mWifiMetrics);
+            assertTrue(mWifiInfo.score > ConnectedScore.WIFI_TRANSITION_SCORE);
+        }
+        // If the throughput dips, we should let go
+        mWifiInfo.rxSuccessRate = mScoringParams.getYippeeSkippyPacketsPerSecond() - 0.1;
+        mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mWifiMetrics);
+        assertTrue(mWifiInfo.score < ConnectedScore.WIFI_TRANSITION_SCORE);
+        // And even if throughput improves again, once we have decided to let go, disregard
+        // the good rates.
+        mWifiInfo.rxSuccessRate = mScoringParams.getYippeeSkippyPacketsPerSecond() + 0.1;
+        mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mWifiMetrics);
+        assertTrue(mWifiInfo.score < ConnectedScore.WIFI_TRANSITION_SCORE);
+    }
+
+    /**
      * This setup causes some reports to be generated when println
      * methods are called, to check for "concurrent" modification
      * errors.
