@@ -44,8 +44,6 @@
 
 using android::base::StringPrintf;
 
-extern const uint8_t nfca_version_string[];
-extern const uint8_t nfa_version_string[];
 extern tNFA_DM_DISC_FREQ_CFG* p_nfa_dm_rf_disc_freq_cfg;  // defined in stack
 namespace android {
 extern bool gIsTagDeactivating;
@@ -350,8 +348,6 @@ static void nfaConnectionCallback(uint8_t connEvent,
       if (sIsDisabling || !sIsNfaEnabled) break;
       gActivated = true;
 
-      initializeGlobalDebugEnabledFlag();
-
       NfcTag::getInstance().setActivationState();
       if (gIsSelectingRfInterface) {
         nativeNfcTag_doConnectStatus(true);
@@ -615,6 +611,7 @@ static void nfaConnectionCallback(uint8_t connEvent,
 **
 *******************************************************************************/
 static jboolean nfcManager_initNativeStruc(JNIEnv* e, jobject o) {
+  initializeGlobalDebugEnabledFlag();
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter", __func__);
 
   nfc_jni_native_data* nat =
@@ -995,9 +992,7 @@ static jint nfcManager_getLfT3tMax(JNIEnv*, jobject) {
 **
 *******************************************************************************/
 static jboolean nfcManager_doInitialize(JNIEnv* e, jobject o) {
-  DLOG_IF(INFO, nfc_debug_enabled)
-      << StringPrintf("%s: enter; ver=%s nfa=%s NCI_VERSION=0x%02X", __func__,
-                      nfca_version_string, nfa_version_string, NCI_VERSION);
+  initializeGlobalDebugEnabledFlag();
   tNFA_STATUS stat = NFA_STATUS_OK;
 
   PowerSwitch& powerSwitch = PowerSwitch::getInstance();
