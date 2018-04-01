@@ -69,6 +69,7 @@ public class ScanRequestProxy {
     private final WifiInjector mWifiInjector;
     private final WifiConfigManager mWifiConfigManager;
     private final WifiPermissionsUtil mWifiPermissionsUtil;
+    private final WifiMetrics mWifiMetrics;
     private final Clock mClock;
     private WifiScanner mWifiScanner;
 
@@ -135,13 +136,14 @@ public class ScanRequestProxy {
 
     ScanRequestProxy(Context context, AppOpsManager appOpsManager, ActivityManager activityManager,
                      WifiInjector wifiInjector, WifiConfigManager configManager,
-            WifiPermissionsUtil wifiPermissionUtil, Clock clock) {
+                     WifiPermissionsUtil wifiPermissionUtil, WifiMetrics wifiMetrics, Clock clock) {
         mContext = context;
         mAppOps = appOpsManager;
         mActivityManager = activityManager;
         mWifiInjector = wifiInjector;
         mWifiConfigManager = configManager;
         mWifiPermissionsUtil = wifiPermissionUtil;
+        mWifiMetrics = wifiMetrics;
         mClock = clock;
     }
 
@@ -283,15 +285,24 @@ public class ScanRequestProxy {
         boolean isThrottled;
         if (isRequestFromBackground(callingUid, packageName)) {
             isThrottled = shouldScanRequestBeThrottledForBackgroundApp();
-            if (isThrottled && mVerboseLoggingEnabled) {
-                Log.v(TAG, "Background scan app request [" + callingUid + ", " + packageName + "]");
+            if (isThrottled) {
+                if (mVerboseLoggingEnabled) {
+                    Log.v(TAG, "Background scan app request [" + callingUid + ", "
+                            + packageName + "]");
+                }
+                mWifiMetrics.incrementExternalBackgroundAppOneshotScanRequestsThrottledCount();
             }
         } else {
             isThrottled = shouldScanRequestBeThrottledForForegroundApp(packageName);
-            if (isThrottled && mVerboseLoggingEnabled) {
-                Log.v(TAG, "Foreground scan app request [" + callingUid + ", " + packageName + "]");
+            if (isThrottled) {
+                if (mVerboseLoggingEnabled) {
+                    Log.v(TAG, "Foreground scan app request [" + callingUid + ", "
+                            + packageName + "]");
+                }
+                mWifiMetrics.incrementExternalForegroundAppOneshotScanRequestsThrottledCount();
             }
         }
+        mWifiMetrics.incrementExternalAppOneshotScanRequestsCount();
         return isThrottled;
     }
 

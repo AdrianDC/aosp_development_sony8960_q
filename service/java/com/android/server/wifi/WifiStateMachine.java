@@ -61,7 +61,6 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
-import android.net.wifi.WifiSsid;
 import android.net.wifi.hotspot2.IProvisioningCallback;
 import android.net.wifi.hotspot2.OsuProvider;
 import android.net.wifi.hotspot2.PasspointConfiguration;
@@ -2786,23 +2785,12 @@ public class WifiStateMachine extends StateMachine {
                     + mNetworkInfo.getDetailedState() + " and new state=" + state
                     + " hidden=" + hidden);
         }
-        if (mNetworkInfo.getExtraInfo() != null && mWifiInfo.getSSID() != null
-                && !mWifiInfo.getSSID().equals(WifiSsid.NONE)) {
-            // Always indicate that SSID has changed
-            if (!mNetworkInfo.getExtraInfo().equals(mWifiInfo.getSSID())) {
-                if (mVerboseLoggingEnabled) {
-                    log("setDetailed state send new extra info" + mWifiInfo.getSSID());
-                }
-                mNetworkInfo.setExtraInfo(mWifiInfo.getSSID());
-                sendNetworkStateChangeBroadcast(null);
-            }
-        }
         if (hidden == true) {
             return false;
         }
 
         if (state != mNetworkInfo.getDetailedState()) {
-            mNetworkInfo.setDetailedState(state, null, mWifiInfo.getSSID());
+            mNetworkInfo.setDetailedState(state, null, null);
             if (mNetworkAgent != null) {
                 mNetworkAgent.sendNetworkInfo(mNetworkInfo);
             }
@@ -3363,7 +3351,9 @@ public class WifiStateMachine extends StateMachine {
         MacAddress newMac = config.getOrCreateRandomizedMacAddress();
         mWifiConfigManager.setNetworkRandomizedMacAddress(config.networkId, newMac);
 
-        if (currentMac.equals(newMac)) {
+        if (!WifiConfiguration.isValidMacAddressForRandomization(newMac)) {
+            Log.wtf(TAG, "Config generated an invalid MAC address");
+        } else if (currentMac.equals(newMac)) {
             Log.i(TAG, "No changes in MAC address");
         } else {
             Log.i(TAG, "ConnectedMacRandomization SSID(" + config.getPrintableSsid()
@@ -4318,8 +4308,9 @@ public class WifiStateMachine extends StateMachine {
                     mSupplicantStateTracker.sendMessage(WifiMonitor.AUTHENTICATION_FAILURE_EVENT);
                     int disableReason = WifiConfiguration.NetworkSelectionStatus
                             .DISABLED_AUTHENTICATION_FAILURE;
+                    reasonCode = message.arg1;
                     // Check if this is a permanent wrong password failure.
-                    if (isPermanentWrongPasswordFailure(mTargetNetworkId, message.arg1)) {
+                    if (isPermanentWrongPasswordFailure(mTargetNetworkId, reasonCode)) {
                         disableReason = WifiConfiguration.NetworkSelectionStatus
                                 .DISABLED_BY_WRONG_PASSWORD;
                         WifiConfiguration targetedNetwork =
@@ -4328,6 +4319,8 @@ public class WifiStateMachine extends StateMachine {
                             mWrongPasswordNotifier.onWrongPasswordError(
                                     targetedNetwork.SSID);
                         }
+                    } else if (reasonCode == WifiManager.ERROR_AUTH_FAILURE_EAP_FAILURE) {
+                        handleEapAuthFailure(mTargetNetworkId, message.arg2);
                     }
                     mWifiConfigManager.updateNetworkSelectionStatus(
                             mTargetNetworkId, disableReason);
@@ -4856,6 +4849,25 @@ public class WifiStateMachine extends StateMachine {
             return false;
         }
         return TextUtils.equals(config.FQDN, providerFqdn);
+    }
+
+    private void handleEapAuthFailure(int networkId, int errorCode) {
+        WifiConfiguration targetedNetwork =
+                mWifiConfigManager.getConfiguredNetwork(mTargetNetworkId);
+        if (targetedNetwork != null) {
+            switch (targetedNetwork.enterpriseConfig.getEapMethod()) {
+                case WifiEnterpriseConfig.Eap.SIM:
+                case WifiEnterpriseConfig.Eap.AKA:
+                case WifiEnterpriseConfig.Eap.AKA_PRIME:
+                    if (errorCode == WifiNative.EAP_SIM_VENDOR_SPECIFIC_CERT_EXPIRED) {
+                        getTelephonyManager().resetCarrierKeysForImsiEncryption();
+                    }
+                    break;
+
+                default:
+                    // Do Nothing
+            }
+        }
     }
 
     private class WifiNetworkAgent extends NetworkAgent {

@@ -2463,6 +2463,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             pw.println();
             mWifiBackupRestore.dump(fd, pw, args);
             pw.println();
+            pw.println("ScoringParams: settings put global " + Settings.Global.WIFI_SCORE_PARAMS
+                       + " " + mWifiInjector.getScoringParams());
+            pw.println();
             WifiScoreReport wifiScoreReport = mWifiStateMachine.getWifiScoreReport();
             if (wifiScoreReport != null) {
                 pw.println("WifiScoreReport:");

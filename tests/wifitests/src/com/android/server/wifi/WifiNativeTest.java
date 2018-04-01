@@ -20,6 +20,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -565,11 +566,23 @@ public class WifiNativeTest {
     }
 
     /**
-     * Verifies that setMacAddress() calls underlying WificondControl.
+     * Verifies that setMacAddress() calls underlying WifiVendorHal.
      */
     @Test
     public void testSetMacAddress() throws Exception {
         mWifiNative.setMacAddress(WIFI_IFACE_NAME, TEST_MAC_ADDRESS);
-        verify(mWificondControl).setMacAddress(WIFI_IFACE_NAME, TEST_MAC_ADDRESS);
+        verify(mWifiVendorHal).setMacAddress(WIFI_IFACE_NAME, TEST_MAC_ADDRESS);
+    }
+
+    /**
+     * Test to check if the softap start failure metrics are incremented correctly.
+     */
+    @Test
+    public void testStartSoftApFailureIncrementsMetrics() throws Exception {
+        when(mWificondControl.startHostapd(any(), any())).thenReturn(false);
+        WifiNative.SoftApListener mockListener = mock(WifiNative.SoftApListener.class);
+        mWifiNative.startSoftAp(WIFI_IFACE_NAME, new WifiConfiguration(), mockListener);
+        verify(mWificondControl).startHostapd(WIFI_IFACE_NAME, mockListener);
+        verify(mWifiMetrics).incrementNumSetupSoftApInterfaceFailureDueToHostapd();
     }
 }

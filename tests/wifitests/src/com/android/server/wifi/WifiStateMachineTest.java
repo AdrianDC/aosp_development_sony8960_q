@@ -47,6 +47,7 @@ import android.net.ip.IpClient;
 import android.net.wifi.ScanResult;
 import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
@@ -1277,6 +1278,63 @@ public class WifiStateMachineTest {
         assertEquals("DisconnectedState", getCurrentState().getName());
     }
 
+    /**
+     * Verify that the function resetCarrierKeysForImsiEncryption() in TelephonyManager
+     * is called when a Authentication failure is detected with a vendor specific EAP Error
+     * of certification expired while using EAP-SIM
+     * In this test case, it is assumed that the network had been connected previously.
+     */
+    @Test
+    public void testEapSimErrorVendorSpecific() throws Exception {
+        initializeAndAddNetworkAndVerifySuccess();
+
+        mLooper.startAutoDispatch();
+        mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true);
+        mLooper.stopAutoDispatch();
+
+        verify(mWifiConfigManager).enableNetwork(eq(0), eq(true), anyInt());
+
+        WifiConfiguration config = new WifiConfiguration();
+        config.getNetworkSelectionStatus().setHasEverConnected(true);
+        config.enterpriseConfig.setEapMethod(WifiEnterpriseConfig.Eap.SIM);
+        when(mWifiConfigManager.getConfiguredNetwork(anyInt())).thenReturn(config);
+
+        mWsm.sendMessage(WifiMonitor.AUTHENTICATION_FAILURE_EVENT,
+                WifiManager.ERROR_AUTH_FAILURE_EAP_FAILURE,
+                WifiNative.EAP_SIM_VENDOR_SPECIFIC_CERT_EXPIRED);
+        mLooper.dispatchAll();
+
+        verify(mTelephonyManager).resetCarrierKeysForImsiEncryption();
+    }
+
+    /**
+     * Verify that the function resetCarrierKeysForImsiEncryption() in TelephonyManager
+     * is not called when a Authentication failure is detected with a vendor specific EAP Error
+     * of certification expired while using other methods than EAP-SIM, EAP-AKA, or EAP-AKA'.
+     */
+    @Test
+    public void testEapTlsErrorVendorSpecific() throws Exception {
+        initializeAndAddNetworkAndVerifySuccess();
+
+        mLooper.startAutoDispatch();
+        mWsm.syncEnableNetwork(mWsmAsyncChannel, 0, true);
+        mLooper.stopAutoDispatch();
+
+        verify(mWifiConfigManager).enableNetwork(eq(0), eq(true), anyInt());
+
+        WifiConfiguration config = new WifiConfiguration();
+        config.getNetworkSelectionStatus().setHasEverConnected(true);
+        config.enterpriseConfig.setEapMethod(WifiEnterpriseConfig.Eap.TLS);
+        when(mWifiConfigManager.getConfiguredNetwork(anyInt())).thenReturn(config);
+
+        mWsm.sendMessage(WifiMonitor.AUTHENTICATION_FAILURE_EVENT,
+                WifiManager.ERROR_AUTH_FAILURE_EAP_FAILURE,
+                WifiNative.EAP_SIM_VENDOR_SPECIFIC_CERT_EXPIRED);
+        mLooper.dispatchAll();
+
+        verify(mTelephonyManager, never()).resetCarrierKeysForImsiEncryption();
+    }
+
     @Test
     public void testBadNetworkEvent() throws Exception {
         initializeAndAddNetworkAndVerifySuccess();
@@ -2434,5 +2492,34 @@ public class WifiStateMachineTest {
                 .setNetworkRandomizedMacAddress(eq(0), any(MacAddress.class));
         verify(mWifiNative, never()).setMacAddress(eq(WIFI_IFACE_NAME), any(MacAddress.class));
         assertEquals(mWsm.getWifiInfo().getMacAddress(), oldMac);
+    }
+
+    /**
+     * Verifies that we don't set MAC address when config returns an invalid MAC address.
+     */
+    @Test
+    public void testDoNotSetMacWhenInvalid() throws Exception {
+        initializeAndAddNetworkAndVerifySuccess();
+        assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
+        assertEquals(WifiManager.WIFI_STATE_ENABLED, mWsm.syncGetWifiState());
+
+        when(mFrameworkFacade.getIntegerSetting(mContext,
+                Settings.Global.WIFI_CONNECTED_MAC_RANDOMIZATION_ENABLED, 0)).thenReturn(1);
+        mContentObserver.onChange(false);
+        when(mWifiNative.getMacAddress(WIFI_IFACE_NAME))
+                .thenReturn(TEST_GLOBAL_MAC_ADDRESS.toString());
+
+        WifiConfiguration config = mock(WifiConfiguration.class);
+        when(config.getOrCreateRandomizedMacAddress())
+                .thenReturn(MacAddress.fromString(WifiInfo.DEFAULT_MAC_ADDRESS));
+        when(config.getNetworkSelectionStatus())
+                .thenReturn(new WifiConfiguration.NetworkSelectionStatus());
+        when(mWifiConfigManager.getConfiguredNetworkWithoutMasking(0)).thenReturn(config);
+
+        mWsm.sendMessage(WifiStateMachine.CMD_START_CONNECT, 0, 0, sBSSID);
+        mLooper.dispatchAll();
+
+        verify(config).getOrCreateRandomizedMacAddress();
+        verify(mWifiNative, never()).setMacAddress(eq(WIFI_IFACE_NAME), any(MacAddress.class));
     }
 }

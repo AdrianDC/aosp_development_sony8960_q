@@ -110,6 +110,18 @@ public class WifiPermissionsWrapper {
     }
 
     /**
+     * Determines if the caller has the access wifi state permission.
+     *
+     * @param uid to check the permission for
+     * @return int representation of success or denied
+     * @throws RemoteException
+     */
+    public int getAccessWifiStatePermission(int uid) throws RemoteException {
+        return AppGlobals.getPackageManager().checkUidPermission(
+                Manifest.permission.ACCESS_WIFI_STATE, uid);
+    }
+
+    /**
      * Determines if the caller has local mac address permission.
      *
      * @param uid to check the permission for

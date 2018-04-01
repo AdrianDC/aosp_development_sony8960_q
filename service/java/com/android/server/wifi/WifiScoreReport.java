@@ -129,6 +129,13 @@ public class WifiScoreReport {
         score = s2;
 
         if (wifiInfo.score > ConnectedScore.WIFI_TRANSITION_SCORE
+                 && score <= ConnectedScore.WIFI_TRANSITION_SCORE
+                 && wifiInfo.txSuccessRate >= mScoringParams.getYippeeSkippyPacketsPerSecond()
+                 && wifiInfo.rxSuccessRate >= mScoringParams.getYippeeSkippyPacketsPerSecond()) {
+            score = ConnectedScore.WIFI_TRANSITION_SCORE + 1;
+        }
+
+        if (wifiInfo.score > ConnectedScore.WIFI_TRANSITION_SCORE
                  && score <= ConnectedScore.WIFI_TRANSITION_SCORE) {
             // We don't want to trigger a downward breach unless the rssi is
             // below the entry threshold.  There is noise in the measured rssi, and

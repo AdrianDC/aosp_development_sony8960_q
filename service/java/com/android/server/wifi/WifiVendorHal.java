@@ -54,6 +54,7 @@ import android.hardware.wifi.V1_0.WifiDebugTxPacketFateReport;
 import android.hardware.wifi.V1_0.WifiInformationElement;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
+import android.net.MacAddress;
 import android.net.apf.ApfCapabilities;
 import android.net.wifi.RttManager;
 import android.net.wifi.RttManager.ResponderConfig;
@@ -1654,6 +1655,30 @@ public class WifiVendorHal {
     }
 
     /**
+     * Set Mac address on the given interface
+     *
+     * @param ifaceName Name of the interface
+     * @param mac MAC address to change into
+     * @return true for success
+     */
+    public boolean setMacAddress(@NonNull String ifaceName, @NonNull MacAddress mac) {
+        byte[] macByteArray = mac.toByteArray();
+        synchronized (sLock) {
+            try {
+                android.hardware.wifi.V1_2.IWifiStaIface ifaceV12 =
+                        getWifiStaIfaceForV1_2Mockable(ifaceName);
+                if (ifaceV12 == null) return boolResult(false);
+                WifiStatus status = ifaceV12.setMacAddress(macByteArray);
+                if (!ok(status)) return false;
+                return true;
+            } catch (RemoteException e) {
+                handleRemoteException(e);
+                return false;
+            }
+        }
+    }
+
+    /**
      * Get the APF (Android Packet Filter) capabilities of the device
      *
      * @param ifaceName Name of the interface.
@@ -2543,6 +2568,21 @@ public class WifiVendorHal {
         if (mIWifiChip == null) return null;
         return android.hardware.wifi.V1_2.IWifiChip.castFrom(mIWifiChip);
     }
+
+    /**
+     * Method to mock out the V1_2 IWifiStaIface retrieval in unit tests.
+     *
+     * @param ifaceName Name of the interface
+     * @return 1.2 IWifiStaIface object if the device is running the 1.2 wifi hal service, null
+     * otherwise.
+     */
+    protected android.hardware.wifi.V1_2.IWifiStaIface getWifiStaIfaceForV1_2Mockable(
+            @NonNull String ifaceName) {
+        IWifiStaIface iface = getStaIface(ifaceName);
+        if (iface == null) return null;
+        return android.hardware.wifi.V1_2.IWifiStaIface.castFrom(iface);
+    }
+
 
     private int frameworkToHalTxPowerScenario(int scenario) {
         switch (scenario) {
