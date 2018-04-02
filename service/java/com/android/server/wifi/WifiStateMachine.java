@@ -2210,9 +2210,7 @@ public class WifiStateMachine extends StateMachine {
                 if (report != null) {
                     sb.append(" ").append(report);
                 }
-                if (mWifiScoreReport.isLastReportValid()) {
-                    sb.append(mWifiScoreReport.getLastReport());
-                }
+                sb.append(String.format(" score=%d", mWifiInfo.score));
                 break;
             case CMD_START_CONNECT:
             case WifiManager.CONNECT_NETWORK:
@@ -4352,6 +4350,7 @@ public class WifiStateMachine extends StateMachine {
                     // interest (e.g. routers); harmless if none are configured.
                     if (state == SupplicantState.COMPLETED) {
                         mIpClient.confirmConfiguration();
+                        mWifiScoreReport.noteIpCheck();
                     }
 
                     if (!SupplicantState.isDriverActive(state)) {
@@ -5189,6 +5188,10 @@ public class WifiStateMachine extends StateMachine {
                             // Send the update score to network agent.
                             mWifiScoreReport.calculateAndReportScore(
                                     mWifiInfo, mNetworkAgent, mWifiMetrics);
+                            if (mWifiScoreReport.shouldCheckIpLayer()) {
+                                mIpClient.confirmConfiguration();
+                                mWifiScoreReport.noteIpCheck();
+                            }
                         }
                         sendMessageDelayed(obtainMessage(CMD_RSSI_POLL, mRssiPollToken, 0),
                                 mPollRssiIntervalMsecs);
