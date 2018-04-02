@@ -16,12 +16,17 @@
 
 package com.android.server.wifi;
 
+import android.annotation.NonNull;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.database.ContentObserver;
+import android.net.Uri;
 import android.net.wifi.EAPConstants;
 import android.net.wifi.WifiEnterpriseConfig;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.PersistableBundle;
 import android.telephony.CarrierConfigManager;
 import android.telephony.ImsiEncryptionInfo;
@@ -45,11 +50,13 @@ public class CarrierNetworkConfig {
     private static final int ENCODED_SSID_INDEX = 0;
     private static final int EAP_TYPE_INDEX = 1;
     private static final int CONFIG_ELEMENT_SIZE = 2;
+    private static final Uri CONTENT_URI = Uri.parse("content://carrier_information/carrier");
 
     private final Map<String, NetworkInfo> mCarrierNetworkMap;
     private boolean mIsCarrierImsiEncryptionInfoAvailable = false;
 
-    public CarrierNetworkConfig(Context context) {
+    public CarrierNetworkConfig(@NonNull Context context, @NonNull Looper looper,
+            @NonNull FrameworkFacade framework) {
         mCarrierNetworkMap = new HashMap<>();
         updateNetworkConfig(context);
 
@@ -62,6 +69,14 @@ public class CarrierNetworkConfig {
                 updateNetworkConfig(context);
             }
         }, filter);
+
+        framework.registerContentObserver(context, CONTENT_URI, false,
+                new ContentObserver(new Handler(looper)) {
+                @Override
+                public void onChange(boolean selfChange) {
+                    updateNetworkConfig(context);
+                }
+            });
     }
 
     /**
