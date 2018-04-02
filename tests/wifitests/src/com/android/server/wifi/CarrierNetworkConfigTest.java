@@ -23,9 +23,12 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.database.ContentObserver;
+import android.net.Uri;
 import android.net.wifi.EAPConstants;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.os.PersistableBundle;
+import android.os.test.TestLooper;
 import android.support.test.filters.SmallTest;
 import android.telephony.CarrierConfigManager;
 import android.telephony.ImsiEncryptionInfo;
@@ -62,8 +65,11 @@ public class CarrierNetworkConfigTest {
     @Mock SubscriptionManager mSubscriptionManager;
     @Mock TelephonyManager mTelephonyManager;
     @Mock PublicKey mPublicKey;
+    @Mock FrameworkFacade mFrameworkFacade;
     BroadcastReceiver mBroadcastReceiver;
     CarrierNetworkConfig mCarrierNetworkConfig;
+    TestLooper mLooper;
+    ContentObserver mContentObserver;
 
     private ImsiEncryptionInfo mImsiEncryptionInfo = new ImsiEncryptionInfo(null, null, 0, null,
             mPublicKey, null);
@@ -101,11 +107,18 @@ public class CarrierNetworkConfigTest {
                 .thenReturn(Arrays.asList(new SubscriptionInfo[] {TEST_SUBSCRIPTION_INFO}));
         when(mTelephonyManager.getCarrierInfoForImsiEncryption(TelephonyManager.KEY_TYPE_WLAN))
                 .thenReturn(mImsiEncryptionInfo);
-        mCarrierNetworkConfig = new CarrierNetworkConfig(mContext);
+        mLooper = new TestLooper();
+        mCarrierNetworkConfig = new CarrierNetworkConfig(mContext, mLooper.getLooper(),
+                mFrameworkFacade);
         ArgumentCaptor<BroadcastReceiver> receiver =
                 ArgumentCaptor.forClass(BroadcastReceiver.class);
         verify(mContext).registerReceiver(receiver.capture(), any(IntentFilter.class));
         mBroadcastReceiver = receiver.getValue();
+        ArgumentCaptor<ContentObserver> observerCaptor =
+                ArgumentCaptor.forClass(ContentObserver.class);
+        verify(mFrameworkFacade).registerContentObserver(eq(mContext), any(Uri.class), eq(false),
+                observerCaptor.capture());
+        mContentObserver = observerCaptor.getValue();
         reset(mCarrierConfigManager);
     }
 
@@ -208,5 +221,23 @@ public class CarrierNetworkConfigTest {
     public void receivedNonCarrierConfigChangedIntent() throws Exception {
         mBroadcastReceiver.onReceive(mContext, new Intent("dummyIntent"));
         verify(mCarrierConfigManager, never()).getConfig();
+    }
+
+    /**
+     * Verify that updateNetworkConfig is called when carrier networks certificates are downloaded.
+     */
+    @Test
+    public void onFeatureDisable_setWifiNetworksAvailableNotificationSettingDisabled() {
+        when(mTelephonyManager.getCarrierInfoForImsiEncryption(TelephonyManager.KEY_TYPE_WLAN))
+                .thenReturn(null);
+        mBroadcastReceiver.onReceive(mContext,
+                new Intent(CarrierConfigManager.ACTION_CARRIER_CONFIG_CHANGED));
+        // make sure the initial value is false
+        assertFalse(mCarrierNetworkConfig.isCarrierEncryptionInfoAvailable());
+
+        when(mTelephonyManager.getCarrierInfoForImsiEncryption(TelephonyManager.KEY_TYPE_WLAN))
+                .thenReturn(mImsiEncryptionInfo);
+        mContentObserver.onChange(false);
+        assertTrue(mCarrierNetworkConfig.isCarrierEncryptionInfoAvailable());
     }
 }
