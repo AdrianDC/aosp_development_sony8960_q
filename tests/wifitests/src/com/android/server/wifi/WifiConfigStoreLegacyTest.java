@@ -26,7 +26,7 @@ import android.support.test.filters.SmallTest;
 import android.text.TextUtils;
 import android.util.SparseArray;
 
-import com.android.server.net.IpConfigStore;
+import com.android.server.wifi.WifiConfigStoreLegacy.IpConfigStoreWrapper;
 import com.android.server.wifi.hotspot2.LegacyPasspointConfig;
 import com.android.server.wifi.hotspot2.LegacyPasspointConfigParser;
 
@@ -51,7 +51,7 @@ public class WifiConfigStoreLegacyTest {
     // Test mocks
     @Mock private WifiNative mWifiNative;
     @Mock private WifiNetworkHistory mWifiNetworkHistory;
-    @Mock private IpConfigStore mIpconfigStore;
+    @Mock private IpConfigStoreWrapper mIpconfigStoreWrapper;
     @Mock private LegacyPasspointConfigParser mPasspointConfigParser;
 
     /**
@@ -68,7 +68,7 @@ public class WifiConfigStoreLegacyTest {
         MockitoAnnotations.initMocks(this);
 
         mWifiConfigStore = new WifiConfigStoreLegacy(mWifiNetworkHistory, mWifiNative,
-                mIpconfigStore, mPasspointConfigParser);
+                mIpconfigStoreWrapper, mPasspointConfigParser);
     }
 
     /**
@@ -140,6 +140,8 @@ public class WifiConfigStoreLegacyTest {
                 any(), any(Map.class), any(SparseArray.class));
 
         when(mPasspointConfigParser.parseConfig(anyString())).thenReturn(passpointConfigs);
+        when(mIpconfigStoreWrapper.readIpAndProxyConfigurations(anyString()))
+                .thenReturn(createIpConfigStoreLoadData(networks));
         WifiConfigStoreLegacy.WifiConfigStoreDataLegacy storeData = mWifiConfigStore.read();
 
         // Update the expected configuration for Passpoint network.
@@ -152,6 +154,40 @@ public class WifiConfigStoreLegacyTest {
 
         WifiConfigurationTestUtil.assertConfigurationsEqualForConfigStore(
                 networks, storeData.getConfigurations());
+    }
+
+    /**
+     * Verify loading of network configurations from legacy stores with a null configKey.
+     * This happens if the 'ID_STR' field in wpa_supplicant.conf is not populated for some reason.
+     */
+    @Test
+    public void testLoadFromStoresWithNullConfigKey() throws Exception {
+        WifiConfiguration pskNetwork = WifiConfigurationTestUtil.createPskNetwork();
+        WifiConfiguration wepNetwork = WifiConfigurationTestUtil.createWepNetwork();
+        WifiConfiguration eapNetwork = WifiConfigurationTestUtil.createEapNetwork();
+        eapNetwork.enterpriseConfig.setPassword("EapPassword");
+
+        final List<WifiConfiguration> networks = new ArrayList<>();
+        networks.add(pskNetwork);
+        networks.add(wepNetwork);
+        networks.add(eapNetwork);
+
+        // Return the config data with null configKey.
+        doAnswer(new AnswerWithArguments() {
+            public boolean answer(String ifaceName, Map<String, WifiConfiguration> configs,
+                                  SparseArray<Map<String, String>> networkExtras) {
+                for (Map.Entry<String, WifiConfiguration> entry:
+                        createWpaSupplicantLoadData(networks).entrySet()) {
+                    configs.put(null, entry.getValue());
+                }
+                return true;
+            }
+        }).when(mWifiNative).migrateNetworksFromSupplicant(
+                any(), any(Map.class), any(SparseArray.class));
+
+        when(mIpconfigStoreWrapper.readIpAndProxyConfigurations(anyString()))
+                .thenReturn(createIpConfigStoreLoadData(networks));
+        assertNotNull(mWifiConfigStore.read());
     }
 
     private SparseArray<IpConfiguration> createIpConfigStoreLoadData(
