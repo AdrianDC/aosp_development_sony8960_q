@@ -19,7 +19,8 @@ package com.android.server.wifi;
 import static com.android.server.wifi.WifiController.CMD_AP_STOPPED;
 import static com.android.server.wifi.WifiController.CMD_EMERGENCY_CALL_STATE_CHANGED;
 import static com.android.server.wifi.WifiController.CMD_EMERGENCY_MODE_CHANGED;
-import static com.android.server.wifi.WifiController.CMD_RESTART_WIFI;
+import static com.android.server.wifi.WifiController.CMD_RECOVERY_DISABLE_WIFI;
+import static com.android.server.wifi.WifiController.CMD_RECOVERY_RESTART_WIFI;
 import static com.android.server.wifi.WifiController.CMD_SCAN_ALWAYS_MODE_CHANGED;
 import static com.android.server.wifi.WifiController.CMD_SET_AP;
 import static com.android.server.wifi.WifiController.CMD_WIFI_TOGGLED;
@@ -402,7 +403,8 @@ public class WifiControllerTest {
     @Test
     public void testRestartWifiStackInStaEnabledStateTriggersBugReport() throws Exception {
         enableWifi();
-        mWifiController.sendMessage(CMD_RESTART_WIFI, SelfRecovery.REASON_WIFINATIVE_FAILURE);
+        mWifiController.sendMessage(CMD_RECOVERY_RESTART_WIFI,
+                                    SelfRecovery.REASON_WIFINATIVE_FAILURE);
         mLooper.dispatchAll();
         verify(mWifiStateMachine).takeBugReport(anyString(), anyString());
     }
@@ -410,9 +412,34 @@ public class WifiControllerTest {
     @Test
     public void testRestartWifiWatchdogDoesNotTriggerBugReport() throws Exception {
         enableWifi();
-        mWifiController.sendMessage(CMD_RESTART_WIFI, SelfRecovery.REASON_LAST_RESORT_WATCHDOG);
+        mWifiController.sendMessage(CMD_RECOVERY_RESTART_WIFI,
+                                    SelfRecovery.REASON_LAST_RESORT_WATCHDOG);
         mLooper.dispatchAll();
         verify(mWifiStateMachine, never()).takeBugReport(anyString(), anyString());
+    }
+
+    /**
+     * When in sta mode, CMD_RECOVERY_DISABLE_WIFI messages should trigger wifi to disable.
+     */
+    @Test
+    public void testRecoveryDisabledTurnsWifiOff() throws Exception {
+        enableWifi();
+        reset(mWifiStateMachine);
+        mWifiController.sendMessage(CMD_RECOVERY_DISABLE_WIFI);
+        mLooper.dispatchAll();
+        verify(mWifiStateMachine).setOperationalMode(WifiStateMachine.DISABLED_MODE);
+    }
+
+    /**
+     * When wifi is disabled, CMD_RECOVERY_DISABLE_WIFI should not trigger a state change.
+     */
+    @Test
+    public void testRecoveryDisabledWhenWifiAlreadyOff() throws Exception {
+        reset(mWifiStateMachine, mWifiStateMachinePrime);
+        assertEquals("StaDisabledWithScanState", getCurrentState().getName());
+        mWifiController.sendMessage(CMD_RECOVERY_DISABLE_WIFI);
+        mLooper.dispatchAll();
+        verifyZeroInteractions(mWifiStateMachine, mWifiStateMachinePrime);
     }
 
     /**
@@ -439,7 +466,7 @@ public class WifiControllerTest {
 
         reset(mWifiStateMachine);
         assertEquals("ApStaDisabledState", getCurrentState().getName());
-        mWifiController.sendMessage(CMD_RESTART_WIFI);
+        mWifiController.sendMessage(CMD_RECOVERY_RESTART_WIFI);
         mLooper.dispatchAll();
         verifyZeroInteractions(mWifiStateMachine);
     }
@@ -457,7 +484,7 @@ public class WifiControllerTest {
     public void testRestartWifiStackInStaDisabledWithScanState() throws Exception {
         reset(mWifiStateMachine);
         assertEquals("StaDisabledWithScanState", getCurrentState().getName());
-        mWifiController.sendMessage(CMD_RESTART_WIFI);
+        mWifiController.sendMessage(CMD_RECOVERY_RESTART_WIFI);
         mLooper.dispatchAll();
         verifyZeroInteractions(mWifiStateMachine);
     }
@@ -478,7 +505,7 @@ public class WifiControllerTest {
 
         reset(mWifiStateMachine);
         assertEquals("DeviceActiveState", getCurrentState().getName());
-        mWifiController.sendMessage(CMD_RESTART_WIFI);
+        mWifiController.sendMessage(CMD_RECOVERY_RESTART_WIFI);
         mLooper.dispatchAll();
         InOrder inOrder = inOrder(mWifiStateMachine);
         inOrder.verify(mWifiStateMachine).setOperationalMode(WifiStateMachine.CONNECT_MODE);
@@ -503,7 +530,7 @@ public class WifiControllerTest {
         assertInEcm(true);
 
         reset(mWifiStateMachine);
-        mWifiController.sendMessage(CMD_RESTART_WIFI);
+        mWifiController.sendMessage(CMD_RECOVERY_RESTART_WIFI);
         mLooper.dispatchAll();
         assertInEcm(true);
         verifyZeroInteractions(mWifiStateMachine);
@@ -524,7 +551,7 @@ public class WifiControllerTest {
         assertEquals("ApEnabledState", getCurrentState().getName());
 
         reset(mWifiStateMachine);
-        mWifiController.sendMessage(CMD_RESTART_WIFI);
+        mWifiController.sendMessage(CMD_RECOVERY_RESTART_WIFI);
         mLooper.dispatchAll();
         verifyZeroInteractions(mWifiStateMachine);
         verify(mWifiStateMachinePrime, never()).disableWifi();
