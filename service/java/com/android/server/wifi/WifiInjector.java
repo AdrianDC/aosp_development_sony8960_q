@@ -167,13 +167,14 @@ public class WifiInjector {
         mBatteryStats = IBatteryStats.Stub.asInterface(mFrameworkFacade.getService(
                 BatteryStats.SERVICE_NAME));
         mWifiStateTracker = new WifiStateTracker(mBatteryStats);
-        mCarrierNetworkConfig = new CarrierNetworkConfig(mContext);
         // Now create and start handler threads
         mWifiServiceHandlerThread = new HandlerThread("WifiService");
         mWifiServiceHandlerThread.start();
         mWifiStateMachineHandlerThread = new HandlerThread("WifiStateMachine");
         mWifiStateMachineHandlerThread.start();
         Looper wifiStateMachineLooper = mWifiStateMachineHandlerThread.getLooper();
+        mCarrierNetworkConfig = new CarrierNetworkConfig(mContext,
+            mWifiServiceHandlerThread.getLooper(), mFrameworkFacade);
         WifiAwareMetrics awareMetrics = new WifiAwareMetrics(mClock);
         mWifiMetrics = new WifiMetrics(mClock, wifiStateMachineLooper, awareMetrics);
         // Modules interacting with Native.
