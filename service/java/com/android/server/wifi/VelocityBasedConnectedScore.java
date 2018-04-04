@@ -62,6 +62,7 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
     @Override
     public void reset() {
         mLastMillis = 0;
+        mThresholdAdjustment = 0;
     }
 
     /**
@@ -153,8 +154,9 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
         if (txSuccessPps < mMinimumPpsForMeasuringSuccess) return;
         if (rxSuccessPps < mMinimumPpsForMeasuringSuccess) return;
         double txBadPps = wifiInfo.txBadRate;
-        double probabilityOfSuccessfulTx = txSuccessPps / (txSuccessPps + txBadPps);
-        if (probabilityOfSuccessfulTx >= 0.2) {
+        double txRetriesPps = wifiInfo.txRetriesRate;
+        double probabilityOfSuccessfulTx = txSuccessPps / (txSuccessPps + txBadPps + txRetriesPps);
+        if (probabilityOfSuccessfulTx > 0.2) {
             // May want this amount to vary with how close to threshold we are
             mThresholdAdjustment -= 0.5;
         }
