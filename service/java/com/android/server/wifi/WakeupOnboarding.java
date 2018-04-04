@@ -27,21 +27,30 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.provider.Settings;
+import android.text.format.DateUtils;
 import android.util.Log;
 
-import com.android.internal.messages.nano.SystemMessageProto.SystemMessage;
+import com.android.internal.annotations.VisibleForTesting;
 
 /**
  * Manages the WiFi Wake onboarding notification.
  *
  * <p>If a user disables wifi with Wifi Wake enabled, this notification is shown to explain that
- * wifi may turn back on automatically. Wifi will not automatically turn back on until after the
- * user interacts with the onboarding notification in some way (e.g. dismiss, tap).
+ * wifi may turn back on automatically. It will be displayed up to 3 times, or until the
+ * user either interacts with the onboarding notification in some way (e.g. dismiss, tap) or
+ * manually enables/disables the feature in WifiSettings.
  */
 public class WakeupOnboarding {
 
     private static final String TAG = "WakeupOnboarding";
+
+    @VisibleForTesting
+    static final int NOTIFICATIONS_UNTIL_ONBOARDED = 3;
+    @VisibleForTesting
+    static final long REQUIRED_NOTIFICATION_DELAY = DateUtils.DAY_IN_MILLIS;
+    private static final long NOT_SHOWN_TIMESTAMP = -1;
 
     private final Context mContext;
     private final WakeupNotificationFactory mWakeupNotificationFactory;
@@ -52,6 +61,8 @@ public class WakeupOnboarding {
     private final FrameworkFacade mFrameworkFacade;
 
     private boolean mIsOnboarded;
+    private int mTotalNotificationsShown;
+    private long mLastShownTimestamp = NOT_SHOWN_TIMESTAMP;
     private boolean mIsNotificationShowing;
 
     private final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
@@ -104,17 +115,46 @@ public class WakeupOnboarding {
 
     /** Shows the onboarding notification if applicable. */
     public void maybeShowNotification() {
-        if (isOnboarded() || mIsNotificationShowing) {
+        maybeShowNotification(SystemClock.elapsedRealtime());
+    }
+
+    @VisibleForTesting
+    void maybeShowNotification(long timestamp) {
+        if (!shouldShowNotification(timestamp)) {
             return;
         }
-
         Log.d(TAG, "Showing onboarding notification.");
+
+        incrementTotalNotificationsShown();
+        mIsNotificationShowing = true;
+        mLastShownTimestamp = timestamp;
 
         mContext.registerReceiver(mBroadcastReceiver, mIntentFilter,
                 null /* broadcastPermission */, mHandler);
-        getNotificationManager().notify(SystemMessage.NOTE_WIFI_WAKE_ONBOARD,
+        getNotificationManager().notify(WakeupNotificationFactory.ONBOARD_ID,
                 mWakeupNotificationFactory.createOnboardingNotification());
-        mIsNotificationShowing = true;
+    }
+
+    /**
+     * Increment the total number of shown notifications and onboard the user if reached the
+     * required amount.
+     */
+    private void incrementTotalNotificationsShown() {
+        mTotalNotificationsShown++;
+        if (mTotalNotificationsShown >= NOTIFICATIONS_UNTIL_ONBOARDED) {
+            setOnboarded();
+        } else {
+            mWifiConfigManager.saveToStore(false /* forceWrite */);
+        }
+    }
+
+    private boolean shouldShowNotification(long timestamp) {
+        if (isOnboarded() || mIsNotificationShowing) {
+            return false;
+        }
+
+        return mLastShownTimestamp == NOT_SHOWN_TIMESTAMP
+                || (timestamp - mLastShownTimestamp) > REQUIRED_NOTIFICATION_DELAY;
     }
 
     /** Handles onboarding cleanup on stop. */
@@ -132,11 +172,15 @@ public class WakeupOnboarding {
         }
 
         mContext.unregisterReceiver(mBroadcastReceiver);
-        getNotificationManager().cancel(SystemMessage.NOTE_WIFI_WAKE_ONBOARD);
+        getNotificationManager().cancel(WakeupNotificationFactory.ONBOARD_ID);
         mIsNotificationShowing = false;
     }
 
-    private void setOnboarded() {
+    /** Sets the user as onboarded and persists to store. */
+    public void setOnboarded() {
+        if (mIsOnboarded) {
+            return;
+        }
         Log.d(TAG, "Setting user as onboarded.");
         mIsOnboarded = true;
         mWifiConfigManager.saveToStore(false /* forceWrite */);
@@ -150,12 +194,17 @@ public class WakeupOnboarding {
         return mNotificationManager;
     }
 
-    /** Returns the {@link WakeupConfigStoreData.DataSource} for the {@link WifiConfigStore}. */
-    public WakeupConfigStoreData.DataSource<Boolean> getDataSource() {
-        return new OnboardingDataSource();
+    /** Returns the {@link WakeupConfigStoreData.DataSource} for the onboarded status. */
+    public WakeupConfigStoreData.DataSource<Boolean> getIsOnboadedDataSource() {
+        return new IsOnboardedDataSource();
     }
 
-    private class OnboardingDataSource implements WakeupConfigStoreData.DataSource<Boolean> {
+    /** Returns the {@link WakeupConfigStoreData.DataSource} for the notification status. */
+    public WakeupConfigStoreData.DataSource<Integer> getNotificationsDataSource() {
+        return new NotificationsDataSource();
+    }
+
+    private class IsOnboardedDataSource implements WakeupConfigStoreData.DataSource<Boolean> {
 
         @Override
         public Boolean getData() {
@@ -165,6 +214,19 @@ public class WakeupOnboarding {
         @Override
         public void setData(Boolean data) {
             mIsOnboarded = data;
+        }
+    }
+
+    private class NotificationsDataSource implements WakeupConfigStoreData.DataSource<Integer> {
+
+        @Override
+        public Integer getData() {
+            return mTotalNotificationsShown;
+        }
+
+        @Override
+        public void setData(Integer data) {
+            mTotalNotificationsShown = data;
         }
     }
 }
