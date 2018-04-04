@@ -4305,7 +4305,9 @@ public class WifiStateMachine extends StateMachine {
                     mSupplicantStateTracker.sendMessage(WifiMonitor.ASSOCIATION_REJECTION_EVENT);
                     // If rejection occurred while Metrics is tracking a ConnnectionEvent, end it.
                     reportConnectionAttemptEnd(
-                            WifiMetrics.ConnectionEvent.FAILURE_ASSOCIATION_REJECTION,
+                            timedOut
+                                    ? WifiMetrics.ConnectionEvent.FAILURE_ASSOCIATION_TIMED_OUT
+                                    : WifiMetrics.ConnectionEvent.FAILURE_ASSOCIATION_REJECTION,
                             WifiMetricsProto.ConnectionEvent.HLF_NONE);
                     mWifiInjector.getWifiLastResortWatchdog()
                             .noteConnectionFailureAndTriggerIfNeeded(
