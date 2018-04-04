@@ -17,6 +17,7 @@
 package com.android.server.wifi;
 
 import android.annotation.NonNull;
+import android.content.Context;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
 import android.os.BatteryStats;
@@ -53,6 +54,7 @@ public class WifiStateMachinePrime {
     private DefaultModeManager mDefaultModeManager;
 
     private final WifiInjector mWifiInjector;
+    private final Context mContext;
     private final Looper mLooper;
     private final WifiNative mWifiNative;
     private final IBatteryStats mBatteryStats;
@@ -125,11 +127,13 @@ public class WifiStateMachinePrime {
     }
 
     WifiStateMachinePrime(WifiInjector wifiInjector,
+                          Context context,
                           Looper looper,
                           WifiNative wifiNative,
                           DefaultModeManager defaultModeManager,
                           IBatteryStats batteryStats) {
         mWifiInjector = wifiInjector;
+        mContext = context;
         mLooper = looper;
         mWifiNative = wifiNative;
         mActiveModeManagers = new ArraySet();
@@ -279,6 +283,7 @@ public class WifiStateMachinePrime {
                 Log.d(TAG, "Entering WifiDisabledState");
                 // make sure everything is torn down - remove when client mode is moved here
                 cleanup();
+                mDefaultModeManager.sendScanAvailableBroadcast(mContext, false);
             }
 
             @Override
@@ -445,6 +450,9 @@ public class WifiStateMachinePrime {
 
                 // make sure everything is torn down - remove when client mode is moved here
                 cleanup();
+
+                // until softap mode is freed, make sure wifi scanner is disabled
+                mDefaultModeManager.sendScanAvailableBroadcast(mContext, false);
 
                 SoftApModeConfiguration softApModeConfig = mApConfigQueue.poll();
                 WifiConfiguration config = softApModeConfig.getWifiConfiguration();

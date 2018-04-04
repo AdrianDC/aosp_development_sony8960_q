@@ -978,11 +978,6 @@ public class WifiStateMachine extends StateMachine {
         // We update this field when we receive broadcasts from the system.
         handleScreenStateChanged(powerManager.isInteractive());
 
-        final Intent intent = new Intent(WifiManager.WIFI_SCAN_AVAILABLE);
-        intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
-        intent.putExtra(WifiManager.EXTRA_SCAN_AVAILABLE, WIFI_STATE_DISABLED);
-        mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
-
         sendWifiScanAvailable(false);
     }
 
@@ -3861,6 +3856,8 @@ public class WifiStateMachine extends StateMachine {
             transitionTo(mDefaultState);
             return;
         }
+        // we have a new interface, but are not ready for scan requests, let scanner know
+        sendWifiScanAvailable(false);
 
         mIpClient = mFacade.makeIpClient(mContext, mInterfaceName, new IpClientCallback());
         mIpClient.setMulticastFilter(true);

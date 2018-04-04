@@ -18,11 +18,9 @@ package com.android.server.wifi;
 
 import android.annotation.NonNull;
 import android.content.Context;
-import android.content.Intent;
 import android.net.wifi.WifiManager;
 import android.os.Looper;
 import android.os.Message;
-import android.os.UserHandle;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -161,10 +159,12 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                                 mWifiNativeInterfaceCallback);
                         if (TextUtils.isEmpty(mClientInterfaceName)) {
                             Log.e(TAG, "Failed to create ClientInterface. Sit in Idle");
-                            sendScanAvailableBroadcast(false);
                             updateWifiState(WifiManager.WIFI_STATE_UNKNOWN);
                             break;
                         }
+                        // we have a new scanning interface, make sure scanner knows we aren't
+                        // ready yet
+                        sendScanAvailableBroadcast(false);
                         transitionTo(mStartedState);
                         break;
                     default:
@@ -240,23 +240,13 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                 mWakeupController.stop();
                 mWifiNative.teardownInterface(mClientInterfaceName);
                 mClientInterfaceName = null;
-                // let WifiScanner know that wifi is down.
-                sendScanAvailableBroadcast(false);
                 updateWifiState(WifiManager.WIFI_STATE_DISABLED);
                 mScanRequestProxy.clearScanResults();
             }
         }
+    }
 
-        private void sendScanAvailableBroadcast(boolean available) {
-            Log.d(TAG, "sending scan available broadcast: " + available);
-            final Intent intent = new Intent(WifiManager.WIFI_SCAN_AVAILABLE);
-            intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
-            if (available) {
-                intent.putExtra(WifiManager.EXTRA_SCAN_AVAILABLE, WifiManager.WIFI_STATE_ENABLED);
-            } else {
-                intent.putExtra(WifiManager.EXTRA_SCAN_AVAILABLE, WifiManager.WIFI_STATE_DISABLED);
-            }
-            mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
-        }
+    private void sendScanAvailableBroadcast(boolean available) {
+        sendScanAvailableBroadcast(mContext, available);
     }
 }

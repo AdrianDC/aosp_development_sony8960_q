@@ -31,6 +31,7 @@ import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -47,6 +48,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+
+import java.util.List;
 
 /**
  * Unit tests for {@link ScanOnlyModeManager}.
@@ -100,10 +103,12 @@ public class ScanOnlyModeManagerTest {
         mLooper.dispatchAll();
 
         ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(),
+        verify(mContext, times(2)).sendStickyBroadcastAsUser(intentCaptor.capture(),
                 eq(UserHandle.ALL));
+        List<Intent> intents = intentCaptor.getAllValues();
 
-        checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_ENABLED);
+        checkWifiScanStateChangedBroadcast(intents.get(0), WIFI_STATE_DISABLED);
+        checkWifiScanStateChangedBroadcast(intents.get(1), WIFI_STATE_ENABLED);
         checkWifiStateChangeListenerUpdate(WIFI_STATE_ENABLED);
         verify(mScanRequestProxy, atLeastOnce()).enableScanningForHiddenNetworks(false);
     }
@@ -137,10 +142,7 @@ public class ScanOnlyModeManagerTest {
         mScanOnlyModeManager.start();
         mLooper.dispatchAll();
 
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext, atLeastOnce()).sendStickyBroadcastAsUser(intentCaptor.capture(),
-                eq(UserHandle.ALL));
-        checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
+        verify(mContext, never()).sendStickyBroadcastAsUser(any(), eq(UserHandle.ALL));
         checkWifiStateChangeListenerUpdate(WIFI_STATE_UNKNOWN);
     }
 
@@ -167,10 +169,7 @@ public class ScanOnlyModeManagerTest {
         mLooper.dispatchAll();
         // check when interface management it dynamic
         //verify(mWifiNative).teardownInterface(TEST_INTERFACE_NAME);
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext, atLeastOnce()).sendStickyBroadcastAsUser(intentCaptor.capture(),
-                eq(UserHandle.ALL));
-        checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
+        verify(mContext, never()).sendStickyBroadcastAsUser(any(), eq(UserHandle.ALL));
         checkWifiStateChangeListenerUpdate(WIFI_STATE_DISABLED);
         verify(mScanRequestProxy).clearScanResults();
     }
@@ -184,10 +183,7 @@ public class ScanOnlyModeManagerTest {
         reset(mContext);
         mInterfaceCallbackCaptor.getValue().onDestroyed(TEST_INTERFACE_NAME);
         mLooper.dispatchAll();
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(),
-                eq(UserHandle.ALL));
-        checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
+        verify(mContext, never()).sendStickyBroadcastAsUser(any(), eq(UserHandle.ALL));
         checkWifiStateChangeListenerUpdate(WIFI_STATE_DISABLED);
         verify(mScanRequestProxy).clearScanResults();
     }
@@ -219,10 +215,7 @@ public class ScanOnlyModeManagerTest {
         reset(mContext);
         mInterfaceCallbackCaptor.getValue().onDown(TEST_INTERFACE_NAME);
         mLooper.dispatchAll();
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(),
-                                                   eq(UserHandle.ALL));
-        checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
+        verify(mContext, never()).sendStickyBroadcastAsUser(any(), eq(UserHandle.ALL));
         checkWifiStateChangeListenerUpdate(WIFI_STATE_UNKNOWN);
         checkWifiStateChangeListenerUpdate(WIFI_STATE_DISABLED);
         verify(mScanRequestProxy).clearScanResults();

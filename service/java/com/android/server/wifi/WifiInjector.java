@@ -257,7 +257,7 @@ public class WifiInjector {
                 this, mBackupManagerProxy, mCountryCode, mWifiNative,
                 new WrongPasswordNotifier(mContext, mFrameworkFacade));
         IBinder b = mFrameworkFacade.getService(Context.NETWORKMANAGEMENT_SERVICE);
-        mWifiStateMachinePrime = new WifiStateMachinePrime(this, wifiStateMachineLooper,
+        mWifiStateMachinePrime = new WifiStateMachinePrime(this, mContext, wifiStateMachineLooper,
                 mWifiNative, new DefaultModeManager(mContext, wifiStateMachineLooper),
                 mBatteryStats);
         mOpenNetworkNotifier = new OpenNetworkNotifier(mContext,
