@@ -74,21 +74,22 @@ public class WifiNative {
     private final HostapdHal mHostapdHal;
     private final WifiVendorHal mWifiVendorHal;
     private final WificondControl mWificondControl;
+    private final WifiMonitor mWifiMonitor;
     private final INetworkManagementService mNwManagementService;
     private final PropertyService mPropertyService;
     private final WifiMetrics mWifiMetrics;
     private boolean mVerboseLoggingEnabled = false;
 
-    // TODO(b/69426063): Remove interfaceName from constructor once WifiStateMachine switches over
-    // to the new interface management methods.
     public WifiNative(WifiVendorHal vendorHal,
                       SupplicantStaIfaceHal staIfaceHal, HostapdHal hostapdHal,
-                      WificondControl condControl, INetworkManagementService nwService,
+                      WificondControl condControl, WifiMonitor wifiMonitor,
+                      INetworkManagementService nwService,
                       PropertyService propertyService, WifiMetrics wifiMetrics) {
         mWifiVendorHal = vendorHal;
         mSupplicantStaIfaceHal = staIfaceHal;
         mHostapdHal = hostapdHal;
         mWificondControl = condControl;
+        mWifiMonitor = wifiMonitor;
         mNwManagementService = nwService;
         mPropertyService = propertyService;
         mWifiMetrics = wifiMetrics;
@@ -391,6 +392,7 @@ public class WifiNative {
     /** Helper method invoked to teardown client iface and perform necessary cleanup */
     private void onClientInterfaceDestroyed(@NonNull Iface iface) {
         synchronized (mLock) {
+            mWifiMonitor.stopMonitoring(iface.name);
             if (!unregisterNetworkObserver(iface.networkObserver)) {
                 Log.e(TAG, "Failed to unregister network observer on " + iface);
             }
@@ -840,6 +842,7 @@ public class WifiNative {
                 teardownInterface(iface.name);
                 return null;
             }
+            mWifiMonitor.startMonitoring(iface.name);
             // Just to avoid any race conditions with interface state change callbacks,
             // update the interface state before we exit.
             onInterfaceStateChanged(iface, isInterfaceUp(iface.name));
