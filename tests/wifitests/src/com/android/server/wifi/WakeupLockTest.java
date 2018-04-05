@@ -40,6 +40,8 @@ public class WakeupLockTest {
     private static final String SSID_2 = "ssid2";
 
     @Mock private WifiConfigManager mWifiConfigManager;
+    @Mock private WifiWakeMetrics mWifiWakeMetrics;
+    @Mock private Clock mClock;
 
     private ScanResultMatchInfo mNetwork1;
     private ScanResultMatchInfo mNetwork2;
@@ -52,6 +54,8 @@ public class WakeupLockTest {
     public void setUp() {
         MockitoAnnotations.initMocks(this);
 
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(0L);
+
         mNetwork1 = new ScanResultMatchInfo();
         mNetwork1.networkSsid = SSID_1;
         mNetwork1.networkType = ScanResultMatchInfo.NETWORK_TYPE_OPEN;
@@ -60,7 +64,7 @@ public class WakeupLockTest {
         mNetwork2.networkSsid = SSID_2;
         mNetwork2.networkType = ScanResultMatchInfo.NETWORK_TYPE_EAP;
 
-        mWakeupLock = new WakeupLock(mWifiConfigManager);
+        mWakeupLock = new WakeupLock(mWifiConfigManager, mWifiWakeMetrics, mClock);
     }
 
     /**
@@ -71,7 +75,7 @@ public class WakeupLockTest {
      */
     private void updateEnoughTimesToEvictWithAsserts(Collection<ScanResultMatchInfo> networks) {
         for (int i = 0; i < WakeupLock.CONSECUTIVE_MISSED_SCANS_REQUIRED_TO_EVICT; i++) {
-            assertFalse("Lock empty after " + i + " scans", mWakeupLock.isEmpty());
+            assertFalse("Lock empty after " + i + " scans", mWakeupLock.isUnlocked());
             mWakeupLock.update(networks);
         }
     }
@@ -89,33 +93,82 @@ public class WakeupLockTest {
     }
 
     /**
+     * Verify that calling update {@link WakeupLock#CONSECUTIVE_MISSED_SCANS_REQUIRED_TO_EVICT}
+     * times sets the lock to be initialized.
+     */
+    @Test
+    public void verifyInitializingLockByScans() {
+        List<ScanResultMatchInfo> networks = Collections.singletonList(mNetwork1);
+        mWakeupLock.setLock(networks);
+        assertFalse(mWakeupLock.isInitialized());
+
+        mWakeupLock.update(networks);
+        assertFalse(mWakeupLock.isInitialized());
+        mWakeupLock.update(networks);
+        assertFalse(mWakeupLock.isInitialized());
+        mWakeupLock.update(networks);
+        assertTrue(mWakeupLock.isInitialized());
+    }
+
+    /**
+     * Verify that calling update after {@link WakeupLock#MAX_LOCK_TIME_MILLIS} milliseconds sets
+     * the lock to be initialized and does not add the scans to the lock.
+     */
+    @Test
+    public void verifyInitializingLockByTimeout() {
+        when(mClock.getElapsedSinceBootMillis())
+                .thenReturn(0L, WakeupLock.MAX_LOCK_TIME_MILLIS + 1);
+        mWakeupLock.setLock(Collections.emptyList());
+        assertFalse(mWakeupLock.isInitialized());
+
+        List<ScanResultMatchInfo> networks = Collections.singletonList(mNetwork1);
+        mWakeupLock.update(networks);
+        assertTrue(mWakeupLock.isInitialized());
+        assertTrue(mWakeupLock.isUnlocked());
+    }
+
+    /**
+     * Verify that addToLock saves to the store if it changes the contents of the lock.
+     */
+    @Test
+    public void addToLockSavesToStore() {
+        mWakeupLock.setLock(Collections.emptyList());
+
+        List<ScanResultMatchInfo> networks = Collections.singletonList(mNetwork1);
+        mWakeupLock.update(networks);
+
+        // want 2 invocations, once for setLock(), once for addToLock
+        verify(mWifiConfigManager, times(2)).saveToStore(false);
+    }
+
+    /**
      * Verify that the WakeupLock is not empty immediately after being initialized with networks.
      */
     @Test
-    public void verifyNotEmptyWhenInitializedWithNetworkList() {
-        mWakeupLock.initialize(Arrays.asList(mNetwork1, mNetwork2));
-        assertFalse(mWakeupLock.isEmpty());
+    public void verifyNotEmptyWhenSetWithNetworkList() {
+        setLockAndInitializeByTimeout(Arrays.asList(mNetwork1, mNetwork2));
+        assertFalse(mWakeupLock.isUnlocked());
     }
 
     /**
-     * Verify that the WakeupLock is empty when initialized with an empty list.
+     * Verify that the WakeupLock is unlocked when initialized with an empty list.
      */
     @Test
     public void isEmptyWhenInitializedWithEmptyList() {
-        mWakeupLock.initialize(Collections.emptyList());
-        assertTrue(mWakeupLock.isEmpty());
+        setLockAndInitializeByTimeout(Collections.emptyList());
+        assertTrue(mWakeupLock.isUnlocked());
     }
 
     /**
-     * Verify that initializing the WakeupLock clears out previous entries.
+     * Verify that setting the lock clears out previous entries.
      */
     @Test
-    public void initializingLockClearsPreviousNetworks() {
-        mWakeupLock.initialize(Collections.singletonList(mNetwork1));
-        assertFalse(mWakeupLock.isEmpty());
+    public void setLockClearsPreviousNetworks() {
+        setLockAndInitializeByTimeout(Collections.singletonList(mNetwork1));
+        assertFalse(mWakeupLock.isUnlocked());
 
-        mWakeupLock.initialize(Collections.emptyList());
-        assertTrue(mWakeupLock.isEmpty());
+        setLockAndInitializeByTimeout(Collections.emptyList());
+        assertTrue(mWakeupLock.isUnlocked());
     }
 
     /**
@@ -124,11 +177,11 @@ public class WakeupLockTest {
      */
     @Test
     public void updateShouldRemoveNetworksAfterConsecutiveMissedScans() {
-        mWakeupLock.initialize(Collections.singletonList(mNetwork1));
+        setLockAndInitializeByTimeout(Collections.singletonList(mNetwork1));
 
         updateEnoughTimesToEvictWithAsserts(Collections.singletonList(mNetwork2));
 
-        assertTrue(mWakeupLock.isEmpty());
+        assertTrue(mWakeupLock.isUnlocked());
     }
 
     /**
@@ -139,7 +192,7 @@ public class WakeupLockTest {
         List<ScanResultMatchInfo> lockedNetworks = Collections.singletonList(mNetwork1);
         List<ScanResultMatchInfo> updateNetworks = Collections.singletonList(mNetwork2);
 
-        mWakeupLock.initialize(lockedNetworks);
+        setLockAndInitializeByTimeout(lockedNetworks);
 
         // one update without network
         mWakeupLock.update(updateNetworks);
@@ -148,7 +201,7 @@ public class WakeupLockTest {
 
         updateEnoughTimesToEvictWithAsserts(updateNetworks);
 
-        assertTrue(mWakeupLock.isEmpty());
+        assertTrue(mWakeupLock.isUnlocked());
     }
 
     /**
@@ -157,13 +210,13 @@ public class WakeupLockTest {
     @Test
     public void updateWithLockedNetworkAfterItIsRemovedDoesNotReset() {
         List<ScanResultMatchInfo> lockedNetworks = Collections.singletonList(mNetwork1);
-        mWakeupLock.initialize(lockedNetworks);
+        setLockAndInitializeByTimeout(lockedNetworks);
 
         updateEnoughTimesToEvictWithAsserts(Collections.emptyList());
 
-        assertTrue(mWakeupLock.isEmpty());
+        assertTrue(mWakeupLock.isUnlocked());
         mWakeupLock.update(lockedNetworks);
-        assertTrue(mWakeupLock.isEmpty());
+        assertTrue(mWakeupLock.isUnlocked());
     }
 
     /**
@@ -173,13 +226,13 @@ public class WakeupLockTest {
     @Test
     public void networksCanBeRemovedIncrementallyFromLock() {
         List<ScanResultMatchInfo> lockedNetworks = Arrays.asList(mNetwork1, mNetwork2);
-        mWakeupLock.initialize(lockedNetworks);
+        setLockAndInitializeByTimeout(lockedNetworks);
 
         updateEnoughTimesToEvictWithAsserts(Collections.singletonList(mNetwork1));
-        assertFalse(mWakeupLock.isEmpty());
+        assertFalse(mWakeupLock.isUnlocked());
 
         updateEnoughTimesToEvictWithAsserts(Collections.singletonList(mNetwork2));
-        assertTrue(mWakeupLock.isEmpty());
+        assertTrue(mWakeupLock.isUnlocked());
     }
 
     /**
@@ -187,7 +240,7 @@ public class WakeupLockTest {
      */
     @Test
     public void initializeShouldSaveSsidsToStore() {
-        mWakeupLock.initialize(Collections.singletonList(mNetwork1));
+        setLockAndInitializeByTimeout(Collections.singletonList(mNetwork1));
         verify(mWifiConfigManager).saveToStore(eq(false));
     }
 
@@ -196,7 +249,7 @@ public class WakeupLockTest {
      */
     @Test
     public void updateShouldOnlySaveIfLockChanges() {
-        mWakeupLock.initialize(Collections.singletonList(mNetwork1));
+        setLockAndInitializeByTimeout(Collections.singletonList(mNetwork1));
         updateEnoughTimesToEvictWithoutAsserts(Collections.emptyList());
 
         // need exactly 2 invocations: 1 for initialize, 1 for successful update
@@ -208,7 +261,33 @@ public class WakeupLockTest {
      */
     @Test
     public void updateShouldNotSaveIfLockDoesNotChange() {
-        mWakeupLock.update(Collections.singletonList(mNetwork1));
-        verify(mWifiConfigManager, never()).saveToStore(anyBoolean());
+        List<ScanResultMatchInfo> networks = Collections.singletonList(mNetwork1);
+        setLockAndInitializeByTimeout(networks);
+        verify(mWifiConfigManager, times(1)).saveToStore(anyBoolean());
+        mWakeupLock.update(networks);
+    }
+
+    /**
+     * Verify that on unlock, records the unlock event with WifiWakeMetrics with the correct number
+     * of scans.
+     */
+    @Test
+    public void unlockingShouldRecordEventInMetrics() {
+        when(mClock.getElapsedSinceBootMillis())
+                .thenReturn(0L, WakeupLock.MAX_LOCK_TIME_MILLIS + 1);
+        List<ScanResultMatchInfo> networks = Collections.singletonList(mNetwork1);
+        mWakeupLock.setLock(networks);
+        for (int i = 0; i < WakeupLock.CONSECUTIVE_MISSED_SCANS_REQUIRED_TO_EVICT; i++) {
+            mWakeupLock.update(Collections.emptyList());
+        }
+        verify(mWifiWakeMetrics).recordUnlockEvent(3 /* numScans */);
+    }
+
+    private void setLockAndInitializeByTimeout(Collection<ScanResultMatchInfo> networks) {
+        when(mClock.getElapsedSinceBootMillis())
+                .thenReturn(0L, WakeupLock.MAX_LOCK_TIME_MILLIS + 1);
+        mWakeupLock.setLock(networks);
+        mWakeupLock.update(networks);
+        assertTrue(mWakeupLock.isInitialized());
     }
 }

@@ -34,6 +34,8 @@ import com.android.server.wifi.util.WifiPermissionsUtil;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -51,15 +53,21 @@ import javax.annotation.concurrent.NotThreadSafe;
  * c) Will send out the {@link WifiManager#SCAN_RESULTS_AVAILABLE_ACTION} broadcast when new
  * scan results are available.
  * d) Throttle scan requests from non-setting apps:
- *    d.1) For foreground apps, throttle to a max of 1 scan per app every 30 seconds.
- *    d.2) For background apps, throttle to a max of 1 scan from any app every 30 minutes.
+ *  a) Each foreground app can request a max of
+ *   {@link #SCAN_REQUEST_THROTTLE_MAX_IN_TIME_WINDOW_FG_APPS} scan every
+ *   {@link #SCAN_REQUEST_THROTTLE_TIME_WINDOW_FG_APPS_MS}.
+ *  b) Background apps combined can request 1 scan every
+ *   {@link #SCAN_REQUEST_THROTTLE_INTERVAL_BG_APPS_MS}.
  * Note: This class is not thread-safe. It needs to be invoked from WifiStateMachine thread only.
  */
 @NotThreadSafe
 public class ScanRequestProxy {
     private static final String TAG = "WifiScanRequestProxy";
+
     @VisibleForTesting
-    public static final int SCAN_REQUEST_THROTTLE_INTERVAL_FG_APPS_MS = 30 * 1000;
+    public static final int SCAN_REQUEST_THROTTLE_TIME_WINDOW_FG_APPS_MS = 120 * 1000;
+    @VisibleForTesting
+    public static final int SCAN_REQUEST_THROTTLE_MAX_IN_TIME_WINDOW_FG_APPS = 4;
     @VisibleForTesting
     public static final int SCAN_REQUEST_THROTTLE_INTERVAL_BG_APPS_MS = 30 * 60 * 1000;
 
@@ -81,8 +89,8 @@ public class ScanRequestProxy {
     private boolean mIsScanProcessingComplete = true;
     // Timestamps for the last scan requested by any background app.
     private long mLastScanTimestampForBgApps = 0;
-    // Timestamps for the last scan requested by each foreground app.
-    private final ArrayMap<String, Long> mLastScanTimestampsForFgApps = new ArrayMap();
+    // Timestamps for the list of last few scan requests by each foreground app.
+    private final ArrayMap<String, LinkedList<Long>> mLastScanTimestampsForFgApps = new ArrayMap();
     // Scan results cached from the last full single scan request.
     private final List<ScanResult> mLastScanResults = new ArrayList<>();
     // Common scan listener for scan requests.
@@ -223,19 +231,47 @@ public class ScanRequestProxy {
         }
     }
 
+    private void trimPastScanRequestTimesForForegroundApp(
+            List<Long> scanRequestTimestamps, long currentTimeMillis) {
+        Iterator<Long> timestampsIter = scanRequestTimestamps.iterator();
+        while (timestampsIter.hasNext()) {
+            Long scanRequestTimeMillis = timestampsIter.next();
+            if ((currentTimeMillis - scanRequestTimeMillis)
+                    > SCAN_REQUEST_THROTTLE_TIME_WINDOW_FG_APPS_MS) {
+                timestampsIter.remove();
+            } else {
+                // This list is sorted by timestamps, so we can skip any more checks
+                break;
+            }
+        }
+    }
+
+    private LinkedList<Long> getOrCreateScanRequestTimestampsForForegroundApp(String packageName) {
+        LinkedList<Long> scanRequestTimestamps = mLastScanTimestampsForFgApps.get(packageName);
+        if (scanRequestTimestamps == null) {
+            scanRequestTimestamps = new LinkedList<>();
+            mLastScanTimestampsForFgApps.put(packageName, scanRequestTimestamps);
+        }
+        return scanRequestTimestamps;
+    }
+
     /**
      * Checks if the scan request from the app (specified by packageName) needs
      * to be throttled.
+     * The throttle limit allows a max of {@link #SCAN_REQUEST_THROTTLE_MAX_IN_TIME_WINDOW_FG_APPS}
+     * in {@link #SCAN_REQUEST_THROTTLE_TIME_WINDOW_FG_APPS_MS} window.
      */
     private boolean shouldScanRequestBeThrottledForForegroundApp(String packageName) {
-        long lastScanMs = mLastScanTimestampsForFgApps.getOrDefault(packageName, 0L);
-        long elapsedRealtime = mClock.getElapsedSinceBootMillis();
-        if (lastScanMs != 0
-                && (elapsedRealtime - lastScanMs) < SCAN_REQUEST_THROTTLE_INTERVAL_FG_APPS_MS) {
+        LinkedList<Long> scanRequestTimestamps =
+                getOrCreateScanRequestTimestampsForForegroundApp(packageName);
+        long currentTimeMillis = mClock.getElapsedSinceBootMillis();
+        // First evict old entries from the list.
+        trimPastScanRequestTimesForForegroundApp(scanRequestTimestamps, currentTimeMillis);
+        if (scanRequestTimestamps.size() >= SCAN_REQUEST_THROTTLE_MAX_IN_TIME_WINDOW_FG_APPS) {
             return true;
         }
         // Proceed with the scan request and record the time.
-        mLastScanTimestampsForFgApps.put(packageName, elapsedRealtime);
+        scanRequestTimestamps.addLast(currentTimeMillis);
         return false;
     }
 
@@ -275,11 +311,6 @@ public class ScanRequestProxy {
     /**
      * Checks if the scan request from the app (specified by callingUid & packageName) needs
      * to be throttled.
-     *
-     * a) Each foreground app can request 1 scan every
-     * {@link #SCAN_REQUEST_THROTTLE_INTERVAL_FG_APPS_MS}.
-     * b) Background apps combined can request 1 scan every
-     * {@link #SCAN_REQUEST_THROTTLE_INTERVAL_BG_APPS_MS}.
      */
     private boolean shouldScanRequestBeThrottledForApp(int callingUid, String packageName) {
         boolean isThrottled;

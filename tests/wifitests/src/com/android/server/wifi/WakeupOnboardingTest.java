@@ -25,6 +25,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -36,8 +37,6 @@ import android.content.IntentFilter;
 import android.os.Handler;
 import android.os.test.TestLooper;
 import android.provider.Settings;
-
-import com.android.internal.messages.nano.SystemMessageProto.SystemMessage;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -61,7 +60,11 @@ public class WakeupOnboardingTest {
 
     // convenience method for resetting onboarded status
     private void setOnboardedStatus(boolean isOnboarded) {
-        mWakeupOnboarding.getDataSource().setData(isOnboarded);
+        mWakeupOnboarding.getIsOnboadedDataSource().setData(isOnboarded);
+    }
+
+    private void setNotificationsShown(int numNotifications) {
+        mWakeupOnboarding.getNotificationsDataSource().setData(numNotifications);
     }
 
     @Before
@@ -84,7 +87,7 @@ public class WakeupOnboardingTest {
         setOnboardedStatus(false);
         mWakeupOnboarding.maybeShowNotification();
 
-        verify(mNotificationManager).notify(eq(SystemMessage.NOTE_WIFI_WAKE_ONBOARD), any());
+        verify(mNotificationManager).notify(eq(WakeupNotificationFactory.ONBOARD_ID), any());
     }
 
     /**
@@ -96,7 +99,7 @@ public class WakeupOnboardingTest {
         mWakeupOnboarding.maybeShowNotification();
 
         verify(mNotificationManager, never())
-                .notify(eq(SystemMessage.NOTE_WIFI_WAKE_ONBOARD), any());
+                .notify(eq(WakeupNotificationFactory.ONBOARD_ID), any());
     }
 
     /**
@@ -110,7 +113,7 @@ public class WakeupOnboardingTest {
 
         InOrder inOrder = Mockito.inOrder(mNotificationManager);
         inOrder.verify(mNotificationManager)
-                .notify(eq(SystemMessage.NOTE_WIFI_WAKE_ONBOARD), any());
+                .notify(eq(WakeupNotificationFactory.ONBOARD_ID), any());
         inOrder.verifyNoMoreInteractions();
     }
 
@@ -130,8 +133,7 @@ public class WakeupOnboardingTest {
 
         broadcastReceiver.onReceive(mContext, new Intent(ACTION_DISMISS_NOTIFICATION));
 
-        verify(mNotificationManager).cancel(SystemMessage.NOTE_WIFI_WAKE_ONBOARD);
-        verify(mWifiConfigManager).saveToStore(false);
+        verify(mNotificationManager).cancel(WakeupNotificationFactory.ONBOARD_ID);
         assertTrue(mWakeupOnboarding.isOnboarded());
     }
 
@@ -155,8 +157,7 @@ public class WakeupOnboardingTest {
         verify(mFrameworkFacade).setIntegerSetting(mContext,
                 Settings.Global.WIFI_WAKEUP_ENABLED, 0);
 
-        verify(mNotificationManager).cancel(SystemMessage.NOTE_WIFI_WAKE_ONBOARD);
-        verify(mWifiConfigManager).saveToStore(false);
+        verify(mNotificationManager).cancel(WakeupNotificationFactory.ONBOARD_ID);
         assertTrue(mWakeupOnboarding.isOnboarded());
     }
 
@@ -179,8 +180,7 @@ public class WakeupOnboardingTest {
 
         verify(mContext).startActivity(any());
 
-        verify(mNotificationManager).cancel(SystemMessage.NOTE_WIFI_WAKE_ONBOARD);
-        verify(mWifiConfigManager).saveToStore(false);
+        verify(mNotificationManager).cancel(WakeupNotificationFactory.ONBOARD_ID);
         assertTrue(mWakeupOnboarding.isOnboarded());
     }
 
@@ -195,7 +195,79 @@ public class WakeupOnboardingTest {
         mWakeupOnboarding.maybeShowNotification();
         mWakeupOnboarding.onStop();
 
-        verify(mNotificationManager).cancel(SystemMessage.NOTE_WIFI_WAKE_ONBOARD);
+        verify(mNotificationManager).cancel(WakeupNotificationFactory.ONBOARD_ID);
         assertFalse(mWakeupOnboarding.isOnboarded());
+    }
+
+    /**
+     * Verify that incrementing the notification count saves to store.
+     */
+    @Test
+    public void setOnboardedSavesToStore() {
+        setOnboardedStatus(false);
+        mWakeupOnboarding.setOnboarded();
+        verify(mWifiConfigManager).saveToStore(false /* forceWrite */);
+        assertTrue(mWakeupOnboarding.isOnboarded());
+    }
+
+    /**
+     * Verify that incrementing the notification count saves to store.
+     */
+    @Test
+    public void incrementingNotificationCountSavesToStore() {
+        setOnboardedStatus(false);
+        setNotificationsShown(0);
+        mWakeupOnboarding.maybeShowNotification();
+        verify(mWifiConfigManager).saveToStore(false /* forceWrite */);
+    }
+
+    /**
+     * Verify that the notification does not show multiple times within 24 hours.
+     */
+    @Test
+    public void doesNotShowMultipleNotificationsWithin24Hours() {
+        setOnboardedStatus(false);
+        setNotificationsShown(0);
+
+        mWakeupOnboarding.maybeShowNotification(0 /* timestamp */);
+        mWakeupOnboarding.onStop();
+        mWakeupOnboarding.maybeShowNotification(0 /* timestamp */);
+
+        InOrder inOrder = Mockito.inOrder(mNotificationManager);
+        inOrder.verify(mNotificationManager)
+                .notify(eq(WakeupNotificationFactory.ONBOARD_ID), any());
+        inOrder.verify(mNotificationManager).cancel(WakeupNotificationFactory.ONBOARD_ID);
+        inOrder.verifyNoMoreInteractions();
+    }
+
+    /**
+     * Verify that notification reappears after 24 hours if not onboarded.
+     */
+    @Test
+    public void showsNotificationsOutsideOf24Hours() {
+        setOnboardedStatus(false);
+        setNotificationsShown(0);
+
+        mWakeupOnboarding.maybeShowNotification(0 /* timestamp */);
+        assertFalse(mWakeupOnboarding.isOnboarded());
+
+        mWakeupOnboarding.onStop();
+        mWakeupOnboarding.maybeShowNotification(WakeupOnboarding.REQUIRED_NOTIFICATION_DELAY + 1);
+
+        verify(mNotificationManager, times(2))
+                .notify(eq(WakeupNotificationFactory.ONBOARD_ID), any());
+    }
+
+    /**
+     * Verify that the user is onboarded after
+     * {@link WakeupOnboarding#NOTIFICATIONS_UNTIL_ONBOARDED} notifications are shown.
+     */
+    @Test
+    public void onboardsUserAfterThreeNotifications() {
+        setOnboardedStatus(false);
+        setNotificationsShown(WakeupOnboarding.NOTIFICATIONS_UNTIL_ONBOARDED - 1);
+
+        mWakeupOnboarding.maybeShowNotification(0 /* timestamp */);
+        assertTrue(mWakeupOnboarding.isOnboarded());
     }
 }

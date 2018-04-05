@@ -189,7 +189,7 @@ public class WifiInjector {
                 ServiceManager.getService(Context.NETWORKMANAGEMENT_SERVICE));
         mWifiNative = new WifiNative(
                 mWifiVendorHal, mSupplicantStaIfaceHal, mHostapdHal, mWificondControl,
-                mNwManagementService, mPropertyService, mWifiMetrics);
+                mWifiMonitor, mNwManagementService, mPropertyService, mWifiMetrics);
         mWifiP2pMonitor = new WifiP2pMonitor(this);
         mSupplicantP2pIfaceHal = new SupplicantP2pIfaceHal(mWifiP2pMonitor);
         mWifiP2pNative = new WifiP2pNative(mSupplicantP2pIfaceHal, mHalDeviceManager);
@@ -273,7 +273,8 @@ public class WifiInjector {
                 mWifiStateMachineHandlerThread.getLooper(), mFrameworkFacade,
                 wakeupNotificationFactory);
         mWakeupController = new WakeupController(mContext,
-                mWifiStateMachineHandlerThread.getLooper(), new WakeupLock(mWifiConfigManager),
+                mWifiStateMachineHandlerThread.getLooper(),
+                new WakeupLock(mWifiConfigManager, mWifiMetrics.getWakeupMetrics(), mClock),
                 WakeupEvaluator.fromContext(mContext), wakeupOnboarding, mWifiConfigManager,
                 mWifiConfigStore, mWifiMetrics.getWakeupMetrics(), this, mFrameworkFacade);
         mLockManager = new WifiLockManager(mContext, BatteryStatsService.getService());
