@@ -64,6 +64,12 @@ public class ScoringParams {
         public static final int MAX_HORIZON = 60;
         public int horizon = 15;
 
+        /** Number 0-10 influencing requests for network unreachability detection */
+        public static final String KEY_NUD = "nud";
+        public static final int MIN_NUD = 0;
+        public static final int MAX_NUD = 10;
+        public int nud = 0;
+
         Values() {
         }
 
@@ -78,6 +84,7 @@ public class ScoringParams {
                 pps[i] = source.pps[i];
             }
             horizon = source.horizon;
+            nud = source.nud;
         }
 
         public void validate() throws IllegalArgumentException {
@@ -85,6 +92,7 @@ public class ScoringParams {
             validateRssiArray(rssi5);
             validateOrderedNonNegativeArray(pps);
             validateRange(horizon, MIN_HORIZON, MAX_HORIZON);
+            validateRange(nud, MIN_NUD, MAX_NUD);
         }
 
         private void validateRssiArray(int[] rssi) throws IllegalArgumentException {
@@ -122,6 +130,7 @@ public class ScoringParams {
             updateIntArray(rssi5, parser, KEY_RSSI5);
             updateIntArray(pps, parser, KEY_PPS);
             horizon = updateInt(parser, KEY_HORIZON, horizon);
+            nud = updateInt(parser, KEY_NUD, nud);
         }
 
         private int updateInt(KeyValueListParser parser, String key, int defaultValue)
@@ -153,11 +162,12 @@ public class ScoringParams {
             appendInts(sb, rssi2);
             appendKey(sb, KEY_RSSI5);
             appendInts(sb, rssi5);
-            //TODO(b/74613347) - leave these out, pending unit test updates
-            // appendKey(sb, KEY_PPS);
-            // appendInts(sb, pps);
+            appendKey(sb, KEY_PPS);
+            appendInts(sb, pps);
             appendKey(sb, KEY_HORIZON);
             sb.append(horizon);
+            appendKey(sb, KEY_NUD);
+            sb.append(nud);
             return sb.toString();
         }
 
@@ -325,6 +335,21 @@ public class ScoringParams {
      */
     public int getYippeeSkippyPacketsPerSecond() {
         return mVal.pps[2];
+    }
+
+    /**
+     * Returns a number between 0 and 10 inclusive that indicates
+     * how aggressive to be about asking for IP configuration checks
+     * (also known as Network Unreachabilty Detection, or NUD).
+     *
+     * 0 - no nud checks requested by scorer (framework still checks after roam)
+     * 1 - check when score becomes very low
+     *     ...
+     * 10 - check when score first breaches threshold, and again as it gets worse
+     *
+     */
+    public int getNudKnob() {
+        return mVal.nud;
     }
 
     private static final int MINIMUM_5GHZ_BAND_FREQUENCY_IN_MEGAHERTZ = 5000;
