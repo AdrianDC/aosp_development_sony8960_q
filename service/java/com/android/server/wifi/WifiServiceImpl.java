@@ -1942,13 +1942,13 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                         == PackageManager.PERMISSION_GRANTED) {
                     hideDefaultMacAddress = false;
                 }
-                if (mWifiPermissionsUtil.canAccessScanResults(callingPackage, uid)) {
-                    hideBssidAndSsid = false;
-                }
+                mWifiPermissionsUtil.enforceCanAccessScanResults(callingPackage, uid);
+                hideBssidAndSsid = false;
             } catch (RemoteException e) {
                 Log.e(TAG, "Error checking receiver permission", e);
             } catch (SecurityException e) {
-                Log.e(TAG, "Security exception checking receiver permission", e);
+                Log.e(TAG, "Security exception checking receiver permission"
+                        + ", hiding ssid and bssid", e);
             }
             if (hideDefaultMacAddress) {
                 result.setMacAddress(WifiInfo.DEFAULT_MAC_ADDRESS);
@@ -1974,9 +1974,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         int uid = Binder.getCallingUid();
         long ident = Binder.clearCallingIdentity();
         try {
-            if (!mWifiPermissionsUtil.canAccessScanResults(callingPackage, uid)) {
-                return new ArrayList<ScanResult>();
-            }
+            mWifiPermissionsUtil.enforceCanAccessScanResults(callingPackage, uid);
             final List<ScanResult> scanResults = new ArrayList<>();
             boolean success = mWifiInjector.getWifiStateMachineHandler().runWithScissors(() -> {
                 scanResults.addAll(mScanRequestProxy.getScanResults());
@@ -1985,6 +1983,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 Log.e(TAG, "Failed to post runnable to fetch scan results");
             }
             return scanResults;
+        } catch (SecurityException e) {
+            return new ArrayList<ScanResult>();
         } finally {
             Binder.restoreCallingIdentity(ident);
         }
