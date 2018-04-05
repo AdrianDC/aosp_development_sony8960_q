@@ -58,10 +58,11 @@ adb pull $REMOTE_COVERAGE_OUTPUT_FILE $COVERAGE_OUTPUT_FILE
 
 java -jar $REPORTER_JAR \
   report \
-  -classfiles $ANDROID_PRODUCT_OUT/../../common/obj/APPS/FrameworksWifiTests_intermediates/jacoco/report-resources/jacoco-report-classes.jar \
-  -html $OUTPUT_DIR \
-  -sourcefiles $ANDROID_BUILD_TOP/frameworks/opt/net/wifi/tests/wifitests/src -sourcefiles $ANDROID_BUILD_TOP/frameworks/opt/net/wifi/service/java \
-  -name wifi-coverage \
+  --classfiles $ANDROID_PRODUCT_OUT/../../common/obj/APPS/FrameworksWifiTests_intermediates/jacoco/report-resources/jacoco-report-classes.jar \
+  --html $OUTPUT_DIR \
+  --sourcefiles $ANDROID_BUILD_TOP/frameworks/opt/net/wifi/tests/wifitests/src \
+  --sourcefiles $ANDROID_BUILD_TOP/frameworks/opt/net/wifi/service/java \
+  --name wifi-coverage \
   $COVERAGE_OUTPUT_FILE
 
 echo Created report at $OUTPUT_DIR/index.html
