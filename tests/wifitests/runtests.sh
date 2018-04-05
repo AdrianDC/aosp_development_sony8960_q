@@ -31,7 +31,7 @@ set -e # fail early
 echo "+ mmma -j32 $ANDROID_BUILD_TOP/frameworks/opt/net/wifi/tests"
 # NOTE Don't actually run the command above since this shell doesn't inherit functions from the
 #      caller.
-make -j32 -C $ANDROID_BUILD_TOP -f build/core/main.mk MODULES-IN-frameworks-opt-net-wifi-tests
+$ANDROID_BUILD_TOP/build/soong/soong_ui.bash --make-mode MODULES-IN-frameworks-opt-net-wifi-tests
 
 set -x # print commands
 
