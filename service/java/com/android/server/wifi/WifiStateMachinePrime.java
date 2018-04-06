@@ -34,9 +34,6 @@ import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 import com.android.server.wifi.WifiNative.StatusListener;
 
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
-
 /**
  * This class provides the implementation for different WiFi operating modes.
  *
@@ -56,12 +53,11 @@ public class WifiStateMachinePrime {
     private final WifiInjector mWifiInjector;
     private final Context mContext;
     private final Looper mLooper;
+    private final Handler mHandler;
     private final WifiNative mWifiNative;
     private final IBatteryStats mBatteryStats;
     private final SelfRecovery mSelfRecovery;
     private BaseWifiDiagnostics mWifiDiagnostics;
-
-    private Queue<SoftApModeConfiguration> mApConfigQueue = new ConcurrentLinkedQueue<>();
 
     // The base for wifi message types
     static final int BASE = Protocol.BASE_WIFI;
@@ -135,6 +131,7 @@ public class WifiStateMachinePrime {
         mWifiInjector = wifiInjector;
         mContext = context;
         mLooper = looper;
+        mHandler = new Handler(looper);
         mWifiNative = wifiNative;
         mActiveModeManagers = new ArraySet();
         mDefaultModeManager = defaultModeManager;
@@ -175,17 +172,48 @@ public class WifiStateMachinePrime {
      * @param wifiConfig SoftApModeConfiguration for the hostapd softap
      */
     public void enterSoftAPMode(@NonNull SoftApModeConfiguration wifiConfig) {
-        mApConfigQueue.offer(wifiConfig);
-        changeMode(ModeStateMachine.CMD_START_SOFT_AP_MODE);
+        mHandler.post(() -> {
+            startSoftAp(wifiConfig);
+        });
     }
 
     /**
-     * Method to fully disable wifi.
+     * Method to stop soft ap for wifi hotspot.
      *
-     * This mode will completely shut down wifi and will not perform any network scans.
+     * This method will stop any active softAp mode managers, if there is one.
+     */
+    public void stopSoftAPMode() {
+        mHandler.post(() -> {
+            for (ActiveModeManager manager : mActiveModeManagers) {
+                if (manager instanceof SoftApManager) {
+                    Log.d(TAG, "Stopping SoftApModeManager");
+                    manager.stop();
+                    mActiveModeManagers.remove(manager);
+                }
+            }
+            updateBatteryStatsWifiState(false);
+        });
+    }
+
+    /**
+     * Method to disable wifi in sta/client mode scenarios.
+     *
+     * This mode will stop any client/scan modes and will not perform any network scans.
      */
     public void disableWifi() {
         changeMode(ModeStateMachine.CMD_DISABLE_WIFI);
+    }
+
+    /**
+     * Method to stop all active modes, for example, when toggling airplane mode.
+     */
+    public void shutdownWifi() {
+        mHandler.post(() -> {
+            for (ActiveModeManager manager : mActiveModeManagers) {
+                manager.stop();
+            }
+            updateBatteryStatsWifiState(false);
+        });
     }
 
     protected String getCurrentMode() {
@@ -196,27 +224,38 @@ public class WifiStateMachinePrime {
         mModeStateMachine.sendMessage(newMode);
     }
 
+    /**
+     *  Helper class to wrap the ActiveModeManager callback objects.
+     */
+    private class ModeCallback {
+        ActiveModeManager mActiveManager;
+
+        void setActiveModeManager(ActiveModeManager manager) {
+            mActiveManager = manager;
+        }
+
+        ActiveModeManager getActiveModeManager() {
+            return mActiveManager;
+        }
+    }
+
     private class ModeStateMachine extends StateMachine {
-        // Commands for the state machine.
+        // Commands for the state machine  - these will be removed,
+        // along with the StateMachine itself
         public static final int CMD_START_CLIENT_MODE    = 0;
         public static final int CMD_START_SCAN_ONLY_MODE = 1;
-        public static final int CMD_START_SOFT_AP_MODE   = 2;
         public static final int CMD_DISABLE_WIFI         = 3;
 
         private final State mWifiDisabledState = new WifiDisabledState();
         private final State mClientModeActiveState = new ClientModeActiveState();
         private final State mScanOnlyModeActiveState = new ScanOnlyModeActiveState();
-        private final State mSoftAPModeActiveState = new SoftAPModeActiveState();
 
         ModeStateMachine() {
             super(TAG, mLooper);
 
-            // CHECKSTYLE:OFF IndentationCheck
             addState(mClientModeActiveState);
             addState(mScanOnlyModeActiveState);
-            addState(mSoftAPModeActiveState);
             addState(mWifiDisabledState);
-            // CHECKSTYLE:ON IndentationCheck
 
             Log.d(TAG, "Starting Wifi in WifiDisabledState");
             setInitialState(mWifiDisabledState);
@@ -236,10 +275,6 @@ public class WifiStateMachinePrime {
                 case ModeStateMachine.CMD_START_SCAN_ONLY_MODE:
                     Log.d(TAG, "Switching from " + getCurrentMode() + " to ScanOnlyMode");
                     mModeStateMachine.transitionTo(mScanOnlyModeActiveState);
-                    break;
-                case ModeStateMachine.CMD_START_SOFT_AP_MODE:
-                    Log.d(TAG, "Switching from " + getCurrentMode() + " to SoftApMode");
-                    mModeStateMachine.transitionTo(mSoftAPModeActiveState);
                     break;
                 case ModeStateMachine.CMD_DISABLE_WIFI:
                     Log.d(TAG, "Switching from " + getCurrentMode() + " to WifiDisabled");
@@ -356,13 +391,12 @@ public class WifiStateMachinePrime {
             private class ScanOnlyListener implements ScanOnlyModeManager.Listener {
                 @Override
                 public void onStateChanged(int state) {
-                    Log.d(TAG, "State changed from scan only mode.");
                     if (state == WifiManager.WIFI_STATE_UNKNOWN) {
-                        Log.d(TAG, "ScanOnly mode failed");
+                        Log.d(TAG, "ScanOnlyMode mode failed");
                         // error while setting up scan mode or an unexpected failure.
                         mModeStateMachine.sendMessage(CMD_SCAN_ONLY_MODE_FAILED);
                     } else if (state == WifiManager.WIFI_STATE_DISABLED) {
-                        Log.d(TAG, "ScanOnly mode stopped");
+                        Log.d(TAG, "ScanOnlyMode stopped");
                         //scan only mode stopped
                         mModeStateMachine.sendMessage(CMD_SCAN_ONLY_MODE_STOPPED);
                     } else if (state == WifiManager.WIFI_STATE_ENABLED) {
@@ -416,100 +450,70 @@ public class WifiStateMachinePrime {
                 return HANDLED;
             }
         }
-
-        class SoftAPModeActiveState extends ModeActiveState {
-            private class SoftApCallbackImpl implements WifiManager.SoftApCallback {
-                @Override
-                public void onStateChanged(int state, int reason) {
-                    if (state == WifiManager.WIFI_AP_STATE_DISABLED) {
-                        mModeStateMachine.sendMessage(CMD_AP_STOPPED);
-                    } else if (state == WifiManager.WIFI_AP_STATE_FAILED) {
-                        mModeStateMachine.sendMessage(CMD_START_AP_FAILURE);
-                    }
-
-                    if (mSoftApCallback != null) {
-                        mSoftApCallback.onStateChanged(state, reason);
-                    } else {
-                        Log.wtf(TAG, "SoftApCallback is null. Dropping StateChanged event.");
-                    }
-                }
-
-                @Override
-                public void onNumClientsChanged(int numClients) {
-                    if (mSoftApCallback != null) {
-                        mSoftApCallback.onNumClientsChanged(numClients);
-                    } else {
-                        Log.d(TAG, "SoftApCallback is null. Dropping NumClientsChanged event.");
-                    }
-                }
-            }
-
-            @Override
-            public void enter() {
-                Log.d(TAG, "Entering SoftApModeActiveState");
-
-                // make sure everything is torn down - remove when client mode is moved here
-                cleanup();
-
-                // until softap mode is freed, make sure wifi scanner is disabled
-                mDefaultModeManager.sendScanAvailableBroadcast(mContext, false);
-
-                SoftApModeConfiguration softApModeConfig = mApConfigQueue.poll();
-                WifiConfiguration config = softApModeConfig.getWifiConfiguration();
-                // TODO (b/67601382): add checks for valid softap configs
-                if (config != null && config.SSID != null) {
-                    Log.d(TAG, "Passing config to SoftApManager! " + config);
-                } else {
-                    config = null;
-                }
-                mManager = mWifiInjector.makeSoftApManager(
-                        new SoftApCallbackImpl(), softApModeConfig);
-                mManager.start();
-                mActiveModeManagers.add(mManager);
-                updateBatteryStatsWifiState(true);
-            }
-
-            @Override
-            public boolean processMessage(Message message) {
-                if (checkForAndHandleModeChange(message)) {
-                    return HANDLED;
-                }
-
-                switch(message.what) {
-                    case CMD_START_AP:
-                        Log.d(TAG, "Received CMD_START_AP when active - invalid message - drop");
-                        break;
-                    case CMD_STOP_AP:
-                        mManager.stop();
-                        break;
-                    case CMD_START_AP_FAILURE:
-                        Log.d(TAG, "Failed to start SoftApMode.  Return to WifiDisabledState.");
-                        mModeStateMachine.transitionTo(mWifiDisabledState);
-                        break;
-                    case CMD_AP_STOPPED:
-                        Log.d(TAG, "SoftApModeActiveState stopped. Return to WifiDisabledState.");
-                        mModeStateMachine.transitionTo(mWifiDisabledState);
-                        break;
-                    default:
-                        return NOT_HANDLED;
-                }
-                return HANDLED;
-            }
-        }
     }  // class ModeStateMachine
 
+    private class SoftApCallbackImpl extends ModeCallback implements WifiManager.SoftApCallback {
+        @Override
+        public void onStateChanged(int state, int reason) {
+            if (state == WifiManager.WIFI_AP_STATE_DISABLED) {
+                mActiveModeManagers.remove(getActiveModeManager());
+                updateBatteryStatsWifiState(false);
+            } else if (state == WifiManager.WIFI_AP_STATE_FAILED) {
+                mActiveModeManagers.remove(getActiveModeManager());
+                updateBatteryStatsWifiState(false);
+            }
+
+            if (mSoftApCallback != null) {
+                mSoftApCallback.onStateChanged(state, reason);
+            }
+        }
+
+        @Override
+        public void onNumClientsChanged(int numClients) {
+            if (mSoftApCallback != null) {
+                mSoftApCallback.onNumClientsChanged(numClients);
+            } else {
+                Log.d(TAG, "SoftApCallback is null. Dropping NumClientsChanged event.");
+            }
+        }
+    }
+
+    private void startSoftAp(SoftApModeConfiguration softapConfig) {
+        Log.d(TAG, "Starting SoftApModeManager");
+
+        WifiConfiguration config = softapConfig.getWifiConfiguration();
+        // TODO (b/67601382): add checks for valid softap configs
+        if (config != null && config.SSID != null) {
+            Log.d(TAG, "Passing config to SoftApManager! " + config);
+        } else {
+            config = null;
+        }
+
+        SoftApCallbackImpl callback = new SoftApCallbackImpl();
+        ActiveModeManager manager = mWifiInjector.makeSoftApManager(callback, softapConfig);
+        callback.setActiveModeManager(manager);
+        manager.start();
+        mActiveModeManagers.add(manager);
+        updateBatteryStatsWifiState(true);
+    }
 
     /**
      *  Helper method to report wifi state as on/off (doesn't matter which mode).
      *
-     *  @param enabled boolean indicating if wifi is on or off
+     *  @param enabled boolean indicating that some mode has been turned on or off
      */
     private void updateBatteryStatsWifiState(boolean enabled) {
         try {
             if (enabled) {
-                mBatteryStats.noteWifiOn();
+                if (mActiveModeManagers.size() == 1) {
+                    // only report wifi on if we haven't already
+                    mBatteryStats.noteWifiOn();
+                }
             } else {
-                mBatteryStats.noteWifiOff();
+                if (mActiveModeManagers.size() == 0) {
+                    // only report if we don't have any active modes
+                    mBatteryStats.noteWifiOff();
+                }
             }
         } catch (RemoteException e) {
             Log.e(TAG, "Failed to note battery stats in wifi");
@@ -526,7 +530,6 @@ public class WifiStateMachinePrime {
 
     // callback used to receive callbacks about underlying native failures
     private final class WifiNativeStatusListener implements StatusListener {
-        Handler mHandler = new Handler(mLooper);
 
         @Override
         public void onStatusChanged(boolean isReady) {

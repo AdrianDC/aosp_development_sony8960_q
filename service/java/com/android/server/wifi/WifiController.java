@@ -336,6 +336,11 @@ public class WifiController extends StateMachine {
                     mWifiStateMachine.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
                     break;
                 case CMD_SET_AP:
+                    // first make sure we aren't in airplane mode
+                    if (mSettingsStore.isAirplaneModeOn()) {
+                        log("drop softap requests when in airplane mode");
+                        break;
+                    }
                     if (msg.arg1 == 1) {
                         if (msg.arg2 == 0) { // previous wifi state has not been saved yet
                             mSettingsStore.setWifiSavedState(WifiSettingsStore.WIFI_DISABLED);
@@ -432,14 +437,15 @@ public class WifiController extends StateMachine {
                     break;
                 case CMD_SET_AP:
                     if (msg.arg1 == 1) {
-                        // remeber that we were enabled
+                        // remember that we were enabled
                         mSettingsStore.setWifiSavedState(WifiSettingsStore.WIFI_ENABLED);
+                        // since softap is not split out in WifiController, need to explicitly
+                        // disable client and scan modes
+                        mWifiStateMachinePrime.disableWifi();
+                        mWifiStateMachine.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
+
                         mWifiStateMachinePrime.enterSoftAPMode((SoftApModeConfiguration) msg.obj);
                         transitionTo(mApEnabledState);
-                        // we should just go directly to ApEnabled since we will kill interfaces
-                        // from WSMP
-                        //deferMessage(obtainMessage(msg.what, msg.arg1, 1, msg.obj));
-                        //transitionTo(mApStaDisabledState);
                     }
                     break;
                 default:
@@ -505,13 +511,12 @@ public class WifiController extends StateMachine {
                     // Before starting tethering, turn off supplicant for scan mode
                     if (msg.arg1 == 1) {
                         mSettingsStore.setWifiSavedState(WifiSettingsStore.WIFI_DISABLED);
+                        // since softap is not split out in WifiController, need to explicitly
+                        // disable client and scan modes
+                        mWifiStateMachinePrime.disableWifi();
 
                         mWifiStateMachinePrime.enterSoftAPMode((SoftApModeConfiguration) msg.obj);
                         transitionTo(mApEnabledState);
-                        // we should just go directly to ApEnabled since we will kill interfaces
-                        // from WSMP
-                        //deferMessage(obtainMessage(msg.what, msg.arg1, 1, msg.obj));
-                        //transitionTo(mApStaDisabledState);
                     }
                     break;
                 case CMD_DEFERRED_TOGGLE:
@@ -576,24 +581,26 @@ public class WifiController extends StateMachine {
         }
 
         @Override
+        public void exit() {
+            mWifiStateMachinePrime.stopSoftAPMode();
+        }
+
+        @Override
         public boolean processMessage(Message msg) {
             switch (msg.what) {
                 case CMD_AIRPLANE_TOGGLED:
                     if (mSettingsStore.isAirplaneModeOn()) {
-                        mWifiStateMachinePrime.disableWifi();
-                        mPendingState = mApStaDisabledState;
+                        transitionTo(mApStaDisabledState);
                     }
                     break;
                 case CMD_WIFI_TOGGLED:
                     if (mSettingsStore.isWifiToggleEnabled()) {
-                        mWifiStateMachinePrime.disableWifi();
-                        mPendingState = mDeviceActiveState;
+                        transitionTo(mDeviceActiveState);
                     }
                     break;
                 case CMD_SET_AP:
                     if (msg.arg1 == 0) {
-                        mWifiStateMachinePrime.disableWifi();
-                        mPendingState = getNextWifiState();
+                        transitionTo(getNextWifiState());
                     }
                     break;
                 case CMD_AP_STOPPED:
@@ -609,8 +616,7 @@ public class WifiController extends StateMachine {
                 case CMD_EMERGENCY_CALL_STATE_CHANGED:
                 case CMD_EMERGENCY_MODE_CHANGED:
                     if (msg.arg1 == 1) {
-                        mWifiStateMachinePrime.disableWifi();
-                        mPendingState = mEcmState;
+                        transitionTo(mEcmState);
                     }
                     break;
                 case CMD_AP_START_FAILURE:
