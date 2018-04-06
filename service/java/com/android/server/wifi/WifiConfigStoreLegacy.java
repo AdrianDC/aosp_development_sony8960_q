@@ -81,16 +81,28 @@ public class WifiConfigStoreLegacy {
      */
     private final WifiNetworkHistory mWifiNetworkHistory;
     private final WifiNative mWifiNative;
-    private final IpConfigStore mIpconfigStore;
+    private final IpConfigStoreWrapper mIpconfigStoreWrapper;
 
     private final LegacyPasspointConfigParser mPasspointConfigParser;
 
+    /**
+     * Used to help mocking the static methods of IpconfigStore.
+     */
+    public static class IpConfigStoreWrapper {
+        /**
+         * Read IP configurations from Ip config store.
+         */
+        public SparseArray<IpConfiguration> readIpAndProxyConfigurations(String filePath) {
+            return IpConfigStore.readIpAndProxyConfigurations(filePath);
+        }
+    }
+
     WifiConfigStoreLegacy(WifiNetworkHistory wifiNetworkHistory,
-            WifiNative wifiNative, IpConfigStore ipConfigStore,
+            WifiNative wifiNative, IpConfigStoreWrapper ipConfigStore,
             LegacyPasspointConfigParser passpointConfigParser) {
         mWifiNetworkHistory = wifiNetworkHistory;
         mWifiNative = wifiNative;
-        mIpconfigStore = ipConfigStore;
+        mIpconfigStoreWrapper = ipConfigStore;
         mPasspointConfigParser = passpointConfigParser;
     }
 
@@ -105,7 +117,7 @@ public class WifiConfigStoreLegacy {
     private static WifiConfiguration lookupWifiConfigurationUsingConfigKeyHash(
             Map<String, WifiConfiguration> configurationMap, int hashCode) {
         for (Map.Entry<String, WifiConfiguration> entry : configurationMap.entrySet()) {
-            if (entry.getKey().hashCode() == hashCode) {
+            if (entry.getKey() != null && entry.getKey().hashCode() == hashCode) {
                 return entry.getValue();
             }
         }
@@ -122,7 +134,8 @@ public class WifiConfigStoreLegacy {
         // This is a map of the hash code of the network's configKey to the corresponding
         // IpConfiguration.
         SparseArray<IpConfiguration> ipConfigurations =
-                mIpconfigStore.readIpAndProxyConfigurations(IP_CONFIG_FILE.getAbsolutePath());
+                mIpconfigStoreWrapper.readIpAndProxyConfigurations(
+                        IP_CONFIG_FILE.getAbsolutePath());
         if (ipConfigurations == null || ipConfigurations.size() == 0) {
             Log.w(TAG, "No ip configurations found in ipconfig store");
             return;
