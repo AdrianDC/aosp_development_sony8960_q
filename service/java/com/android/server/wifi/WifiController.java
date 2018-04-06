@@ -655,8 +655,7 @@ public class WifiController extends StateMachine {
             } else if (msg.what == CMD_RECOVERY_RESTART_WIFI) {
                 final String bugTitle = "Wi-Fi BugReport";
                 final String bugDetail;
-                if (msg.obj != null && msg.arg1 < SelfRecovery.REASON_STRINGS.length
-                        && msg.arg1 >= 0) {
+                if (msg.arg1 < SelfRecovery.REASON_STRINGS.length && msg.arg1 >= 0) {
                     bugDetail = SelfRecovery.REASON_STRINGS[msg.arg1];
                 } else {
                     bugDetail = "";
