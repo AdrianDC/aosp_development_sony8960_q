@@ -16,6 +16,8 @@
 
 package com.android.server.wifi;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.AdditionalAnswers.answerVoid;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -272,7 +274,7 @@ public class WifiScoreReportTest {
         mWifiInfo.rxSuccessRate = mScoringParams.getYippeeSkippyPacketsPerSecond() + 0.1;
         assertTrue(mWifiInfo.txSuccessRate > 10);
         mWifiInfo.setFrequency(5220);
-        for (int r = -30; r >= -200; r -= 2) {
+        for (int r = -30; r >= -120; r -= 2) {
             mWifiInfo.setRssi(r);
             mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mWifiMetrics);
             assertTrue(mWifiInfo.score > ConnectedScore.WIFI_TRANSITION_SCORE);
@@ -286,6 +288,86 @@ public class WifiScoreReportTest {
         mWifiInfo.rxSuccessRate = mScoringParams.getYippeeSkippyPacketsPerSecond() + 0.1;
         mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mWifiMetrics);
         assertTrue(mWifiInfo.score < ConnectedScore.WIFI_TRANSITION_SCORE);
+    }
+
+    /**
+     * Never ask for nud check when nud=0
+     */
+    @Test
+    public void neverAskForNudCheckWhenNudKnobIsZero() throws Exception {
+        assertTrue(mScoringParams.update("nud=0"));
+        assertEquals(0, mScoringParams.getNudKnob());
+        mWifiInfo.setFrequency(5220);
+        for (int rssi = -30; rssi >= -120; rssi -= 1) {
+            mWifiInfo.setRssi(rssi);
+            mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mWifiMetrics);
+            assertFalse(mWifiScoreReport.shouldCheckIpLayer());
+        }
+    }
+
+    /**
+     * Eventually ask for nud check when nud=1
+     */
+    @Test
+    public void eventuallyAskForNudCheckWhenNudKnobIsOne() throws Exception {
+        String oops = "nud=1";
+        long lastAskedMillis = 0; // Check that we don't send too soon
+        int asks = 0; // Keep track of how many time we asked
+        assertTrue(mScoringParams.update("nud=1"));
+        assertEquals(1, mScoringParams.getNudKnob());
+        mWifiInfo.setFrequency(5220);
+        for (int rssi = -40; rssi >= -120; rssi -= 1) {
+            mWifiInfo.setRssi(rssi);
+            mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mWifiMetrics);
+            boolean ask = mWifiScoreReport.shouldCheckIpLayer();
+            if (ask) {
+                assertTrue(mWifiInfo.score < ConnectedScore.WIFI_TRANSITION_SCORE);
+                assertTrue(oops, mClock.mWallClockMillis >= lastAskedMillis + 5000);
+                lastAskedMillis = mClock.mWallClockMillis;
+                oops += " " + lastAskedMillis + ":" + mWifiInfo.score;
+                mWifiScoreReport.noteIpCheck();
+                asks++;
+            }
+        }
+        assertTrue(oops + " asks:" + asks, asks > 5 && asks < 12);
+    }
+
+
+    /**
+     * Ask for more nud checks when nud=10
+     */
+    @Test
+    public void askForMoreNudChecksWhenNudKnobIsBigger() throws Exception {
+        String oops = "nud=10";
+        long lastAskedMillis = 0; // Check that we don't send too soon
+        int asks = 0; // Keep track of how many time we asked
+        assertTrue(mScoringParams.update("nud=10"));
+        assertEquals(10, mScoringParams.getNudKnob());
+        mWifiInfo.setFrequency(5220);
+        for (int rssi = -40; rssi >= -120; rssi -= 1) {
+            mWifiInfo.setRssi(rssi);
+            mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mWifiMetrics);
+            boolean ask = mWifiScoreReport.shouldCheckIpLayer();
+            if (ask) {
+                assertTrue(mWifiInfo.score < ConnectedScore.WIFI_TRANSITION_SCORE);
+                assertTrue(oops, mClock.mWallClockMillis >= lastAskedMillis + 5000);
+                lastAskedMillis = mClock.mWallClockMillis;
+                oops += " " + lastAskedMillis + ":" + mWifiInfo.score;
+                mWifiScoreReport.noteIpCheck();
+                asks++;
+            }
+        }
+        assertTrue(oops + " asks:" + asks, asks > 12 && asks < 80);
+    }
+
+    /**
+     * Test initial conditions, and after reset()
+     */
+    @Test
+    public void exerciseReset() throws Exception {
+        assertFalse(mWifiScoreReport.shouldCheckIpLayer());
+        mWifiScoreReport.reset();
+        assertFalse(mWifiScoreReport.shouldCheckIpLayer());
     }
 
     /**
