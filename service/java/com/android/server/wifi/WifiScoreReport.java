@@ -39,9 +39,8 @@ public class WifiScoreReport {
     private boolean mVerboseLoggingEnabled = false;
     private static final long FIRST_REASONABLE_WALL_CLOCK = 1490000000000L; // mid-December 2016
 
-    // Cache of the last score report.
-    private String mReport;
-    private boolean mReportValid = false;
+    // Cache of the last score
+    private int mScore = NetworkAgent.WIFI_BASE_SCORE;
 
     private final ScoringParams mScoringParams;
     private final Clock mClock;
@@ -58,36 +57,15 @@ public class WifiScoreReport {
     }
 
     /**
-     * Method returning the String representation of the last score report.
-     *
-     *  @return String score report
-     */
-    public String getLastReport() {
-        return mReport;
-    }
-
-    /**
      * Reset the last calculated score.
      */
     public void reset() {
-        mReport = "";
-        if (mReportValid) {
-            mSessionNumber++;
-            mReportValid = false;
-        }
+        mSessionNumber++;
+        mScore = NetworkAgent.WIFI_BASE_SCORE;
+        mLastKnownNudCheckScore = ConnectedScore.WIFI_TRANSITION_SCORE;
         mAggressiveConnectedScore.reset();
         mVelocityBasedConnectedScore.reset();
         if (mVerboseLoggingEnabled) Log.d(TAG, "reset");
-    }
-
-    /**
-     * Checks if the last report data is valid or not. This will be cleared when {@link #reset()} is
-     * invoked.
-     *
-     * @return true if valid, false otherwise.
-     */
-    public boolean isLastReportValid() {
-        return mReportValid;
     }
 
     /**
@@ -162,7 +140,7 @@ public class WifiScoreReport {
         //report score
         if (score != wifiInfo.score) {
             if (mVerboseLoggingEnabled) {
-                Log.d(TAG, " report new wifi score " + score);
+                Log.d(TAG, "report new wifi score " + score);
             }
             wifiInfo.score = score;
             if (networkAgent != null) {
@@ -170,9 +148,67 @@ public class WifiScoreReport {
             }
         }
 
-        mReport = String.format(Locale.US, " score=%d", score);
-        mReportValid = true;
         wifiMetrics.incrementWifiScoreCount(score);
+        mScore = score;
+    }
+
+    private static final double TIME_CONSTANT_MILLIS = 30.0e+3;
+    private static final long NUD_THROTTLE_MILLIS = 5000;
+    private long mLastKnownNudCheckTimeMillis = 0;
+    private int mLastKnownNudCheckScore = ConnectedScore.WIFI_TRANSITION_SCORE;
+    private int mNudYes = 0;    // Counts when we voted for a NUD
+    private int mNudCount = 0;  // Counts when we were told a NUD was sent
+
+    /**
+     * Recommends that a layer 3 check be done
+     *
+     * The caller can use this to (help) decide that an IP reachability check
+     * is desirable. The check is not done here; that is the caller's responsibility.
+     *
+     * @return true to indicate that an IP reachability check is recommended
+     */
+    public boolean shouldCheckIpLayer() {
+        int nud = mScoringParams.getNudKnob();
+        if (nud == 0) {
+            return false;
+        }
+        long millis = mClock.getWallClockMillis();
+        long deltaMillis = millis - mLastKnownNudCheckTimeMillis;
+        // Don't ever ask back-to-back - allow at least 5 seconds
+        // for the previous one to finish.
+        if (deltaMillis < NUD_THROTTLE_MILLIS) {
+            return false;
+        }
+        // nud is between 1 and 10 at this point
+        double deltaLevel = 11 - nud;
+        // nextNudBreach is the bar the score needs to cross before we ask for NUD
+        double nextNudBreach = ConnectedScore.WIFI_TRANSITION_SCORE;
+        // If we were below threshold the last time we checked, then compute a new bar
+        // that starts down from there and decays exponentially back up to the steady-state
+        // bar. If 5 time constants have passed, we are 99% of the way there, so skip the math.
+        if (mLastKnownNudCheckScore < ConnectedScore.WIFI_TRANSITION_SCORE
+                && deltaMillis < 5.0 * TIME_CONSTANT_MILLIS) {
+            double a = Math.exp(-deltaMillis / TIME_CONSTANT_MILLIS);
+            nextNudBreach = a * (mLastKnownNudCheckScore - deltaLevel) + (1.0 - a) * nextNudBreach;
+        }
+        if (mScore >= nextNudBreach) {
+            return false;
+        }
+        mNudYes++;
+        return true;
+    }
+
+    /**
+     * Should be called when a reachability check has been issued
+     *
+     * When the caller has requested an IP reachability check, calling this will
+     * help to rate-limit requests via shouldCheckIpLayer()
+     */
+    public void noteIpCheck() {
+        long millis = mClock.getWallClockMillis();
+        mLastKnownNudCheckTimeMillis = millis;
+        mLastKnownNudCheckScore = mScore;
+        mNudCount++;
     }
 
     /**
@@ -201,10 +237,11 @@ public class WifiScoreReport {
         try {
             String timestamp = new SimpleDateFormat("MM-dd HH:mm:ss.SSS").format(new Date(now));
             s = String.format(Locale.US, // Use US to avoid comma/decimal confusion
-                    "%s,%d,%d,%.1f,%.1f,%.1f,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%d,%d",
+                    "%s,%d,%d,%.1f,%.1f,%.1f,%d,%d,%.2f,%.2f,%.2f,%.2f,%d,%d,%d,%d,%d",
                     timestamp, mSessionNumber, netId,
                     rssi, filteredRssi, rssiThreshold, freq, linkSpeed,
                     txSuccessRate, txRetriesRate, txBadRate, rxSuccessRate,
+                    mNudYes, mNudCount,
                     s1, s2, score);
         } catch (Exception e) {
             Log.e(TAG, "format problem", e);
@@ -235,7 +272,7 @@ public class WifiScoreReport {
             history = new LinkedList<>(mLinkMetricsHistory);
         }
         pw.println("time,session,netid,rssi,filtered_rssi,rssi_threshold,"
-                + "freq,linkspeed,tx_good,tx_retry,tx_bad,rx_pps,s1,s2,score");
+                + "freq,linkspeed,tx_good,tx_retry,tx_bad,rx_pps,nudrq,nuds,s1,s2,score");
         for (String line : history) {
             pw.println(line);
         }

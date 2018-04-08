@@ -68,7 +68,7 @@ public class ScoringParams {
         public static final String KEY_NUD = "nud";
         public static final int MIN_NUD = 0;
         public static final int MAX_NUD = 10;
-        public int nud = 0;
+        public int nud = 8;
 
         Values() {
         }

@@ -109,6 +109,11 @@ public class VelocityBasedConnectedScoreTest {
         }
         int score = mVelocityBasedConnectedScore.generateScore();
         assertTrue(score > ConnectedScore.WIFI_TRANSITION_SCORE);
+        // If we reset, should be below threshold after the first input
+        mVelocityBasedConnectedScore.reset();
+        mVelocityBasedConnectedScore.updateUsingWifiInfo(mWifiInfo, mClock.getWallClockMillis());
+        score = mVelocityBasedConnectedScore.generateScore();
+        assertTrue(score < ConnectedScore.WIFI_TRANSITION_SCORE);
     }
 
     /**

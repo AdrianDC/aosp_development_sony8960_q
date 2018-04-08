@@ -94,7 +94,7 @@ public class ScoringParamsTest {
     public void testToString() throws Exception {
         mScoringParams = new ScoringParams();
         String expect =
-                "rssi2=-83:-80:-73:-60,rssi5=-80:-77:-70:-57,pps=0:1:100,horizon=15,nud=0";
+                "rssi2=-83:-80:-73:-60,rssi5=-80:-77:-70:-57,pps=0:1:100,horizon=15,nud=8";
         String actual = mScoringParams.toString();
         assertEquals(expect, actual);
     }
