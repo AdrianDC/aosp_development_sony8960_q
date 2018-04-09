@@ -3267,15 +3267,14 @@ public class WifiStateMachine extends StateMachine {
         if (!WifiConfiguration.isValidMacAddressForRandomization(newMac)) {
             Log.wtf(TAG, "Config generated an invalid MAC address");
         } else if (currentMac.equals(newMac)) {
-            Log.i(TAG, "No changes in MAC address");
+            Log.d(TAG, "No changes in MAC address");
         } else {
-            Log.i(TAG, "ConnectedMacRandomization SSID(" + config.getPrintableSsid()
-                    + "). setMacAddress(" + newMac.toString() + ") from "
-                    + currentMac.toString());
+            mWifiMetrics.logStaEvent(StaEvent.TYPE_MAC_CHANGE, config);
             boolean setMacSuccess =
                     mWifiNative.setMacAddress(mInterfaceName, newMac);
-            Log.i(TAG, "ConnectedMacRandomization  ...setMacAddress("
-                    + newMac.toString() + ") = " + setMacSuccess);
+            Log.d(TAG, "ConnectedMacRandomization SSID(" + config.getPrintableSsid()
+                    + "). setMacAddress(" + newMac.toString() + ") from "
+                    + currentMac.toString() + " = " + setMacSuccess);
         }
     }
 
@@ -3289,6 +3288,7 @@ public class WifiStateMachine extends StateMachine {
         boolean macRandomizationEnabled = (macRandomizationFlag == 1);
         mEnableConnectedMacRandomization.set(macRandomizationEnabled);
         mWifiInfo.setEnableConnectedMacRandomization(macRandomizationEnabled);
+        mWifiMetrics.setIsMacRandomizationOn(macRandomizationEnabled);
         Log.d(TAG, "EnableConnectedMacRandomization Setting changed to "
                 + macRandomizationEnabled);
     }

@@ -91,6 +91,7 @@ import com.android.internal.util.StateMachine;
 import com.android.server.wifi.hotspot2.NetworkDetail;
 import com.android.server.wifi.hotspot2.PasspointManager;
 import com.android.server.wifi.hotspot2.PasspointProvisioningTestUtil;
+import com.android.server.wifi.nano.WifiMetricsProto.StaEvent;
 import com.android.server.wifi.p2p.WifiP2pServiceImpl;
 import com.android.server.wifi.util.WifiPermissionsUtil;
 import com.android.server.wifi.util.WifiPermissionsWrapper;
@@ -2312,6 +2313,8 @@ public class WifiStateMachineTest {
         assertNotEquals(TEST_GLOBAL_MAC_ADDRESS, newMac);
         verify(mWifiConfigManager).setNetworkRandomizedMacAddress(eq(0), eq(newMac));
         verify(mWifiNative).setMacAddress(eq(WIFI_IFACE_NAME), eq(newMac));
+        verify(mWifiMetrics)
+                .logStaEvent(eq(StaEvent.TYPE_MAC_CHANGE), any(WifiConfiguration.class));
         assertEquals(mWsm.getWifiInfo().getMacAddress(), newMac.toString());
     }
 
@@ -2358,6 +2361,8 @@ public class WifiStateMachineTest {
         verify(mWifiConfigManager, never())
                 .setNetworkRandomizedMacAddress(eq(0), any(MacAddress.class));
         verify(mWifiNative, never()).setMacAddress(eq(WIFI_IFACE_NAME), any(MacAddress.class));
+        verify(mWifiMetrics, never())
+                .logStaEvent(eq(StaEvent.TYPE_MAC_CHANGE), any(WifiConfiguration.class));
         assertEquals(mWsm.getWifiInfo().getMacAddress(), oldMac);
     }
 
@@ -2388,6 +2393,25 @@ public class WifiStateMachineTest {
 
         verify(config).getOrCreateRandomizedMacAddress();
         verify(mWifiNative, never()).setMacAddress(eq(WIFI_IFACE_NAME), any(MacAddress.class));
+    }
+
+    /**
+     * Verifies that turning on/off Connected MAC Randomization correctly updates metrics.
+     */
+    @Test
+    public void testUpdateConnectedMacRandomizationSettingMetrics() throws Exception {
+        // Called during setUp
+        verify(mWifiMetrics).setIsMacRandomizationOn(false);
+
+        when(mFrameworkFacade.getIntegerSetting(mContext,
+                Settings.Global.WIFI_CONNECTED_MAC_RANDOMIZATION_ENABLED, 0)).thenReturn(1);
+        mContentObserver.onChange(false);
+        verify(mWifiMetrics).setIsMacRandomizationOn(true);
+
+        when(mFrameworkFacade.getIntegerSetting(mContext,
+                Settings.Global.WIFI_CONNECTED_MAC_RANDOMIZATION_ENABLED, 0)).thenReturn(0);
+        mContentObserver.onChange(false);
+        verify(mWifiMetrics, times(2)).setIsMacRandomizationOn(false);
     }
 
     /**
