@@ -474,7 +474,7 @@ public class WifiInjector {
      */
     public ClientModeManager makeClientModeManager(ClientModeManager.Listener listener) {
         return new ClientModeManager(mContext, mWifiStateMachineHandlerThread.getLooper(),
-                mWifiNative, listener, mWifiMetrics, mScanRequestProxy);
+                mWifiNative, listener, mWifiMetrics, mScanRequestProxy, mWifiStateMachine);
     }
 
     /**

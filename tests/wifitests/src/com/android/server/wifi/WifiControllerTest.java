@@ -369,9 +369,8 @@ public class WifiControllerTest {
         mWifiController.obtainMessage(CMD_AP_STOPPED).sendToTarget();
         mLooper.dispatchAll();
 
-        InOrder inOrder = inOrder(mWifiStateMachine);
-        inOrder.verify(mWifiStateMachine).setOperationalMode(eq(WifiStateMachine.CONNECT_MODE),
-                                                             any());
+        InOrder inOrder = inOrder(mWifiStateMachinePrime);
+        inOrder.verify(mWifiStateMachinePrime).enterClientMode();
         assertEquals("DeviceActiveState", getCurrentState().getName());
     }
 
@@ -396,9 +395,8 @@ public class WifiControllerTest {
         mWifiController.obtainMessage(CMD_AP_STOPPED).sendToTarget();
         mLooper.dispatchAll();
 
-        InOrder inOrder = inOrder(mWifiStateMachine);
-        inOrder.verify(mWifiStateMachine).setOperationalMode(eq(WifiStateMachine.CONNECT_MODE),
-                                                             any());
+        InOrder inOrder = inOrder(mWifiStateMachinePrime);
+        inOrder.verify(mWifiStateMachinePrime).enterClientMode();
         assertEquals("DeviceActiveState", getCurrentState().getName());
     }
 
@@ -426,12 +424,10 @@ public class WifiControllerTest {
     @Test
     public void testRecoveryDisabledTurnsWifiOff() throws Exception {
         enableWifi();
-        reset(mWifiStateMachine);
+        reset(mWifiStateMachinePrime);
         mWifiController.sendMessage(CMD_RECOVERY_DISABLE_WIFI);
         mLooper.dispatchAll();
-        // disabled will be called twice: exit DeviceActive and for enter ApStaDisabled
-        verify(mWifiStateMachine, times(2)).setOperationalMode(
-                eq(WifiStateMachine.DISABLED_MODE), any());
+        verify(mWifiStateMachinePrime).disableWifi();
     }
 
     /**
@@ -516,9 +512,8 @@ public class WifiControllerTest {
         assertEquals("DeviceActiveState", getCurrentState().getName());
         mWifiController.sendMessage(CMD_RECOVERY_RESTART_WIFI);
         mLooper.dispatchAll();
-        InOrder inOrder = inOrder(mWifiStateMachine);
-        inOrder.verify(mWifiStateMachine).setOperationalMode(eq(WifiStateMachine.CONNECT_MODE),
-                                                             any());
+        InOrder inOrder = inOrder(mWifiStateMachinePrime);
+        inOrder.verify(mWifiStateMachinePrime).enterClientMode();
         assertEquals("DeviceActiveState", getCurrentState().getName());
     }
 

@@ -211,6 +211,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                         break;
                     case CMD_INTERFACE_DESTROYED:
                         Log.d(TAG, "Interface cleanly destroyed, report scan mode stop.");
+                        mClientInterfaceName = null;
                         transitionTo(mIdleState);
                         break;
                     case CMD_INTERFACE_STATUS_CHANGED:
@@ -234,10 +235,10 @@ public class ScanOnlyModeManager implements ActiveModeManager {
              */
             @Override
             public void exit() {
+                mWakeupController.stop();
                 if (mClientInterfaceName == null) {
                     return;
                 }
-                mWakeupController.stop();
                 mWifiNative.teardownInterface(mClientInterfaceName);
                 mClientInterfaceName = null;
                 updateWifiState(WifiManager.WIFI_STATE_DISABLED);

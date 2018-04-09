@@ -184,8 +184,6 @@ public class ScanOnlyModeManagerTest {
         mInterfaceCallbackCaptor.getValue().onDestroyed(TEST_INTERFACE_NAME);
         mLooper.dispatchAll();
         verify(mContext, never()).sendStickyBroadcastAsUser(any(), eq(UserHandle.ALL));
-        checkWifiStateChangeListenerUpdate(WIFI_STATE_DISABLED);
-        verify(mScanRequestProxy).clearScanResults();
     }
 
     /**

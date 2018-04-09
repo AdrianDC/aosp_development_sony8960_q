@@ -64,6 +64,7 @@ public class ClientModeManagerTest {
     @Mock ClientModeManager.Listener mListener;
     @Mock WifiMonitor mWifiMonitor;
     @Mock ScanRequestProxy mScanRequestProxy;
+    @Mock WifiStateMachine mWifiStateMachine;
 
     final ArgumentCaptor<WifiNative.InterfaceCallback> mInterfaceCallbackCaptor =
             ArgumentCaptor.forClass(WifiNative.InterfaceCallback.class);
@@ -79,7 +80,7 @@ public class ClientModeManagerTest {
 
     private ClientModeManager createClientModeManager() {
         return new ClientModeManager(mContext, mLooper.getLooper(), mWifiNative, mListener,
-                mWifiMetrics, mScanRequestProxy);
+                mWifiMetrics, mScanRequestProxy, mWifiStateMachine);
     }
 
     private void startClientModeAndVerifyEnabled() throws Exception {
@@ -101,11 +102,12 @@ public class ClientModeManagerTest {
                 eq(UserHandle.ALL));
 
         List<Intent> intents = intentCaptor.getAllValues();
-        assertEquals(3, intents.size());
+        assertEquals(4, intents.size());
         Log.d(TAG, "captured intents: " + intents);
         checkWifiStateChangedBroadcast(intents.get(0), WIFI_STATE_ENABLING, WIFI_STATE_DISABLED);
-        checkWifiScanStateChangedBroadcast(intents.get(1), WIFI_STATE_ENABLED);
-        checkWifiStateChangedBroadcast(intents.get(2), WIFI_STATE_ENABLED, WIFI_STATE_ENABLING);
+        checkWifiScanStateChangedBroadcast(intents.get(1), WIFI_STATE_DISABLED);
+        checkWifiScanStateChangedBroadcast(intents.get(2), WIFI_STATE_ENABLED);
+        checkWifiStateChangedBroadcast(intents.get(3), WIFI_STATE_ENABLED, WIFI_STATE_ENABLING);
 
         checkWifiStateChangeListenerUpdate(WIFI_STATE_ENABLED);
         verify(mScanRequestProxy, atLeastOnce()).enableScanningForHiddenNetworks(true);
@@ -182,7 +184,10 @@ public class ClientModeManagerTest {
         ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
         verify(mContext, atLeastOnce()).sendStickyBroadcastAsUser(intentCaptor.capture(),
                 eq(UserHandle.ALL));
-        checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
+        List<Intent> intents = intentCaptor.getAllValues();
+        assertEquals(2, intents.size());
+        checkWifiStateChangedBroadcast(intents.get(0), WIFI_STATE_ENABLING, WIFI_STATE_DISABLED);
+        checkWifiStateChangedBroadcast(intents.get(1), WIFI_STATE_DISABLED, WIFI_STATE_UNKNOWN);
         checkWifiStateChangeListenerUpdate(WIFI_STATE_UNKNOWN);
     }
 
@@ -203,7 +208,7 @@ public class ClientModeManagerTest {
         List<Intent> intents = intentCaptor.getAllValues();
         assertEquals(2, intents.size());
         checkWifiStateChangedBroadcast(intents.get(0), WIFI_STATE_ENABLING, WIFI_STATE_DISABLED);
-        checkWifiScanStateChangedBroadcast(intents.get(1), WIFI_STATE_DISABLED);
+        checkWifiStateChangedBroadcast(intents.get(1), WIFI_STATE_DISABLED, WIFI_STATE_UNKNOWN);
         checkWifiStateChangeListenerUpdate(WIFI_STATE_UNKNOWN);
     }
 
@@ -258,9 +263,27 @@ public class ClientModeManagerTest {
     public void clientModeStartedStopsWhenInterfaceDown() throws Exception {
         startClientModeAndVerifyEnabled();
         reset(mContext, mScanRequestProxy);
+        when(mWifiStateMachine.isConnectedMacRandomizationEnabled()).thenReturn(false);
         mInterfaceCallbackCaptor.getValue().onDown(TEST_INTERFACE_NAME);
         mLooper.dispatchAll();
+        verify(mWifiStateMachine).failureDetected(eq(SelfRecovery.REASON_STA_IFACE_DOWN));
         verifyNotificationsForFailure();
+    }
+
+    /**
+     * Triggering interface down when ClientMode is active and Connected MacRandomization is enabled
+     * does not exit the active state.
+     */
+    @Test
+    public void clientModeStartedWithConnectedMacRandDoesNotStopWhenInterfaceDown()
+            throws Exception {
+        startClientModeAndVerifyEnabled();
+        reset(mContext, mScanRequestProxy);
+        when(mWifiStateMachine.isConnectedMacRandomizationEnabled()).thenReturn(true);
+        mInterfaceCallbackCaptor.getValue().onDown(TEST_INTERFACE_NAME);
+        mLooper.dispatchAll();
+        verify(mWifiStateMachine, never()).failureDetected(eq(SelfRecovery.REASON_STA_IFACE_DOWN));
+        verify(mContext, never()).sendStickyBroadcastAsUser(any(), any());
     }
 
     /**

@@ -295,7 +295,6 @@ public class WifiController extends StateMachine {
 
         @Override
         public void enter() {
-            mWifiStateMachine.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
             mWifiStateMachinePrime.disableWifi();
             // Supplicant can't restart right away, so note the time we switched off
             mDisabledTimestamp = SystemClock.elapsedRealtime();
@@ -317,12 +316,6 @@ public class WifiController extends StateMachine {
                             mHaveDeferredEnable = !mHaveDeferredEnable;
                             break;
                         }
-                        // wifi is toggled, we need to explicitly tell WifiStateMachine that we
-                        // are headed to connect mode before going to the DeviceActiveState
-                        // since that will start supplicant and WifiStateMachine may not know
-                        // what state to head to (it might go to scan mode).
-                        mWifiStateMachine.setOperationalMode(WifiStateMachine.CONNECT_MODE,
-                                                             mClientModeCallback);
                         transitionTo(mDeviceActiveState);
                     } else if (checkScanOnlyModeAvailable()) {
                         transitionTo(mStaDisabledWithScanState);
@@ -333,7 +326,6 @@ public class WifiController extends StateMachine {
                         transitionTo(mStaDisabledWithScanState);
                         break;
                     }
-                    mWifiStateMachine.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
                     break;
                 case CMD_SET_AP:
                     // first make sure we aren't in airplane mode
@@ -442,7 +434,6 @@ public class WifiController extends StateMachine {
                         // since softap is not split out in WifiController, need to explicitly
                         // disable client and scan modes
                         mWifiStateMachinePrime.disableWifi();
-                        mWifiStateMachine.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
 
                         mWifiStateMachinePrime.enterSoftAPMode((SoftApModeConfiguration) msg.obj);
                         transitionTo(mApEnabledState);
@@ -463,10 +454,6 @@ public class WifiController extends StateMachine {
 
         @Override
         public void enter() {
-            // first send the message to WSM to trigger the transition and act as a shadow
-            mWifiStateMachine.setOperationalMode(
-                    WifiStateMachine.DISABLED_MODE, null);
-
             // now trigger the actual mode switch in WifiStateMachinePrime
             mWifiStateMachinePrime.enterScanOnlyMode();
 
@@ -490,8 +477,6 @@ public class WifiController extends StateMachine {
                             mHaveDeferredEnable = !mHaveDeferredEnable;
                             break;
                         }
-                        // transition from scan mode to initial state in WifiStateMachine
-                        mWifiStateMachine.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
                         transitionTo(mDeviceActiveState);
                     }
                     break;
@@ -645,7 +630,6 @@ public class WifiController extends StateMachine {
         private int mEcmEntryCount;
         @Override
         public void enter() {
-            mWifiStateMachine.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
             mWifiStateMachinePrime.disableWifi();
             mWifiStateMachine.clearANQPCache();
             mEcmEntryCount = 1;
@@ -707,16 +691,8 @@ public class WifiController extends StateMachine {
     class DeviceActiveState extends State {
         @Override
         public void enter() {
-            mWifiStateMachine.setOperationalMode(WifiStateMachine.CONNECT_MODE,
-                                                 mClientModeCallback);
             mWifiStateMachinePrime.enterClientMode();
             mWifiStateMachine.setHighPerfModeEnabled(false);
-        }
-
-        @Override
-        public void exit() {
-            // need to get WSM out of connect mode (since it doesn't control anything else)
-            mWifiStateMachine.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
         }
 
         @Override

@@ -45,17 +45,20 @@ public class ClientModeManager implements ActiveModeManager {
     private final WifiMetrics mWifiMetrics;
     private final Listener mListener;
     private final ScanRequestProxy mScanRequestProxy;
+    private final WifiStateMachine mWifiStateMachine;
 
     private String mClientInterfaceName;
     private boolean mIfaceIsUp;
 
     ClientModeManager(Context context, @NonNull Looper looper, WifiNative wifiNative,
-            Listener listener, WifiMetrics wifiMetrics, ScanRequestProxy scanRequestProxy) {
+            Listener listener, WifiMetrics wifiMetrics, ScanRequestProxy scanRequestProxy,
+            WifiStateMachine wifiStateMachine) {
         mContext = context;
         mWifiNative = wifiNative;
         mListener = listener;
         mWifiMetrics = wifiMetrics;
         mScanRequestProxy = scanRequestProxy;
+        mWifiStateMachine = wifiStateMachine;
         mStateMachine = new ClientModeStateMachine(looper);
     }
 
@@ -129,17 +132,23 @@ public class ClientModeManager implements ActiveModeManager {
         private final InterfaceCallback mWifiNativeInterfaceCallback = new InterfaceCallback() {
             @Override
             public void onDestroyed(String ifaceName) {
-                sendMessage(CMD_INTERFACE_DESTROYED);
+                if (mClientInterfaceName != null && mClientInterfaceName.equals(ifaceName)) {
+                    sendMessage(CMD_INTERFACE_DESTROYED);
+                }
             }
 
             @Override
             public void onUp(String ifaceName) {
-                sendMessage(CMD_INTERFACE_STATUS_CHANGED, 1);
+                if (mClientInterfaceName != null && mClientInterfaceName.equals(ifaceName)) {
+                    sendMessage(CMD_INTERFACE_STATUS_CHANGED, 1);
+                }
             }
 
             @Override
             public void onDown(String ifaceName) {
-                sendMessage(CMD_INTERFACE_STATUS_CHANGED, 0);
+                if (mClientInterfaceName != null && mClientInterfaceName.equals(ifaceName)) {
+                    sendMessage(CMD_INTERFACE_STATUS_CHANGED, 0);
+                }
             }
         };
 
@@ -173,11 +182,13 @@ public class ClientModeManager implements ActiveModeManager {
                                 false /* not low priority */, mWifiNativeInterfaceCallback);
                         if (TextUtils.isEmpty(mClientInterfaceName)) {
                             Log.e(TAG, "Failed to create ClientInterface. Sit in Idle");
-                            sendScanAvailableBroadcast(false);
                             updateWifiState(WifiManager.WIFI_STATE_UNKNOWN,
                                             WifiManager.WIFI_STATE_ENABLING);
+                            updateWifiState(WifiManager.WIFI_STATE_DISABLED,
+                                            WifiManager.WIFI_STATE_UNKNOWN);
                             break;
                         }
+                        sendScanAvailableBroadcast(false);
                         transitionTo(mStartedState);
                         break;
                     default:
@@ -198,9 +209,16 @@ public class ClientModeManager implements ActiveModeManager {
                 if (isUp) {
                     Log.d(TAG, "Wifi is ready to use for client mode");
                     sendScanAvailableBroadcast(true);
+                    mWifiStateMachine.setOperationalMode(WifiStateMachine.CONNECT_MODE,
+                                                         mClientInterfaceName);
                     updateWifiState(WifiManager.WIFI_STATE_ENABLED,
                                     WifiManager.WIFI_STATE_ENABLING);
                 } else {
+                    if (mWifiStateMachine.isConnectedMacRandomizationEnabled()) {
+                        // Handle the error case where our underlying interface went down if we
+                        // do not have mac randomization enabled (b/72459123).
+                        return;
+                    }
                     // if the interface goes down we should exit and go back to idle state.
                     Log.d(TAG, "interface down!");
                     updateWifiState(WifiManager.WIFI_STATE_UNKNOWN,
@@ -224,7 +242,9 @@ public class ClientModeManager implements ActiveModeManager {
                         // Already started, ignore this command.
                         break;
                     case CMD_INTERFACE_DOWN:
-                        Log.d(TAG, "Interface down!  stop mode");
+                        Log.e(TAG, "Detected an interface down, reporting failure to SelfRecovery");
+                        mWifiStateMachine.failureDetected(SelfRecovery.REASON_STA_IFACE_DOWN);
+
                         updateWifiState(WifiManager.WIFI_STATE_DISABLING,
                                         WifiManager.WIFI_STATE_UNKNOWN);
                         transitionTo(mIdleState);
@@ -255,6 +275,7 @@ public class ClientModeManager implements ActiveModeManager {
                 if (mClientInterfaceName == null) {
                     return;
                 }
+                mWifiStateMachine.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
                 mWifiNative.teardownInterface(mClientInterfaceName);
                 // let WifiScanner know that wifi is down.
                 sendScanAvailableBroadcast(false);

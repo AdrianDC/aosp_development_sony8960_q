@@ -118,8 +118,7 @@ public class WifiStateMachinePrime {
      * Called from WifiController to register a callback for notifications from ClientModeManager
      */
     public void registerClientModeCallback(@NonNull ClientModeManager.Listener callback) {
-        // uncomment when client mode moves here
-        // mClientModeCallback = callback;
+        mClientModeCallback = callback;
     }
 
     WifiStateMachinePrime(WifiInjector wifiInjector,
@@ -286,11 +285,6 @@ public class WifiStateMachinePrime {
             return HANDLED;
         }
 
-        private void cleanup() {
-            // TODO: Remove this big hammer. We cannot support concurrent interfaces with this!
-            mWifiNative.teardownAllInterfaces();
-        }
-
         class ModeActiveState extends State {
             ActiveModeManager mManager;
             @Override
@@ -316,8 +310,6 @@ public class WifiStateMachinePrime {
             @Override
             public void enter() {
                 Log.d(TAG, "Entering WifiDisabledState");
-                // make sure everything is torn down - remove when client mode is moved here
-                cleanup();
                 mDefaultModeManager.sendScanAvailableBroadcast(mContext, false);
             }
 
@@ -362,20 +354,10 @@ public class WifiStateMachinePrime {
                 Log.d(TAG, "Entering ClientModeActiveState");
 
                 mManager = mWifiInjector.makeClientModeManager(new ClientListener());
-                // DO NOT CALL START YET
-                // mActiveModemanager.start();
+                mManager.start();
                 mActiveModeManagers.add(mManager);
 
                 updateBatteryStatsWifiState(true);
-            }
-
-            @Override
-            public void exit() {
-                Log.d(TAG, "Exiting ClientModeActiveState");
-
-                // OVERRIDE exit() SO WE DO NOT CALL STOP (but we do need to report wifi off)
-
-                updateBatteryStatsWifiState(false);
             }
 
             @Override
@@ -412,12 +394,10 @@ public class WifiStateMachinePrime {
             public void enter() {
                 Log.d(TAG, "Entering ScanOnlyModeActiveState");
 
-                // make sure everything is torn down - remove when client mode is moved here
-                cleanup();
-
                 mManager = mWifiInjector.makeScanOnlyModeManager(new ScanOnlyListener());
                 mManager.start();
                 mActiveModeManagers.add(mManager);
+
                 updateBatteryStatsWifiState(true);
                 updateBatteryStatsScanModeActive();
             }

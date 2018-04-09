@@ -96,7 +96,6 @@ import com.android.internal.util.MessageUtils;
 import com.android.internal.util.Protocol;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
-import com.android.server.wifi.WifiNative.InterfaceCallback;
 import com.android.server.wifi.hotspot2.AnqpEvent;
 import com.android.server.wifi.hotspot2.IconEvent;
 import com.android.server.wifi.hotspot2.NetworkDetail;
@@ -214,28 +213,6 @@ public class WifiStateMachine extends StateMachine {
     private String mLastBssid;
     private int mLastNetworkId; // The network Id we successfully joined
 
-    private final InterfaceCallback mWifiNativeInterfaceCallback = new InterfaceCallback() {
-        @Override
-        public void onDestroyed(String ifaceName) {
-            if (mInterfaceName != null && mInterfaceName.equals(ifaceName)) {
-                sendMessage(CMD_INTERFACE_DESTROYED);
-            }
-        }
-
-        @Override
-        public void onUp(String ifaceName) {
-            if (mInterfaceName != null && mInterfaceName.equals(ifaceName)) {
-                sendMessage(CMD_INTERFACE_STATUS_CHANGED, 1);
-            }
-        }
-
-        @Override
-        public void onDown(String ifaceName) {
-            if (mInterfaceName != null && mInterfaceName.equals(ifaceName)) {
-                sendMessage(CMD_INTERFACE_STATUS_CHANGED, 0);
-            }
-        }
-    };
     private boolean mIpReachabilityDisconnectEnabled = true;
 
     private void processRssiThreshold(byte curRssi, int reason,
@@ -440,16 +417,10 @@ public class WifiStateMachine extends StateMachine {
 
     /* The base for wifi message types */
     static final int BASE = Protocol.BASE_WIFI;
-    /* STA interface destroyed */
-    static final int CMD_INTERFACE_DESTROYED                            = BASE + 13;
-    /* STA interface down */
-    static final int CMD_INTERFACE_DOWN                                 = BASE + 14;
     /* Indicates Static IP succeeded */
     static final int CMD_STATIC_IP_SUCCESS                              = BASE + 15;
     /* Indicates Static IP failed */
     static final int CMD_STATIC_IP_FAILURE                              = BASE + 16;
-    /* Interface status change */
-    static final int CMD_INTERFACE_STATUS_CHANGED                       = BASE + 20;
 
     static final int CMD_BLUETOOTH_ADAPTER_STATE_CHANGE                 = BASE + 31;
 
@@ -740,8 +711,6 @@ public class WifiStateMachine extends StateMachine {
 
     /* Default parent state */
     private State mDefaultState = new DefaultState();
-    /* Temporary initial state */
-    private State mInitialState = new InitialState();
     /* Connecting to an access point */
     private State mConnectModeState = new ConnectModeState();
     /* Connected at 802.11 (L2) level */
@@ -956,14 +925,13 @@ public class WifiStateMachine extends StateMachine {
 
         // CHECKSTYLE:OFF IndentationCheck
         addState(mDefaultState);
-            addState(mInitialState, mDefaultState);
-                addState(mConnectModeState, mInitialState);
-                    addState(mL2ConnectedState, mConnectModeState);
-                        addState(mObtainingIpState, mL2ConnectedState);
-                        addState(mConnectedState, mL2ConnectedState);
-                        addState(mRoamingState, mL2ConnectedState);
-                    addState(mDisconnectingState, mConnectModeState);
-                    addState(mDisconnectedState, mConnectModeState);
+            addState(mConnectModeState, mDefaultState);
+                addState(mL2ConnectedState, mConnectModeState);
+                    addState(mObtainingIpState, mL2ConnectedState);
+                    addState(mConnectedState, mL2ConnectedState);
+                    addState(mRoamingState, mL2ConnectedState);
+                addState(mDisconnectingState, mConnectModeState);
+                addState(mDisconnectedState, mConnectModeState);
         // CHECKSTYLE:ON IndentationCheck
 
         setInitialState(mDefaultState);
@@ -977,8 +945,6 @@ public class WifiStateMachine extends StateMachine {
         // Learn the initial state of whether the screen is on.
         // We update this field when we receive broadcasts from the system.
         handleScreenStateChanged(powerManager.isInteractive());
-
-        sendWifiScanAvailable(false);
     }
 
     private void registerForWifiMonitorEvents()  {
@@ -1482,12 +1448,12 @@ public class WifiStateMachine extends StateMachine {
     /**
      * TODO: doc
      */
-    public void setOperationalMode(int mode, ClientModeManager.Listener callback) {
-        if (mVerboseLoggingEnabled) log("setting operational mode to " + String.valueOf(mode));
-        mModeChange = true;
-        if (callback != null) {
-            mClientModeCallback = callback;
+    public void setOperationalMode(int mode, String ifaceName) {
+        if (mVerboseLoggingEnabled) {
+            log("setting operational mode to " + String.valueOf(mode) + " for iface: " + ifaceName);
         }
+        mModeChange = true;
+        mInterfaceName = ifaceName;
         sendMessage(CMD_SET_OPERATIONAL_MODE, mode, 0);
     }
 
@@ -2463,17 +2429,6 @@ public class WifiStateMachine extends StateMachine {
         if (mVerboseLoggingEnabled) log("mSuspendOptNeedsDisabled " + mSuspendOptNeedsDisabled);
     }
 
-    private void sendWifiScanAvailable(boolean available) {
-        int state = WIFI_STATE_DISABLED;
-        if (available) {
-            state = WIFI_STATE_ENABLED;
-        }
-        final Intent intent = new Intent(WifiManager.WIFI_SCAN_AVAILABLE);
-        intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
-        intent.putExtra(WifiManager.EXTRA_SCAN_AVAILABLE, state);
-        mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
-    }
-
     private void setWifiState(int wifiState) {
         final int previousWifiState = mWifiState.get();
 
@@ -3315,20 +3270,22 @@ public class WifiStateMachine extends StateMachine {
     }
 
     /**
-     * Handle the error case where our underlying interface went down (if we do not have mac
-     * randomization enabled (b/72459123).
+     * Helper method to check if Connected MAC Randomization is enabled - onDown events are skipped
+     * if this feature is enabled (b/72459123).
      *
-     * This method triggers SelfRecovery with the error of REASON_STA_IFACE_DOWN.  SelfRecovery then
-     * decides if wifi should be restarted or disabled.
+     * @return boolean true if Connected MAC randomization is enabled, false otherwise
      */
-    private void handleInterfaceDown() {
-        if (mEnableConnectedMacRandomization.get()) {
-            // interface will go down when mac randomization is active, skip
-            Log.d(TAG, "MacRandomization enabled, ignoring iface down");
-            return;
-        }
+    public boolean isConnectedMacRandomizationEnabled() {
+        return mEnableConnectedMacRandomization.get();
+    }
 
-        Log.e(TAG, "Detected an interface down, report failure to SelfRecovery");
+    /**
+     * Helper method allowing ClientModeManager to report an error (interface went down) and trigger
+     * recovery.
+     *
+     * @param reason int indicating the SelfRecovery failure type.
+     */
+    public void failureDetected(int reason) {
         // report a failure
         mWifiInjector.getSelfRecovery().trigger(SelfRecovery.REASON_STA_IFACE_DOWN);
     }
@@ -3467,9 +3424,6 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_DISABLE_P2P_WATCHDOG_TIMER:
                 case CMD_DISABLE_EPHEMERAL_NETWORK:
                 case CMD_SELECT_TX_POWER_SCENARIO:
-                case CMD_INTERFACE_DESTROYED:
-                case CMD_INTERFACE_DOWN:
-                case CMD_INTERFACE_STATUS_CHANGED:
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
                     break;
                 case CMD_SET_OPERATIONAL_MODE:
@@ -3651,110 +3605,6 @@ public class WifiStateMachine extends StateMachine {
         }
     }
 
-    class InitialState extends State {
-        private boolean mIfaceIsUp;
-
-        private void onUpChanged(boolean isUp) {
-            if (isUp == mIfaceIsUp) {
-                return;  // no change
-            }
-            mIfaceIsUp = isUp;
-            if (isUp) {
-                Log.d(TAG, "Client mode interface is up");
-                // for now, do nothing - client mode has never waited for iface up
-            } else {
-                // A driver/firmware hang can now put the interface in a down state.
-                // We detect the interface going down and recover from it
-                handleInterfaceDown();
-            }
-        }
-
-        private void cleanup() {
-            // tell scanning service that scans are not available - about to kill the interface and
-            // supplicant
-            sendWifiScanAvailable(false);
-
-            // TODO: Remove this big hammer. We cannot support concurrent interfaces with this!
-            mWifiNative.teardownAllInterfaces();
-            mInterfaceName = null;
-            mIfaceIsUp = false;
-        }
-
-        @Override
-        public void enter() {
-            mIfaceIsUp = false;
-            mWifiStateTracker.updateState(WifiStateTracker.INVALID);
-            cleanup();
-            setWifiState(WIFI_STATE_ENABLING);
-
-            if (mWifiConnectivityManager == null) {
-                synchronized (mWifiReqCountLock) {
-                    mWifiConnectivityManager =
-                            mWifiInjector.makeWifiConnectivityManager(mWifiInfo,
-                                                                      hasConnectionRequests());
-                    mWifiConnectivityManager.setUntrustedConnectionAllowed(mUntrustedReqCount > 0);
-                    mWifiConnectivityManager.handleScreenStateChanged(mScreenOn);
-                }
-            }
-
-            setupClientMode();
-            // now that we have the interface, initialize our up/down status
-            onUpChanged(mWifiNative.isInterfaceUp(mInterfaceName));
-        }
-
-        @Override
-        public void exit() {
-            setWifiState(WIFI_STATE_DISABLING);
-
-            // exiting supplicant started state is now only applicable to client mode
-            mWifiDiagnostics.stopLogging();
-
-            if (mP2pSupported) {
-                 // we are not going to wait for a response - will still temporarily send the
-                 // disable command until p2p can detect the interface up/down on its own.
-                p2pSendMessage(WifiStateMachine.CMD_DISABLE_P2P_REQ);
-            }
-
-            mIsRunning = false;
-            updateBatteryWorkSource(null);
-
-            mNetworkInfo.setIsAvailable(false);
-            if (mNetworkAgent != null) mNetworkAgent.sendNetworkInfo(mNetworkInfo);
-            mCountryCode.setReadyForChange(false);
-            setWifiState(WIFI_STATE_DISABLED);
-        }
-
-        @Override
-        public boolean processMessage(Message message) {
-            logStateAndMessage(message, this);
-            switch (message.what) {
-                case CMD_SET_OPERATIONAL_MODE:
-                    if (message.arg1 == CONNECT_MODE) {
-                        break;
-                    } else {
-                        return NOT_HANDLED;
-                    }
-                case CMD_INTERFACE_STATUS_CHANGED:
-                    boolean isUp = message.arg1 == 1;
-                    // For now, this message can be triggered due to link state and/or interface
-                    // status changes (b/77218676).  First check if we really see an iface down by
-                    // consulting our view of supplicant state.
-                    if (!isUp && SupplicantState.isDriverActive(mWifiInfo.getSupplicantState())) {
-                        // the driver is active, so this could just be part of normal operation, do
-                        // not disable wifi in these cases (ex, a network was removed) or worry
-                        // about the link status
-                        break;
-                    }
-
-                    onUpChanged(isUp);
-                    break;
-                default:
-                    return NOT_HANDLED;
-            }
-            return HANDLED;
-        }
-    }
-
     String smToString(Message message) {
         return smToString(message.what);
     }
@@ -3848,21 +3698,21 @@ public class WifiStateMachine extends StateMachine {
      * Helper method to start other services and get state ready for client mode
      */
     private void setupClientMode() {
-        mInterfaceName = mWifiNative.setupInterfaceForClientMode(false,
-                mWifiNativeInterfaceCallback);
-        if (TextUtils.isEmpty(mInterfaceName)) {
-            Log.e(TAG, "setup failure when creating client interface.");
-            setWifiState(WifiManager.WIFI_STATE_UNKNOWN);
-            transitionTo(mDefaultState);
-            return;
+        mWifiStateTracker.updateState(WifiStateTracker.INVALID);
+
+        if (mWifiConnectivityManager == null) {
+            synchronized (mWifiReqCountLock) {
+                mWifiConnectivityManager =
+                        mWifiInjector.makeWifiConnectivityManager(mWifiInfo,
+                                                                  hasConnectionRequests());
+                mWifiConnectivityManager.setUntrustedConnectionAllowed(mUntrustedReqCount > 0);
+                mWifiConnectivityManager.handleScreenStateChanged(mScreenOn);
+            }
         }
-        // we have a new interface, but are not ready for scan requests, let scanner know
-        sendWifiScanAvailable(false);
 
         mIpClient = mFacade.makeIpClient(mContext, mInterfaceName, new IpClientCallback());
         mIpClient.setMulticastFilter(true);
         registerForWifiMonitorEvents();
-        mWifiMonitor.startMonitoring(mInterfaceName);
         mWifiInjector.getWifiLastResortWatchdog().clearAllFailureCounts();
         setSupplicantLogLevel();
 
@@ -3929,6 +3779,28 @@ public class WifiStateMachine extends StateMachine {
         mWifiNative.setConcurrencyPriority(true);
     }
 
+    /**
+     * Helper method to stop external services and clean up state from client mode.
+     */
+    private void stopClientMode() {
+        // exiting supplicant started state is now only applicable to client mode
+        mWifiDiagnostics.stopLogging();
+
+        if (mP2pSupported) {
+            // we are not going to wait for a response - will still temporarily send the
+            // disable command until p2p can detect the interface up/down on its own.
+            p2pSendMessage(WifiStateMachine.CMD_DISABLE_P2P_REQ);
+        }
+
+        mIsRunning = false;
+        updateBatteryWorkSource(null);
+
+        mNetworkInfo.setIsAvailable(false);
+        if (mNetworkAgent != null) mNetworkAgent.sendNetworkInfo(mNetworkInfo);
+        mCountryCode.setReadyForChange(false);
+        setWifiState(WIFI_STATE_DISABLED);
+    }
+
     void registerConnected() {
         if (mLastNetworkId != WifiConfiguration.INVALID_NETWORK_ID) {
             mWifiConfigManager.updateNetworkAfterConnect(mLastNetworkId);
@@ -3989,13 +3861,13 @@ public class WifiStateMachine extends StateMachine {
 
         @Override
         public void enter() {
+            setupClientMode();
             if (!mWifiNative.removeAllNetworks(mInterfaceName)) {
                 loge("Failed to remove networks on entering connect mode");
             }
             mScanRequestProxy.enableScanningForHiddenNetworks(true);
             mWifiInfo.reset();
             mWifiInfo.setSupplicantState(SupplicantState.DISCONNECTED);
-            sendWifiScanAvailable(true);
             // Let the system know that wifi is available in client mode.
             setWifiState(WIFI_STATE_ENABLED);
 
@@ -4035,6 +3907,7 @@ public class WifiStateMachine extends StateMachine {
             mWifiInfo.reset();
             mWifiInfo.setSupplicantState(SupplicantState.DISCONNECTED);
             setWifiState(WIFI_STATE_DISABLED);
+            stopClientMode();
         }
 
         @Override
@@ -4052,6 +3925,12 @@ public class WifiStateMachine extends StateMachine {
             logStateAndMessage(message, this);
 
             switch (message.what) {
+                case CMD_SET_OPERATIONAL_MODE:
+                    if (message.arg1 == CONNECT_MODE) {
+                        break;
+                    } else {
+                        return NOT_HANDLED;
+                    }
                 case WifiMonitor.ASSOCIATION_REJECTION_EVENT:
                     mWifiDiagnostics.captureBugReportData(
                             WifiDiagnostics.REPORT_REASON_ASSOC_FAILURE);
@@ -4143,18 +4022,6 @@ public class WifiStateMachine extends StateMachine {
                         mIpClient.confirmConfiguration();
                         mWifiScoreReport.noteIpCheck();
                     }
-
-                    if (!SupplicantState.isDriverActive(state)) {
-                        // still use supplicant to detect interface down while work to
-                        // mitigate b/77218676 is in progress
-                        // note: explicitly using this command to dedup iface down notification
-                        // paths (onUpChanged filters out duplicate updates)
-                        sendMessage(CMD_INTERFACE_STATUS_CHANGED, 0);
-                        if (mVerboseLoggingEnabled) {
-                            Log.d(TAG, "detected interface down via supplicant");
-                        }
-                    }
-
                     break;
                 case WifiP2pServiceImpl.DISCONNECT_WIFI_REQUEST:
                     if (message.arg1 == 1) {
