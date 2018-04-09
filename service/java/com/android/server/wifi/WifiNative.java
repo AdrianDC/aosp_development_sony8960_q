@@ -581,13 +581,22 @@ public class WifiNative {
         }
 
         // TODO(b/76219766): We may need to listen for link state changes in SoftAp mode.
+        /**
+         * Note: We should ideally listen to
+         * {@link BaseNetworkObserver#interfaceStatusChanged(String, boolean)} here. But, that
+         * callback is not working currently (broken in netd). So, instead listen to link state
+         * change callbacks as triggers to query the real interface state. We should get rid of
+         * this workaround if we get the |interfaceStatusChanged| callback to work in netd.
+         * Also, this workaround will not detect an interface up event, if the link state is
+         * still down.
+         */
         @Override
-        public void interfaceStatusChanged(String ifaceName, boolean isUp) {
+        public void interfaceLinkStateChanged(String ifaceName, boolean unusedIsLinkUp) {
             synchronized (mLock) {
                 final Iface ifaceWithId = mIfaceMgr.getIface(mInterfaceId);
                 if (ifaceWithId == null) {
                     if (mVerboseLoggingEnabled) {
-                        Log.v(TAG, "Received iface up/down notification on an invalid iface="
+                        Log.v(TAG, "Received iface link up/down notification on an invalid iface="
                                 + mInterfaceId);
                     }
                     return;
@@ -595,12 +604,12 @@ public class WifiNative {
                 final Iface ifaceWithName = mIfaceMgr.getIface(ifaceName);
                 if (ifaceWithName == null || ifaceWithName != ifaceWithId) {
                     if (mVerboseLoggingEnabled) {
-                        Log.v(TAG, "Received iface up/down notification on an invalid iface="
+                        Log.v(TAG, "Received iface link up/down notification on an invalid iface="
                                 + ifaceName);
                     }
                     return;
                 }
-                onInterfaceStateChanged(ifaceWithName, isUp);
+                onInterfaceStateChanged(ifaceWithName, isInterfaceUp(ifaceName));
             }
         }
     }
@@ -902,6 +911,7 @@ public class WifiNative {
     }
 
     /**
+     *
      * Check if the interface is up or down.
      *
      * @param ifaceName Name of the interface.

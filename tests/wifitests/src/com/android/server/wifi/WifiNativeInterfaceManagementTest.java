@@ -78,6 +78,7 @@ public class WifiNativeInterfaceManagementTest {
     @Mock private WifiNative.StatusListener mStatusListener;
     @Mock private WifiNative.InterfaceCallback mIfaceCallback0;
     @Mock private WifiNative.InterfaceCallback mIfaceCallback1;
+    private final InterfaceConfiguration mInterfaceConfiguration = new InterfaceConfiguration();
 
     private ArgumentCaptor<VendorHalDeathEventHandler> mWifiVendorHalDeathHandlerCaptor =
             ArgumentCaptor.forClass(VendorHalDeathEventHandler.class);
@@ -144,6 +145,9 @@ public class WifiNativeInterfaceManagementTest {
         when(mHostapdHal.isInitializationComplete()).thenReturn(true);
         when(mHostapdHal.addAccessPoint(any(), any())).thenReturn(true);
         when(mHostapdHal.removeAccessPoint(any())).thenReturn(true);
+
+        when(mNwManagementService.getInterfaceConfig(IFACE_NAME_0))
+                .thenReturn(mInterfaceConfiguration);
 
         mInOrder = inOrder(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal, mHostapdHal,
                 mWifiMonitor, mNwManagementService, mIfaceCallback0, mIfaceCallback1, mWifiMetrics);
@@ -460,10 +464,8 @@ public class WifiNativeInterfaceManagementTest {
                 false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
                 mNetworkObserverCaptor0);
 
-        mNetworkObserverCaptor0.getValue().interfaceStatusChanged(IFACE_NAME_0, false);
-
-        verifyNoMoreInteractions(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal,
-                mHostapdHal, mNwManagementService, mIfaceCallback0, mIfaceCallback1, mWifiMetrics);
+        executeAndValidateInterfaceStateChange(
+                IFACE_NAME_0, false, mNetworkObserverCaptor0.getValue());
     }
 
     /**
@@ -475,7 +477,8 @@ public class WifiNativeInterfaceManagementTest {
                 false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
                 mNetworkObserverCaptor0);
 
-        mNetworkObserverCaptor0.getValue().interfaceStatusChanged(IFACE_NAME_0, true);
+        executeAndValidateInterfaceStateChange(
+                IFACE_NAME_0, true, mNetworkObserverCaptor0.getValue());
         mInOrder.verify(mIfaceCallback0).onUp(IFACE_NAME_0);
     }
 
@@ -489,15 +492,14 @@ public class WifiNativeInterfaceManagementTest {
                 false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
                 mNetworkObserverCaptor0);
 
-        mNetworkObserverCaptor0.getValue().interfaceStatusChanged(IFACE_NAME_0, true);
+        executeAndValidateInterfaceStateChange(
+                IFACE_NAME_0, true, mNetworkObserverCaptor0.getValue());
         mInOrder.verify(mIfaceCallback0).onUp(IFACE_NAME_0);
 
-        mNetworkObserverCaptor0.getValue().interfaceStatusChanged(IFACE_NAME_0, false);
+        executeAndValidateInterfaceStateChange(
+                IFACE_NAME_0, false, mNetworkObserverCaptor0.getValue());
         mInOrder.verify(mIfaceCallback0).onDown(IFACE_NAME_0);
         mInOrder.verify(mWifiMetrics).incrementNumClientInterfaceDown();
-
-        verifyNoMoreInteractions(mWifiVendorHal, mWificondControl, mSupplicantStaIfaceHal,
-                mHostapdHal, mNwManagementService, mIfaceCallback0, mIfaceCallback1, mWifiMetrics);
     }
 
     /**
@@ -510,12 +512,68 @@ public class WifiNativeInterfaceManagementTest {
                 false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
                 mNetworkObserverCaptor0);
 
-        mNetworkObserverCaptor0.getValue().interfaceStatusChanged(IFACE_NAME_0, true);
+        executeAndValidateInterfaceStateChange(
+                IFACE_NAME_0, true, mNetworkObserverCaptor0.getValue());
         mInOrder.verify(mIfaceCallback0).onUp(IFACE_NAME_0);
 
-        mNetworkObserverCaptor0.getValue().interfaceStatusChanged(IFACE_NAME_0, false);
+        executeAndValidateInterfaceStateChange(
+                IFACE_NAME_0, false, mNetworkObserverCaptor0.getValue());
         mInOrder.verify(mIfaceCallback0).onDown(IFACE_NAME_0);
         mInOrder.verify(mWifiMetrics).incrementNumSoftApInterfaceDown();
+    }
+
+    /**
+     * Verifies the setup of a client interface and trigger an interface up event, followed by
+     * link down/up events. The link state change events should be ignored since we only care for
+     * interface state changes.
+     */
+    @Test
+    public void testSetupClientInterfaceAndTriggerInterfaceUpFollowedByLinkDownAndUp()
+            throws Exception {
+        executeAndValidateSetupClientInterface(
+                false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
+                mNetworkObserverCaptor0);
+
+        executeAndValidateInterfaceStateChange(
+                IFACE_NAME_0, true, mNetworkObserverCaptor0.getValue());
+        mInOrder.verify(mIfaceCallback0).onUp(IFACE_NAME_0);
+
+        // Trigger a link down, with the interface still up.
+        // Should not trigger the external iface callback.
+        mNetworkObserverCaptor0.getValue().interfaceLinkStateChanged(IFACE_NAME_0, false);
+        mInOrder.verify(mNwManagementService).getInterfaceConfig(IFACE_NAME_0);
+
+        // Now trigger a link up, with the interface still up.
+        // Should not trigger the external iface callback.
+        mNetworkObserverCaptor0.getValue().interfaceLinkStateChanged(IFACE_NAME_0, true);
+        mInOrder.verify(mNwManagementService).getInterfaceConfig(IFACE_NAME_0);
+    }
+
+    /**
+     * Verifies the setup of a client interface and trigger an interface up event, followed by
+     * link down/up events. The link state change events should be ignored since we only care for
+     * interface state changes.
+     */
+    @Test
+    public void testSetupSoftApInterfaceAndTriggerInterfaceUpFollowedByLinkDownAndUp()
+            throws Exception {
+        executeAndValidateSetupSoftApInterface(
+                false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
+                mNetworkObserverCaptor0);
+
+        executeAndValidateInterfaceStateChange(
+                IFACE_NAME_0, true, mNetworkObserverCaptor0.getValue());
+        mInOrder.verify(mIfaceCallback0).onUp(IFACE_NAME_0);
+
+        // Trigger a link down, with the interface still up.
+        // Should not trigger the external iface callback.
+        mNetworkObserverCaptor0.getValue().interfaceLinkStateChanged(IFACE_NAME_0, false);
+        mInOrder.verify(mNwManagementService).getInterfaceConfig(IFACE_NAME_0);
+
+        // Now trigger a link up, with the interface still up.
+        // Should not trigger the external iface callback.
+        mNetworkObserverCaptor0.getValue().interfaceLinkStateChanged(IFACE_NAME_0, true);
+        mInOrder.verify(mNwManagementService).getInterfaceConfig(IFACE_NAME_0);
     }
 
     /**
@@ -528,10 +586,12 @@ public class WifiNativeInterfaceManagementTest {
                 false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
                 mNetworkObserverCaptor0);
 
-        mNetworkObserverCaptor0.getValue().interfaceStatusChanged(IFACE_NAME_0, true);
+        executeAndValidateInterfaceStateChange(
+                IFACE_NAME_0, true, mNetworkObserverCaptor0.getValue());
         mInOrder.verify(mIfaceCallback0).onUp(IFACE_NAME_0);
 
-        mNetworkObserverCaptor0.getValue().interfaceStatusChanged(IFACE_NAME_0, true);
+        executeAndValidateInterfaceStateChange(
+                IFACE_NAME_0, true, mNetworkObserverCaptor0.getValue());
     }
 
     /**
@@ -544,7 +604,7 @@ public class WifiNativeInterfaceManagementTest {
                 false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
                 mNetworkObserverCaptor0);
 
-        mNetworkObserverCaptor0.getValue().interfaceStatusChanged(IFACE_NAME_1, true);
+        mNetworkObserverCaptor0.getValue().interfaceLinkStateChanged(IFACE_NAME_1, true);
     }
 
     /**
@@ -589,10 +649,11 @@ public class WifiNativeInterfaceManagementTest {
         mInOrder.verify(mNwManagementService).getInterfaceConfig(IFACE_NAME_0);
 
         // Step (c) - Iface up on old iface, ignored!
-        mNetworkObserverCaptor0.getValue().interfaceStatusChanged(IFACE_NAME_0, true);
+        mNetworkObserverCaptor0.getValue().interfaceLinkStateChanged(IFACE_NAME_0, true);
 
         // Step (d) - Iface up on new iface, handled!
-        mNetworkObserverCaptor1.getValue().interfaceStatusChanged(IFACE_NAME_0, true);
+        executeAndValidateInterfaceStateChange(
+                IFACE_NAME_0, true, mNetworkObserverCaptor1.getValue());
         mInOrder.verify(mIfaceCallback1).onUp(IFACE_NAME_0);
 
         // Execute a teardown of the softap interface to ensure that the new iface removal works.
@@ -924,13 +985,10 @@ public class WifiNativeInterfaceManagementTest {
                 false, false, IFACE_NAME_0, mIfaceCallback0, mIfaceDestroyedListenerCaptor0,
                 mNetworkObserverCaptor0);
 
-        InterfaceConfiguration config = new InterfaceConfiguration();
-        when(mNwManagementService.getInterfaceConfig(IFACE_NAME_0)).thenReturn(config);
-
-        config.setInterfaceUp();
+        mInterfaceConfiguration.setInterfaceUp();
         assertTrue(mWifiNative.isInterfaceUp(IFACE_NAME_0));
 
-        config.setInterfaceDown();
+        mInterfaceConfiguration.setInterfaceDown();
         assertFalse(mWifiNative.isInterfaceUp(IFACE_NAME_0));
 
         when(mNwManagementService.getInterfaceConfig(IFACE_NAME_0)).thenReturn(null);
@@ -1226,5 +1284,16 @@ public class WifiNativeInterfaceManagementTest {
             mInOrder.verify(mWifiVendorHal).stopVendorHal();
         }
         mInOrder.verify(callback).onDestroyed(ifaceName);
+    }
+
+    private void executeAndValidateInterfaceStateChange(
+            String ifaceName, boolean up, BaseNetworkObserver networkObserver) throws Exception {
+        if (up) {
+            mInterfaceConfiguration.setInterfaceUp();
+        } else {
+            mInterfaceConfiguration.setInterfaceDown();
+        }
+        networkObserver.interfaceLinkStateChanged(ifaceName, up);
+        mInOrder.verify(mNwManagementService).getInterfaceConfig(ifaceName);
     }
 }
