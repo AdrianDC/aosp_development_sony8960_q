@@ -42,6 +42,8 @@ public class WifiWakeMetrics {
 
     private boolean mIsInSession = false;
     private int mTotalSessions = 0;
+    private int mTotalWakeups = 0;
+    private int mIgnoredStarts = 0;
 
     private final Object mLock = new Object();
 
@@ -50,7 +52,7 @@ public class WifiWakeMetrics {
      *
      * <p>Starts the session.
      *
-     * @param numNetworks The total number of networks stored in the WakeupLock at initialization.
+     * @param numNetworks The total number of networks stored in the WakeupLock at start.
      */
     public void recordStartEvent(int numNetworks) {
         synchronized (mLock) {
@@ -60,10 +62,29 @@ public class WifiWakeMetrics {
     }
 
     /**
+     * Records the initialize event of the current Wifi Wake session.
+     *
+     * <p>Note: The start event must be recorded before this event, otherwise this call will be
+     * ignored.
+     *
+     * @param numScans The total number of elapsed scans since start.
+     * @param numNetworks The total number of networks in the lock.
+     */
+    public void recordInitializeEvent(int numScans, int numNetworks) {
+        synchronized (mLock) {
+            if (!mIsInSession) {
+                return;
+            }
+            mCurrentSession.recordInitializeEvent(numScans, numNetworks,
+                    SystemClock.elapsedRealtime());
+        }
+    }
+
+    /**
      * Records the unlock event of the current Wifi Wake session.
      *
      * <p>The unlock event occurs when the WakeupLock has all of its networks removed. This event
-     * will not be recorded if the start event recorded 0 locked networks.
+     * will not be recorded if the initialize event recorded 0 locked networks.
      *
      * <p>Note: The start event must be recorded before this event, otherwise this call will be
      * ignored.
@@ -116,6 +137,11 @@ public class WifiWakeMetrics {
             }
             mCurrentSession.recordResetEvent(numScans, SystemClock.elapsedRealtime());
 
+            // tally successful wakeups here since this is the actual point when wifi is turned on
+            if (mCurrentSession.hasWakeupTriggered()) {
+                mTotalWakeups++;
+            }
+
             mTotalSessions++;
             if (mSessions.size() < MAX_RECORDED_SESSIONS) {
                 mSessions.add(mCurrentSession);
@@ -125,12 +151,21 @@ public class WifiWakeMetrics {
     }
 
     /**
+     * Records instance of the start event being ignored due to the controller already being active.
+     */
+    public void recordIgnoredStart() {
+        mIgnoredStarts++;
+    }
+
+    /**
      * Returns the consolidated WifiWakeStats proto for WifiMetrics.
      */
     public WifiWakeStats buildProto() {
         WifiWakeStats proto = new WifiWakeStats();
 
         proto.numSessions = mTotalSessions;
+        proto.numWakeups = mTotalWakeups;
+        proto.numIgnoredStarts = mIgnoredStarts;
         proto.sessions = new WifiWakeStats.Session[mSessions.size()];
 
         for (int i = 0; i < mSessions.size(); i++) {
@@ -148,6 +183,8 @@ public class WifiWakeMetrics {
         synchronized (mLock) {
             pw.println("-------WifiWake metrics-------");
             pw.println("mTotalSessions: " + mTotalSessions);
+            pw.println("mTotalWakeups: " + mTotalWakeups);
+            pw.println("mIgnoredStarts: " + mIgnoredStarts);
             pw.println("mIsInSession: " + mIsInSession);
             pw.println("Stored Sessions: " + mSessions.size());
             for (Session session : mSessions) {
@@ -167,19 +204,27 @@ public class WifiWakeMetrics {
      * <p>Keeps the current WifiWake session.
      */
     public void clear() {
-        mSessions.clear();
-        mTotalSessions = 0;
+        synchronized (mLock) {
+            mSessions.clear();
+            mTotalSessions = 0;
+            mTotalWakeups = 0;
+            mIgnoredStarts = 0;
+        }
     }
 
     /** A single WifiWake session. */
     public static class Session {
 
         private final long mStartTimestamp;
-        private final int mNumNetworks;
+        private final int mStartNetworks;
+        private int mInitializeNetworks = 0;
 
         @VisibleForTesting
         @Nullable
         Event mUnlockEvent;
+        @VisibleForTesting
+        @Nullable
+        Event mInitEvent;
         @VisibleForTesting
         @Nullable
         Event mWakeupEvent;
@@ -189,8 +234,24 @@ public class WifiWakeMetrics {
 
         /** Creates a new WifiWake session. */
         public Session(int numNetworks, long timestamp) {
-            mNumNetworks = numNetworks;
+            mStartNetworks = numNetworks;
             mStartTimestamp = timestamp;
+        }
+
+        /**
+         * Records an initialize event.
+         *
+         * <p>Ignores subsequent calls.
+         *
+         * @param numScans Total number of scans at the time of this event.
+         * @param numNetworks Total number of networks in the lock.
+         * @param timestamp The timestamp of the event.
+         */
+        public void recordInitializeEvent(int numScans, int numNetworks, long timestamp) {
+            if (mInitEvent == null) {
+                mInitializeNetworks = numNetworks;
+                mInitEvent = new Event(numScans, timestamp - mStartTimestamp);
+            }
         }
 
         /**
@@ -222,6 +283,13 @@ public class WifiWakeMetrics {
         }
 
         /**
+         * Returns whether the current session has had its wakeup event triggered.
+         */
+        public boolean hasWakeupTriggered() {
+            return mWakeupEvent != null;
+        }
+
+        /**
          * Records a reset event.
          *
          * <p>Ignores subsequent calls.
@@ -239,8 +307,12 @@ public class WifiWakeMetrics {
         public WifiWakeStats.Session buildProto() {
             WifiWakeStats.Session sessionProto = new WifiWakeStats.Session();
             sessionProto.startTimeMillis = mStartTimestamp;
-            sessionProto.lockedNetworksAtStart = mNumNetworks;
+            sessionProto.lockedNetworksAtStart = mStartNetworks;
 
+            if (mInitEvent != null) {
+                sessionProto.lockedNetworksAtInitialize = mInitializeNetworks;
+                sessionProto.initializeEvent = mInitEvent.buildProto();
+            }
             if (mUnlockEvent != null) {
                 sessionProto.unlockEvent = mUnlockEvent.buildProto();
             }
@@ -258,7 +330,9 @@ public class WifiWakeMetrics {
         public void dump(PrintWriter pw) {
             pw.println("WifiWakeMetrics.Session:");
             pw.println("mStartTimestamp: " + mStartTimestamp);
-            pw.println("mNumNetworks: " + mNumNetworks);
+            pw.println("mStartNetworks: " + mStartNetworks);
+            pw.println("mInitializeNetworks: " + mInitializeNetworks);
+            pw.println("mInitEvent: " + (mInitEvent == null ? "{}" : mInitEvent.toString()));
             pw.println("mUnlockEvent: " + (mUnlockEvent == null ? "{}" : mUnlockEvent.toString()));
             pw.println("mWakeupEvent: " + (mWakeupEvent == null ? "{}" : mWakeupEvent.toString()));
             pw.println("mResetEvent: " + (mResetEvent == null ? "{}" : mResetEvent.toString()));

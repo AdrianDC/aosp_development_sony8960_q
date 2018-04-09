@@ -210,6 +210,16 @@ public class WakeupControllerTest {
     }
 
     /**
+     * Verify that start does not record an ignored start call if the controller is not yet active.
+     */
+    @Test
+    public void startDoesNotRecordIgnoredStart() {
+        initializeWakeupController(true /* enabled */);
+        mWakeupController.start();
+        verify(mWifiWakeMetrics, never()).recordIgnoredStart();
+    }
+
+    /**
      * Verify that start does not set the wakeup lock when feature is disabled.
      */
     @Test
@@ -221,10 +231,10 @@ public class WakeupControllerTest {
     }
 
     /**
-     * Verify that start does not set the wakeup lock if the controller is already active.
+     * If the controller is already active, verify that start() is ignored and no setup is done.
      */
     @Test
-    public void startDoesNotSetWakeupLockIfAlreadyActive() {
+    public void startIsIgnoredIfAlreadyActive() {
         initializeWakeupController(true /* enabled */);
         InOrder lockInOrder = Mockito.inOrder(mWakeupLock);
         InOrder metricsInOrder = Mockito.inOrder(mWifiWakeMetrics);
@@ -235,8 +245,9 @@ public class WakeupControllerTest {
 
         mWakeupController.stop();
         mWakeupController.start();
-        lockInOrder.verify(mWakeupLock, never()).setLock(any());
+        metricsInOrder.verify(mWifiWakeMetrics).recordIgnoredStart();
         metricsInOrder.verify(mWifiWakeMetrics, never()).recordStartEvent(anyInt());
+        lockInOrder.verify(mWakeupLock, never()).setLock(any());
     }
 
     /**
