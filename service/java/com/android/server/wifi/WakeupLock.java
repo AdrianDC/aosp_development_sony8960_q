@@ -86,11 +86,10 @@ public class WakeupLock {
      * Maybe sets the WakeupLock as initialized based on total scans handled.
      *
      * @param numScans total number of elapsed scans in the current WifiWake session
-     * @return Whether the lock transitioned into its initialized state.
      */
-    private boolean maybeSetInitializedByScans(int numScans) {
+    private void maybeSetInitializedByScans(int numScans) {
         if (mIsInitialized) {
-            return false;
+            return;
         }
         boolean shouldBeInitialized = numScans >= CONSECUTIVE_MISSED_SCANS_REQUIRED_TO_EVICT;
         if (shouldBeInitialized) {
@@ -100,19 +99,20 @@ public class WakeupLock {
             if (mVerboseLoggingEnabled) {
                 Log.d(TAG, "State of lock: " + mLockedNetworks);
             }
+
+            // log initialize event
+            mWifiWakeMetrics.recordInitializeEvent(mNumScans, mLockedNetworks.size());
         }
-        return mIsInitialized;
     }
 
     /**
      * Maybe sets the WakeupLock as initialized based on elapsed time.
      *
      * @param timestampMillis current timestamp
-     * @return Whether the lock transitioned into its initialized state.
      */
-    private boolean maybeSetInitializedByTimeout(long timestampMillis) {
+    private void maybeSetInitializedByTimeout(long timestampMillis) {
         if (mIsInitialized) {
-            return false;
+            return;
         }
         long elapsedTime = timestampMillis - mLockTimestamp;
         boolean shouldBeInitialized = elapsedTime > MAX_LOCK_TIME_MILLIS;
@@ -121,11 +121,16 @@ public class WakeupLock {
             mIsInitialized = true;
 
             Log.d(TAG, "Lock initialized by timeout. Elapsed time: " + elapsedTime);
+            if (mNumScans == 0) {
+                Log.w(TAG, "Lock initialized with 0 handled scans!");
+            }
             if (mVerboseLoggingEnabled) {
                 Log.d(TAG, "State of lock: " + mLockedNetworks);
             }
+
+            // log initialize event
+            mWifiWakeMetrics.recordInitializeEvent(mNumScans, mLockedNetworks.size());
         }
-        return mIsInitialized;
     }
 
     /** Returns whether the lock has been fully initialized. */
@@ -159,9 +164,7 @@ public class WakeupLock {
         }
 
         // Set initialized if the lock has handled enough scans, and log the event
-        if (maybeSetInitializedByScans(mNumScans)) {
-            // TODO(easchwar) log metric
-        }
+        maybeSetInitializedByScans(mNumScans);
     }
 
     /**
@@ -220,7 +223,7 @@ public class WakeupLock {
      *
      * <p>The lock is initialized after {@link #CONSECUTIVE_MISSED_SCANS_REQUIRED_TO_EVICT}
      * scans have been handled, or after {@link #MAX_LOCK_TIME_MILLIS} milliseconds have elapsed
-     * since {@link #setLock(Collection, long)}.
+     * since {@link #setLock(Collection)}.
      *
      * @param networkList list of present ScanResultMatchInfos to update the lock with
      */
@@ -229,14 +232,12 @@ public class WakeupLock {
         if (isUnlocked()) {
             return;
         }
-        mNumScans++;
-
-        // Before checking mIsInitialized, we check to see whether we've exceeded the maximum time
-        // allowed for initialization. If so, we set initialized and treat this scan as a
+        // Before checking handling the scan, we check to see whether we've exceeded the maximum
+        // time allowed for initialization. If so, we set initialized and treat this scan as a
         // "removeFromLock()" instead of an "addToLock()".
-        if (maybeSetInitializedByTimeout(mClock.getElapsedSinceBootMillis())) {
-            // TODO(easchwar) log metric
-        }
+        maybeSetInitializedByTimeout(mClock.getElapsedSinceBootMillis());
+
+        mNumScans++;
 
         // add or remove networks based on initialized status
         if (mIsInitialized) {

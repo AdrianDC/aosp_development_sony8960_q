@@ -170,9 +170,9 @@ public class WakeupController {
         Log.d(TAG, "start()");
         mWifiInjector.getWifiScanner().registerScanListener(mScanListener);
 
-        // If already active, we don't want to re-initialize the lock, so return early.
+        // If already active, we don't want to restart the session, so return early.
         if (mIsActive) {
-            // TODO record metric for calls to start() when already active
+            mWifiWakeMetrics.recordIgnoredStart();
             return;
         }
         setActive(true);
