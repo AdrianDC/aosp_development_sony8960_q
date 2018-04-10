@@ -57,7 +57,8 @@ import java.util.Set;
  */
 public class WakeupControllerTest {
 
-    private static final int DFS_CHANNEL = 5540;
+    private static final String SAVED_SSID = "test scan ssid";
+    private static final int DFS_CHANNEL_FREQ = 5540;
 
     @Mock private Context mContext;
     @Mock private WakeupLock mWakeupLock;
@@ -89,7 +90,7 @@ public class WakeupControllerTest {
         when(mWifiInjector.getWifiController()).thenReturn(mWifiController);
         when(mWifiInjector.getWifiNative()).thenReturn(mWifiNative);
         when(mWifiNative.getChannelsForBand(WifiScanner.WIFI_BAND_5_GHZ_DFS_ONLY))
-                .thenReturn(new int[]{DFS_CHANNEL});
+                .thenReturn(new int[]{DFS_CHANNEL_FREQ});
 
         when(mWifiSettingsStore.handleWifiToggled(anyBoolean())).thenReturn(true);
 
@@ -97,7 +98,7 @@ public class WakeupControllerTest {
 
         // scanlistener input
         mTestScanResult = new ScanResult();
-        mTestScanResult.SSID = "open ssid 1";
+        mTestScanResult.SSID = SAVED_SSID;
         mTestScanResult.capabilities = "";
         mTestScanResult.frequency = 2412;
         ScanResult[] scanResults = new ScanResult[1];
@@ -145,10 +146,11 @@ public class WakeupControllerTest {
         }
     }
 
-    private ScanResult createOpenScanResult(String ssid) {
+    private ScanResult createOpenScanResult(String ssid, int frequency) {
         ScanResult scanResult = new ScanResult();
         scanResult.SSID = ssid;
         scanResult.capabilities = "";
+        scanResult.frequency = frequency;
         return scanResult;
     }
 
@@ -315,10 +317,8 @@ public class WakeupControllerTest {
                 .thenReturn(Arrays.asList(openNetwork, wepNetwork));
 
         // scan results from most recent scan
-        ScanResult savedScanResult = createOpenScanResult(ssid1);
-        savedScanResult.frequency = 2412;
-        ScanResult unsavedScanResult = createOpenScanResult(ssid2);
-        savedScanResult.frequency = 2412;
+        ScanResult savedScanResult = createOpenScanResult(ssid1, 2412 /* frequency */);
+        ScanResult unsavedScanResult = createOpenScanResult(ssid2, 2412 /* frequency */);
 
         when(mWifiScanner.getSingleScanResults())
                 .thenReturn(Arrays.asList(savedScanResult, unsavedScanResult));
@@ -338,23 +338,30 @@ public class WakeupControllerTest {
      */
     @Test
     public void startFiltersOutDfsScanResults() {
-        String ssid = "test_ssid";
-        String quotedSsid = ScanResultUtil.createQuotedSSID(ssid);
+        String ssidDfs = "DFS scan";
+        String ssid24 = "2.4 scan";
 
-        // saved config
-        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork(quotedSsid);
-        openNetwork.getNetworkSelectionStatus().setHasEverConnected(true);
+        // saved configs
+        WifiConfiguration openNetworkDfs = WifiConfigurationTestUtil
+                .createOpenNetwork(ScanResultUtil.createQuotedSSID(ssidDfs));
+        openNetworkDfs.getNetworkSelectionStatus().setHasEverConnected(true);
+        WifiConfiguration openNetwork24 = WifiConfigurationTestUtil
+                .createOpenNetwork(ScanResultUtil.createQuotedSSID(ssid24));
+        openNetwork24.getNetworkSelectionStatus().setHasEverConnected(true);
+
         when(mWifiConfigManager.getSavedNetworks())
-                .thenReturn(Collections.singletonList(openNetwork));
+                .thenReturn(Arrays.asList(openNetworkDfs, openNetwork24));
 
-        // scan result from most recent scan
-        ScanResult scanResult = createOpenScanResult(ssid);
-        scanResult.frequency = DFS_CHANNEL;
+        // scan results from most recent scan
+        ScanResult scanResultDfs = createOpenScanResult(ssidDfs, DFS_CHANNEL_FREQ);
+        ScanResult scanResult24 = createOpenScanResult(ssid24, 2412 /* frequency */);
 
-        when(mWifiScanner.getSingleScanResults()).thenReturn(Collections.singletonList(scanResult));
+        when(mWifiScanner.getSingleScanResults())
+                .thenReturn(Arrays.asList(scanResultDfs, scanResult24));
 
-        // intersection of most recent scan + saved configs
-        Set<ScanResultMatchInfo> expectedMatchInfos = Collections.emptySet();
+        // should filter out scanResultDfs
+        Set<ScanResultMatchInfo> expectedMatchInfos =
+                Collections.singleton(ScanResultMatchInfo.fromScanResult(scanResult24));
 
         initializeWakeupController(true /* enabled */);
         mWakeupController.start();
@@ -367,6 +374,13 @@ public class WakeupControllerTest {
      */
     @Test
     public void onResultsUpdatesWakeupLock() {
+        // saved config
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil
+                .createOpenNetwork(ScanResultUtil.createQuotedSSID(SAVED_SSID));
+        openNetwork.getNetworkSelectionStatus().setHasEverConnected(true);
+        when(mWifiConfigManager.getSavedNetworks())
+                .thenReturn(Collections.singletonList(openNetwork));
+
         initializeWakeupController(true /* enabled */);
         mWakeupController.start();
 
@@ -381,6 +395,30 @@ public class WakeupControllerTest {
 
         ScanResultMatchInfo expectedMatchInfo = ScanResultMatchInfo.fromScanResult(mTestScanResult);
         verify(mWakeupLock).update(eq(Collections.singleton(expectedMatchInfo)));
+    }
+
+
+    /**
+     * Verify that onResults filters out unsaved networks when updating the WakeupLock.
+     */
+    @Test
+    public void onResultsUpdatesWakeupLockWithOnlySavedNetworks() {
+        // no saved configs
+        when(mWifiConfigManager.getSavedNetworks()).thenReturn(Collections.emptyList());
+
+        initializeWakeupController(true /* enabled */);
+        mWakeupController.start();
+
+        ArgumentCaptor<WifiScanner.ScanListener> scanListenerArgumentCaptor =
+                ArgumentCaptor.forClass(WifiScanner.ScanListener.class);
+
+        verify(mWifiScanner).registerScanListener(scanListenerArgumentCaptor.capture());
+        WifiScanner.ScanListener scanListener = scanListenerArgumentCaptor.getValue();
+
+        // incoming scan results
+        scanListener.onResults(mTestScanDatas);
+
+        verify(mWakeupLock).update(eq(Collections.emptySet()));
     }
 
     /**
@@ -398,7 +436,7 @@ public class WakeupControllerTest {
         WifiScanner.ScanListener scanListener = scanListenerArgumentCaptor.getValue();
 
         // incoming scan results
-        mTestScanResult.frequency = DFS_CHANNEL;
+        mTestScanResult.frequency = DFS_CHANNEL_FREQ;
         scanListener.onResults(mTestScanDatas);
 
         verify(mWakeupLock).update(eq(Collections.emptySet()));
