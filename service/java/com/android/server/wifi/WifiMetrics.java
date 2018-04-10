@@ -1130,6 +1130,16 @@ public class WifiMetrics {
     }
 
     /**
+     * Increment the count of network connection failures that happened after watchdog has been
+     * triggered.
+     */
+    public void incrementWatchdogTotalConnectionFailureCountAfterTrigger() {
+        synchronized (mLock) {
+            mWifiLogProto.watchdogTotalConnectionFailureCountAfterTrigger++;
+        }
+    }
+
+    /**
      * Increments the count of alerts by alert reason.
      *
      * @param reason The cause of the alert. The reason values are driver-specific.
