@@ -229,7 +229,7 @@ public class WifiLastResortWatchdog {
 
     /**
      * Handles transitions entering and exiting WifiStateMachine ConnectedState
-     * Used to track wifistate, and perform watchdog count reseting
+     * Used to track wifistate, and perform watchdog count resetting
      * @param isEntering true if called from ConnectedState.enter(), false for exit()
      * @param ssid the ssid of the network doing the transition
      */
@@ -238,6 +238,9 @@ public class WifiLastResortWatchdog {
             Log.v(TAG, "connectedStateTransition: isEntering = " + isEntering);
         }
         mWifiIsConnected = isEntering;
+        if (!isEntering) {
+            return;
+        }
         if (!mWatchdogAllowedToTrigger) {
             // WiFi has connected after a Watchdog trigger, without any new networks becoming
             // available, log a Watchdog success in wifi metrics
@@ -248,13 +251,11 @@ public class WifiLastResortWatchdog {
                 takeBugReportWithCurrentProbability("Wifi fixed after restart");
             }
         }
-        if (isEntering) {
-            // We connected to something! Reset failure counts for everything
-            clearAllFailureCounts();
-            // If the watchdog trigger was disabled (it triggered), connecting means we did
-            // something right, re-enable it so it can fire again.
-            setWatchdogTriggerEnabled(true);
-        }
+        // We connected to something! Reset failure counts for everything
+        clearAllFailureCounts();
+        // If the watchdog trigger was disabled (it triggered), connecting means we did
+        // something right, re-enable it so it can fire again.
+        setWatchdogTriggerEnabled(true);
     }
 
     /**
