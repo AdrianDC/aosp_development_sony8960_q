@@ -23,8 +23,11 @@
 #include "RouteDataSet.h"
 #include "SyncEvent.h"
 
+#include <map>
 #include "nfa_api.h"
 #include "nfa_ee_api.h"
+
+using namespace std;
 
 class RoutingManager {
  public:
@@ -73,6 +76,7 @@ class RoutingManager {
   static int com_android_nfc_cardemulation_doGetAidMatchingMode(JNIEnv* e);
 
   std::vector<uint8_t> mRxDataBuffer;
+  map<int, uint16_t> mMapScbrHandle;
 
   // Fields below are final after initialize()
   nfc_jni_native_data* mNativeData;
@@ -81,7 +85,12 @@ class RoutingManager {
   int mDefaultEe;
   int mAidMatchingMode;
   int mNfcFOnDhHandle;
+  bool mIsScbrSupported;
+  uint16_t mDefaultSysCode;
+  uint16_t mDefaultSysCodeRoute;
+  uint8_t mDefaultSysCodePowerstate;
   bool mReceivedEeInfo;
+  tNFA_EE_CBACK_DATA mCbEventData;
   tNFA_EE_DISCOVER_REQ mEeInfo;
   tNFA_TECHNOLOGY_MASK mSeTechMask;
   static const JNINativeMethod sMethods[];
