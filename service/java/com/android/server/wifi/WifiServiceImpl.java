@@ -2491,6 +2491,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             if (wifiScoreReport != null) wifiScoreReport.dump(fd, pw, args);
         } else {
             pw.println("Wi-Fi is " + mWifiStateMachine.syncGetWifiStateByName());
+            pw.println("Verbose logging is " + (mVerboseLoggingEnabled ? "on" : "off"));
             pw.println("Stay-awake conditions: " +
                     mFacade.getIntegerSetting(mContext,
                             Settings.Global.STAY_ON_WHILE_PLUGGED_IN, 0));
