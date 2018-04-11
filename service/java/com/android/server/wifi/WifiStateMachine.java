@@ -61,6 +61,7 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiEnterpriseConfig;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
+import android.net.wifi.WifiSsid;
 import android.net.wifi.hotspot2.IProvisioningCallback;
 import android.net.wifi.hotspot2.OsuProvider;
 import android.net.wifi.hotspot2.PasspointConfiguration;
@@ -2823,6 +2824,8 @@ public class WifiStateMachine extends StateMachine {
             mWifiInfo.setBSSID(null);
             mWifiInfo.setSSID(null);
         }
+        // SSID might have been updated, so call updateCapabilities
+        updateCapabilities();
 
         final WifiConfiguration config = getCurrentWifiConfiguration();
         if (config != null) {
@@ -4800,6 +4803,10 @@ public class WifiStateMachine extends StateMachine {
     }
 
     private void updateCapabilities(WifiConfiguration config) {
+        if (mNetworkAgent == null) {
+            return;
+        }
+
         final NetworkCapabilities result = new NetworkCapabilities(mDfltNetworkCapabilities);
 
         if (mWifiInfo != null && !mWifiInfo.isEphemeral()) {
@@ -4820,9 +4827,13 @@ public class WifiStateMachine extends StateMachine {
             result.setSignalStrength(NetworkCapabilities.SIGNAL_STRENGTH_UNSPECIFIED);
         }
 
-        if (mNetworkAgent != null) {
-            mNetworkAgent.sendNetworkCapabilities(result);
+        if (mWifiInfo != null && !mWifiInfo.getSSID().equals(WifiSsid.NONE)) {
+            result.setSSID(mWifiInfo.getSSID());
+        } else {
+            result.setSSID(null);
         }
+
+        mNetworkAgent.sendNetworkCapabilities(result);
     }
 
     /**
