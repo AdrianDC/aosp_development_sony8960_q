@@ -653,13 +653,14 @@ public class WifiController extends StateMachine {
                 mFirstUserSignOnSeen = true;
                 return HANDLED;
             } else if (msg.what == CMD_RECOVERY_RESTART_WIFI) {
-                final String bugTitle = "Wi-Fi BugReport";
+                final String bugTitle;
                 final String bugDetail;
-                if (msg.obj != null && msg.arg1 < SelfRecovery.REASON_STRINGS.length
-                        && msg.arg1 >= 0) {
+                if (msg.arg1 < SelfRecovery.REASON_STRINGS.length && msg.arg1 >= 0) {
                     bugDetail = SelfRecovery.REASON_STRINGS[msg.arg1];
+                    bugTitle = "Wi-Fi BugReport: " + bugDetail;
                 } else {
                     bugDetail = "";
+                    bugTitle = "Wi-Fi BugReport";
                 }
                 if (msg.arg1 != SelfRecovery.REASON_LAST_RESORT_WATCHDOG) {
                     (new Handler(mWifiStateMachineLooper)).post(() -> {
