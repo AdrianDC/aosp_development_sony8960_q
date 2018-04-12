@@ -82,6 +82,7 @@ import com.android.server.wifi.hotspot2.anqp.DomainNameElement;
 import com.android.server.wifi.hotspot2.anqp.HSOsuProvidersElement;
 import com.android.server.wifi.hotspot2.anqp.I18Name;
 import com.android.server.wifi.hotspot2.anqp.OsuProviderInfo;
+import com.android.server.wifi.util.InformationElementUtil.RoamingConsortium;
 import com.android.server.wifi.util.ScanResultUtil;
 
 import org.junit.Before;
@@ -698,7 +699,8 @@ public class PasspointManagerTest {
         ANQPData entry = new ANQPData(mClock, null);
 
         when(mAnqpCache.getEntry(TEST_ANQP_KEY)).thenReturn(entry);
-        when(provider.match(anyMap())).thenReturn(PasspointMatch.HomeProvider);
+        when(provider.match(anyMap(), any(RoamingConsortium.class)))
+            .thenReturn(PasspointMatch.HomeProvider);
         Pair<PasspointProvider, PasspointMatch> result =
                 mManager.matchProvider(createTestScanResult());
         assertEquals(PasspointMatch.HomeProvider, result.second);
@@ -716,7 +718,8 @@ public class PasspointManagerTest {
         ANQPData entry = new ANQPData(mClock, null);
 
         when(mAnqpCache.getEntry(TEST_ANQP_KEY)).thenReturn(entry);
-        when(provider.match(anyMap())).thenReturn(PasspointMatch.RoamingProvider);
+        when(provider.match(anyMap(), any(RoamingConsortium.class)))
+            .thenReturn(PasspointMatch.RoamingProvider);
         Pair<PasspointProvider, PasspointMatch> result =
                 mManager.matchProvider(createTestScanResult());
         assertEquals(PasspointMatch.RoamingProvider, result.second);
@@ -734,7 +737,8 @@ public class PasspointManagerTest {
         ANQPData entry = new ANQPData(mClock, null);
 
         when(mAnqpCache.getEntry(TEST_ANQP_KEY)).thenReturn(entry);
-        when(provider.match(anyMap())).thenReturn(PasspointMatch.None);
+        when(provider.match(anyMap(), any(RoamingConsortium.class)))
+            .thenReturn(PasspointMatch.None);
         assertNull(mManager.matchProvider(createTestScanResult()));
     }
 
@@ -789,7 +793,8 @@ public class PasspointManagerTest {
         ANQPData entry = new ANQPData(mClock, null);
 
         when(mAnqpCache.getEntry(TEST_ANQP_KEY)).thenReturn(entry);
-        when(provider.match(anyMap())).thenReturn(PasspointMatch.HomeProvider);
+        when(provider.match(anyMap(), any(RoamingConsortium.class)))
+            .thenReturn(PasspointMatch.HomeProvider);
         when(provider.getWifiConfig()).thenReturn(new WifiConfiguration());
         WifiConfiguration config = mManager.getMatchingWifiConfig(createTestScanResult());
         assertEquals(ScanResultUtil.createQuotedSSID(TEST_SSID), config.SSID);
@@ -808,7 +813,8 @@ public class PasspointManagerTest {
         ANQPData entry = new ANQPData(mClock, null);
 
         when(mAnqpCache.getEntry(TEST_ANQP_KEY)).thenReturn(entry);
-        when(provider.match(anyMap())).thenReturn(PasspointMatch.RoamingProvider);
+        when(provider.match(anyMap(), any(RoamingConsortium.class)))
+            .thenReturn(PasspointMatch.RoamingProvider);
         when(provider.getWifiConfig()).thenReturn(new WifiConfiguration());
         WifiConfiguration config = mManager.getMatchingWifiConfig(createTestScanResult());
         assertEquals(ScanResultUtil.createQuotedSSID(TEST_SSID), config.SSID);
@@ -827,7 +833,8 @@ public class PasspointManagerTest {
         ANQPData entry = new ANQPData(mClock, null);
 
         when(mAnqpCache.getEntry(TEST_ANQP_KEY)).thenReturn(entry);
-        when(provider.match(anyMap())).thenReturn(PasspointMatch.None);
+        when(provider.match(anyMap(), any(RoamingConsortium.class)))
+            .thenReturn(PasspointMatch.None);
         assertNull(mManager.getMatchingWifiConfig(createTestScanResult()));
         verify(provider, never()).getWifiConfig();
     }
@@ -897,9 +904,12 @@ public class PasspointManagerTest {
 
         when(mAnqpCache.getEntry(TEST_ANQP_KEY)).thenReturn(entry);
 
-        when(providerHome.match(anyMap())).thenReturn(PasspointMatch.HomeProvider);
-        when(providerRoaming.match(anyMap())).thenReturn(PasspointMatch.RoamingProvider);
-        when(providerNone.match(anyMap())).thenReturn(PasspointMatch.None);
+        when(providerHome.match(anyMap(), any(RoamingConsortium.class)))
+            .thenReturn(PasspointMatch.HomeProvider);
+        when(providerRoaming.match(anyMap(), any(RoamingConsortium.class)))
+            .thenReturn(PasspointMatch.RoamingProvider);
+        when(providerNone.match(anyMap(), any(RoamingConsortium.class)))
+            .thenReturn(PasspointMatch.None);
 
         when(providerHome.getWifiConfig()).thenReturn(new WifiConfiguration());
         when(providerRoaming.getWifiConfig()).thenReturn(new WifiConfiguration());
