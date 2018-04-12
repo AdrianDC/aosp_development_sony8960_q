@@ -411,7 +411,7 @@ public class PasspointManager {
 
         for (Map.Entry<String, PasspointProvider> entry : mProviders.entrySet()) {
             PasspointProvider provider = entry.getValue();
-            PasspointMatch matchStatus = provider.match(anqpEntry.getElements());
+            PasspointMatch matchStatus = provider.match(anqpEntry.getElements(), roamingConsortium);
             if (matchStatus == PasspointMatch.HomeProvider
                     || matchStatus == PasspointMatch.RoamingProvider) {
                 allMatches.add(Pair.create(provider, matchStatus));
