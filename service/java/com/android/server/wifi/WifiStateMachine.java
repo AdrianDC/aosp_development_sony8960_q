@@ -5593,8 +5593,9 @@ public class WifiStateMachine extends StateMachine {
             }
 
             mLastDriverRoamAttempt = 0;
+            String curSsid = getTargetSsid();
             mTargetNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
-            mWifiInjector.getWifiLastResortWatchdog().connectedStateTransition(true);
+            mWifiInjector.getWifiLastResortWatchdog().connectedStateTransition(true, curSsid);
             mWifiStateTracker.updateState(WifiStateTracker.CONNECTED);
         }
         @Override
@@ -5749,7 +5750,8 @@ public class WifiStateMachine extends StateMachine {
                      WifiConnectivityManager.WIFI_STATE_TRANSITIONING);
 
             mLastDriverRoamAttempt = 0;
-            mWifiInjector.getWifiLastResortWatchdog().connectedStateTransition(false);
+            mWifiInjector.getWifiLastResortWatchdog().connectedStateTransition(false,
+                    getTargetSsid());
         }
     }
 
