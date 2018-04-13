@@ -1527,9 +1527,12 @@ public class WifiMetrics {
             for (ScanDetail scanDetail : scanDetails) {
                 NetworkDetail networkDetail = scanDetail.getNetworkDetail();
                 ScanResult scanResult = scanDetail.getScanResult();
-                if (mWifiNetworkSelector.isSignalTooWeak(scanResult)) {
-                    continue;
+
+                // statistics to be collected for ALL APs (irrespective of signal power)
+                if (networkDetail.is80211McResponderSupport()) {
+                    supporting80211mcAps++;
                 }
+
                 ScanResultMatchInfo matchInfo = ScanResultMatchInfo.fromScanResult(scanResult);
                 Pair<PasspointProvider, PasspointMatch> providerMatch = null;
                 PasspointProvider passpointProvider = null;
@@ -1568,6 +1571,13 @@ public class WifiMetrics {
                     }
 
                 }
+
+                if (mWifiNetworkSelector.isSignalTooWeak(scanResult)) {
+                    continue;
+                }
+
+                // statistics to be collected ONLY for those APs with sufficient signal power
+
                 ssids.add(matchInfo);
                 bssids++;
                 boolean isOpen = matchInfo.networkType == ScanResultMatchInfo.NETWORK_TYPE_OPEN;
@@ -1591,9 +1601,6 @@ public class WifiMetrics {
                 if (isSavedPasspoint) {
                     savedPasspointProviderProfiles.add(passpointProvider);
                     savedPasspointProviderBssids++;
-                }
-                if (networkDetail.is80211McResponderSupport()) {
-                    supporting80211mcAps++;
                 }
             }
             mWifiLogProto.fullBandAllSingleScanListenerResults++;
