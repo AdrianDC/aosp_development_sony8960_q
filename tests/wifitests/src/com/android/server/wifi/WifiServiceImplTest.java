@@ -59,12 +59,10 @@ import android.app.AppOpsManager;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
-import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
-import android.net.Uri;
 import android.net.wifi.ISoftApCallback;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
@@ -135,7 +133,6 @@ public class WifiServiceImplTest {
     private static final int TEST_PID2 = 9876;
     private static final int TEST_UID = 1200000;
     private static final int OTHER_TEST_UID = 1300000;
-    private static final int TEST_USER_HANDLE = 13;
     private static final String WIFI_IFACE_NAME = "wlan0";
     private static final String TEST_COUNTRY_CODE = "US";
 
@@ -2535,88 +2532,6 @@ public class WifiServiceImplTest {
         // immediately.
         mWifiServiceImpl.startScan(SCAN_PACKAGE_NAME);
         verify(mScanRequestProxy).startScan(Process.myUid(), SCAN_PACKAGE_NAME);
-    }
-
-    @Test
-    public void testPackageRemovedBroadcastHandling() {
-        mWifiServiceImpl.checkAndStartWifi();
-        verify(mContext).registerReceiver(mBroadcastReceiverCaptor.capture(),
-                (IntentFilter) argThat((IntentFilter filter) ->
-                        filter.hasAction(Intent.ACTION_PACKAGE_FULLY_REMOVED)));
-
-        int uid = TEST_UID;
-        String packageName = TEST_PACKAGE_NAME;
-        // Send the broadcast
-        Intent intent = new Intent(Intent.ACTION_PACKAGE_FULLY_REMOVED);
-        intent.putExtra(Intent.EXTRA_UID, uid);
-        intent.setData(Uri.fromParts("package", packageName, ""));
-        mBroadcastReceiverCaptor.getValue().onReceive(mContext, intent);
-
-        verify(mWifiStateMachine).removeAppConfigs(packageName, uid);
-    }
-
-    @Test
-    public void testPackageRemovedBroadcastHandlingWithNoUid() {
-        mWifiServiceImpl.checkAndStartWifi();
-        verify(mContext).registerReceiver(mBroadcastReceiverCaptor.capture(),
-                (IntentFilter) argThat((IntentFilter filter) ->
-                        filter.hasAction(Intent.ACTION_PACKAGE_FULLY_REMOVED)));
-
-        String packageName = TEST_PACKAGE_NAME;
-        // Send the broadcast
-        Intent intent = new Intent(Intent.ACTION_PACKAGE_FULLY_REMOVED);
-        intent.setData(Uri.fromParts("package", packageName, ""));
-        mBroadcastReceiverCaptor.getValue().onReceive(mContext, intent);
-
-        verify(mWifiStateMachine, never()).removeAppConfigs(anyString(), anyInt());
-    }
-
-    @Test
-    public void testPackageRemovedBroadcastHandlingWithNoPackageName() {
-        mWifiServiceImpl.checkAndStartWifi();
-        verify(mContext).registerReceiver(mBroadcastReceiverCaptor.capture(),
-                (IntentFilter) argThat((IntentFilter filter) ->
-                        filter.hasAction(Intent.ACTION_PACKAGE_FULLY_REMOVED)));
-
-        int uid = TEST_UID;
-        // Send the broadcast
-        Intent intent = new Intent(Intent.ACTION_PACKAGE_FULLY_REMOVED);
-        intent.putExtra(Intent.EXTRA_UID, uid);
-        mBroadcastReceiverCaptor.getValue().onReceive(mContext, intent);
-
-        verify(mWifiStateMachine, never()).removeAppConfigs(anyString(), anyInt());
-    }
-
-    @Test
-    public void testUserRemovedBroadcastHandling() {
-        mWifiServiceImpl.checkAndStartWifi();
-        verify(mContext).registerReceiver(mBroadcastReceiverCaptor.capture(),
-                (IntentFilter) argThat((IntentFilter filter) ->
-                        filter.hasAction(Intent.ACTION_USER_REMOVED)));
-
-        int userHandle = TEST_USER_HANDLE;
-        // Send the broadcast
-        Intent intent = new Intent(Intent.ACTION_USER_REMOVED);
-        intent.putExtra(Intent.EXTRA_USER_HANDLE, userHandle);
-        mBroadcastReceiverCaptor.getValue().onReceive(mContext, intent);
-
-        verify(mWifiStateMachine).removeUserConfigs(userHandle);
-    }
-
-    @Test
-    public void testUserRemovedBroadcastHandlingWithWrongIntentAction() {
-        mWifiServiceImpl.checkAndStartWifi();
-        verify(mContext).registerReceiver(mBroadcastReceiverCaptor.capture(),
-                (IntentFilter) argThat((IntentFilter filter) ->
-                        filter.hasAction(Intent.ACTION_USER_REMOVED)));
-
-        int userHandle = TEST_USER_HANDLE;
-        // Send the broadcast with wrong action
-        Intent intent = new Intent(Intent.ACTION_USER_FOREGROUND);
-        intent.putExtra(Intent.EXTRA_USER_HANDLE, userHandle);
-        mBroadcastReceiverCaptor.getValue().onReceive(mContext, intent);
-
-        verify(mWifiStateMachine, never()).removeUserConfigs(userHandle);
     }
 
     private class IdleModeIntentMatcher implements ArgumentMatcher<IntentFilter> {
