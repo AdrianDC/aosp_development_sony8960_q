@@ -110,6 +110,7 @@ public class ScanOnlyModeManagerTest {
         checkWifiScanStateChangedBroadcast(intents.get(0), WIFI_STATE_DISABLED);
         checkWifiScanStateChangedBroadcast(intents.get(1), WIFI_STATE_ENABLED);
         checkWifiStateChangeListenerUpdate(WIFI_STATE_ENABLED);
+        verify(mScanRequestProxy, atLeastOnce()).clearScanResults();
         verify(mScanRequestProxy, atLeastOnce()).enableScanningForHiddenNetworks(false);
     }
 
@@ -164,14 +165,12 @@ public class ScanOnlyModeManagerTest {
     @Test
     public void scanModeStopCleansUpState() throws Exception {
         startScanOnlyModeAndVerifyEnabled();
-        reset(mContext);
+        reset(mContext, mListener);
         mScanOnlyModeManager.stop();
         mLooper.dispatchAll();
-        // check when interface management it dynamic
-        //verify(mWifiNative).teardownInterface(TEST_INTERFACE_NAME);
+        verify(mWifiNative).teardownInterface(TEST_INTERFACE_NAME);
         verify(mContext, never()).sendStickyBroadcastAsUser(any(), eq(UserHandle.ALL));
         checkWifiStateChangeListenerUpdate(WIFI_STATE_DISABLED);
-        verify(mScanRequestProxy).clearScanResults();
     }
 
     /**
@@ -225,7 +224,7 @@ public class ScanOnlyModeManagerTest {
     @Test
     public void scanModeStartedDoesNotStopOnDownForDifferentIface() throws Exception {
         startScanOnlyModeAndVerifyEnabled();
-        reset(mContext, mListener);
+        reset(mContext, mListener, mScanRequestProxy);
         mInterfaceCallbackCaptor.getValue().onDown(OTHER_INTERFACE_NAME);
 
         mLooper.dispatchAll();
@@ -278,9 +277,11 @@ public class ScanOnlyModeManagerTest {
         mScanOnlyModeManager.stop();
         mLooper.dispatchAll();
 
-        InOrder inOrder = inOrder(mWakeupController);
+        InOrder inOrder = inOrder(mWakeupController, mWifiNative, mListener);
 
         inOrder.verify(mWakeupController).start();
         inOrder.verify(mWakeupController).stop();
+        inOrder.verify(mWifiNative).teardownInterface(eq(TEST_INTERFACE_NAME));
+        inOrder.verify(mListener).onStateChanged(eq(WIFI_STATE_DISABLED));
     }
 }

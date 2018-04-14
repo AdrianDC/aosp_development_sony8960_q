@@ -58,6 +58,7 @@ public class WifiStateMachinePrime {
     private final IBatteryStats mBatteryStats;
     private final SelfRecovery mSelfRecovery;
     private BaseWifiDiagnostics mWifiDiagnostics;
+    private final ScanRequestProxy mScanRequestProxy;
 
     // The base for wifi message types
     static final int BASE = Protocol.BASE_WIFI;
@@ -138,6 +139,7 @@ public class WifiStateMachinePrime {
         mSelfRecovery = mWifiInjector.getSelfRecovery();
         mWifiDiagnostics = mWifiInjector.makeWifiDiagnostics(mWifiNative);
         mModeStateMachine = new ModeStateMachine();
+        mScanRequestProxy = mWifiInjector.getScanRequestProxy();
         mWifiNativeStatusListener = new WifiNativeStatusListener();
         mWifiNative.registerStatusListener(mWifiNativeStatusListener);
     }
@@ -179,7 +181,7 @@ public class WifiStateMachinePrime {
     /**
      * Method to stop soft ap for wifi hotspot.
      *
-     * This method will stop any active softAp mode managers, if there is one.
+     * This method will stop any active softAp mode managers.
      */
     public void stopSoftAPMode() {
         mHandler.post(() -> {
@@ -187,7 +189,6 @@ public class WifiStateMachinePrime {
                 if (manager instanceof SoftApManager) {
                     Log.d(TAG, "Stopping SoftApModeManager");
                     manager.stop();
-                    mActiveModeManagers.remove(manager);
                 }
             }
             updateBatteryStatsWifiState(false);
@@ -311,6 +312,8 @@ public class WifiStateMachinePrime {
             public void enter() {
                 Log.d(TAG, "Entering WifiDisabledState");
                 mDefaultModeManager.sendScanAvailableBroadcast(mContext, false);
+                mScanRequestProxy.enableScanningForHiddenNetworks(false);
+                mScanRequestProxy.clearScanResults();
             }
 
             @Override
@@ -364,6 +367,26 @@ public class WifiStateMachinePrime {
             public boolean processMessage(Message message) {
                 if (checkForAndHandleModeChange(message)) {
                     return HANDLED;
+                }
+
+                switch(message.what) {
+                    case CMD_START_CLIENT_MODE:
+                        Log.d(TAG, "Received CMD_START_CLIENT_MODE when active - drop");
+                        break;
+                    case CMD_CLIENT_MODE_FAILED:
+                        Log.d(TAG, "ClientMode failed, return to WifiDisabledState.");
+                        // notify WifiController that ClientMode failed
+                        mClientModeCallback.onStateChanged(WifiManager.WIFI_STATE_UNKNOWN);
+                        mModeStateMachine.transitionTo(mWifiDisabledState);
+                        break;
+                    case CMD_CLIENT_MODE_STOPPED:
+                        Log.d(TAG, "ClientMode stopped, return to WifiDisabledState.");
+                        // notify WifiController that ClientMode stopped
+                        mClientModeCallback.onStateChanged(WifiManager.WIFI_STATE_DISABLED);
+                        mModeStateMachine.transitionTo(mWifiDisabledState);
+                        break;
+                    default:
+                        return NOT_HANDLED;
                 }
                 return NOT_HANDLED;
             }
@@ -462,7 +485,6 @@ public class WifiStateMachinePrime {
         Log.d(TAG, "Starting SoftApModeManager");
 
         WifiConfiguration config = softapConfig.getWifiConfiguration();
-        // TODO (b/67601382): add checks for valid softap configs
         if (config != null && config.SSID != null) {
             Log.d(TAG, "Passing config to SoftApManager! " + config);
         } else {

@@ -825,7 +825,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         }
 
         // If SoftAp is enabled, only Settings is allowed to toggle wifi
-        boolean apEnabled = mWifiApState != WifiManager.WIFI_AP_STATE_DISABLED;
+        boolean apEnabled = mWifiApState == WifiManager.WIFI_AP_STATE_ENABLED;
 
         if (apEnabled && !isFromSettings) {
             mLog.info("setWifiEnabled SoftAp not disabled: only Settings can enable wifi").flush();
@@ -1006,7 +1006,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             if (!mLocalOnlyHotspotRequests.isEmpty()) {
                 stopSoftApInternal();
             }
-
             return startSoftApInternal(wifiConfig, WifiManager.IFACE_IP_MODE_TETHERED);
         }
     }
