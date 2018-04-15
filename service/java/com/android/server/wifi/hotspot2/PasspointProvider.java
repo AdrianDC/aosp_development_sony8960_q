@@ -40,6 +40,7 @@ import com.android.server.wifi.hotspot2.anqp.RoamingConsortiumElement;
 import com.android.server.wifi.hotspot2.anqp.ThreeGPPNetworkElement;
 import com.android.server.wifi.hotspot2.anqp.eap.AuthParam;
 import com.android.server.wifi.hotspot2.anqp.eap.NonEAPInnerAuth;
+import com.android.server.wifi.util.InformationElementUtil.RoamingConsortium;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -253,10 +254,12 @@ public class PasspointProvider {
      * Return the matching status with the given AP, based on the ANQP elements from the AP.
      *
      * @param anqpElements ANQP elements from the AP
+     * @param roamingConsortium Roaming Consortium information element from the AP
      * @return {@link PasspointMatch}
      */
-    public PasspointMatch match(Map<ANQPElementType, ANQPElement> anqpElements) {
-        PasspointMatch providerMatch = matchProvider(anqpElements);
+    public PasspointMatch match(Map<ANQPElementType, ANQPElement> anqpElements,
+            RoamingConsortium roamingConsortium) {
+        PasspointMatch providerMatch = matchProvider(anqpElements, roamingConsortium);
 
         // Perform authentication match against the NAI Realm.
         int authMatch = ANQPMatcher.matchNAIRealm(
@@ -454,9 +457,11 @@ public class PasspointProvider {
      * Perform a provider match based on the given ANQP elements.
      *
      * @param anqpElements List of ANQP elements
+     * @param roamingConsortium Roaming Consortium information element from the AP
      * @return {@link PasspointMatch}
      */
-    private PasspointMatch matchProvider(Map<ANQPElementType, ANQPElement> anqpElements) {
+    private PasspointMatch matchProvider(Map<ANQPElementType, ANQPElement> anqpElements,
+            RoamingConsortium roamingConsortium) {
         // Domain name matching.
         if (ANQPMatcher.matchDomainName(
                 (DomainNameElement) anqpElements.get(ANQPElementType.ANQPDomName),
@@ -464,11 +469,24 @@ public class PasspointProvider {
             return PasspointMatch.HomeProvider;
         }
 
-        // Roaming Consortium OI matching.
+        // ANQP Roaming Consortium OI matching.
+        long[] providerOIs = mConfig.getHomeSp().getRoamingConsortiumOis();
         if (ANQPMatcher.matchRoamingConsortium(
                 (RoamingConsortiumElement) anqpElements.get(ANQPElementType.ANQPRoamingConsortium),
-                mConfig.getHomeSp().getRoamingConsortiumOis())) {
+                providerOIs)) {
             return PasspointMatch.RoamingProvider;
+        }
+
+        long[] roamingConsortiums = roamingConsortium.getRoamingConsortiums();
+        // Roaming Consortium OI information element matching.
+        if (roamingConsortiums != null && providerOIs != null) {
+            for (long sta_oi: roamingConsortiums) {
+                for (long ap_oi: providerOIs) {
+                    if (sta_oi == ap_oi) {
+                        return PasspointMatch.RoamingProvider;
+                    }
+                }
+            }
         }
 
         // 3GPP Network matching.

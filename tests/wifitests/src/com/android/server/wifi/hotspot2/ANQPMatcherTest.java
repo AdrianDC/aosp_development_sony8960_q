@@ -158,6 +158,30 @@ public class ANQPMatcherTest {
     }
 
     /**
+     * Verify that method match will be returned when the specified EAP
+     * method only matches a eap method in the NAI Realm ANQP element.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void matchNAIRealmWithMethodMatch() throws Exception {
+        // Test data.
+        String providerRealm = "test.com";
+        String anqpRealm = "test2.com";
+        int eapMethodID = EAPConstants.EAP_TLS;
+
+        // Setup NAI Realm element.
+        EAPMethod method = new EAPMethod(eapMethodID, new HashMap<Integer, Set<AuthParam>>());
+        NAIRealmData realmData = new NAIRealmData(
+            Arrays.asList(new String[] {anqpRealm}), Arrays.asList(new EAPMethod[] {method}));
+        NAIRealmElement element = new NAIRealmElement(
+            Arrays.asList(new NAIRealmData[] {realmData}));
+
+        assertEquals(AuthMatch.METHOD,
+            ANQPMatcher.matchNAIRealm(element, providerRealm, eapMethodID, null));
+    }
+
+    /**
      * Verify that a realm and method match will be returned when the specified realm and EAP
      * method matches a realm in the NAI Realm ANQP element.
      *

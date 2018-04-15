@@ -692,8 +692,8 @@ public class InformationElementUtilTest {
         InformationElementUtil.RoamingConsortium roamingConsortium =
                 InformationElementUtil.getRoamingConsortiumIE(new InformationElement[] {ie});
         assertEquals(1, roamingConsortium.anqpOICount);
-        assertEquals(1, roamingConsortium.roamingConsortiums.length);
-        assertEquals(0x112233, roamingConsortium.roamingConsortiums[0]);
+        assertEquals(1, roamingConsortium.getRoamingConsortiums().length);
+        assertEquals(0x112233, roamingConsortium.getRoamingConsortiums()[0]);
     }
 
     /**

@@ -26,9 +26,11 @@ import android.util.Pair;
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * This Class is a Work-In-Progress, intended behavior is as follows:
@@ -72,12 +74,17 @@ public class WifiLastResortWatchdog {
      * Key:BSSID, Value:Counters of failure types
      */
     private Map<String, AvailableNetworkFailureCount> mRecentAvailableNetworks = new HashMap<>();
+
     /**
      * Map of SSID to <FailureCount, AP count>, used to count failures & number of access points
      * belonging to an SSID.
      */
     private Map<String, Pair<AvailableNetworkFailureCount, Integer>> mSsidFailureCount =
             new HashMap<>();
+
+    // Set of SSIDs that watchdog tried to connect to before finally triggering a restart
+    private Set<String> mSsidAvailableAtFailure = new HashSet<>();
+
     // Tracks: if WifiStateMachine is in ConnectedState
     private boolean mWifiIsConnected = false;
     // Is Watchdog allowed to trigger now? Set to false after triggering. Set to true after
@@ -210,6 +217,8 @@ public class WifiLastResortWatchdog {
             // Stop the watchdog from triggering until re-enabled
             setWatchdogTriggerEnabled(false);
             Log.e(TAG, "Watchdog triggering recovery");
+            mSsidAvailableAtFailure.clear();
+            mSsidAvailableAtFailure.addAll(mSsidFailureCount.keySet());
             mSelfRecovery.trigger(SelfRecovery.REASON_LAST_RESORT_WATCHDOG);
             // increment various watchdog trigger count stats
             incrementWifiMetricsTriggerCounts();
@@ -220,27 +229,33 @@ public class WifiLastResortWatchdog {
 
     /**
      * Handles transitions entering and exiting WifiStateMachine ConnectedState
-     * Used to track wifistate, and perform watchdog count reseting
+     * Used to track wifistate, and perform watchdog count resetting
      * @param isEntering true if called from ConnectedState.enter(), false for exit()
+     * @param ssid the ssid of the network doing the transition
      */
-    public void connectedStateTransition(boolean isEntering) {
+    public void connectedStateTransition(boolean isEntering, String ssid) {
         if (mVerboseLoggingEnabled) {
             Log.v(TAG, "connectedStateTransition: isEntering = " + isEntering);
         }
         mWifiIsConnected = isEntering;
+        if (!isEntering) {
+            return;
+        }
         if (!mWatchdogAllowedToTrigger) {
             // WiFi has connected after a Watchdog trigger, without any new networks becoming
             // available, log a Watchdog success in wifi metrics
             mWifiMetrics.incrementNumLastResortWatchdogSuccesses();
-            takeBugReportWithCurrentProbability("Wifi fixed after restart");
+            if (mSsidAvailableAtFailure.contains(ssid)) {
+                Log.e(TAG, "Wifi failed to connect on " + mSsidAvailableAtFailure.size()
+                        + " networks but was able to reconnect to one of them after a restart.");
+                takeBugReportWithCurrentProbability("Wifi fixed after restart");
+            }
         }
-        if (isEntering) {
-            // We connected to something! Reset failure counts for everything
-            clearAllFailureCounts();
-            // If the watchdog trigger was disabled (it triggered), connecting means we did
-            // something right, re-enable it so it can fire again.
-            setWatchdogTriggerEnabled(true);
-        }
+        // We connected to something! Reset failure counts for everything
+        clearAllFailureCounts();
+        // If the watchdog trigger was disabled (it triggered), connecting means we did
+        // something right, re-enable it so it can fire again.
+        setWatchdogTriggerEnabled(true);
     }
 
     /**
@@ -397,7 +412,7 @@ public class WifiLastResortWatchdog {
         for (Map.Entry<String, AvailableNetworkFailureCount> entry
                 : mRecentAvailableNetworks.entrySet()) {
             final AvailableNetworkFailureCount failureCount = entry.getValue();
-            entry.getValue().resetCounts();
+            failureCount.resetCounts();
         }
         for (Map.Entry<String, Pair<AvailableNetworkFailureCount, Integer>> entry
                 : mSsidFailureCount.entrySet()) {

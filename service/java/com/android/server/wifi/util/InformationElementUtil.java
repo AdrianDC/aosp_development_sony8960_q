@@ -259,7 +259,12 @@ public class InformationElementUtil {
 
     public static class RoamingConsortium {
         public int anqpOICount = 0;
-        public long[] roamingConsortiums = null;
+
+        private long[] roamingConsortiums = null;
+
+        public long[] getRoamingConsortiums() {
+            return roamingConsortiums;
+        }
 
         public void from(InformationElement ie) {
             if (ie.id != InformationElement.EID_ROAMING_CONSORTIUM) {
