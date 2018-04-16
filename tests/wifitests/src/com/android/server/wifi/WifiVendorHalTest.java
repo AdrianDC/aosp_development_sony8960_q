@@ -1233,6 +1233,31 @@ public class WifiVendorHalTest {
     }
 
     /**
+     * Test that an APF program and data buffer can be read back.
+     */
+    @Test
+    public void testReadApf() throws Exception {
+        // Expose the 1.2 IWifiStaIface.
+        mWifiVendorHal = new WifiVendorHalSpyV1_2(mHalDeviceManager, mLooper.getLooper());
+
+        byte[] program = new byte[] {65, 66, 67};
+        ArrayList<Byte> expected = new ArrayList<>(3);
+        for (byte b : program) expected.add(b);
+
+        doAnswer(new AnswerWithArguments() {
+            public void answer(
+                    android.hardware.wifi.V1_2.IWifiStaIface.readApfPacketFilterDataCallback cb)
+                    throws RemoteException {
+                cb.onValues(mWifiStatusSuccess, expected);
+            }
+        }).when(mIWifiStaIfaceV12).readApfPacketFilterData(any(
+                android.hardware.wifi.V1_2.IWifiStaIface.readApfPacketFilterDataCallback.class));
+
+        assertTrue(mWifiVendorHal.startVendorHalSta());
+        assertArrayEquals(program, mWifiVendorHal.readPacketFilter(TEST_IFACE_NAME));
+    }
+
+    /**
      * Test that the country code is set in AP mode (when it should be).
      */
     @Test
@@ -1348,7 +1373,6 @@ public class WifiVendorHalTest {
         assertEquals(halBufferStatus.size(), actual.length);
         assertEquals(oneExpect, actual[0].toString());
         assertEquals(two.ringId, actual[1].ringBufferId);
-
     }
 
     /**
