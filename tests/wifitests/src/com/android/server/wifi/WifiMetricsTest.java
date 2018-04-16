@@ -344,7 +344,7 @@ public class WifiMetricsTest {
     }
 
     private ScanDetail buildMockScanDetailPasspoint(String ssid, String bssid, long hessid,
-            int anqpDomainId, NetworkDetail.HSRelease hsRelease) {
+            int anqpDomainId, NetworkDetail.HSRelease hsRelease, boolean weakSignal) {
         ScanDetail mockScanDetail = mock(ScanDetail.class);
         NetworkDetail mockNetworkDetail = mock(NetworkDetail.class);
         ScanResult scanResult = new ScanResult();
@@ -357,6 +357,7 @@ public class WifiMetricsTest {
         when(mockNetworkDetail.getHSRelease()).thenReturn(hsRelease);
         when(mockNetworkDetail.getAnqpDomainID()).thenReturn(anqpDomainId);
         when(mockNetworkDetail.isInterworking()).thenReturn(true);
+        when(mWns.isSignalTooWeak(eq(scanResult))).thenReturn(weakSignal);
         return mockScanDetail;
     }
 
@@ -1545,29 +1546,29 @@ public class WifiMetricsTest {
         long hessid1 = 10;
         int anqpDomainId1 = 5;
         scan.add(buildMockScanDetailPasspoint("PASSPOINT_XX", "00:02:03:04:05:06", hessid1,
-                anqpDomainId1, NetworkDetail.HSRelease.R1));
+                anqpDomainId1, NetworkDetail.HSRelease.R1, true));
         scan.add(buildMockScanDetailPasspoint("PASSPOINT_XY", "01:02:03:04:05:06", hessid1,
-                anqpDomainId1, NetworkDetail.HSRelease.R1));
+                anqpDomainId1, NetworkDetail.HSRelease.R1, true));
         scan.add(buildMockScanDetailPasspoint("PASSPOINT_XYZ", "02:02:03:04:05:06", hessid1,
-                anqpDomainId1, NetworkDetail.HSRelease.Unknown));
+                anqpDomainId1, NetworkDetail.HSRelease.Unknown, true));
         // 2 R2 passpoint APs belonging to a single provider: hessid2
         long hessid2 = 12;
         int anqpDomainId2 = 6;
         scan.add(buildMockScanDetailPasspoint("PASSPOINT_Y", "AA:02:03:04:05:06", hessid2,
-                anqpDomainId2, NetworkDetail.HSRelease.R2));
+                anqpDomainId2, NetworkDetail.HSRelease.R2, true));
         scan.add(buildMockScanDetailPasspoint("PASSPOINT_Z", "AB:02:03:04:05:06", hessid2,
-                anqpDomainId2, NetworkDetail.HSRelease.R2));
+                anqpDomainId2, NetworkDetail.HSRelease.R2, true));
         mWifiMetrics.incrementAvailableNetworksHistograms(scan, true);
         scan = new ArrayList<ScanDetail>();
         // 3 R2 passpoint APs belonging to a single provider: hessid3 (in next scan)
         long hessid3 = 15;
         int anqpDomainId3 = 8;
         scan.add(buildMockScanDetailPasspoint("PASSPOINT_Y", "AA:02:03:04:05:06", hessid3,
-                anqpDomainId3, NetworkDetail.HSRelease.R2));
+                anqpDomainId3, NetworkDetail.HSRelease.R2, true));
         scan.add(buildMockScanDetailPasspoint("PASSPOINT_Y", "AA:02:03:04:05:06", hessid3,
-                anqpDomainId3, NetworkDetail.HSRelease.R2));
+                anqpDomainId3, NetworkDetail.HSRelease.R2, false));
         scan.add(buildMockScanDetailPasspoint("PASSPOINT_Z", "AB:02:03:04:05:06", hessid3,
-                anqpDomainId3, NetworkDetail.HSRelease.R2));
+                anqpDomainId3, NetworkDetail.HSRelease.R2, true));
         mWifiMetrics.incrementAvailableNetworksHistograms(scan, true);
         dumpProtoAndDeserialize();
 
@@ -1584,9 +1585,9 @@ public class WifiMetricsTest {
                 WifiMetrics.MAX_TOTAL_PASSPOINT_UNIQUE_ESS_BUCKET) + 5;
         for (int i = 0; i < lotsOfSSids; i++) {
             scan.add(buildMockScanDetailPasspoint("PASSPOINT_XX" + i, "00:02:03:04:05:06", i,
-                    i + 10, NetworkDetail.HSRelease.R1));
+                    i + 10, NetworkDetail.HSRelease.R1, true));
             scan.add(buildMockScanDetailPasspoint("PASSPOINT_XY" + i, "AA:02:03:04:05:06", 1000 * i,
-                    i + 10, NetworkDetail.HSRelease.R2));
+                    i + 10, NetworkDetail.HSRelease.R2, false));
         }
         mWifiMetrics.incrementAvailableNetworksHistograms(scan, true);
         dumpProtoAndDeserialize();
@@ -1617,6 +1618,7 @@ public class WifiMetricsTest {
         when(mockScanDetail80211mc.getNetworkDetail()).thenReturn(mockNetworkDetail80211mc);
         when(mockScanDetailNon80211mc.getScanResult()).thenReturn(mockScanResult);
         when(mockScanDetail80211mc.getScanResult()).thenReturn(mockScanResult);
+        when(mWns.isSignalTooWeak(eq(mockScanDetail80211mc.getScanResult()))).thenReturn(true);
         List<ScanDetail> scan = new ArrayList<ScanDetail>();
 
         // 4 scans (a few non-802.11mc supporting APs on each)
