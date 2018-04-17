@@ -98,6 +98,9 @@ public class WifiLastResortWatchdog {
     private Looper mWifiStateMachineLooper;
     private double mBugReportProbability = PROB_TAKE_BUGREPORT_DEFAULT;
     private Clock mClock;
+    // If any connection failure happened after watchdog triggering restart then assume watchdog
+    // did not fix the problem
+    private boolean mWatchdogFixedWifi = true;
 
     WifiLastResortWatchdog(SelfRecovery selfRecovery, Clock clock, WifiMetrics wifiMetrics,
             WifiStateMachine wsm, Looper wifiStateMachineLooper) {
@@ -214,6 +217,7 @@ public class WifiLastResortWatchdog {
         // If watchdog is not allowed to trigger it means a wifi restart is already triggered
         if (!mWatchdogAllowedToTrigger) {
             mWifiMetrics.incrementWatchdogTotalConnectionFailureCountAfterTrigger();
+            mWatchdogFixedWifi = false;
         }
         // Have we met conditions to trigger the Watchdog Wifi restart?
         boolean isRestartNeeded = checkTriggerCondition();
@@ -223,6 +227,7 @@ public class WifiLastResortWatchdog {
         if (isRestartNeeded) {
             // Stop the watchdog from triggering until re-enabled
             setWatchdogTriggerEnabled(false);
+            mWatchdogFixedWifi = true;
             Log.e(TAG, "Watchdog triggering recovery");
             mSsidAvailableAtFailure.clear();
             mSsidAvailableAtFailure.addAll(mSsidFailureCount.keySet());
@@ -249,17 +254,17 @@ public class WifiLastResortWatchdog {
         if (!isEntering) {
             return;
         }
-        if (!mWatchdogAllowedToTrigger) {
+        if (!mWatchdogAllowedToTrigger && mWatchdogFixedWifi
+                && checkIfAtleastOneNetworkHasEverConnected()
+                && mSsidAvailableAtFailure.contains(ssid)) {
+            Log.e(TAG, "Wifi failed to connect on " + mSsidAvailableAtFailure.size()
+                    + " networks but was able to reconnect to one of them after a restart.");
+            takeBugReportWithCurrentProbability("Wifi fixed after restart");
             // WiFi has connected after a Watchdog trigger, without any new networks becoming
             // available, log a Watchdog success in wifi metrics
             mWifiMetrics.incrementNumLastResortWatchdogSuccesses();
             long durationMs = mClock.getElapsedSinceBootMillis() - mTimeLastTrigger;
             mWifiMetrics.setWatchdogSuccessTimeDurationMs(durationMs);
-            if (mSsidAvailableAtFailure.contains(ssid)) {
-                Log.e(TAG, "Wifi failed to connect on " + mSsidAvailableAtFailure.size()
-                        + " networks but was able to reconnect to one of them after a restart.");
-                takeBugReportWithCurrentProbability("Wifi fixed after restart");
-            }
         }
         // We connected to something! Reset failure counts for everything
         clearAllFailureCounts();
@@ -361,25 +366,32 @@ public class WifiLastResortWatchdog {
         // Don't check Watchdog trigger if trigger is not enabled
         if (!mWatchdogAllowedToTrigger) return false;
 
-        boolean atleastOneNetworkHasEverConnected = false;
         for (Map.Entry<String, AvailableNetworkFailureCount> entry
                 : mRecentAvailableNetworks.entrySet()) {
-            if (entry.getValue().config != null
-                    && entry.getValue().config.getNetworkSelectionStatus().getHasEverConnected()) {
-                atleastOneNetworkHasEverConnected = true;
-            }
             if (!isOverFailureThreshold(entry.getKey())) {
                 // This available network is not over failure threshold, meaning we still have a
                 // network to try connecting to
                 return false;
             }
         }
-        // We have met the failure count for every available network & there is at-least one network
-        // we have previously connected to present.
+        // We have met the failure count for every available network.
+        // Trigger restart if there exists at-least one network that we have previously connected.
+        boolean atleastOneNetworkHasEverConnected = checkIfAtleastOneNetworkHasEverConnected();
         if (mVerboseLoggingEnabled) {
             Log.v(TAG, "checkTriggerCondition: return = " + atleastOneNetworkHasEverConnected);
         }
-        return atleastOneNetworkHasEverConnected;
+        return checkIfAtleastOneNetworkHasEverConnected();
+    }
+
+    private boolean checkIfAtleastOneNetworkHasEverConnected() {
+        for (Map.Entry<String, AvailableNetworkFailureCount> entry
+                : mRecentAvailableNetworks.entrySet()) {
+            if (entry.getValue().config != null
+                    && entry.getValue().config.getNetworkSelectionStatus().getHasEverConnected()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

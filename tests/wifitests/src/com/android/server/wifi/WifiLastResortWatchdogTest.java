@@ -1860,4 +1860,120 @@ public class WifiLastResortWatchdogTest {
                 ssids[0], bssids[0], WifiLastResortWatchdog.FAILURE_CODE_ASSOCIATION);
         verify(mWifiMetrics, times(1)).incrementWatchdogTotalConnectionFailureCountAfterTrigger();
     }
+
+    /**
+     * Test that LRWD success is only declared when the first connection after restarting wifi
+     * is successful.
+     *
+     * First tests the failure case: check success metric is not incremented when the first
+     * connection is a failure.
+     * Then test state transition and the success case: check success metric is incremented
+     * when the first connection is a success.
+     */
+    @Test
+    public void testWatchdogAssumesSuccessOnlyIfFirstConnectionAfterRestartSucceeds() {
+        String[] ssids = {"\"test1\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3"};
+        int[] frequencies = {2437};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]"};
+        int[] levels = {-60};
+        boolean[] isEphemeral = {false};
+        boolean[] hasEverConnected = {true};
+        List<Pair<ScanDetail, WifiConfiguration>> candidates = createFilteredQnsCandidates(ssids,
+                bssids, frequencies, caps, levels, isEphemeral, hasEverConnected);
+        mLastResortWatchdog.updateAvailableNetworks(candidates);
+
+        // Ensure new networks have zero'ed failure counts
+        for (int i = 0; i < ssids.length; i++) {
+            assertFailureCountEquals(bssids[i], 0, 0, 0);
+        }
+
+        //Increment failure counts
+        for (int i = 0; i < WifiLastResortWatchdog.FAILURE_THRESHOLD; i++) {
+            mLastResortWatchdog.noteConnectionFailureAndTriggerIfNeeded(
+                    ssids[0], bssids[0], WifiLastResortWatchdog.FAILURE_CODE_ASSOCIATION);
+        }
+
+        // Verify watchdog has triggered a restart
+        verify(mWifiMetrics, times(1)).incrementNumLastResortWatchdogTriggers();
+
+        // Fail 1 more time and verify this time it's counted
+        mLastResortWatchdog.noteConnectionFailureAndTriggerIfNeeded(
+                ssids[0], bssids[0], WifiLastResortWatchdog.FAILURE_CODE_ASSOCIATION);
+
+        // Simulate wifi connecting after triggering
+        mLastResortWatchdog.connectedStateTransition(true, "\"test1\"");
+        // Verify takeBugReport is not called again
+        mLooper.dispatchAll();
+        verify(mWifiStateMachine, never()).takeBugReport(anyString(), anyString());
+        verify(mWifiMetrics, never()).incrementNumLastResortWatchdogSuccesses();
+
+        // Simulate wifi disconnecting
+        mLastResortWatchdog.connectedStateTransition(false, "\"test1\"");
+
+        // Test another round, and this time successfully connect after restart trigger
+        for (int i = 0; i < ssids.length; i++) {
+            assertFailureCountEquals(bssids[i], 0, 0, 0);
+        }
+        for (int i = 0; i < WifiLastResortWatchdog.FAILURE_THRESHOLD; i++) {
+            mLastResortWatchdog.noteConnectionFailureAndTriggerIfNeeded(
+                    ssids[0], bssids[0], WifiLastResortWatchdog.FAILURE_CODE_ASSOCIATION);
+        }
+
+        // Verify watchdog has triggered a restart
+        verify(mWifiMetrics, times(2)).incrementNumLastResortWatchdogTriggers();
+        // Simulate wifi connecting after triggering
+        mLastResortWatchdog.connectedStateTransition(true, "\"test1\"");
+        // Verify takeBugReport is not called again
+        mLooper.dispatchAll();
+        verify(mWifiStateMachine, times(1)).takeBugReport(anyString(), anyString());
+        verify(mWifiMetrics, times(1)).incrementNumLastResortWatchdogSuccesses();
+    }
+
+    /**
+     * If the user changes the configuration and then we have a successful connection, don't
+     * trigger bugreport.
+     * Tests this specific path:
+     * 1. watchdog triggers restart
+     * 2. wifi configuration changes
+     * 3. wifi successfully connects immedietly after
+     * Expected result: bugreport should not trigger
+     */
+    @Test
+    public void testWatchdogVerifiesAtLeastOneNetworkIsConnectedBeforeTriggeringBugreport() {
+        String[] ssids = {"\"test1\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3"};
+        int[] frequencies = {2437};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]"};
+        int[] levels = {-60};
+        boolean[] isEphemeral = {false};
+        boolean[] hasEverConnected = {true};
+        List<Pair<ScanDetail, WifiConfiguration>> candidates = createFilteredQnsCandidates(ssids,
+                bssids, frequencies, caps, levels, isEphemeral, hasEverConnected);
+        mLastResortWatchdog.updateAvailableNetworks(candidates);
+
+        // Ensure new networks have zero'ed failure counts
+        for (int i = 0; i < ssids.length; i++) {
+            assertFailureCountEquals(bssids[i], 0, 0, 0);
+        }
+
+        //Increment failure counts
+        for (int i = 0; i < WifiLastResortWatchdog.FAILURE_THRESHOLD; i++) {
+            mLastResortWatchdog.noteConnectionFailureAndTriggerIfNeeded(
+                    ssids[0], bssids[0], WifiLastResortWatchdog.FAILURE_CODE_ASSOCIATION);
+        }
+
+        // Verify watchdog has triggered a restart
+        verify(mWifiMetrics, times(1)).incrementNumLastResortWatchdogTriggers();
+
+        // Simulate user changing the configuration
+        when(candidates.get(0).second.getNetworkSelectionStatus().getHasEverConnected())
+                .thenReturn(false);
+
+        mLastResortWatchdog.connectedStateTransition(true, "\"test1\"");
+        // Verify takeBugReport is not called again
+        mLooper.dispatchAll();
+        verify(mWifiStateMachine, never()).takeBugReport(anyString(), anyString());
+        verify(mWifiMetrics, never()).incrementNumLastResortWatchdogSuccesses();
+    }
 }
