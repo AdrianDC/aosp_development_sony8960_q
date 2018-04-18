@@ -208,6 +208,10 @@ public class WifiLastResortWatchdog {
         // Update failure count for the failing network
         updateFailureCountForNetwork(ssid, bssid, reason);
 
+        // If watchdog is not allowed to trigger it means a wifi restart is already triggered
+        if (!mWatchdogAllowedToTrigger) {
+            mWifiMetrics.incrementWatchdogTotalConnectionFailureCountAfterTrigger();
+        }
         // Have we met conditions to trigger the Watchdog Wifi restart?
         boolean isRestartNeeded = checkTriggerCondition();
         if (mVerboseLoggingEnabled) {
