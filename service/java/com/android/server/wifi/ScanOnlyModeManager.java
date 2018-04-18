@@ -18,14 +18,13 @@ package com.android.server.wifi;
 
 import android.annotation.NonNull;
 import android.content.Context;
-import android.content.Intent;
 import android.net.wifi.WifiManager;
 import android.os.Looper;
 import android.os.Message;
-import android.os.UserHandle;
 import android.text.TextUtils;
 import android.util.Log;
 
+import com.android.internal.util.IState;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 import com.android.server.wifi.WifiNative.InterfaceCallback;
@@ -48,7 +47,6 @@ public class ScanOnlyModeManager implements ActiveModeManager {
     private final WakeupController mWakeupController;
 
     private String mClientInterfaceName;
-
 
     ScanOnlyModeManager(@NonNull Context context, @NonNull Looper looper,
                         @NonNull WifiNative wifiNative, @NonNull Listener listener,
@@ -75,7 +73,11 @@ public class ScanOnlyModeManager implements ActiveModeManager {
      * Cancel any pending scans and stop scan mode.
      */
     public void stop() {
-        mStateMachine.sendMessage(ScanOnlyModeStateMachine.CMD_STOP);
+        IState currentState = mStateMachine.getCurrentState();
+        Log.d(TAG, " currentstate: " + currentState);
+        if (currentState != null) {
+            currentState.exit();
+        }
     }
 
     /**
@@ -100,20 +102,12 @@ public class ScanOnlyModeManager implements ActiveModeManager {
     private class ScanOnlyModeStateMachine extends StateMachine {
         // Commands for the state machine.
         public static final int CMD_START = 0;
-        public static final int CMD_STOP = 1;
-        public static final int CMD_WIFINATIVE_FAILURE = 2;
         public static final int CMD_INTERFACE_STATUS_CHANGED = 3;
         public static final int CMD_INTERFACE_DESTROYED = 4;
         public static final int CMD_INTERFACE_DOWN = 5;
 
         private final State mIdleState = new IdleState();
         private final State mStartedState = new StartedState();
-
-        private final WifiNative.StatusListener mWifiNativeStatusListener = (boolean isReady) -> {
-            if (!isReady) {
-                sendMessage(CMD_WIFINATIVE_FAILURE);
-            }
-        };
 
         private final InterfaceCallback mWifiNativeInterfaceCallback = new InterfaceCallback() {
             @Override
@@ -154,7 +148,6 @@ public class ScanOnlyModeManager implements ActiveModeManager {
             @Override
             public void enter() {
                 Log.d(TAG, "entering IdleState");
-                mWifiNative.registerStatusListener(mWifiNativeStatusListener);
                 mClientInterfaceName = null;
             }
 
@@ -166,15 +159,13 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                                 mWifiNativeInterfaceCallback);
                         if (TextUtils.isEmpty(mClientInterfaceName)) {
                             Log.e(TAG, "Failed to create ClientInterface. Sit in Idle");
-                            sendScanAvailableBroadcast(false);
                             updateWifiState(WifiManager.WIFI_STATE_UNKNOWN);
                             break;
                         }
+                        // we have a new scanning interface, make sure scanner knows we aren't
+                        // ready yet
+                        sendScanAvailableBroadcast(false);
                         transitionTo(mStartedState);
-                        break;
-                    case CMD_STOP:
-                        // This should be safe to ignore.
-                        Log.d(TAG, "received CMD_STOP when idle, ignoring");
                         break;
                     default:
                         Log.d(TAG, "received an invalid message: " + message);
@@ -218,12 +209,9 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                     case CMD_START:
                         // Already started, ignore this command.
                         break;
-                    case CMD_STOP:
-                        Log.d(TAG, "Stopping scan mode.");
-                        transitionTo(mIdleState);
-                        break;
                     case CMD_INTERFACE_DESTROYED:
                         Log.d(TAG, "Interface cleanly destroyed, report scan mode stop.");
+                        mClientInterfaceName = null;
                         transitionTo(mIdleState);
                         break;
                     case CMD_INTERFACE_STATUS_CHANGED:
@@ -231,8 +219,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                         onUpChanged(isUp);
                         break;
                     case CMD_INTERFACE_DOWN:
-                    case CMD_WIFINATIVE_FAILURE:
-                        Log.d(TAG, "native/interface failure!  restart services?");
+                        Log.d(TAG, "interface down!  stop mode");
                         updateWifiState(WifiManager.WIFI_STATE_UNKNOWN);
                         transitionTo(mIdleState);
                         break;
@@ -249,24 +236,18 @@ public class ScanOnlyModeManager implements ActiveModeManager {
             @Override
             public void exit() {
                 mWakeupController.stop();
-                //mWifiNative.teardownInterface(mClientInterfaceName);
-                // let WifiScanner know that wifi is down.
-                sendScanAvailableBroadcast(false);
+                if (mClientInterfaceName == null) {
+                    return;
+                }
+                mWifiNative.teardownInterface(mClientInterfaceName);
+                mClientInterfaceName = null;
                 updateWifiState(WifiManager.WIFI_STATE_DISABLED);
                 mScanRequestProxy.clearScanResults();
             }
         }
+    }
 
-        private void sendScanAvailableBroadcast(boolean available) {
-            Log.d(TAG, "sending scan available broadcast: " + available);
-            final Intent intent = new Intent(WifiManager.WIFI_SCAN_AVAILABLE);
-            intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
-            if (available) {
-                intent.putExtra(WifiManager.EXTRA_SCAN_AVAILABLE, WifiManager.WIFI_STATE_ENABLED);
-            } else {
-                intent.putExtra(WifiManager.EXTRA_SCAN_AVAILABLE, WifiManager.WIFI_STATE_DISABLED);
-            }
-            mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
-        }
+    private void sendScanAvailableBroadcast(boolean available) {
+        sendScanAvailableBroadcast(mContext, available);
     }
 }
