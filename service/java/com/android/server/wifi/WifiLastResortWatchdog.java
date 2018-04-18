@@ -26,11 +26,9 @@ import android.util.Pair;
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * This Class is a Work-In-Progress, intended behavior is as follows:
@@ -81,9 +79,6 @@ public class WifiLastResortWatchdog {
      */
     private Map<String, Pair<AvailableNetworkFailureCount, Integer>> mSsidFailureCount =
             new HashMap<>();
-
-    // Set of SSIDs that watchdog tried to connect to before finally triggering a restart
-    private Set<String> mSsidAvailableAtFailure = new HashSet<>();
 
     // Tracks: if WifiStateMachine is in ConnectedState
     private boolean mWifiIsConnected = false;
@@ -229,8 +224,6 @@ public class WifiLastResortWatchdog {
             setWatchdogTriggerEnabled(false);
             mWatchdogFixedWifi = true;
             Log.e(TAG, "Watchdog triggering recovery");
-            mSsidAvailableAtFailure.clear();
-            mSsidAvailableAtFailure.addAll(mSsidFailureCount.keySet());
             mTimeLastTrigger = mClock.getElapsedSinceBootMillis();
             mSelfRecovery.trigger(SelfRecovery.REASON_LAST_RESORT_WATCHDOG);
             // increment various watchdog trigger count stats
@@ -244,9 +237,8 @@ public class WifiLastResortWatchdog {
      * Handles transitions entering and exiting WifiStateMachine ConnectedState
      * Used to track wifistate, and perform watchdog count resetting
      * @param isEntering true if called from ConnectedState.enter(), false for exit()
-     * @param ssid the ssid of the network doing the transition
      */
-    public void connectedStateTransition(boolean isEntering, String ssid) {
+    public void connectedStateTransition(boolean isEntering) {
         if (mVerboseLoggingEnabled) {
             Log.v(TAG, "connectedStateTransition: isEntering = " + isEntering);
         }
@@ -255,10 +247,7 @@ public class WifiLastResortWatchdog {
             return;
         }
         if (!mWatchdogAllowedToTrigger && mWatchdogFixedWifi
-                && checkIfAtleastOneNetworkHasEverConnected()
-                && mSsidAvailableAtFailure.contains(ssid)) {
-            Log.e(TAG, "Wifi failed to connect on " + mSsidAvailableAtFailure.size()
-                    + " networks but was able to reconnect to one of them after a restart.");
+                && checkIfAtleastOneNetworkHasEverConnected()) {
             takeBugReportWithCurrentProbability("Wifi fixed after restart");
             // WiFi has connected after a Watchdog trigger, without any new networks becoming
             // available, log a Watchdog success in wifi metrics
