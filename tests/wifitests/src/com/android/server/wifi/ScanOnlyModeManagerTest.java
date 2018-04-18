@@ -31,6 +31,7 @@ import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -47,6 +48,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+
+import java.util.List;
 
 /**
  * Unit tests for {@link ScanOnlyModeManager}.
@@ -69,8 +72,6 @@ public class ScanOnlyModeManagerTest {
     @Mock ScanRequestProxy mScanRequestProxy;
     @Mock WakeupController mWakeupController;
 
-    final ArgumentCaptor<WifiNative.StatusListener> mStatusListenerCaptor =
-            ArgumentCaptor.forClass(WifiNative.StatusListener.class);
     final ArgumentCaptor<WifiNative.InterfaceCallback> mInterfaceCallbackCaptor =
             ArgumentCaptor.forClass(WifiNative.InterfaceCallback.class);
 
@@ -94,7 +95,6 @@ public class ScanOnlyModeManagerTest {
         mScanOnlyModeManager.start();
         mLooper.dispatchAll();
 
-        verify(mWifiNative).registerStatusListener(mStatusListenerCaptor.capture());
         verify(mWifiNative).setupInterfaceForClientMode(eq(true),
                 mInterfaceCallbackCaptor.capture());
 
@@ -103,10 +103,12 @@ public class ScanOnlyModeManagerTest {
         mLooper.dispatchAll();
 
         ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(),
+        verify(mContext, times(2)).sendStickyBroadcastAsUser(intentCaptor.capture(),
                 eq(UserHandle.ALL));
+        List<Intent> intents = intentCaptor.getAllValues();
 
-        checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_ENABLED);
+        checkWifiScanStateChangedBroadcast(intents.get(0), WIFI_STATE_DISABLED);
+        checkWifiScanStateChangedBroadcast(intents.get(1), WIFI_STATE_ENABLED);
         checkWifiStateChangeListenerUpdate(WIFI_STATE_ENABLED);
         verify(mScanRequestProxy, atLeastOnce()).enableScanningForHiddenNetworks(false);
     }
@@ -131,37 +133,6 @@ public class ScanOnlyModeManagerTest {
     }
 
     /**
-     * ScanMode idle state does not crash when a native status update comes before entering the
-     * active state.
-     */
-    @Test
-    public void scanModeNativeUpdateBeforeStartDoesNotCrash() throws Exception {
-        verify(mWifiNative).registerStatusListener(mStatusListenerCaptor.capture());
-
-        mStatusListenerCaptor.getValue().onStatusChanged(false);
-        mLooper.dispatchAll();
-        verifyNoMoreInteractions(mContext, mListener);
-
-        verify(mScanRequestProxy, never()).clearScanResults();
-    }
-
-    /**
-     * ScanMode increments failure metrics when failing to setup client mode.
-     */
-    @Test
-    public void detectAndReportErrorWhenSetupForClientWifiNativeFailure() throws Exception {
-        when(mWifiNative.setupInterfaceForClientMode(anyBoolean(), any())).thenReturn(null);
-        mScanOnlyModeManager.start();
-        mLooper.dispatchAll();
-
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext, atLeastOnce()).sendStickyBroadcastAsUser(intentCaptor.capture(),
-                eq(UserHandle.ALL));
-        checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
-        checkWifiStateChangeListenerUpdate(WIFI_STATE_UNKNOWN);
-    }
-
-    /**
      * ScanMode start does not indicate scanning is available when the interface name is empty.
      */
     @Test
@@ -171,10 +142,7 @@ public class ScanOnlyModeManagerTest {
         mScanOnlyModeManager.start();
         mLooper.dispatchAll();
 
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext, atLeastOnce()).sendStickyBroadcastAsUser(intentCaptor.capture(),
-                eq(UserHandle.ALL));
-        checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
+        verify(mContext, never()).sendStickyBroadcastAsUser(any(), eq(UserHandle.ALL));
         checkWifiStateChangeListenerUpdate(WIFI_STATE_UNKNOWN);
     }
 
@@ -201,10 +169,7 @@ public class ScanOnlyModeManagerTest {
         mLooper.dispatchAll();
         // check when interface management it dynamic
         //verify(mWifiNative).teardownInterface(TEST_INTERFACE_NAME);
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext, atLeastOnce()).sendStickyBroadcastAsUser(intentCaptor.capture(),
-                eq(UserHandle.ALL));
-        checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
+        verify(mContext, never()).sendStickyBroadcastAsUser(any(), eq(UserHandle.ALL));
         checkWifiStateChangeListenerUpdate(WIFI_STATE_DISABLED);
         verify(mScanRequestProxy).clearScanResults();
     }
@@ -218,12 +183,7 @@ public class ScanOnlyModeManagerTest {
         reset(mContext);
         mInterfaceCallbackCaptor.getValue().onDestroyed(TEST_INTERFACE_NAME);
         mLooper.dispatchAll();
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(),
-                eq(UserHandle.ALL));
-        checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
-        checkWifiStateChangeListenerUpdate(WIFI_STATE_DISABLED);
-        verify(mScanRequestProxy).clearScanResults();
+        verify(mContext, never()).sendStickyBroadcastAsUser(any(), eq(UserHandle.ALL));
     }
 
     /**
@@ -253,10 +213,7 @@ public class ScanOnlyModeManagerTest {
         reset(mContext);
         mInterfaceCallbackCaptor.getValue().onDown(TEST_INTERFACE_NAME);
         mLooper.dispatchAll();
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(),
-                                                   eq(UserHandle.ALL));
-        checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
+        verify(mContext, never()).sendStickyBroadcastAsUser(any(), eq(UserHandle.ALL));
         checkWifiStateChangeListenerUpdate(WIFI_STATE_UNKNOWN);
         checkWifiStateChangeListenerUpdate(WIFI_STATE_DISABLED);
         verify(mScanRequestProxy).clearScanResults();
@@ -271,41 +228,6 @@ public class ScanOnlyModeManagerTest {
         reset(mContext, mListener);
         mInterfaceCallbackCaptor.getValue().onDown(OTHER_INTERFACE_NAME);
 
-        mLooper.dispatchAll();
-
-        verifyNoMoreInteractions(mContext, mListener);
-
-        verify(mScanRequestProxy, never()).clearScanResults();
-    }
-
-
-    /**
-     * Testing the handling of a WifiNative failure status change notification.
-     */
-    @Test
-    public void scanModeStartedStopsOnNativeFailure() throws Exception {
-        startScanOnlyModeAndVerifyEnabled();
-        reset(mContext);
-        mStatusListenerCaptor.getValue().onStatusChanged(false);
-        mLooper.dispatchAll();
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(),
-                                                   eq(UserHandle.ALL));
-
-        checkWifiScanStateChangedBroadcast(intentCaptor.getValue(), WIFI_STATE_DISABLED);
-        checkWifiStateChangeListenerUpdate(WIFI_STATE_UNKNOWN);
-        checkWifiStateChangeListenerUpdate(WIFI_STATE_DISABLED);
-        verify(mScanRequestProxy).clearScanResults();
-    }
-
-    /**
-     * WifiNative callback that does not indicate failure should not stop Scan mode.
-     */
-    @Test
-    public void scanModeStartedDoesNotStopOnNativeSuccessUpdate() throws Exception {
-        startScanOnlyModeAndVerifyEnabled();
-        reset(mContext, mListener);
-        mStatusListenerCaptor.getValue().onStatusChanged(true);
         mLooper.dispatchAll();
 
         verifyNoMoreInteractions(mContext, mListener);
