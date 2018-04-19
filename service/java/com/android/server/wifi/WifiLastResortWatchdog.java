@@ -90,16 +90,19 @@ public class WifiLastResortWatchdog {
     // Is Watchdog allowed to trigger now? Set to false after triggering. Set to true after
     // successfully connecting or a new network (SSID) becomes available to connect to.
     private boolean mWatchdogAllowedToTrigger = true;
+    private long mTimeLastTrigger;
 
     private SelfRecovery mSelfRecovery;
     private WifiMetrics mWifiMetrics;
     private WifiStateMachine mWifiStateMachine;
     private Looper mWifiStateMachineLooper;
     private double mBugReportProbability = PROB_TAKE_BUGREPORT_DEFAULT;
+    private Clock mClock;
 
-    WifiLastResortWatchdog(SelfRecovery selfRecovery, WifiMetrics wifiMetrics,
+    WifiLastResortWatchdog(SelfRecovery selfRecovery, Clock clock, WifiMetrics wifiMetrics,
             WifiStateMachine wsm, Looper wifiStateMachineLooper) {
         mSelfRecovery = selfRecovery;
+        mClock = clock;
         mWifiMetrics = wifiMetrics;
         mWifiStateMachine = wsm;
         mWifiStateMachineLooper = wifiStateMachineLooper;
@@ -223,6 +226,7 @@ public class WifiLastResortWatchdog {
             Log.e(TAG, "Watchdog triggering recovery");
             mSsidAvailableAtFailure.clear();
             mSsidAvailableAtFailure.addAll(mSsidFailureCount.keySet());
+            mTimeLastTrigger = mClock.getElapsedSinceBootMillis();
             mSelfRecovery.trigger(SelfRecovery.REASON_LAST_RESORT_WATCHDOG);
             // increment various watchdog trigger count stats
             incrementWifiMetricsTriggerCounts();
@@ -249,6 +253,8 @@ public class WifiLastResortWatchdog {
             // WiFi has connected after a Watchdog trigger, without any new networks becoming
             // available, log a Watchdog success in wifi metrics
             mWifiMetrics.incrementNumLastResortWatchdogSuccesses();
+            long durationMs = mClock.getElapsedSinceBootMillis() - mTimeLastTrigger;
+            mWifiMetrics.setWatchdogSuccessTimeDurationMs(durationMs);
             if (mSsidAvailableAtFailure.contains(ssid)) {
                 Log.e(TAG, "Wifi failed to connect on " + mSsidAvailableAtFailure.size()
                         + " networks but was able to reconnect to one of them after a restart.");

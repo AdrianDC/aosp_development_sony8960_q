@@ -336,9 +336,6 @@ public class WifiStateMachineTest {
     OsuProvider mOsuProvider;
     ContentObserver mContentObserver;
 
-    final ArgumentCaptor<WifiManager.SoftApCallback> mSoftApCallbackCaptor =
-            ArgumentCaptor.forClass(WifiManager.SoftApCallback.class);
-
     @Mock WifiScanner mWifiScanner;
     @Mock SupplicantStateTracker mSupplicantStateTracker;
     @Mock WifiMetrics mWifiMetrics;
@@ -353,7 +350,6 @@ public class WifiStateMachineTest {
     @Mock WifiConfigManager mWifiConfigManager;
     @Mock WifiNative mWifiNative;
     @Mock WifiConnectivityManager mWifiConnectivityManager;
-    @Mock SoftApManager mSoftApManager;
     @Mock WifiStateTracker mWifiStateTracker;
     @Mock PasspointManager mPasspointManager;
     @Mock SelfRecovery mSelfRecovery;
@@ -371,8 +367,6 @@ public class WifiStateMachineTest {
     @Mock WakeupController mWakeupController;
     @Mock ScanRequestProxy mScanRequestProxy;
 
-    final ArgumentCaptor<WifiNative.StatusListener> mStatusListenerCaptor =
-            ArgumentCaptor.forClass(WifiNative.StatusListener.class);
     final ArgumentCaptor<WifiNative.InterfaceCallback> mInterfaceCallbackCaptor =
             ArgumentCaptor.forClass(WifiNative.InterfaceCallback.class);
 
@@ -568,52 +562,7 @@ public class WifiStateMachineTest {
     @Test
     public void loadComponentsInStaMode() throws Exception {
         startSupplicantAndDispatchMessages();
-
-        verify(mContext).sendStickyBroadcastAsUser(
-                (Intent) argThat(new WifiEnablingStateIntentMatcher()), eq(UserHandle.ALL));
-
         assertEquals("DisconnectedState", getCurrentState().getName());
-    }
-
-    private void loadComponentsInApMode(int mode) throws Exception {
-        SoftApModeConfiguration config = new SoftApModeConfiguration(mode, new WifiConfiguration());
-        mWsm.setHostApRunning(config, true);
-        mLooper.dispatchAll();
-
-        assertEquals("SoftApState", getCurrentState().getName());
-
-        verify(mWifiNative, never()).setupInterfaceForSoftApMode(any());
-        verify(mSoftApManager, never()).start();
-    }
-
-    @Test
-    public void loadComponentsInApModeForTethering() throws Exception {
-        loadComponentsInApMode(WifiManager.IFACE_IP_MODE_TETHERED);
-    }
-
-    @Test
-    public void loadComponentsInApModeForLOHS() throws Exception {
-        loadComponentsInApMode(WifiManager.IFACE_IP_MODE_LOCAL_ONLY);
-    }
-
-    @Test
-    public void shouldRequireSupplicantStartupToLeaveInitialState() throws Exception {
-        when(mWifiNative.setupInterfaceForClientMode(anyBoolean(), any())).thenReturn(null);
-        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
-        mLooper.dispatchAll();
-        assertEquals("DefaultState", getCurrentState().getName());
-        // we should be sending a wifi enabling update
-        verify(mContext).sendStickyBroadcastAsUser(
-                (Intent) argThat(new WifiEnablingStateIntentMatcher()), any());
-    }
-
-    @Test
-    public void loadComponentsFailure() throws Exception {
-        when(mWifiNative.setupInterfaceForClientMode(anyBoolean(), any())).thenReturn(null);
-
-        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
-        mLooper.dispatchAll();
-        assertEquals("DefaultState", getCurrentState().getName());
     }
 
     @Test
@@ -622,7 +571,7 @@ public class WifiStateMachineTest {
         assertEquals("DefaultState", getCurrentState().getName());
         assertEquals(WifiStateMachine.DISABLED_MODE, mWsm.getOperationalModeForTest());
 
-        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE);
+        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
         mLooper.dispatchAll();
         assertEquals(WifiStateMachine.DISABLED_MODE, mWsm.getOperationalModeForTest());
         assertEquals("DefaultState", getCurrentState().getName());
@@ -636,7 +585,7 @@ public class WifiStateMachineTest {
         assertEquals(WifiStateMachine.DISABLED_MODE, mWsm.getOperationalModeForTest());
 
         // But if someone tells us to enter connect mode, we start up supplicant
-        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE, WIFI_IFACE_NAME);
         mLooper.dispatchAll();
         assertEquals("DisconnectedState", getCurrentState().getName());
     }
@@ -651,43 +600,22 @@ public class WifiStateMachineTest {
         assertEquals("DefaultState", getCurrentState().getName());
         assertEquals(WifiManager.WIFI_STATE_DISABLED, mWsm.syncGetWifiState());
 
-        mWsm.setOperationalMode(WifiStateMachine.SCAN_ONLY_MODE);
-        mLooper.dispatchAll();
-        assertEquals(WifiStateMachine.SCAN_ONLY_MODE, mWsm.getOperationalModeForTest());
-        assertEquals("ScanModeState", getCurrentState().getName());
-        assertEquals(WifiManager.WIFI_STATE_DISABLED, mWsm.syncGetWifiState());
-        verify(mContext, never()).sendStickyBroadcastAsUser(
-                (Intent) argThat(new WifiEnablingStateIntentMatcher()), any());
-
         // switch to connect mode and verify wifi is reported as enabled
         startSupplicantAndDispatchMessages();
 
         assertEquals("DisconnectedState", getCurrentState().getName());
         assertEquals(WifiStateMachine.CONNECT_MODE, mWsm.getOperationalModeForTest());
         assertEquals(WifiManager.WIFI_STATE_ENABLED, mWsm.syncGetWifiState());
-        verify(mContext).sendStickyBroadcastAsUser(
-                (Intent) argThat(new WifiEnablingStateIntentMatcher()), eq(UserHandle.ALL));
 
         // reset the expectations on mContext since we did get an expected broadcast, but we should
         // not on the next transition
         reset(mContext);
 
-        // now go back to scan mode with "wifi disabled" to verify the reported wifi state.
-        mWsm.setOperationalMode(WifiStateMachine.SCAN_ONLY_WITH_WIFI_OFF_MODE);
+        // now disable wifi and verify the reported wifi state
+        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
         mLooper.dispatchAll();
-        assertEquals(WifiStateMachine.SCAN_ONLY_WITH_WIFI_OFF_MODE,
-                     mWsm.getOperationalModeForTest());
-        assertEquals("ScanModeState", getCurrentState().getName());
-        assertEquals(WifiManager.WIFI_STATE_DISABLED, mWsm.syncGetWifiState());
-        verify(mContext, never()).sendStickyBroadcastAsUser(
-                (Intent) argThat(new WifiEnablingStateIntentMatcher()), any());
-
-        // now go to AP mode
-        SoftApModeConfiguration config = new SoftApModeConfiguration(
-                WifiManager.IFACE_IP_MODE_TETHERED, new WifiConfiguration());
-        mWsm.setHostApRunning(config, true);
-        mLooper.dispatchAll();
-        assertEquals("SoftApState", getCurrentState().getName());
+        assertEquals(WifiStateMachine.DISABLED_MODE, mWsm.getOperationalModeForTest());
+        assertEquals("DefaultState", getCurrentState().getName());
         assertEquals(WifiManager.WIFI_STATE_DISABLED, mWsm.syncGetWifiState());
         verify(mContext, never()).sendStickyBroadcastAsUser(
                 (Intent) argThat(new WifiEnablingStateIntentMatcher()), any());
@@ -856,14 +784,9 @@ public class WifiStateMachineTest {
      * Helper method to move through startup states.
      */
     private void startSupplicantAndDispatchMessages() throws Exception {
-        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE);
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE, WIFI_IFACE_NAME);
         mLooper.dispatchAll();
 
-        // this will be removed when interface management is dynamic
-        verify(mWifiNative, atLeastOnce()).teardownAllInterfaces();
-
-        verify(mWifiNative, atLeastOnce())
-                .setupInterfaceForClientMode(eq(false), mInterfaceCallbackCaptor.capture());
         verify(mWifiLastResortWatchdog, atLeastOnce()).clearAllFailureCounts();
 
         assertEquals("DisconnectedState", getCurrentState().getName());
@@ -1045,7 +968,7 @@ public class WifiStateMachineTest {
     public void verifyWifiStateTrackerUpdatedWhenDisabled() throws Exception {
         connect();
 
-        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE);
+        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
         mLooper.dispatchAll();
         verify(mWifiStateTracker).updateState(eq(WifiStateTracker.DISCONNECTED));
     }
@@ -1712,8 +1635,7 @@ public class WifiStateMachineTest {
      * client mode.
      */
     @Test
-    public void syncStartSubscriptionProvisioningInAPMode() throws Exception {
-        loadComponentsInApMode(WifiManager.IFACE_IP_MODE_LOCAL_ONLY);
+    public void syncStartSubscriptionProvisioningNoOpWifiDisabled() throws Exception {
         mLooper.startAutoDispatch();
         assertEquals(false, mWsm.syncStartSubscriptionProvisioning(
                 OTHER_USER_UID, mOsuProvider, mProvisioningCallback, mWsmAsyncChannel));
@@ -1783,119 +1705,6 @@ public class WifiStateMachineTest {
     }
 
     /**
-     * Trigger recovery and a bug report of we see a native failure when Client mode is active.
-     */
-    @Test
-    public void handleWifiNativeFailureWhenClientModeActive() throws Exception {
-        // Trigger initialize to capture the death handler registration.
-        loadComponentsInStaMode();
-
-        verify(mWifiNative).registerStatusListener(mStatusListenerCaptor.capture());
-
-        // Now trigger the death notification.
-        mStatusListenerCaptor.getValue().onStatusChanged(false);
-        mLooper.dispatchAll();
-        verify(mSelfRecovery).trigger(eq(SelfRecovery.REASON_WIFINATIVE_FAILURE));
-        verify(mWifiDiagnostics).captureBugReportData(
-                WifiDiagnostics.REPORT_REASON_WIFINATIVE_FAILURE);
-    }
-
-    /**
-     * WifiNative failures when in a state other than client mode should just be dropped.
-     */
-    @Test
-    public void handleWifiNativeFailureInDefaultDoesNotRestartClientMode() throws Exception {
-        // Trigger initialize to capture the death handler registration.
-        loadComponentsInStaMode();
-        verify(mWifiNative).registerStatusListener(mStatusListenerCaptor.capture());
-
-        mWsm.setOperationalMode(WifiStateMachine.SCAN_ONLY_MODE);
-        mLooper.dispatchAll();
-
-        // Now trigger the death notification.
-        mStatusListenerCaptor.getValue().onStatusChanged(false);
-        mLooper.dispatchAll();
-        verify(mSelfRecovery, never()).trigger(anyInt());
-        verify(mWifiDiagnostics, never()).captureBugReportData(anyInt());
-    }
-
-    /**
-     * Test verifying that interface onDown callback triggers SelfRecovery when Supplicant has
-     * already reported the driver is not active.
-     */
-    @Test
-    public void testInterfaceOnDownInClientModeTriggersSelfRecovery() throws Exception {
-        // Trigger initialize to capture the death handler registration.
-        loadComponentsInStaMode();
-
-        // make sure we mark the iface up
-        mInterfaceCallbackCaptor.getValue().onUp(WIFI_IFACE_NAME);
-
-        // make sure supplicant has been reported as inactive
-        when(mWifiNative.isInterfaceUp(eq(WIFI_IFACE_NAME))).thenReturn(true);
-        mWsm.sendMessage(WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0, 0,
-                new StateChangeResult(0, WifiSsid.createFromAsciiEncoded(""), null,
-                        SupplicantState.INTERFACE_DISABLED));
-        mLooper.dispatchAll();
-
-        // trigger onDown for the client interface
-        mInterfaceCallbackCaptor.getValue().onDown(WIFI_IFACE_NAME);
-        mLooper.dispatchAll();
-
-        // WSM should trigger self recovery, but not disconnect until externally triggered
-        verify(mSelfRecovery).trigger(eq(SelfRecovery.REASON_STA_IFACE_DOWN));
-    }
-
-    /**
-     * Test verifying that interface onDown callback does not trigger SelfRecovery when
-     * Supplicant reports that the driver is active.
-     */
-    @Test
-    public void testInterfaceOnDownInClientModeDoesNotTriggerSelfRecoveryIfDriverActive()
-            throws Exception {
-        // Trigger initialize to capture the death handler registration.
-        loadComponentsInStaMode();
-
-        // make sure we mark the iface up
-        mInterfaceCallbackCaptor.getValue().onUp(WIFI_IFACE_NAME);
-        mLooper.dispatchAll();
-
-        // make sure supplicant has been reported as active
-        mWsm.sendMessage(WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0, 0,
-                new StateChangeResult(0, WifiSsid.createFromAsciiEncoded(""), null,
-                        SupplicantState.DISCONNECTED));
-        mLooper.dispatchAll();
-
-        // trigger onDown for the client interface
-        mInterfaceCallbackCaptor.getValue().onDown(WIFI_IFACE_NAME);
-        mLooper.dispatchAll();
-
-        // WSM should trigger self recovery, but not disconnect until externally triggered
-        verify(mSelfRecovery, never()).trigger(eq(SelfRecovery.REASON_STA_IFACE_DOWN));
-    }
-
-    /**
-     * Test verifying that Supplicant update for inactive driver does not trigger SelfRecovery
-     * when the interface is reported down.
-     */
-    @Test
-    public void testSupplicantUpdateDriverInactiveInClientModeTriggersSelfRecovery()
-            throws Exception {
-        // Trigger initialize to capture the death handler registration.
-        loadComponentsInStaMode();
-
-        when(mWifiNative.isInterfaceUp(eq(WIFI_IFACE_NAME))).thenReturn(false);
-
-        mWsm.sendMessage(WifiMonitor.SUPPLICANT_STATE_CHANGE_EVENT, 0, 0,
-                new StateChangeResult(0, WifiSsid.createFromAsciiEncoded(""), null,
-                        SupplicantState.INTERFACE_DISABLED));
-        mLooper.dispatchAll();
-
-        // WSM should trigger self recovery, but not disconnect until externally triggered
-        verify(mSelfRecovery, never()).trigger(eq(SelfRecovery.REASON_STA_IFACE_DOWN));
-    }
-
-    /**
      * Test verifying that interface Supplicant update for inactive driver does not trigger
      * SelfRecovery when WifiNative reports the interface is up.
      */
@@ -1915,47 +1724,6 @@ public class WifiStateMachineTest {
 
         // WSM should trigger self recovery, but not disconnect until externally triggered
         verify(mSelfRecovery, never()).trigger(eq(SelfRecovery.REASON_STA_IFACE_DOWN));
-    }
-
-    /**
-     * Test verifying that interface onDown callback does not trigger SelfRecovery when
-     * MacRandomization is enabled.
-     */
-    @Test
-    public void testInterfaceOnDownInClientModeDoesNotTriggerSelfRecoveryWithMacRand()
-            throws Exception {
-        when(mFrameworkFacade.getIntegerSetting(mContext,
-                Settings.Global.WIFI_CONNECTED_MAC_RANDOMIZATION_ENABLED, 0)).thenReturn(1);
-        mContentObserver.onChange(false);
-
-        // Trigger initialize to capture the death handler registration.
-        loadComponentsInStaMode();
-
-        // make sure we mark the iface up
-        mInterfaceCallbackCaptor.getValue().onUp(WIFI_IFACE_NAME);
-        mLooper.dispatchAll();
-
-        // trigger onDown for the client interface
-        mInterfaceCallbackCaptor.getValue().onDown(WIFI_IFACE_NAME);
-        mLooper.dispatchAll();
-
-        // WSM should trigger self recovery, but not disconnect until externally triggered
-        verify(mSelfRecovery, never()).trigger(eq(SelfRecovery.REASON_STA_IFACE_DOWN));
-    }
-
-    /**
-     * Test verifying that interface onDestroyed callbacks are not currently hooked up.
-     */
-    @Test
-    public void testInterfaceOnDestroyedDoesNotTriggerClientModeShutdown() throws Exception {
-        connect();
-
-        // trigger onDestroyed for the client interface
-        mInterfaceCallbackCaptor.getValue().onDown(WIFI_IFACE_NAME);
-        mLooper.dispatchAll();
-
-        // since this is not handled yet, should not trigger a disconnect
-        assertEquals("ConnectedState", getCurrentState().getName());
     }
 
     /**
@@ -2052,13 +1820,13 @@ public class WifiStateMachineTest {
         assertEquals(sBSSID, wifiInfo.getBSSID());
         assertEquals(SupplicantState.COMPLETED, wifiInfo.getSupplicantState());
 
-        // Set WSM to SCAN_ONLY_MODE, verify state and wifi disabled in ConnectivityManager, and
+        // Set WSM to DISABLED_MODE, verify state and wifi disabled in ConnectivityManager, and
         // WifiInfo is reset() and state set to DISCONNECTED
-        mWsm.setOperationalMode(WifiStateMachine.SCAN_ONLY_MODE);
+        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
         mLooper.dispatchAll();
 
-        assertEquals(WifiStateMachine.SCAN_ONLY_MODE, mWsm.getOperationalModeForTest());
-        assertEquals("ScanModeState", getCurrentState().getName());
+        assertEquals(WifiStateMachine.DISABLED_MODE, mWsm.getOperationalModeForTest());
+        assertEquals("DefaultState", getCurrentState().getName());
         assertEquals(WifiManager.WIFI_STATE_DISABLED, mWsm.syncGetWifiState());
         inOrder.verify(mWifiConnectivityManager).setWifiEnabled(eq(false));
         assertNull(wifiInfo.getBSSID());

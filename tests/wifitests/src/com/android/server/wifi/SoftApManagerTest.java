@@ -93,8 +93,6 @@ public class SoftApManagerTest {
     @Mock FrameworkFacade mFrameworkFacade;
     @Mock WifiApConfigStore mWifiApConfigStore;
     @Mock WifiMetrics mWifiMetrics;
-    final ArgumentCaptor<WifiNative.StatusListener> mWifiNativeStatusListenerCaptor =
-            ArgumentCaptor.forClass(WifiNative.StatusListener.class);
     final ArgumentCaptor<WifiNative.InterfaceCallback> mWifiNativeInterfaceCallbackCaptor =
             ArgumentCaptor.forClass(WifiNative.InterfaceCallback.class);
     final ArgumentCaptor<WifiNative.SoftApListener> mSoftApListenerCaptor =
@@ -140,7 +138,6 @@ public class SoftApManagerTest {
                                                            config,
                                                            mWifiMetrics);
         mLooper.dispatchAll();
-        verify(mWifiNative).registerStatusListener(mWifiNativeStatusListenerCaptor.capture());
 
         return newSoftApManager;
     }
@@ -470,71 +467,6 @@ public class SoftApManagerTest {
         checkApStateChangedBroadcast(intentCaptor.getValue(), WIFI_AP_STATE_DISABLED,
                 WIFI_AP_STATE_DISABLING, HOTSPOT_NO_ERROR, TEST_INTERFACE_NAME,
                 softApModeConfig.getTargetMode());
-    }
-
-    /**
-     * Verify that SoftAp mode shuts down on wifinative failure.
-     */
-    @Test
-    public void handlesWifiNativeFailure() throws Exception {
-        SoftApModeConfiguration softApModeConfig =
-                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
-        startSoftApAndVerifyEnabled(softApModeConfig);
-
-        // reset to clear verified Intents for ap state change updates
-        reset(mContext);
-
-        mWifiNativeStatusListenerCaptor.getValue().onStatusChanged(false);
-        mLooper.dispatchAll();
-        InOrder order = inOrder(mCallback);
-        order.verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_FAILED,
-                WifiManager.SAP_START_FAILURE_GENERAL);
-        ArgumentCaptor<Intent> intentCaptor = ArgumentCaptor.forClass(Intent.class);
-        verify(mContext, times(3)).sendStickyBroadcastAsUser(intentCaptor.capture(),
-                eq(UserHandle.ALL));
-
-        List<Intent> capturedIntents = intentCaptor.getAllValues();
-        checkApStateChangedBroadcast(capturedIntents.get(0), WIFI_AP_STATE_FAILED,
-                WIFI_AP_STATE_ENABLED, WifiManager.SAP_START_FAILURE_GENERAL, TEST_INTERFACE_NAME,
-                softApModeConfig.getTargetMode());
-        checkApStateChangedBroadcast(capturedIntents.get(1), WIFI_AP_STATE_DISABLING,
-                WIFI_AP_STATE_FAILED, HOTSPOT_NO_ERROR, TEST_INTERFACE_NAME,
-                softApModeConfig.getTargetMode());
-        checkApStateChangedBroadcast(capturedIntents.get(2), WIFI_AP_STATE_DISABLED,
-                WIFI_AP_STATE_DISABLING, HOTSPOT_NO_ERROR, TEST_INTERFACE_NAME,
-                softApModeConfig.getTargetMode());
-    }
-
-    /**
-     * Verify that SoftAp does not crash on wifinative failure before it is started.
-     */
-    @Test
-    public void handlesWifiNativeFailureBeforeStart() throws Exception {
-        SoftApModeConfiguration softApModeConfig =
-                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
-
-        mSoftApManager = createSoftApManager(softApModeConfig);
-
-        mWifiNativeStatusListenerCaptor.getValue().onStatusChanged(false);
-        mLooper.dispatchAll();
-    }
-
-    /**
-     * Verify that SoftAp mode does not shut down on wifinative success update.
-     */
-    @Test
-    public void handlesWifiNativeSuccess() throws Exception {
-        SoftApModeConfiguration softApModeConfig =
-                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
-        startSoftApAndVerifyEnabled(softApModeConfig);
-
-        // reset to clear verified Intents for ap state change updates
-        reset(mContext, mCallback);
-
-        mWifiNativeStatusListenerCaptor.getValue().onStatusChanged(true);
-        mLooper.dispatchAll();
-
-        verifyNoMoreInteractions(mContext, mCallback);
     }
 
     /**
