@@ -1453,8 +1453,22 @@ public class WifiStateMachine extends StateMachine {
             log("setting operational mode to " + String.valueOf(mode) + " for iface: " + ifaceName);
         }
         mModeChange = true;
-        mInterfaceName = ifaceName;
-        sendMessage(CMD_SET_OPERATIONAL_MODE, mode, 0);
+        if (mode != CONNECT_MODE) {
+            // we are disabling client mode...   need to exit connect mode now
+            transitionTo(mDefaultState);
+        } else {
+            // do a quick sanity check on the iface name, make sure it isn't null
+            if (ifaceName != null) {
+                mInterfaceName = ifaceName;
+                transitionTo(mDisconnectedState);
+            } else {
+                Log.e(TAG, "supposed to enter connect mode, but iface is null -> DefaultState");
+                transitionTo(mDefaultState);
+            }
+        }
+        // use the CMD_SET_OPERATIONAL_MODE to force the transitions before other messages are
+        // handled.
+        sendMessageAtFrontOfQueue(CMD_SET_OPERATIONAL_MODE);
     }
 
     /**
@@ -3427,20 +3441,8 @@ public class WifiStateMachine extends StateMachine {
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
                     break;
                 case CMD_SET_OPERATIONAL_MODE:
-                    mOperationalMode = message.arg1;
-                    // now processing the mode change - we will start setting up new state and want
-                    // to know about failures
-                    mModeChange = false;
-                    if (mOperationalMode == DISABLED_MODE) {
-                        Log.d(TAG, "set operational mode - disabled.  stay in default");
-                        transitionTo(mDefaultState);
-                        break;
-                    } else if (mOperationalMode == CONNECT_MODE) {
-                        transitionTo(mDisconnectedState);
-                    } else {
-                        Log.e(TAG, "set operational mode with invalid mode: " + mOperationalMode);
-                        mOperationalMode = DISABLED_MODE;
-                    }
+                    // using the CMD_SET_OPERATIONAL_MODE (sent at front of queue) to trigger the
+                    // state transitions performed in setOperationalMode.
                     break;
                 case CMD_SET_SUSPEND_OPT_ENABLED:
                     if (message.arg1 == 1) {
@@ -3698,6 +3700,7 @@ public class WifiStateMachine extends StateMachine {
      * Helper method to start other services and get state ready for client mode
      */
     private void setupClientMode() {
+        Log.d(TAG, "setupClientMode() ifacename = " + mInterfaceName);
         mWifiStateTracker.updateState(WifiStateTracker.INVALID);
 
         if (mWifiConnectivityManager == null) {
@@ -3798,6 +3801,7 @@ public class WifiStateMachine extends StateMachine {
         mNetworkInfo.setIsAvailable(false);
         if (mNetworkAgent != null) mNetworkAgent.sendNetworkInfo(mNetworkInfo);
         mCountryCode.setReadyForChange(false);
+        mInterfaceName = null;
         setWifiState(WIFI_STATE_DISABLED);
     }
 
@@ -3861,6 +3865,8 @@ public class WifiStateMachine extends StateMachine {
 
         @Override
         public void enter() {
+            Log.d(TAG, "entering ConnectModeState: ifaceName = " + mInterfaceName);
+            mOperationalMode = CONNECT_MODE;
             setupClientMode();
             if (!mWifiNative.removeAllNetworks(mInterfaceName)) {
                 loge("Failed to remove networks on entering connect mode");
@@ -3889,6 +3895,7 @@ public class WifiStateMachine extends StateMachine {
 
         @Override
         public void exit() {
+            mOperationalMode = DISABLED_MODE;
             // Let the system know that wifi is not available since we are exiting client mode.
             mNetworkInfo.setIsAvailable(false);
             if (mNetworkAgent != null) mNetworkAgent.sendNetworkInfo(mNetworkInfo);
@@ -3925,12 +3932,6 @@ public class WifiStateMachine extends StateMachine {
             logStateAndMessage(message, this);
 
             switch (message.what) {
-                case CMD_SET_OPERATIONAL_MODE:
-                    if (message.arg1 == CONNECT_MODE) {
-                        break;
-                    } else {
-                        return NOT_HANDLED;
-                    }
                 case WifiMonitor.ASSOCIATION_REJECTION_EVENT:
                     mWifiDiagnostics.captureBugReportData(
                             WifiDiagnostics.REPORT_REASON_ASSOC_FAILURE);

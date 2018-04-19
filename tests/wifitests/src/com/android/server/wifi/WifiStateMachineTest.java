@@ -785,6 +785,7 @@ public class WifiStateMachineTest {
      */
     private void startSupplicantAndDispatchMessages() throws Exception {
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE, WIFI_IFACE_NAME);
+
         mLooper.dispatchAll();
 
         verify(mWifiLastResortWatchdog, atLeastOnce()).clearAllFailureCounts();
@@ -2384,5 +2385,31 @@ public class WifiStateMachineTest {
 
         verify(config).getOrCreateRandomizedMacAddress();
         verify(mWifiNative, never()).setMacAddress(eq(WIFI_IFACE_NAME), any(MacAddress.class));
+    }
+
+    /**
+     * Verify that we do not crash on quick toggling wifi on/off
+     */
+    @Test
+    public void quickTogglesDoNotCrash() throws Exception {
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE, WIFI_IFACE_NAME);
+        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
+        mLooper.dispatchAll();
+
+        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE, WIFI_IFACE_NAME);
+        mLooper.dispatchAll();
+
+        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE, WIFI_IFACE_NAME);
+        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE, WIFI_IFACE_NAME);
+        mLooper.dispatchAll();
+
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE, WIFI_IFACE_NAME);
+        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE, WIFI_IFACE_NAME);
+        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
+        mLooper.dispatchAll();
     }
 }
