@@ -503,6 +503,30 @@ public class SoftApManagerTest {
     }
 
     /**
+     * Verify that onDestroyed after softap is stopped doesn't trigger a callback.
+     */
+    @Test
+    public void noCallbackOnInterfaceDestroyedWhenAlreadyStopped() throws Exception {
+        SoftApModeConfiguration softApModeConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, null);
+        startSoftApAndVerifyEnabled(softApModeConfig);
+
+        mSoftApManager.stop();
+        mLooper.dispatchAll();
+
+        verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLING, 0);
+        verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLED, 0);
+
+        reset(mCallback);
+
+        // now trigger interface destroyed and make sure callback doesn't get called
+        mWifiNativeInterfaceCallbackCaptor.getValue().onDestroyed(TEST_INTERFACE_NAME);
+        mLooper.dispatchAll();
+
+        verifyNoMoreInteractions(mCallback);
+    }
+
+    /**
      * Verify that onDown is handled by SoftApManager.
      */
     @Test
