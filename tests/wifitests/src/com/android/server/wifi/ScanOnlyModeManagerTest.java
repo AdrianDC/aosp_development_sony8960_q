@@ -236,6 +236,29 @@ public class ScanOnlyModeManagerTest {
     }
 
     /**
+     * Verify that onDestroyed after scan mode is stopped doesn't trigger a callback.
+     */
+    @Test
+    public void noCallbackOnInterfaceDestroyedWhenAlreadyStopped() throws Exception {
+        startScanOnlyModeAndVerifyEnabled();
+
+        reset(mListener);
+
+        mScanOnlyModeManager.stop();
+        mLooper.dispatchAll();
+
+        verify(mListener).onStateChanged(WIFI_STATE_DISABLED);
+
+        reset(mListener);
+
+        // now trigger interface destroyed and make sure callback doesn't get called
+        mInterfaceCallbackCaptor.getValue().onDestroyed(TEST_INTERFACE_NAME);
+        mLooper.dispatchAll();
+
+        verifyNoMoreInteractions(mListener);
+    }
+
+    /**
      * Entering StartedState starts the WakeupController.
      */
     @Test

@@ -146,9 +146,7 @@ public class SoftApManager implements ActiveModeManager {
                         WifiManager.WIFI_AP_STATE_ENABLING, 0);
             }
         }
-        if (currentState != null) {
-            currentState.exit();
-        }
+        mStateMachine.quitNow();
     }
 
     /**
