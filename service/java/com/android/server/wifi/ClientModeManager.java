@@ -84,9 +84,7 @@ public class ClientModeManager implements ActiveModeManager {
                                 WifiManager.WIFI_STATE_ENABLING);
             }
         }
-        if (currentState != null) {
-            currentState.exit();
-        }
+        mStateMachine.quitNow();
     }
 
     /**
