@@ -2195,12 +2195,22 @@ public class WifiNative {
     /**
      * Installs an APF program on this iface, replacing any existing program.
      *
-     * @param ifaceName Name of the interface.
+     * @param ifaceName Name of the interface
      * @param filter is the android packet filter program
      * @return true for success
      */
     public boolean installPacketFilter(@NonNull String ifaceName, byte[] filter) {
         return mWifiVendorHal.installPacketFilter(ifaceName, filter);
+    }
+
+    /**
+     * Reads the APF program and data buffer for this iface.
+     *
+     * @param ifaceName Name of the interface
+     * @return the buffer returned by the driver, or null in case of an error
+     */
+    public byte[] readPacketFilter(@NonNull String ifaceName) {
+        return mWifiVendorHal.readPacketFilter(ifaceName);
     }
 
     /**
