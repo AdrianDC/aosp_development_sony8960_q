@@ -636,6 +636,9 @@ public class WifiStateMachine extends StateMachine {
     /* used to indicate that the foreground user was switched */
     static final int CMD_USER_STOP                                      = BASE + 207;
 
+    /* Read the APF program & data buffer */
+    static final int CMD_READ_PACKET_FILTER                             = BASE + 208;
+
     /* Indicates that diagnostics should time out a connection start event. */
     private static final int CMD_DIAGS_CONNECT_TIMEOUT                  = BASE + 252;
 
@@ -1062,6 +1065,11 @@ public class WifiStateMachine extends StateMachine {
         @Override
         public void installPacketFilter(byte[] filter) {
             sendMessage(CMD_INSTALL_PACKET_FILTER, filter);
+        }
+
+        @Override
+        public void startReadPacketFilter() {
+            sendMessage(CMD_READ_PACKET_FILTER);
         }
 
         @Override
@@ -3580,6 +3588,10 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_INSTALL_PACKET_FILTER:
                     mWifiNative.installPacketFilter(mInterfaceName, (byte[]) message.obj);
                     break;
+                case CMD_READ_PACKET_FILTER:
+                    byte[] data = mWifiNative.readPacketFilter(mInterfaceName);
+                    mIpClient.readPacketFilterComplete(data);
+                    break;
                 case CMD_SET_FALLBACK_PACKET_FILTERING:
                     if ((boolean) message.obj) {
                         mWifiNative.startFilteringMulticastV4Packets(mInterfaceName);
@@ -5637,8 +5649,8 @@ public class WifiStateMachine extends StateMachine {
     }
 
     /**
-     * State machine initiated requests can have replyTo set to null indicating
-     * there are no recepients, we ignore those reply actions.
+     * State machine initiated requests can have replyTo set to null, indicating
+     * there are no recipients, we ignore those reply actions.
      */
     private void replyToMessage(Message msg, int what) {
         if (msg.replyTo == null) return;
