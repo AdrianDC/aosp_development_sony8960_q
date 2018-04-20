@@ -298,4 +298,28 @@ public class ClientModeManagerTest {
         mLooper.dispatchAll();
         verifyNotificationsForCleanShutdown(WIFI_STATE_ENABLED);
     }
+
+    /**
+     * Verify that onDestroyed after client mode is stopped doesn't trigger a callback.
+     */
+    @Test
+    public void noCallbackOnInterfaceDestroyedWhenAlreadyStopped() throws Exception {
+        startClientModeAndVerifyEnabled();
+
+        reset(mListener);
+
+        mClientModeManager.stop();
+        mLooper.dispatchAll();
+
+        verify(mListener).onStateChanged(WIFI_STATE_DISABLING);
+        verify(mListener).onStateChanged(WIFI_STATE_DISABLED);
+
+        reset(mListener);
+
+        // now trigger interface destroyed and make sure callback doesn't get called
+        mInterfaceCallbackCaptor.getValue().onDestroyed(TEST_INTERFACE_NAME);
+        mLooper.dispatchAll();
+
+        verifyNoMoreInteractions(mListener);
+    }
 }

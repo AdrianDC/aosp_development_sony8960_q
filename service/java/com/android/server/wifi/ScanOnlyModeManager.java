@@ -75,9 +75,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
     public void stop() {
         IState currentState = mStateMachine.getCurrentState();
         Log.d(TAG, " currentstate: " + currentState);
-        if (currentState != null) {
-            currentState.exit();
-        }
+        mStateMachine.quitNow();
     }
 
     /**
