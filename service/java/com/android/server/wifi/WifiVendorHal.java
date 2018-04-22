@@ -74,6 +74,7 @@ import android.util.MutableInt;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.ArrayUtils;
+import com.android.internal.util.HexDump;
 import com.android.server.wifi.HalDeviceManager.InterfaceDestroyedListener;
 import com.android.server.wifi.util.BitMask;
 import com.android.server.wifi.util.NativeUtil;
@@ -179,6 +180,26 @@ public class WifiVendorHal {
         mVerboseLog.err("% returns %")
                 .c(niceMethodName(trace, 3))
                 .c(result)
+                .flush();
+
+        return result;
+    }
+
+    /**
+     * Logs the argument along with the method name.
+     *
+     * Always returns its argument.
+     */
+    private byte[] byteArrayResult(byte[] result) {
+        if (mVerboseLog == sNoLog) return result;
+        // Currently only seen if verbose logging is on
+
+        Thread cur = Thread.currentThread();
+        StackTraceElement[] trace = cur.getStackTrace();
+
+        mVerboseLog.err("% returns %")
+                .c(niceMethodName(trace, 3))
+                .c(HexDump.dumpHexString(result))
                 .flush();
 
         return result;
@@ -1733,6 +1754,36 @@ public class WifiVendorHal {
             } catch (RemoteException e) {
                 handleRemoteException(e);
                 return false;
+            }
+        }
+    }
+
+    /**
+     * Reads the APF program and data buffer on this iface.
+     *
+     * @param ifaceName Name of the interface
+     * @return the buffer returned by the driver, or null in case of an error
+     */
+    public byte[] readPacketFilter(@NonNull String ifaceName) {
+        class AnswerBox {
+            public byte[] data = null;
+        }
+        AnswerBox answer = new AnswerBox();
+        enter("").flush();
+        // TODO: Must also take the wakelock here to prevent going to sleep with APF disabled.
+        synchronized (sLock) {
+            try {
+                android.hardware.wifi.V1_2.IWifiStaIface ifaceV12 =
+                        getWifiStaIfaceForV1_2Mockable(ifaceName);
+                if (ifaceV12 == null) return byteArrayResult(null);
+                ifaceV12.readApfPacketFilterData((status, dataByteArray) -> {
+                    if (!ok(status)) return;
+                    answer.data = NativeUtil.byteArrayFromArrayList(dataByteArray);
+                });
+                return byteArrayResult(answer.data);
+            } catch (RemoteException e) {
+                handleRemoteException(e);
+                return byteArrayResult(null);
             }
         }
     }
