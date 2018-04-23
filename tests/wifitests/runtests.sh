@@ -40,5 +40,5 @@ adb wait-for-device
 
 adb install -r -g "$OUT/data/app/FrameworksWifiTests/FrameworksWifiTests.apk"
 
-adb shell am instrument -w "$@" \
+adb shell am instrument --no-hidden-api-checks -w "$@" \
   'com.android.server.wifi.test/com.android.server.wifi.CustomTestRunner'
