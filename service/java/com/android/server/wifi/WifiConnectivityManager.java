@@ -164,6 +164,7 @@ public class WifiConnectivityManager {
     // Device configs
     private boolean mEnableAutoJoinWhenAssociated;
     private boolean mWaitForFullBandScanResults = false;
+    private boolean mUseSingleRadioChainScanResults = false;
     private int mFullScanMaxTxRate;
     private int mFullScanMaxRxRate;
 
@@ -370,8 +371,10 @@ public class WifiConnectivityManager {
             }
 
             // When the scan result has radio chain info, ensure we throw away scan results
-            // not received with both radio chains.
-            if (ArrayUtils.size(fullScanResult.radioChainInfos) == 1) {
+            // not received with both radio chains (if |mUseSingleRadioChainScanResults| is false).
+            if (!mUseSingleRadioChainScanResults
+                    && fullScanResult.radioChainInfos != null
+                    && fullScanResult.radioChainInfos.length == 1) {
                 // Keep track of the number of dropped scan results for logging.
                 mNumScanResultsIgnoredDueToSingleRadioChain++;
                 return;
@@ -605,6 +608,8 @@ public class WifiConnectivityManager {
                 R.integer.config_wifi_framework_SECURITY_AWARD);
         mEnableAutoJoinWhenAssociated = context.getResources().getBoolean(
                 R.bool.config_wifi_framework_enable_associated_network_selection);
+        mUseSingleRadioChainScanResults = context.getResources().getBoolean(
+                R.bool.config_wifi_framework_use_single_radio_chain_scan_results_network_selection);
         mInitialScoreMax = (Math.max(mScoringParams.getGoodRssi(ScoringParams.BAND2),
                                      mScoringParams.getGoodRssi(ScoringParams.BAND5))
                             + context.getResources().getInteger(
