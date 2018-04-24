@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.inOrder;
@@ -39,6 +40,7 @@ import android.net.InterfaceConfiguration;
 import android.net.wifi.IApInterface;
 import android.net.wifi.IClientInterface;
 import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiScanner;
 import android.os.INetworkManagementService;
 import android.os.RemoteException;
 import android.support.test.filters.SmallTest;
@@ -84,6 +86,9 @@ public class WifiNativeInterfaceManagementTest {
             ArgumentCaptor.forClass(VendorHalDeathEventHandler.class);
     private ArgumentCaptor<WificondDeathEventHandler> mWificondDeathHandlerCaptor =
             ArgumentCaptor.forClass(WificondDeathEventHandler.class);
+    private ArgumentCaptor<WifiNative.VendorHalRadioModeChangeEventHandler>
+            mWifiVendorHalRadioModeChangeHandlerCaptor =
+            ArgumentCaptor.forClass(WifiNative.VendorHalRadioModeChangeEventHandler.class);
     private ArgumentCaptor<SupplicantDeathEventHandler> mSupplicantDeathHandlerCaptor =
             ArgumentCaptor.forClass(SupplicantDeathEventHandler.class);
     private ArgumentCaptor<WifiNative.HostapdDeathEventHandler> mHostapdDeathHandlerCaptor =
@@ -107,6 +112,8 @@ public class WifiNativeInterfaceManagementTest {
         // mocks for negative or multi-interface tests.
         when(mWifiVendorHal.initialize(mWifiVendorHalDeathHandlerCaptor.capture()))
             .thenReturn(true);
+        doNothing().when(mWifiVendorHal).registerRadioModeChangeHandler(
+                mWifiVendorHalRadioModeChangeHandlerCaptor.capture());
         when(mWifiVendorHal.isVendorHalSupported()).thenReturn(true);
         when(mWifiVendorHal.startVendorHal()).thenReturn(true);
         when(mWifiVendorHal.createStaIface(anyBoolean(), any())).thenReturn(IFACE_NAME_0);
@@ -160,6 +167,7 @@ public class WifiNativeInterfaceManagementTest {
 
         mInOrder.verify(mWifiVendorHal).initialize(any());
         mInOrder.verify(mWificondControl).initialize(any());
+        mInOrder.verify(mWifiVendorHal).registerRadioModeChangeHandler(any());
     }
 
     @After
@@ -1138,6 +1146,27 @@ public class WifiNativeInterfaceManagementTest {
         mInOrder.verify(mNwManagementService).clearInterfaceAddresses(IFACE_NAME_0);
         mInOrder.verify(mNwManagementService).setInterfaceIpv6PrivacyExtensions(IFACE_NAME_0, true);
         mInOrder.verify(mNwManagementService).disableIpv6(IFACE_NAME_0);
+    }
+
+    /**
+     * Verifies the handling of radio mode change callbacks.
+     */
+    @Test
+    public void testRadioModeChangeCallback() {
+        WifiNative.VendorHalRadioModeChangeEventHandler handler =
+                mWifiVendorHalRadioModeChangeHandlerCaptor.getValue();
+
+        handler.onMcc(WifiScanner.WIFI_BAND_5_GHZ);
+        mInOrder.verify(mWifiMetrics).incrementNumRadioModeChangeToMcc();
+
+        handler.onScc(WifiScanner.WIFI_BAND_24_GHZ);
+        mInOrder.verify(mWifiMetrics).incrementNumRadioModeChangeToScc();
+
+        handler.onSbs(WifiScanner.WIFI_BAND_24_GHZ);
+        mInOrder.verify(mWifiMetrics).incrementNumRadioModeChangeToSbs();
+
+        handler.onDbs();
+        mInOrder.verify(mWifiMetrics).incrementNumRadioModeChangeToDbs();
     }
 
     private void executeAndValidateSetupClientInterface(
