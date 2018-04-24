@@ -72,7 +72,7 @@ public class WakeupController {
         @Override
         public void onResults(WifiScanner.ScanData[] results) {
             if (results.length == 1 && results[0].isAllChannelsScanned()) {
-                handleScanResults(Arrays.asList(results[0].getResults()));
+                handleScanResults(filterDfsScanResults(Arrays.asList(results[0].getResults())));
             }
         }
 
@@ -181,13 +181,17 @@ public class WakeupController {
         if (isEnabled()) {
             mWakeupOnboarding.maybeShowNotification();
 
-            Set<ScanResultMatchInfo> savedNetworksFromLatestScan = getSavedNetworksFromLatestScan();
+            List<ScanResult> scanResults =
+                    filterDfsScanResults(mWifiInjector.getWifiScanner().getSingleScanResults());
+            Set<ScanResultMatchInfo> matchInfos = toMatchInfos(scanResults);
+            matchInfos.retainAll(getGoodSavedNetworks());
+
             if (mVerboseLoggingEnabled) {
-                Log.d(TAG, "Saved networks in most recent scan:" + savedNetworksFromLatestScan);
+                Log.d(TAG, "Saved networks in most recent scan:" + matchInfos);
             }
 
-            mWifiWakeMetrics.recordStartEvent(savedNetworksFromLatestScan.size());
-            mWakeupLock.setLock(savedNetworksFromLatestScan);
+            mWifiWakeMetrics.recordStartEvent(matchInfos.size());
+            mWakeupLock.setLock(matchInfos);
             // TODO(b/77291248): request low latency scan here
         }
     }
@@ -218,18 +222,8 @@ public class WakeupController {
         mWakeupLock.enableVerboseLogging(mVerboseLoggingEnabled);
     }
 
-    /** Returns a filtered list of saved networks from the last full scan. */
-    private Set<ScanResultMatchInfo> getSavedNetworksFromLatestScan() {
-        Set<ScanResult> filteredScanResults =
-                filterScanResults(mWifiInjector.getWifiScanner().getSingleScanResults());
-        Set<ScanResultMatchInfo> goodMatchInfos  = toMatchInfos(filteredScanResults);
-        goodMatchInfos.retainAll(getGoodSavedNetworks());
-
-        return goodMatchInfos;
-    }
-
-    /** Returns a set of ScanResults with all DFS channels removed. */
-    private Set<ScanResult> filterScanResults(Collection<ScanResult> scanResults) {
+    /** Returns a list of ScanResults with DFS channels removed. */
+    private List<ScanResult> filterDfsScanResults(Collection<ScanResult> scanResults) {
         int[] dfsChannels = mWifiInjector.getWifiNative()
                 .getChannelsForBand(WifiScanner.WIFI_BAND_5_GHZ_DFS_ONLY);
         if (dfsChannels == null) {
@@ -241,10 +235,10 @@ public class WakeupController {
 
         return scanResults.stream()
                 .filter(scanResult -> !dfsChannelSet.contains(scanResult.frequency))
-                .collect(Collectors.toSet());
+                .collect(Collectors.toList());
     }
 
-    /** Returns a filtered list of saved networks from WifiConfigManager. */
+    /** Returns a filtered set of saved networks from WifiConfigManager. */
     private Set<ScanResultMatchInfo> getGoodSavedNetworks() {
         List<WifiConfiguration> savedNetworks = mWifiConfigManager.getSavedNetworks();
 
@@ -296,15 +290,17 @@ public class WakeupController {
         // need to show notification here in case user turns phone on while wifi is off
         mWakeupOnboarding.maybeShowNotification();
 
-        Set<ScanResult> filteredScanResults = filterScanResults(scanResults);
+        // filter out unsaved networks
+        Set<ScanResultMatchInfo> goodSavedNetworks = getGoodSavedNetworks();
+        Set<ScanResultMatchInfo> matchInfos = toMatchInfos(scanResults);
+        matchInfos.retainAll(goodSavedNetworks);
 
-        mWakeupLock.update(toMatchInfos(filteredScanResults));
+        mWakeupLock.update(matchInfos);
         if (!mWakeupLock.isUnlocked()) {
             return;
         }
 
-        ScanResult network =
-                mWakeupEvaluator.findViableNetwork(filteredScanResults, getGoodSavedNetworks());
+        ScanResult network = mWakeupEvaluator.findViableNetwork(scanResults, goodSavedNetworks);
 
         if (network != null) {
             Log.d(TAG, "Enabling wifi for network: " + network.SSID);
