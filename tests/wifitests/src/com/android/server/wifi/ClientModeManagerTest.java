@@ -128,6 +128,8 @@ public class ClientModeManagerTest {
         assertEquals(expectedCurrentState, currentState);
         int prevState = intent.getIntExtra(EXTRA_PREVIOUS_WIFI_STATE, WIFI_STATE_UNKNOWN);
         assertEquals(expectedPrevState, prevState);
+
+        verify(mWifiStateMachine, atLeastOnce()).setWifiStateForApiCalls(expectedCurrentState);
     }
 
 
