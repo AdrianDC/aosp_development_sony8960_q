@@ -111,6 +111,8 @@ public class ClientModeManager implements ActiveModeManager {
             return;
         }
 
+        mWifiStateMachine.setWifiStateForApiCalls(newState);
+
         final Intent intent = new Intent(WifiManager.WIFI_STATE_CHANGED_ACTION);
         intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
         intent.putExtra(WifiManager.EXTRA_WIFI_STATE, newState);
