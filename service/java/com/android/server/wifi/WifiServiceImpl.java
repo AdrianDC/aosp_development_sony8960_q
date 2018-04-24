@@ -725,6 +725,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
      */
     @CheckResult
     private int enforceChangePermission(String callingPackage) {
+        if (checkNetworkSettingsPermission(Binder.getCallingPid(), Binder.getCallingUid())) {
+            return MODE_ALLOWED;
+        }
         mContext.enforceCallingOrSelfPermission(android.Manifest.permission.CHANGE_WIFI_STATE,
                 "WifiService");
 
