@@ -612,6 +612,7 @@ public class WifiStateMachineTest {
         reset(mContext);
 
         // now disable wifi and verify the reported wifi state
+        mWsm.setWifiStateForApiCalls(WifiManager.WIFI_STATE_DISABLED);
         mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
         mLooper.dispatchAll();
         assertEquals(WifiStateMachine.DISABLED_MODE, mWsm.getOperationalModeForTest());
@@ -784,6 +785,7 @@ public class WifiStateMachineTest {
      * Helper method to move through startup states.
      */
     private void startSupplicantAndDispatchMessages() throws Exception {
+        mWsm.setWifiStateForApiCalls(WifiManager.WIFI_STATE_ENABLED);
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE, WIFI_IFACE_NAME);
 
         mLooper.dispatchAll();
@@ -1823,6 +1825,7 @@ public class WifiStateMachineTest {
 
         // Set WSM to DISABLED_MODE, verify state and wifi disabled in ConnectivityManager, and
         // WifiInfo is reset() and state set to DISCONNECTED
+        mWsm.setWifiStateForApiCalls(WifiManager.WIFI_STATE_DISABLED);
         mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
         mLooper.dispatchAll();
 
@@ -2411,5 +2414,41 @@ public class WifiStateMachineTest {
         mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE, WIFI_IFACE_NAME);
         mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
         mLooper.dispatchAll();
+    }
+
+    /**
+     * Verify that valid calls to set the current wifi state are returned when requested.
+     */
+    @Test
+    public void verifySetAndGetWifiStateCallsWorking() throws Exception {
+        // we start off disabled
+        assertEquals(WifiManager.WIFI_STATE_DISABLED, mWsm.syncGetWifiState());
+
+        // now check after updating
+        mWsm.setWifiStateForApiCalls(WifiManager.WIFI_STATE_UNKNOWN);
+        assertEquals(WifiManager.WIFI_STATE_UNKNOWN, mWsm.syncGetWifiState());
+
+        // check after two updates
+        mWsm.setWifiStateForApiCalls(WifiManager.WIFI_STATE_ENABLING);
+        mWsm.setWifiStateForApiCalls(WifiManager.WIFI_STATE_ENABLED);
+        assertEquals(WifiManager.WIFI_STATE_ENABLED, mWsm.syncGetWifiState());
+    }
+
+    /**
+     * Verify that invalid states do not change the saved wifi state.
+     */
+    @Test
+    public void verifyInvalidStatesDoNotChangeSavedWifiState() throws Exception {
+        int invalidStateNegative = -1;
+        int invalidStatePositive = 5;
+
+        // we start off disabled
+        assertEquals(WifiManager.WIFI_STATE_DISABLED, mWsm.syncGetWifiState());
+
+        mWsm.setWifiStateForApiCalls(invalidStateNegative);
+        assertEquals(WifiManager.WIFI_STATE_DISABLED, mWsm.syncGetWifiState());
+
+        mWsm.setWifiStateForApiCalls(invalidStatePositive);
+        assertEquals(WifiManager.WIFI_STATE_DISABLED, mWsm.syncGetWifiState());
     }
 }

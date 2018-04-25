@@ -1379,7 +1379,34 @@ public class WifiStateMachine extends StateMachine {
     }
 
     /**
-     * TODO: doc
+     * Temporary method that allows the active ClientModeManager to set the wifi state that is
+     * retrieved by API calls. This will be removed when WifiServiceImpl no longer directly calls
+     * this class (b/31479117).
+     *
+     * @param newState new state to set, invalid states are ignored.
+     */
+    public void setWifiStateForApiCalls(int newState) {
+        switch (newState) {
+            case WIFI_STATE_DISABLING:
+            case WIFI_STATE_DISABLED:
+            case WIFI_STATE_ENABLING:
+            case WIFI_STATE_ENABLED:
+            case WIFI_STATE_UNKNOWN:
+                if (mVerboseLoggingEnabled) {
+                    Log.d(TAG, "setting wifi state to: " + newState);
+                }
+                mWifiState.set(newState);
+                return;
+            default:
+                Log.d(TAG, "attempted to set an invalid state: " + newState);
+                return;
+        }
+    }
+
+    /**
+     * Method used by WifiServiceImpl to get the current state of Wifi (in client mode) for API
+     * calls.  This will be removed when WifiService no longer directly calls this class
+     * (b/31479117).
      */
     public int syncGetWifiState() {
         return mWifiState.get();
@@ -2449,31 +2476,6 @@ public class WifiStateMachine extends StateMachine {
             mSuspendOptNeedsDisabled |= reason;
         }
         if (mVerboseLoggingEnabled) log("mSuspendOptNeedsDisabled " + mSuspendOptNeedsDisabled);
-    }
-
-    private void setWifiState(int wifiState) {
-        final int previousWifiState = mWifiState.get();
-
-        mWifiState.set(wifiState);
-
-        if (mVerboseLoggingEnabled) log("setWifiState: " + syncGetWifiStateByName());
-
-        // first let WifiController know what is going on
-        if (mClientModeCallback != null) {
-            mClientModeCallback.onStateChanged(wifiState);
-            // once this instance of client mode is complete, remove the callback so we don't
-            // confuse ourselves
-            if (wifiState == WifiManager.WIFI_STATE_UNKNOWN
-                    || wifiState == WifiManager.WIFI_STATE_DISABLED) {
-                mClientModeCallback = null;
-            }
-        }
-
-        final Intent intent = new Intent(WifiManager.WIFI_STATE_CHANGED_ACTION);
-        intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
-        intent.putExtra(WifiManager.EXTRA_WIFI_STATE, wifiState);
-        intent.putExtra(WifiManager.EXTRA_PREVIOUS_WIFI_STATE, previousWifiState);
-        mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
     }
 
     /*
@@ -3814,7 +3816,6 @@ public class WifiStateMachine extends StateMachine {
         if (mNetworkAgent != null) mNetworkAgent.sendNetworkInfo(mNetworkInfo);
         mCountryCode.setReadyForChange(false);
         mInterfaceName = null;
-        setWifiState(WIFI_STATE_DISABLED);
     }
 
     void registerConnected() {
@@ -3886,8 +3887,6 @@ public class WifiStateMachine extends StateMachine {
             mScanRequestProxy.enableScanningForHiddenNetworks(true);
             mWifiInfo.reset();
             mWifiInfo.setSupplicantState(SupplicantState.DISCONNECTED);
-            // Let the system know that wifi is available in client mode.
-            setWifiState(WIFI_STATE_ENABLED);
 
             mWifiInjector.getWakeupController().reset();
 
@@ -3925,7 +3924,6 @@ public class WifiStateMachine extends StateMachine {
             mScanRequestProxy.clearScanResults();
             mWifiInfo.reset();
             mWifiInfo.setSupplicantState(SupplicantState.DISCONNECTED);
-            setWifiState(WIFI_STATE_DISABLED);
             stopClientMode();
         }
 
@@ -5352,9 +5350,8 @@ public class WifiStateMachine extends StateMachine {
             }
 
             mLastDriverRoamAttempt = 0;
-            String curSsid = getTargetSsid();
             mTargetNetworkId = WifiConfiguration.INVALID_NETWORK_ID;
-            mWifiInjector.getWifiLastResortWatchdog().connectedStateTransition(true, curSsid);
+            mWifiInjector.getWifiLastResortWatchdog().connectedStateTransition(true);
             mWifiStateTracker.updateState(WifiStateTracker.CONNECTED);
         }
         @Override
@@ -5509,8 +5506,7 @@ public class WifiStateMachine extends StateMachine {
                      WifiConnectivityManager.WIFI_STATE_TRANSITIONING);
 
             mLastDriverRoamAttempt = 0;
-            mWifiInjector.getWifiLastResortWatchdog().connectedStateTransition(false,
-                    getTargetSsid());
+            mWifiInjector.getWifiLastResortWatchdog().connectedStateTransition(false);
         }
     }
 
