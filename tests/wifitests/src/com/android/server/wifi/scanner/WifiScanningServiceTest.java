@@ -497,6 +497,23 @@ public class WifiScanningServiceTest {
         assertDumpContainsRequestLog("addBackgroundScanRequest", 192);
     }
 
+    /**
+     * Verifies that duplicate SCAN_AVAILABLE broadcast with |WIFI_STATE_ENABLED| is ignored.
+     */
+    @Test
+    public void duplicateScanAvailableBroadcastIsIgnored() throws RemoteException {
+        startServiceAndLoadDriver();
+
+        // Send scan available again.
+        TestUtil.sendWifiScanAvailable(mBroadcastReceiver, mContext,
+                WifiManager.WIFI_STATE_ENABLED);
+        mLooper.dispatchAll();
+
+        // Ensure we didn't create scanner instance twice.
+        verify(mWifiScannerImplFactory, times(1))
+                .create(any(), any(), any());
+    }
+
     @Test
     public void disconnectClientAfterStartingWifi() throws Exception {
         mWifiScanningServiceImpl.startService();
@@ -2292,5 +2309,118 @@ public class WifiScanningServiceTest {
         Messenger messenger = mWifiScanningServiceImpl.getMessenger();
         messenger.send(message);
         verify(mFrameworkFacade, never()).makeWifiAsyncChannel(anyString());
+    }
+
+    /**
+     * Verifies that background scan works after duplicate SCAN_AVAILABLE broadcast with
+     * |WIFI_STATE_ENABLED|.
+     */
+    @Test
+    public void backgroundScanAfterDuplicateScanAvailableBroadcast() throws RemoteException {
+        startServiceAndLoadDriver();
+
+        // Send scan available again.
+        TestUtil.sendWifiScanAvailable(mBroadcastReceiver, mContext,
+                WifiManager.WIFI_STATE_ENABLED);
+        mLooper.dispatchAll();
+
+        // Ensure we didn't create scanner instance twice.
+        verify(mWifiScannerImplFactory, times(1))
+                .create(any(), any(), any());
+
+        Handler handler = mock(Handler.class);
+        BidirectionalAsyncChannel controlChannel = connectChannel(handler);
+        InOrder order = inOrder(handler);
+        when(mWifiScannerImpl.startBatchedScan(any(WifiNative.ScanSettings.class),
+                any(WifiNative.ScanEventHandler.class))).thenReturn(true);
+        sendBackgroundScanRequest(controlChannel, 192, generateValidScanSettings(), null);
+        mLooper.dispatchAll();
+        verifySuccessfulResponse(order, handler, 192);
+        assertDumpContainsRequestLog("addBackgroundScanRequest", 192);
+    }
+
+    /**
+     * Verifies that single scan works after duplicate SCAN_AVAILABLE broadcast with
+     * |WIFI_STATE_ENABLED|.
+     */
+    @Test
+    public void singleScanScanAfterDuplicateScanAvailableBroadcast() throws RemoteException {
+        startServiceAndLoadDriver();
+
+        // Send scan available again.
+        TestUtil.sendWifiScanAvailable(mBroadcastReceiver, mContext,
+                WifiManager.WIFI_STATE_ENABLED);
+        mLooper.dispatchAll();
+
+        // Ensure we didn't create scanner instance twice.
+        verify(mWifiScannerImplFactory, times(1))
+                .create(any(), any(), any());
+
+        Handler handler = mock(Handler.class);
+        BidirectionalAsyncChannel controlChannel = connectChannel(handler);
+        InOrder order = inOrder(handler, mWifiScannerImpl);
+
+        int requestId = 12;
+        WorkSource workSource = new WorkSource(2292);
+        WifiScanner.ScanSettings requestSettings = createRequest(channelsToSpec(2400, 5150, 5175),
+                0, 0, 20, WifiScanner.REPORT_EVENT_AFTER_EACH_SCAN);
+        ScanResults results = ScanResults.create(0, true, 2400, 5150, 5175);
+
+        when(mWifiScannerImpl.startSingleScan(any(WifiNative.ScanSettings.class),
+                any(WifiNative.ScanEventHandler.class))).thenReturn(true);
+
+        sendSingleScanRequest(controlChannel, requestId, requestSettings, workSource);
+
+        mLooper.dispatchAll();
+        WifiNative.ScanEventHandler eventHandler =
+                verifyStartSingleScan(order, computeSingleScanNativeSettings(requestSettings));
+        verifySuccessfulResponse(order, handler, requestId);
+        verify(mBatteryStats).noteWifiScanStartedFromSource(eq(workSource));
+
+        when(mWifiScannerImpl.getLatestSingleScanResults())
+                .thenReturn(results.getRawScanData());
+        eventHandler.onScanStatus(WifiNative.WIFI_SCAN_RESULTS_AVAILABLE);
+
+        mLooper.dispatchAll();
+        verifyScanResultsReceived(order, handler, requestId, results.getScanData());
+        verifySingleScanCompletedReceived(order, handler, requestId);
+        verifyNoMoreInteractions(handler);
+        verify(mBatteryStats).noteWifiScanStoppedFromSource(eq(workSource));
+        assertDumpContainsRequestLog("addSingleScanRequest", requestId);
+        assertDumpContainsCallbackLog("singleScanResults", requestId,
+                "results=" + results.getScanData().getResults().length);
+    }
+
+    /**
+     * Verifies that pno scan works after duplicate SCAN_AVAILABLE broadcast with
+     * |WIFI_STATE_ENABLED|.
+     */
+    @Test
+    public void hwPnoScanScanAfterDuplicateScanAvailableBroadcast() throws Exception {
+        startServiceAndLoadDriver();
+
+        // Send scan available again.
+        TestUtil.sendWifiScanAvailable(mBroadcastReceiver, mContext,
+                WifiManager.WIFI_STATE_ENABLED);
+        mLooper.dispatchAll();
+
+        // Ensure we didn't create scanner instance twice.
+        verify(mWifiScannerImplFactory, times(1))
+                .create(any(), any(), any());
+
+        Handler handler = mock(Handler.class);
+        BidirectionalAsyncChannel controlChannel = connectChannel(handler);
+        InOrder order = inOrder(handler, mWifiScannerImpl);
+        int requestId = 12;
+
+        ScanResults scanResults = createScanResultsForPno();
+        Pair<WifiScanner.ScanSettings, WifiNative.ScanSettings> scanSettings =
+                createScanSettingsForHwPno();
+        Pair<WifiScanner.PnoSettings, WifiNative.PnoSettings> pnoSettings =
+                createPnoSettings(scanResults);
+
+        sendPnoScanRequest(controlChannel, requestId, scanSettings.first, pnoSettings.first);
+        expectHwPnoScan(order, handler, requestId, pnoSettings.second, scanResults);
+        verifyPnoNetworkFoundReceived(order, handler, requestId, scanResults.getRawScanResults());
     }
 }

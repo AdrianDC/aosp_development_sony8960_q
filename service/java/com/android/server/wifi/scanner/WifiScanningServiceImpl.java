@@ -431,7 +431,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
     /**
      * State machine that holds the state of single scans. Scans should only be active in the
-     * ScanningState. The pending scans and active scans maps are swaped when entering
+     * ScanningState. The pending scans and active scans maps are swapped when entering
      * ScanningState. Any requests queued while scanning will be placed in the pending queue and
      * executed after transitioning back to IdleState.
      */
@@ -576,7 +576,7 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
         /**
          * State representing when the driver is running. This state is not meant to be transitioned
-         * directly, but is instead indented as a parent state of ScanningState and IdleState
+         * directly, but is instead intended as a parent state of ScanningState and IdleState
          * to hold common functionality and handle cleaning up scans when the driver is shut down.
          */
         class DriverStartedState extends State {
@@ -597,6 +597,9 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
                 ClientInfo ci = mClients.get(msg.replyTo);
 
                 switch (msg.what) {
+                    case CMD_DRIVER_LOADED:
+                        // Ignore if we're already in driver loaded state.
+                        return HANDLED;
                     case WifiScanner.CMD_START_SINGLE_SCAN:
                         mWifiMetrics.incrementOneshotScanCount();
                         int handler = msg.arg2;
@@ -1151,7 +1154,9 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
 
                 switch (msg.what) {
                     case CMD_DRIVER_LOADED:
-                        return NOT_HANDLED;
+                        Log.e(TAG, "wifi driver loaded received while already loaded");
+                        // Ignore if we're already in driver loaded state.
+                        return HANDLED;
                     case CMD_DRIVER_UNLOADED:
                         return NOT_HANDLED;
                     case WifiScanner.CMD_START_BACKGROUND_SCAN: {
@@ -1530,6 +1535,9 @@ public class WifiScanningServiceImpl extends IWifiScanner.Stub {
             public boolean processMessage(Message msg) {
                 ClientInfo ci = mClients.get(msg.replyTo);
                 switch (msg.what) {
+                    case CMD_DRIVER_LOADED:
+                        // Ignore if we're already in driver loaded state.
+                        return HANDLED;
                     case WifiScanner.CMD_START_PNO_SCAN:
                         Bundle pnoParams = (Bundle) msg.obj;
                         if (pnoParams == null) {
