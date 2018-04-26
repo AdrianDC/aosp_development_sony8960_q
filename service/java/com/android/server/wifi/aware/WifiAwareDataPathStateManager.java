@@ -850,6 +850,8 @@ public class WifiAwareDataPathStateManager {
                     if (VDBG) Log.v(TAG, "releaseNetworkFor: in progress NDP being terminated");
                     mMgr.endDataPath(nnri.ndpId);
                     nnri.state = AwareNetworkRequestInformation.STATE_TERMINATING;
+                } else {
+                    mNetworkRequestsCache.remove(networkSpecifier);
                 }
             } else {
                 if (VDBG) {
