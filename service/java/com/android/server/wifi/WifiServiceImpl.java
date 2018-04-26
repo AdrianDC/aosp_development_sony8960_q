@@ -569,7 +569,6 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         // can result in race conditions when apps toggle wifi in the background
         // without active user involvement. Always receive broadcasts.
         registerForBroadcasts();
-        registerForPackageOrUserRemoval();
         mInIdleMode = mPowerManager.isDeviceIdleMode();
 
         if (!mWifiStateMachine.syncInitialize(mWifiStateMachineChannel)) {
@@ -2358,6 +2357,9 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             String action = intent.getAction();
             if (action.equals(Intent.ACTION_USER_PRESENT)) {
                 mWifiController.sendMessage(CMD_USER_PRESENT);
+            } else if (action.equals(Intent.ACTION_USER_REMOVED)) {
+                int userHandle = intent.getIntExtra(Intent.EXTRA_USER_HANDLE, 0);
+                mWifiStateMachine.removeUserConfigs(userHandle);
             } else if (action.equals(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED)) {
                 int state = intent.getIntExtra(BluetoothAdapter.EXTRA_CONNECTION_STATE,
                         BluetoothAdapter.STATE_DISCONNECTED);
@@ -2423,6 +2425,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private void registerForBroadcasts() {
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(Intent.ACTION_USER_PRESENT);
+        intentFilter.addAction(Intent.ACTION_USER_REMOVED);
         intentFilter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
         intentFilter.addAction(BluetoothAdapter.ACTION_CONNECTION_STATE_CHANGED);
         intentFilter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALLBACK_MODE_CHANGED);
@@ -2433,39 +2436,26 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         if (trackEmergencyCallState) {
             intentFilter.addAction(TelephonyIntents.ACTION_EMERGENCY_CALL_STATE_CHANGED);
         }
-
         mContext.registerReceiver(mReceiver, intentFilter);
-    }
 
-    private void registerForPackageOrUserRemoval() {
-        IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(Intent.ACTION_PACKAGE_REMOVED);
-        intentFilter.addAction(Intent.ACTION_USER_REMOVED);
-        mContext.registerReceiverAsUser(new BroadcastReceiver() {
+        intentFilter = new IntentFilter();
+        intentFilter.addAction(Intent.ACTION_PACKAGE_FULLY_REMOVED);
+        intentFilter.addDataScheme("package");
+        mContext.registerReceiver(new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                switch (intent.getAction()) {
-                    case Intent.ACTION_PACKAGE_REMOVED: {
-                        if (intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)) {
-                            return;
-                        }
-                        int uid = intent.getIntExtra(Intent.EXTRA_UID, -1);
-                        Uri uri = intent.getData();
-                        if (uid == -1 || uri == null) {
-                            return;
-                        }
-                        String pkgName = uri.getSchemeSpecificPart();
-                        mWifiStateMachine.removeAppConfigs(pkgName, uid);
-                        break;
+                String action = intent.getAction();
+                if (action.equals(Intent.ACTION_PACKAGE_FULLY_REMOVED)) {
+                    int uid = intent.getIntExtra(Intent.EXTRA_UID, -1);
+                    Uri uri = intent.getData();
+                    if (uid == -1 || uri == null) {
+                        return;
                     }
-                    case Intent.ACTION_USER_REMOVED: {
-                        int userHandle = intent.getIntExtra(Intent.EXTRA_USER_HANDLE, 0);
-                        mWifiStateMachine.removeUserConfigs(userHandle);
-                        break;
-                    }
+                    String pkgName = uri.getSchemeSpecificPart();
+                    mWifiStateMachine.removeAppConfigs(pkgName, uid);
                 }
             }
-        }, UserHandle.ALL, intentFilter, null, null);
+        }, intentFilter);
     }
 
     @Override
