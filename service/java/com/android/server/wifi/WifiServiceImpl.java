@@ -600,14 +600,15 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     }
 
     /**
-     * See {@link android.net.wifi.WifiManager#startScan}
+     * see {@link android.net.wifi.WifiManager#startScan}
+     * and {@link android.net.wifi.WifiManager#startCustomizedScan}
      *
      * @param packageName Package name of the app that requests wifi scan.
      */
     @Override
-    public boolean startScan(String packageName) {
+    public void startScan(String packageName) {
         if (enforceChangePermission(packageName) != MODE_ALLOWED) {
-            return false;
+            return;
         }
 
         int callingUid = Binder.getCallingUid();
@@ -623,24 +624,19 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 // be sent directly until b/31398592 is fixed.
                 sendFailedScanBroadcast();
                 mScanPending = true;
-                return false;
+                return;
             }
         }
-        Mutable<Boolean> scanSuccess = new Mutable<>();
-        boolean runWithScissorsSuccess = mWifiInjector.getWifiStateMachineHandler()
-                .runWithScissors(() -> {
-                    scanSuccess.value = mScanRequestProxy.startScan(callingUid, packageName);
-                }, RUN_WITH_SCISSORS_TIMEOUT_MILLIS);
-        if (!runWithScissorsSuccess) {
+        boolean success = mWifiInjector.getWifiStateMachineHandler().runWithScissors(() -> {
+            if (!mScanRequestProxy.startScan(callingUid, packageName)) {
+                Log.e(TAG, "Failed to start scan");
+            }
+        }, RUN_WITH_SCISSORS_TIMEOUT_MILLIS);
+        if (!success) {
+            // TODO: should return false here
             Log.e(TAG, "Failed to post runnable to start scan");
             sendFailedScanBroadcast();
-            return false;
         }
-        if (!scanSuccess.value) {
-            Log.e(TAG, "Failed to start scan");
-            return false;
-        }
-        return true;
     }
 
     // Send a failed scan broadcast to indicate the current scan request failed.
