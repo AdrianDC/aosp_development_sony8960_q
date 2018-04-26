@@ -314,7 +314,6 @@ public class WifiServiceImplTest {
         when(mContext.getOpPackageName()).thenReturn(TEST_PACKAGE_NAME);
         when(mContext.checkPermission(eq(android.Manifest.permission.NETWORK_SETTINGS),
                 anyInt(), anyInt())).thenReturn(PackageManager.PERMISSION_DENIED);
-        when(mScanRequestProxy.startScan(anyInt(), anyString())).thenReturn(true);
 
         ArgumentCaptor<SoftApCallback> softApCallbackCaptor =
                 ArgumentCaptor.forClass(SoftApCallback.class);
@@ -1026,18 +1025,6 @@ public class WifiServiceImplTest {
     }
 
     /**
-     * Ensure that we handle app ops check failure when handling scan request.
-     */
-    @Test
-    public void testStartScanFailureAppOpsIgnored() {
-        setupWifiStateMachineHandlerForRunWithScissors();
-        doReturn(AppOpsManager.MODE_IGNORED).when(mAppOpsManager)
-                .noteOp(AppOpsManager.OPSTR_CHANGE_WIFI_STATE, Process.myUid(), SCAN_PACKAGE_NAME);
-        assertFalse(mWifiServiceImpl.startScan(SCAN_PACKAGE_NAME));
-        verify(mScanRequestProxy, never()).startScan(Process.myUid(), SCAN_PACKAGE_NAME);
-    }
-
-    /**
      * Ensure that we handle scan request failure when posting the runnable to handler fails.
      */
     @Ignore
@@ -1046,19 +1033,8 @@ public class WifiServiceImplTest {
         setupWifiStateMachineHandlerForRunWithScissors();
         doReturn(false).when(mHandlerSpyForWsmRunWithScissors)
                 .runWithScissors(any(), anyLong());
-        assertFalse(mWifiServiceImpl.startScan(SCAN_PACKAGE_NAME));
+        mWifiServiceImpl.startScan(SCAN_PACKAGE_NAME);
         verify(mScanRequestProxy, never()).startScan(Process.myUid(), SCAN_PACKAGE_NAME);
-    }
-
-    /**
-     * Ensure that we handle scan request failure from ScanRequestProxy fails.
-     */
-    @Test
-    public void testStartScanFailureFromScanRequestProxy() {
-        setupWifiStateMachineHandlerForRunWithScissors();
-        when(mScanRequestProxy.startScan(anyInt(), anyString())).thenReturn(false);
-        assertFalse(mWifiServiceImpl.startScan(SCAN_PACKAGE_NAME));
-        verify(mScanRequestProxy).startScan(Process.myUid(), SCAN_PACKAGE_NAME);
     }
 
     static final String TEST_SSID = "Sid's Place";
@@ -2552,7 +2528,7 @@ public class WifiServiceImplTest {
         TestUtil.sendIdleModeChanged(mBroadcastReceiverCaptor.getValue(), mContext);
 
         // Send a scan request while the device is idle.
-        assertFalse(mWifiServiceImpl.startScan(SCAN_PACKAGE_NAME));
+        mWifiServiceImpl.startScan(SCAN_PACKAGE_NAME);
         // No scans must be made yet as the device is idle.
         verify(mScanRequestProxy, never()).startScan(Process.myUid(), SCAN_PACKAGE_NAME);
 
@@ -2569,7 +2545,7 @@ public class WifiServiceImplTest {
 
         // Send another scan request. The device is not idle anymore, so it must be executed
         // immediately.
-        assertTrue(mWifiServiceImpl.startScan(SCAN_PACKAGE_NAME));
+        mWifiServiceImpl.startScan(SCAN_PACKAGE_NAME);
         verify(mScanRequestProxy).startScan(Process.myUid(), SCAN_PACKAGE_NAME);
     }
 
