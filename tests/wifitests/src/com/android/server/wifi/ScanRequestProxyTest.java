@@ -147,6 +147,18 @@ public class ScanRequestProxyTest {
         validateScanSettings(mScanSettingsArgumentCaptor.getValue(), false, true);
     }
 
+    /**
+     * Verify scan request will forwarded to wifiscanner if wifiscanner is present.
+     */
+    @Test
+    public void testStartScanSuccessFromAppWithNetworkSetupWizard() {
+        when(mWifiPermissionsUtil.checkNetworkSetupWizardPermission(TEST_UID)).thenReturn(true);
+        assertTrue(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_1));
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+
+        assertTrue(mWorkSourceArgumentCaptor.getValue().equals(new WorkSource(TEST_UID)));
+        validateScanSettings(mScanSettingsArgumentCaptor.getValue(), false, true);
+    }
 
     /**
      * Verify that hidden network list is not retrieved when hidden network scanning is disabled.
@@ -515,6 +527,26 @@ public class ScanRequestProxyTest {
     @Test
     public void testSuccessiveScanRequestFromSameAppWithNetworkSettingsPermissionNotThrottled() {
         when(mWifiPermissionsUtil.checkNetworkSettingsPermission(TEST_UID)).thenReturn(true);
+
+        long firstRequestMs = 782;
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(firstRequestMs);
+        for (int i = 0; i < SCAN_REQUEST_THROTTLE_MAX_IN_TIME_WINDOW_FG_APPS; i++) {
+            when(mClock.getElapsedSinceBootMillis()).thenReturn(firstRequestMs + i);
+            assertTrue(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_1));
+            mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+        }
+        // Make next scan request from the same package name & ensure that it is not throttled.
+        assertTrue(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_1));
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+    }
+
+    /**
+     * Ensure new scan requests from the same app with NETWORK_SETUP_WIZARD permission are not
+     * throttled.
+     */
+    @Test
+    public void testSuccessiveScanRequestFromSameAppWithNetworkSetupWizardPermissionNotThrottled() {
+        when(mWifiPermissionsUtil.checkNetworkSetupWizardPermission(TEST_UID)).thenReturn(true);
 
         long firstRequestMs = 782;
         when(mClock.getElapsedSinceBootMillis()).thenReturn(firstRequestMs);

@@ -349,9 +349,12 @@ public class ScanRequestProxy {
             sendScanResultFailureBroadcastToPackage(packageName);
             return false;
         }
-        boolean fromSettings = mWifiPermissionsUtil.checkNetworkSettingsPermission(callingUid);
+        boolean fromSettingsOrSetupWizard =
+                mWifiPermissionsUtil.checkNetworkSettingsPermission(callingUid)
+                        || mWifiPermissionsUtil.checkNetworkSetupWizardPermission(callingUid);
         // Check and throttle scan request from apps without NETWORK_SETTINGS permission.
-        if (!fromSettings && shouldScanRequestBeThrottledForApp(callingUid, packageName)) {
+        if (!fromSettingsOrSetupWizard
+                && shouldScanRequestBeThrottledForApp(callingUid, packageName)) {
             Log.i(TAG, "Scan request from " + packageName + " throttled");
             sendScanResultFailureBroadcastToPackage(packageName);
             return false;
@@ -362,7 +365,7 @@ public class ScanRequestProxy {
         // Create the scan settings.
         WifiScanner.ScanSettings settings = new WifiScanner.ScanSettings();
         // Scan requests from apps with network settings will be of high accuracy type.
-        if (fromSettings) {
+        if (fromSettingsOrSetupWizard) {
             settings.type = WifiScanner.TYPE_HIGH_ACCURACY;
         }
         // always do full scans
