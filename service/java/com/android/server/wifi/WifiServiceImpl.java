@@ -2449,6 +2449,10 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                     }
                     String pkgName = uri.getSchemeSpecificPart();
                     mWifiStateMachine.removeAppConfigs(pkgName, uid);
+                    // Call the method in WSM thread.
+                    mWifiStateMachineHandler.post(() -> {
+                        mScanRequestProxy.clearScanRequestTimestampsForApp(pkgName, uid);
+                    });
                 }
             }
         }, intentFilter);
