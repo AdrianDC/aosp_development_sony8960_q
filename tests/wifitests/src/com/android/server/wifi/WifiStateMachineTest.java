@@ -2119,6 +2119,35 @@ public class WifiStateMachineTest {
     }
 
     /**
+     * Verify that RSSI and link layer stats polling works in connected mode
+     */
+    @Test
+    public void verifyConnectedModeRssiPolling() throws Exception {
+        final long startMillis = 1_500_000_000_100L;
+        WifiLinkLayerStats llStats = new WifiLinkLayerStats();
+        llStats.txmpdu_be = 1000;
+        llStats.rxmpdu_bk = 2000;
+        WifiNative.SignalPollResult signalPollResult = new WifiNative.SignalPollResult();
+        signalPollResult.currentRssi = -42;
+        signalPollResult.txBitrate = 65;
+        signalPollResult.associationFrequency = sFreq;
+        when(mWifiNative.getWifiLinkLayerStats(any())).thenReturn(llStats);
+        when(mWifiNative.signalPoll(any())).thenReturn(signalPollResult);
+        when(mClock.getWallClockMillis()).thenReturn(startMillis + 0);
+        mWsm.enableRssiPolling(true);
+        connect();
+        mLooper.dispatchAll();
+        when(mClock.getWallClockMillis()).thenReturn(startMillis + 3333);
+        mLooper.dispatchAll();
+        WifiInfo wifiInfo = mWsm.getWifiInfo();
+        assertEquals(llStats.txmpdu_be, wifiInfo.txSuccess);
+        assertEquals(llStats.rxmpdu_bk, wifiInfo.rxSuccess);
+        assertEquals(signalPollResult.currentRssi, wifiInfo.getRssi());
+        assertEquals(signalPollResult.txBitrate, wifiInfo.getLinkSpeed());
+        assertEquals(sFreq, wifiInfo.getFrequency());
+    }
+
+    /**
      * Verify that calls to start and stop filtering multicast packets are passed on to the IpClient
      * instance.
      */

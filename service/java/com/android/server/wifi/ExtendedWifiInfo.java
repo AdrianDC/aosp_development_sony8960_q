@@ -16,6 +16,7 @@
 
 package com.android.server.wifi;
 
+import android.annotation.NonNull;
 import android.net.wifi.WifiInfo;
 
 /**
@@ -24,13 +25,18 @@ import android.net.wifi.WifiInfo;
 public class ExtendedWifiInfo extends WifiInfo {
     private static final long RESET_TIME_STAMP = Long.MIN_VALUE;
     private static final double FILTER_TIME_CONSTANT = 3000.0;
+    private static final int SOURCE_UNKNOWN = 0;
+    private static final int SOURCE_TRAFFIC_COUNTERS = 1;
+    private static final int SOURCE_LLSTATS = 2;
 
+    private int mLastSource = SOURCE_UNKNOWN;
     private long mLastPacketCountUpdateTimeStamp = RESET_TIME_STAMP;
     private boolean mEnableConnectedMacRandomization = false;
 
     @Override
     public void reset() {
         super.reset();
+        mLastSource = SOURCE_UNKNOWN;
         mLastPacketCountUpdateTimeStamp = RESET_TIME_STAMP;
         if (mEnableConnectedMacRandomization) {
             setMacAddress(DEFAULT_MAC_ADDRESS);
@@ -43,84 +49,59 @@ public class ExtendedWifiInfo extends WifiInfo {
      * @param stats WifiLinkLayerStats
      * @param timeStamp time in milliseconds
      */
-    public void updatePacketRates(WifiLinkLayerStats stats, long timeStamp) {
-        if (stats != null) {
-            long txgood = stats.txmpdu_be + stats.txmpdu_bk + stats.txmpdu_vi + stats.txmpdu_vo;
-            long txretries = stats.retries_be + stats.retries_bk
-                    + stats.retries_vi + stats.retries_vo;
-            long rxgood = stats.rxmpdu_be + stats.rxmpdu_bk + stats.rxmpdu_vi + stats.rxmpdu_vo;
-            long txbad = stats.lostmpdu_be + stats.lostmpdu_bk
-                    + stats.lostmpdu_vi + stats.lostmpdu_vo;
-
-            if (mLastPacketCountUpdateTimeStamp != RESET_TIME_STAMP
-                    && mLastPacketCountUpdateTimeStamp < timeStamp
-                    && txBad <= txbad
-                    && txSuccess <= txgood
-                    && rxSuccess <= rxgood
-                    && txRetries <= txretries) {
-                long timeDelta = timeStamp - mLastPacketCountUpdateTimeStamp;
-                double lastSampleWeight = Math.exp(-1.0 * timeDelta / FILTER_TIME_CONSTANT);
-                double currentSampleWeight = 1.0 - lastSampleWeight;
-
-                txBadRate = txBadRate * lastSampleWeight
-                        + (txbad - txBad) * 1000.0 / timeDelta
-                        * currentSampleWeight;
-                txSuccessRate = txSuccessRate * lastSampleWeight
-                        + (txgood - txSuccess) * 1000.0 / timeDelta
-                        * currentSampleWeight;
-                rxSuccessRate = rxSuccessRate * lastSampleWeight
-                        + (rxgood - rxSuccess) * 1000.0 / timeDelta
-                        * currentSampleWeight;
-                txRetriesRate = txRetriesRate * lastSampleWeight
-                        + (txretries - txRetries) * 1000.0 / timeDelta
-                        * currentSampleWeight;
-            } else {
-                txBadRate = 0;
-                txSuccessRate = 0;
-                rxSuccessRate = 0;
-                txRetriesRate = 0;
-            }
-            txBad = txbad;
-            txSuccess = txgood;
-            rxSuccess = rxgood;
-            txRetries = txretries;
-            mLastPacketCountUpdateTimeStamp = timeStamp;
-        } else {
-            txBad = 0;
-            txSuccess = 0;
-            rxSuccess = 0;
-            txRetries = 0;
-            txBadRate = 0;
-            txSuccessRate = 0;
-            rxSuccessRate = 0;
-            txRetriesRate = 0;
-            mLastPacketCountUpdateTimeStamp = RESET_TIME_STAMP;
-        }
+    public void updatePacketRates(@NonNull WifiLinkLayerStats stats, long timeStamp) {
+        long txgood = stats.txmpdu_be + stats.txmpdu_bk + stats.txmpdu_vi + stats.txmpdu_vo;
+        long txretries = stats.retries_be + stats.retries_bk + stats.retries_vi + stats.retries_vo;
+        long txbad = stats.lostmpdu_be + stats.lostmpdu_bk + stats.lostmpdu_vi + stats.lostmpdu_vo;
+        long rxgood = stats.rxmpdu_be + stats.rxmpdu_bk + stats.rxmpdu_vi + stats.rxmpdu_vo;
+        update(SOURCE_LLSTATS, txgood, txretries, txbad, rxgood, timeStamp);
     }
 
     /**
      * This function is less powerful and used if the WifiLinkLayerStats API is not implemented
      * at the Wifi HAL
-     *
-     * @hide
      */
-    public void updatePacketRates(long txPackets, long rxPackets) {
-        //paranoia
-        txBad = 0;
-        txRetries = 0;
-        txBadRate = 0;
-        txRetriesRate = 0;
-        if (txSuccess <= txPackets && rxSuccess <= rxPackets) {
-            txSuccessRate = (txSuccessRate * 0.5)
-                    + ((double) (txPackets - txSuccess) * 0.5);
-            rxSuccessRate = (rxSuccessRate * 0.5)
-                    + ((double) (rxPackets - rxSuccess) * 0.5);
+    public void updatePacketRates(long txPackets, long rxPackets, long timeStamp) {
+        update(SOURCE_TRAFFIC_COUNTERS, txPackets, 0, 0, rxPackets, timeStamp);
+    }
+
+    private void update(int source, long txgood, long txretries, long txbad, long rxgood,
+            long timeStamp) {
+        if (source == mLastSource
+                && mLastPacketCountUpdateTimeStamp != RESET_TIME_STAMP
+                && mLastPacketCountUpdateTimeStamp < timeStamp
+                && txBad <= txbad
+                && txSuccess <= txgood
+                && rxSuccess <= rxgood
+                && txRetries <= txretries) {
+            long timeDelta = timeStamp - mLastPacketCountUpdateTimeStamp;
+            double lastSampleWeight = Math.exp(-1.0 * timeDelta / FILTER_TIME_CONSTANT);
+            double currentSampleWeight = 1.0 - lastSampleWeight;
+
+            txBadRate = txBadRate * lastSampleWeight
+                    + (txbad - txBad) * 1000.0 / timeDelta
+                    * currentSampleWeight;
+            txSuccessRate = txSuccessRate * lastSampleWeight
+                    + (txgood - txSuccess) * 1000.0 / timeDelta
+                    * currentSampleWeight;
+            rxSuccessRate = rxSuccessRate * lastSampleWeight
+                    + (rxgood - rxSuccess) * 1000.0 / timeDelta
+                    * currentSampleWeight;
+            txRetriesRate = txRetriesRate * lastSampleWeight
+                    + (txretries - txRetries) * 1000.0 / timeDelta
+                    * currentSampleWeight;
         } else {
             txBadRate = 0;
+            txSuccessRate = 0;
+            rxSuccessRate = 0;
             txRetriesRate = 0;
+            mLastSource = source;
         }
-        txSuccess = txPackets;
-        rxSuccess = rxPackets;
+        txBad = txbad;
+        txSuccess = txgood;
+        rxSuccess = rxgood;
+        txRetries = txretries;
+        mLastPacketCountUpdateTimeStamp = timeStamp;
     }
 
     /**
