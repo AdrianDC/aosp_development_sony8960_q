@@ -611,6 +611,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         }
 
         int callingUid = Binder.getCallingUid();
+        long ident = Binder.clearCallingIdentity();
         mLog.info("startScan uid=%").c(callingUid).flush();
         synchronized (this) {
             if (mInIdleMode) {
@@ -626,19 +627,26 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                 return false;
             }
         }
-        Mutable<Boolean> scanSuccess = new Mutable<>();
-        boolean runWithScissorsSuccess = mWifiInjector.getWifiStateMachineHandler()
-                .runWithScissors(() -> {
-                    scanSuccess.value = mScanRequestProxy.startScan(callingUid, packageName);
-                }, RUN_WITH_SCISSORS_TIMEOUT_MILLIS);
-        if (!runWithScissorsSuccess) {
-            Log.e(TAG, "Failed to post runnable to start scan");
-            sendFailedScanBroadcast();
+        try {
+            mWifiPermissionsUtil.enforceCanAccessScanResults(packageName, callingUid);
+            Mutable<Boolean> scanSuccess = new Mutable<>();
+            boolean runWithScissorsSuccess = mWifiInjector.getWifiStateMachineHandler()
+                    .runWithScissors(() -> {
+                        scanSuccess.value = mScanRequestProxy.startScan(callingUid, packageName);
+                    }, RUN_WITH_SCISSORS_TIMEOUT_MILLIS);
+            if (!runWithScissorsSuccess) {
+                Log.e(TAG, "Failed to post runnable to start scan");
+                sendFailedScanBroadcast();
+                return false;
+            }
+            if (!scanSuccess.value) {
+                Log.e(TAG, "Failed to start scan");
+                return false;
+            }
+        } catch (SecurityException e) {
             return false;
-        }
-        if (!scanSuccess.value) {
-            Log.e(TAG, "Failed to start scan");
-            return false;
+        } finally {
+            Binder.restoreCallingIdentity(ident);
         }
         return true;
     }

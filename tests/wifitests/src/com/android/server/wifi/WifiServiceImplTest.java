@@ -1038,6 +1038,18 @@ public class WifiServiceImplTest {
     }
 
     /**
+     * Ensure that we handle scan access permission check failure when handling scan request.
+     */
+    @Test
+    public void testStartScanFailureInCanAccessScanResultsPermission() {
+        setupWifiStateMachineHandlerForRunWithScissors();
+        doThrow(new SecurityException()).when(mWifiPermissionsUtil)
+                .enforceCanAccessScanResults(SCAN_PACKAGE_NAME, Process.myUid());
+        assertFalse(mWifiServiceImpl.startScan(SCAN_PACKAGE_NAME));
+        verify(mScanRequestProxy, never()).startScan(Process.myUid(), SCAN_PACKAGE_NAME);
+    }
+
+    /**
      * Ensure that we handle scan request failure when posting the runnable to handler fails.
      */
     @Ignore
