@@ -16,6 +16,7 @@
 
 package com.android.server.wifi;
 
+import android.annotation.NonNull;
 import android.app.ActivityManager;
 import android.app.AppOpsManager;
 import android.content.Context;
@@ -28,6 +29,7 @@ import android.os.UserHandle;
 import android.os.WorkSource;
 import android.util.ArrayMap;
 import android.util.Log;
+import android.util.Pair;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.wifi.util.WifiPermissionsUtil;
@@ -90,7 +92,10 @@ public class ScanRequestProxy {
     // Timestamps for the last scan requested by any background app.
     private long mLastScanTimestampForBgApps = 0;
     // Timestamps for the list of last few scan requests by each foreground app.
-    private final ArrayMap<String, LinkedList<Long>> mLastScanTimestampsForFgApps = new ArrayMap();
+    // Keys in the map = Pair<Uid, PackageName> of the app.
+    // Values in the map = List of the last few scan request timestamps from the app.
+    private final ArrayMap<Pair<Integer, String>, LinkedList<Long>> mLastScanTimestampsForFgApps =
+            new ArrayMap();
     // Scan results cached from the last full single scan request.
     private final List<ScanResult> mLastScanResults = new ArrayList<>();
     // Common scan listener for scan requests.
@@ -246,11 +251,14 @@ public class ScanRequestProxy {
         }
     }
 
-    private LinkedList<Long> getOrCreateScanRequestTimestampsForForegroundApp(String packageName) {
-        LinkedList<Long> scanRequestTimestamps = mLastScanTimestampsForFgApps.get(packageName);
+    private LinkedList<Long> getOrCreateScanRequestTimestampsForForegroundApp(
+            int callingUid, String packageName) {
+        Pair<Integer, String> uidAndPackageNamePair = Pair.create(callingUid, packageName);
+        LinkedList<Long> scanRequestTimestamps =
+                mLastScanTimestampsForFgApps.get(uidAndPackageNamePair);
         if (scanRequestTimestamps == null) {
             scanRequestTimestamps = new LinkedList<>();
-            mLastScanTimestampsForFgApps.put(packageName, scanRequestTimestamps);
+            mLastScanTimestampsForFgApps.put(uidAndPackageNamePair, scanRequestTimestamps);
         }
         return scanRequestTimestamps;
     }
@@ -261,9 +269,10 @@ public class ScanRequestProxy {
      * The throttle limit allows a max of {@link #SCAN_REQUEST_THROTTLE_MAX_IN_TIME_WINDOW_FG_APPS}
      * in {@link #SCAN_REQUEST_THROTTLE_TIME_WINDOW_FG_APPS_MS} window.
      */
-    private boolean shouldScanRequestBeThrottledForForegroundApp(String packageName) {
+    private boolean shouldScanRequestBeThrottledForForegroundApp(
+            int callingUid, String packageName) {
         LinkedList<Long> scanRequestTimestamps =
-                getOrCreateScanRequestTimestampsForForegroundApp(packageName);
+                getOrCreateScanRequestTimestampsForForegroundApp(callingUid, packageName);
         long currentTimeMillis = mClock.getElapsedSinceBootMillis();
         // First evict old entries from the list.
         trimPastScanRequestTimesForForegroundApp(scanRequestTimestamps, currentTimeMillis);
@@ -324,7 +333,7 @@ public class ScanRequestProxy {
                 mWifiMetrics.incrementExternalBackgroundAppOneshotScanRequestsThrottledCount();
             }
         } else {
-            isThrottled = shouldScanRequestBeThrottledForForegroundApp(packageName);
+            isThrottled = shouldScanRequestBeThrottledForForegroundApp(callingUid, packageName);
             if (isThrottled) {
                 if (mVerboseLoggingEnabled) {
                     Log.v(TAG, "Foreground scan app request [" + callingUid + ", "
@@ -349,9 +358,12 @@ public class ScanRequestProxy {
             sendScanResultFailureBroadcastToPackage(packageName);
             return false;
         }
-        boolean fromSettings = mWifiPermissionsUtil.checkNetworkSettingsPermission(callingUid);
+        boolean fromSettingsOrSetupWizard =
+                mWifiPermissionsUtil.checkNetworkSettingsPermission(callingUid)
+                        || mWifiPermissionsUtil.checkNetworkSetupWizardPermission(callingUid);
         // Check and throttle scan request from apps without NETWORK_SETTINGS permission.
-        if (!fromSettings && shouldScanRequestBeThrottledForApp(callingUid, packageName)) {
+        if (!fromSettingsOrSetupWizard
+                && shouldScanRequestBeThrottledForApp(callingUid, packageName)) {
             Log.i(TAG, "Scan request from " + packageName + " throttled");
             sendScanResultFailureBroadcastToPackage(packageName);
             return false;
@@ -362,7 +374,7 @@ public class ScanRequestProxy {
         // Create the scan settings.
         WifiScanner.ScanSettings settings = new WifiScanner.ScanSettings();
         // Scan requests from apps with network settings will be of high accuracy type.
-        if (fromSettings) {
+        if (fromSettingsOrSetupWizard) {
             settings.type = WifiScanner.TYPE_HIGH_ACCURACY;
         }
         // always do full scans
@@ -397,5 +409,19 @@ public class ScanRequestProxy {
         mLastScanResults.clear();
         mLastScanTimestampForBgApps = 0;
         mLastScanTimestampsForFgApps.clear();
+    }
+
+    /**
+     * Clear any scan timestamps being stored for the app.
+     *
+     * @param uid Uid of the package.
+     * @param packageName Name of the package.
+     */
+    public void clearScanRequestTimestampsForApp(@NonNull String packageName, int uid) {
+        if (mVerboseLoggingEnabled) {
+            Log.v(TAG, "Clearing scan request timestamps for uid=" + uid + ", packageName="
+                    + packageName);
+        }
+        mLastScanTimestampsForFgApps.remove(Pair.create(uid, packageName));
     }
 }

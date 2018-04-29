@@ -147,6 +147,18 @@ public class ScanRequestProxyTest {
         validateScanSettings(mScanSettingsArgumentCaptor.getValue(), false, true);
     }
 
+    /**
+     * Verify scan request will forwarded to wifiscanner if wifiscanner is present.
+     */
+    @Test
+    public void testStartScanSuccessFromAppWithNetworkSetupWizard() {
+        when(mWifiPermissionsUtil.checkNetworkSetupWizardPermission(TEST_UID)).thenReturn(true);
+        assertTrue(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_1));
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+
+        assertTrue(mWorkSourceArgumentCaptor.getValue().equals(new WorkSource(TEST_UID)));
+        validateScanSettings(mScanSettingsArgumentCaptor.getValue(), false, true);
+    }
 
     /**
      * Verify that hidden network list is not retrieved when hidden network scanning is disabled.
@@ -529,6 +541,26 @@ public class ScanRequestProxyTest {
     }
 
     /**
+     * Ensure new scan requests from the same app with NETWORK_SETUP_WIZARD permission are not
+     * throttled.
+     */
+    @Test
+    public void testSuccessiveScanRequestFromSameAppWithNetworkSetupWizardPermissionNotThrottled() {
+        when(mWifiPermissionsUtil.checkNetworkSetupWizardPermission(TEST_UID)).thenReturn(true);
+
+        long firstRequestMs = 782;
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(firstRequestMs);
+        for (int i = 0; i < SCAN_REQUEST_THROTTLE_MAX_IN_TIME_WINDOW_FG_APPS; i++) {
+            when(mClock.getElapsedSinceBootMillis()).thenReturn(firstRequestMs + i);
+            assertTrue(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_1));
+            mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+        }
+        // Make next scan request from the same package name & ensure that it is not throttled.
+        assertTrue(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_1));
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+    }
+
+    /**
      * Ensure new scan requests from different apps are not throttled.
      */
     @Test
@@ -553,6 +585,60 @@ public class ScanRequestProxyTest {
 
         verify(mWifiMetrics, times(SCAN_REQUEST_THROTTLE_MAX_IN_TIME_WINDOW_FG_APPS + 2))
                 .incrementExternalAppOneshotScanRequestsCount();
+    }
+
+    /**
+     * Ensure new scan requests from the same app after removal & re-install is not
+     * throttled.
+     * Verifies that we clear the scan timestamps for apps that were removed.
+     */
+    @Test
+    public void testSuccessiveScanRequestFromSameAppAfterRemovalAndReinstallNotThrottled() {
+        long firstRequestMs = 782;
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(firstRequestMs);
+        for (int i = 0; i < SCAN_REQUEST_THROTTLE_MAX_IN_TIME_WINDOW_FG_APPS; i++) {
+            when(mClock.getElapsedSinceBootMillis()).thenReturn(firstRequestMs + i);
+            assertTrue(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_1));
+            mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+        }
+        // Now simulate removing the app.
+        mScanRequestProxy.clearScanRequestTimestampsForApp(TEST_PACKAGE_NAME_1, TEST_UID);
+
+        // Make next scan request from the same package name (simulating a reinstall) & ensure that
+        // it is not throttled.
+        assertTrue(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_1));
+        mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+
+        verify(mWifiMetrics, times(SCAN_REQUEST_THROTTLE_MAX_IN_TIME_WINDOW_FG_APPS + 1))
+                .incrementExternalAppOneshotScanRequestsCount();
+    }
+
+    /**
+     * Ensure new scan requests after removal of the app from a different user is throttled.
+     * The app has same the package name across users, but different UID's. Verifies that
+     * the cache is cleared only for the specific app for a specific user when an app is removed.
+     */
+    @Test
+    public void testSuccessiveScanRequestFromSameAppAfterRemovalOnAnotherUserThrottled() {
+        long firstRequestMs = 782;
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(firstRequestMs);
+        for (int i = 0; i < SCAN_REQUEST_THROTTLE_MAX_IN_TIME_WINDOW_FG_APPS; i++) {
+            when(mClock.getElapsedSinceBootMillis()).thenReturn(firstRequestMs + i);
+            assertTrue(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_1));
+            mInOrder.verify(mWifiScanner).startScan(any(), any(), any());
+        }
+        // Now simulate removing the app for another user (User 1).
+        mScanRequestProxy.clearScanRequestTimestampsForApp(
+                TEST_PACKAGE_NAME_1,
+                UserHandle.getUid(UserHandle.USER_SYSTEM + 1, TEST_UID));
+
+        // Make next scan request from the same package name & ensure that is throttled.
+        assertFalse(mScanRequestProxy.startScan(TEST_UID, TEST_PACKAGE_NAME_1));
+        validateScanResultsFailureBroadcastSent(TEST_PACKAGE_NAME_1);
+
+        verify(mWifiMetrics, times(SCAN_REQUEST_THROTTLE_MAX_IN_TIME_WINDOW_FG_APPS + 1))
+                .incrementExternalAppOneshotScanRequestsCount();
+        verify(mWifiMetrics).incrementExternalForegroundAppOneshotScanRequestsThrottledCount();
     }
 
     /**

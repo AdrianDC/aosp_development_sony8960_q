@@ -474,6 +474,26 @@ public class WifiPermissionsUtilTest {
     }
 
     /**
+     * Verifies the helper method exposed for checking NETWORK_SETUP_WIZARD permission.
+     */
+    @Test
+    public void testCheckNetworkSetupWizard() throws Exception {
+        setupMocks();
+        WifiPermissionsUtil wifiPermissionsUtil = new WifiPermissionsUtil(mMockPermissionsWrapper,
+                mMockContext, mMockWifiSettingsStore, mMockUserManager, mWifiInjector);
+
+        when(mMockPermissionsWrapper.getUidPermission(
+                android.Manifest.permission.NETWORK_SETUP_WIZARD, MANAGED_PROFILE_UID))
+                .thenReturn(PackageManager.PERMISSION_DENIED);
+        assertFalse(wifiPermissionsUtil.checkNetworkSetupWizardPermission(MANAGED_PROFILE_UID));
+
+        when(mMockPermissionsWrapper.getUidPermission(
+                android.Manifest.permission.NETWORK_SETUP_WIZARD, MANAGED_PROFILE_UID))
+                .thenReturn(PackageManager.PERMISSION_GRANTED);
+        assertTrue(wifiPermissionsUtil.checkNetworkSetupWizardPermission(MANAGED_PROFILE_UID));
+    }
+
+    /**
      * Test case setting: caller does not have Location permission.
      * Expect a SecurityException
      */

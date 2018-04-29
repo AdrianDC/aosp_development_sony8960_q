@@ -287,4 +287,13 @@ public class WifiPermissionsUtil {
                 android.Manifest.permission.NETWORK_SETTINGS, uid)
                 == PackageManager.PERMISSION_GRANTED;
     }
+
+    /**
+     * Returns true if the |uid| holds NETWORK_SETUP_WIZARD permission.
+     */
+    public boolean checkNetworkSetupWizardPermission(int uid) {
+        return mWifiPermissionsWrapper.getUidPermission(
+                android.Manifest.permission.NETWORK_SETUP_WIZARD, uid)
+                == PackageManager.PERMISSION_GRANTED;
+    }
 }

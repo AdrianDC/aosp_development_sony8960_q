@@ -59,10 +59,12 @@ import android.app.AppOpsManager;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
+import android.net.Uri;
 import android.net.wifi.ISoftApCallback;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
@@ -133,6 +135,7 @@ public class WifiServiceImplTest {
     private static final int TEST_PID2 = 9876;
     private static final int TEST_UID = 1200000;
     private static final int OTHER_TEST_UID = 1300000;
+    private static final int TEST_USER_HANDLE = 13;
     private static final String WIFI_IFACE_NAME = "wlan0";
     private static final String TEST_COUNTRY_CODE = "US";
 
@@ -311,6 +314,7 @@ public class WifiServiceImplTest {
         when(mContext.getOpPackageName()).thenReturn(TEST_PACKAGE_NAME);
         when(mContext.checkPermission(eq(android.Manifest.permission.NETWORK_SETTINGS),
                 anyInt(), anyInt())).thenReturn(PackageManager.PERMISSION_DENIED);
+        when(mScanRequestProxy.startScan(anyInt(), anyString())).thenReturn(true);
 
         ArgumentCaptor<SoftApCallback> softApCallbackCaptor =
                 ArgumentCaptor.forClass(SoftApCallback.class);
@@ -1022,6 +1026,18 @@ public class WifiServiceImplTest {
     }
 
     /**
+     * Ensure that we handle app ops check failure when handling scan request.
+     */
+    @Test
+    public void testStartScanFailureAppOpsIgnored() {
+        setupWifiStateMachineHandlerForRunWithScissors();
+        doReturn(AppOpsManager.MODE_IGNORED).when(mAppOpsManager)
+                .noteOp(AppOpsManager.OPSTR_CHANGE_WIFI_STATE, Process.myUid(), SCAN_PACKAGE_NAME);
+        assertFalse(mWifiServiceImpl.startScan(SCAN_PACKAGE_NAME));
+        verify(mScanRequestProxy, never()).startScan(Process.myUid(), SCAN_PACKAGE_NAME);
+    }
+
+    /**
      * Ensure that we handle scan request failure when posting the runnable to handler fails.
      */
     @Ignore
@@ -1030,8 +1046,19 @@ public class WifiServiceImplTest {
         setupWifiStateMachineHandlerForRunWithScissors();
         doReturn(false).when(mHandlerSpyForWsmRunWithScissors)
                 .runWithScissors(any(), anyLong());
-        mWifiServiceImpl.startScan(SCAN_PACKAGE_NAME);
+        assertFalse(mWifiServiceImpl.startScan(SCAN_PACKAGE_NAME));
         verify(mScanRequestProxy, never()).startScan(Process.myUid(), SCAN_PACKAGE_NAME);
+    }
+
+    /**
+     * Ensure that we handle scan request failure from ScanRequestProxy fails.
+     */
+    @Test
+    public void testStartScanFailureFromScanRequestProxy() {
+        setupWifiStateMachineHandlerForRunWithScissors();
+        when(mScanRequestProxy.startScan(anyInt(), anyString())).thenReturn(false);
+        assertFalse(mWifiServiceImpl.startScan(SCAN_PACKAGE_NAME));
+        verify(mScanRequestProxy).startScan(Process.myUid(), SCAN_PACKAGE_NAME);
     }
 
     static final String TEST_SSID = "Sid's Place";
@@ -2525,7 +2552,7 @@ public class WifiServiceImplTest {
         TestUtil.sendIdleModeChanged(mBroadcastReceiverCaptor.getValue(), mContext);
 
         // Send a scan request while the device is idle.
-        mWifiServiceImpl.startScan(SCAN_PACKAGE_NAME);
+        assertFalse(mWifiServiceImpl.startScan(SCAN_PACKAGE_NAME));
         // No scans must be made yet as the device is idle.
         verify(mScanRequestProxy, never()).startScan(Process.myUid(), SCAN_PACKAGE_NAME);
 
@@ -2542,7 +2569,7 @@ public class WifiServiceImplTest {
 
         // Send another scan request. The device is not idle anymore, so it must be executed
         // immediately.
-        mWifiServiceImpl.startScan(SCAN_PACKAGE_NAME);
+        assertTrue(mWifiServiceImpl.startScan(SCAN_PACKAGE_NAME));
         verify(mScanRequestProxy).startScan(Process.myUid(), SCAN_PACKAGE_NAME);
     }
 
@@ -2594,6 +2621,96 @@ public class WifiServiceImplTest {
         verify(mWifiStateMachine, never()).disconnectCommand();
     }
 
+    @Test
+    public void testPackageRemovedBroadcastHandling() {
+        mWifiServiceImpl.checkAndStartWifi();
+        verify(mContext).registerReceiver(mBroadcastReceiverCaptor.capture(),
+                (IntentFilter) argThat((IntentFilter filter) ->
+                        filter.hasAction(Intent.ACTION_PACKAGE_FULLY_REMOVED)));
+
+        int uid = TEST_UID;
+        String packageName = TEST_PACKAGE_NAME;
+        // Send the broadcast
+        Intent intent = new Intent(Intent.ACTION_PACKAGE_FULLY_REMOVED);
+        intent.putExtra(Intent.EXTRA_UID, uid);
+        intent.setData(Uri.fromParts("package", packageName, ""));
+        mBroadcastReceiverCaptor.getValue().onReceive(mContext, intent);
+
+        verify(mWifiStateMachine).removeAppConfigs(packageName, uid);
+
+        mLooper.dispatchAll();
+        verify(mScanRequestProxy).clearScanRequestTimestampsForApp(packageName, uid);
+    }
+
+    @Test
+    public void testPackageRemovedBroadcastHandlingWithNoUid() {
+        mWifiServiceImpl.checkAndStartWifi();
+        verify(mContext).registerReceiver(mBroadcastReceiverCaptor.capture(),
+                (IntentFilter) argThat((IntentFilter filter) ->
+                        filter.hasAction(Intent.ACTION_PACKAGE_FULLY_REMOVED)));
+
+        String packageName = TEST_PACKAGE_NAME;
+        // Send the broadcast
+        Intent intent = new Intent(Intent.ACTION_PACKAGE_FULLY_REMOVED);
+        intent.setData(Uri.fromParts("package", packageName, ""));
+        mBroadcastReceiverCaptor.getValue().onReceive(mContext, intent);
+
+        verify(mWifiStateMachine, never()).removeAppConfigs(anyString(), anyInt());
+
+        mLooper.dispatchAll();
+        verify(mScanRequestProxy, never()).clearScanRequestTimestampsForApp(anyString(), anyInt());
+    }
+
+    @Test
+    public void testPackageRemovedBroadcastHandlingWithNoPackageName() {
+        mWifiServiceImpl.checkAndStartWifi();
+        verify(mContext).registerReceiver(mBroadcastReceiverCaptor.capture(),
+                (IntentFilter) argThat((IntentFilter filter) ->
+                        filter.hasAction(Intent.ACTION_PACKAGE_FULLY_REMOVED)));
+
+        int uid = TEST_UID;
+        // Send the broadcast
+        Intent intent = new Intent(Intent.ACTION_PACKAGE_FULLY_REMOVED);
+        intent.putExtra(Intent.EXTRA_UID, uid);
+        mBroadcastReceiverCaptor.getValue().onReceive(mContext, intent);
+
+        verify(mWifiStateMachine, never()).removeAppConfigs(anyString(), anyInt());
+
+        mLooper.dispatchAll();
+        verify(mScanRequestProxy, never()).clearScanRequestTimestampsForApp(anyString(), anyInt());
+    }
+
+    @Test
+    public void testUserRemovedBroadcastHandling() {
+        mWifiServiceImpl.checkAndStartWifi();
+        verify(mContext).registerReceiver(mBroadcastReceiverCaptor.capture(),
+                (IntentFilter) argThat((IntentFilter filter) ->
+                        filter.hasAction(Intent.ACTION_USER_REMOVED)));
+
+        int userHandle = TEST_USER_HANDLE;
+        // Send the broadcast
+        Intent intent = new Intent(Intent.ACTION_USER_REMOVED);
+        intent.putExtra(Intent.EXTRA_USER_HANDLE, userHandle);
+        mBroadcastReceiverCaptor.getValue().onReceive(mContext, intent);
+
+        verify(mWifiStateMachine).removeUserConfigs(userHandle);
+    }
+
+    @Test
+    public void testUserRemovedBroadcastHandlingWithWrongIntentAction() {
+        mWifiServiceImpl.checkAndStartWifi();
+        verify(mContext).registerReceiver(mBroadcastReceiverCaptor.capture(),
+                (IntentFilter) argThat((IntentFilter filter) ->
+                        filter.hasAction(Intent.ACTION_USER_REMOVED)));
+
+        int userHandle = TEST_USER_HANDLE;
+        // Send the broadcast with wrong action
+        Intent intent = new Intent(Intent.ACTION_USER_FOREGROUND);
+        intent.putExtra(Intent.EXTRA_USER_HANDLE, userHandle);
+        mBroadcastReceiverCaptor.getValue().onReceive(mContext, intent);
+
+        verify(mWifiStateMachine, never()).removeUserConfigs(userHandle);
+    }
 
     private class IdleModeIntentMatcher implements ArgumentMatcher<IntentFilter> {
         @Override
