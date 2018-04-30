@@ -63,6 +63,7 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
     public void reset() {
         mLastMillis = 0;
         mThresholdAdjustment = 0;
+        mFilter.mx = null;
     }
 
     /**
@@ -78,7 +79,7 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
     @Override
     public void updateUsingRssi(int rssi, long millis, double standardDeviation) {
         if (millis <= 0) return;
-        if (mLastMillis <= 0 || millis < mLastMillis) {
+        if (mLastMillis <= 0 || millis < mLastMillis || mFilter.mx == null) {
             double initialVariance = 9.0 * standardDeviation * standardDeviation;
             mFilter.mx = new Matrix(1, new double[]{rssi, 0.0});
             mFilter.mP = new Matrix(2, new double[]{initialVariance, 0.0, 0.0, 0.0});
@@ -167,6 +168,7 @@ public class VelocityBasedConnectedScore extends ConnectedScore {
      */
     @Override
     public int generateScore() {
+        if (mFilter.mx == null) return WIFI_TRANSITION_SCORE + 1;
         double badRssi = getAdjustedRssiThreshold();
         double horizonSeconds = mScoringParams.getHorizonSeconds();
         Matrix x = new Matrix(mFilter.mx);
