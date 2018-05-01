@@ -50,7 +50,6 @@ import android.net.NetworkUtils;
 import android.net.RouteInfo;
 import android.net.StaticIpConfiguration;
 import android.net.TrafficStats;
-import android.net.apf.ApfCapabilities;
 import android.net.dhcp.DhcpClient;
 import android.net.ip.IpClient;
 import android.net.wifi.RssiPacketCountInfo;
@@ -5028,17 +5027,10 @@ public class WifiStateMachine extends StateMachine {
                 mIpClient.setTcpBufferSizes(mTcpBufferSizes);
             }
             final IpClient.ProvisioningConfiguration prov;
-
-            ApfCapabilities apfCapabilities = mWifiNative.getApfCapabilities(mInterfaceName);
-            if (mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)) {
-                // Temporarily disable APF on automotive platforms to work around b/78905546.
-                apfCapabilities = null;
-            }
-
             if (!isUsingStaticIp) {
                 prov = IpClient.buildProvisioningConfiguration()
                             .withPreDhcpAction()
-                            .withApfCapabilities(apfCapabilities)
+                            .withApfCapabilities(mWifiNative.getApfCapabilities(mInterfaceName))
                             .withNetwork(getCurrentNetwork())
                             .withDisplayName(currentConfig.SSID)
                             .withRandomMacAddress()
@@ -5047,7 +5039,7 @@ public class WifiStateMachine extends StateMachine {
                 StaticIpConfiguration staticIpConfig = currentConfig.getStaticIpConfiguration();
                 prov = IpClient.buildProvisioningConfiguration()
                             .withStaticConfiguration(staticIpConfig)
-                            .withApfCapabilities(apfCapabilities)
+                            .withApfCapabilities(mWifiNative.getApfCapabilities(mInterfaceName))
                             .withNetwork(getCurrentNetwork())
                             .withDisplayName(currentConfig.SSID)
                             .build();
