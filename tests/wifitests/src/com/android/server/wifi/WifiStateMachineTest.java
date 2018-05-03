@@ -2451,4 +2451,16 @@ public class WifiStateMachineTest {
         mWsm.setWifiStateForApiCalls(invalidStatePositive);
         assertEquals(WifiManager.WIFI_STATE_DISABLED, mWsm.syncGetWifiState());
     }
+
+    /**
+     * Verify that IPClient instance is shutdown when wifi is disabled.
+     */
+    @Test
+    public void verifyIpClientShutdownWhenDisabled() throws Exception {
+        loadComponentsInStaMode();
+
+        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
+        mLooper.dispatchAll();
+        verify(mIpClient).shutdown();
+    }
 }
