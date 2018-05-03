@@ -21,8 +21,6 @@ import static android.net.wifi.WifiManager.WIFI_STATE_DISABLING;
 import static android.net.wifi.WifiManager.WIFI_STATE_ENABLED;
 import static android.net.wifi.WifiManager.WIFI_STATE_ENABLING;
 import static android.net.wifi.WifiManager.WIFI_STATE_UNKNOWN;
-import static android.telephony.TelephonyManager.CALL_STATE_IDLE;
-import static android.telephony.TelephonyManager.CALL_STATE_OFFHOOK;
 
 import android.app.ActivityManager;
 import android.app.PendingIntent;
@@ -81,7 +79,6 @@ import android.os.UserManager;
 import android.os.WorkSource;
 import android.provider.Settings;
 import android.system.OsConstants;
-import android.telephony.PhoneStateListener;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
@@ -199,6 +196,7 @@ public class WifiStateMachine extends StateMachine {
     private final WifiCountryCode mCountryCode;
     // Object holding most recent wifi score report and bad Linkspeed count
     private final WifiScoreReport mWifiScoreReport;
+    private final SarManager mSarManager;
     public WifiScoreReport getWifiScoreReport() {
         return mWifiScoreReport;
     }
@@ -643,9 +641,6 @@ public class WifiStateMachine extends StateMachine {
     /* Indicates that diagnostics should time out a connection start event. */
     private static final int CMD_DIAGS_CONNECT_TIMEOUT                  = BASE + 252;
 
-    /* Used to set the tx power limit for SAR during the start of a phone call. */
-    private static final int CMD_SELECT_TX_POWER_SCENARIO               = BASE + 253;
-
     // Start subscription provisioning with a given provider
     private static final int CMD_START_SUBSCRIPTION_PROVISIONING        = BASE + 254;
 
@@ -709,7 +704,6 @@ public class WifiStateMachine extends StateMachine {
     private final int mThresholdMinimumRssi24;
     private final boolean mEnableChipWakeUpWhenAssociated;
     private final boolean mEnableRssiPollWhenAssociated;
-    private final boolean mEnableVoiceCallSarTxPowerLimit;
 
     int mRunningBeaconCount = 0;
 
@@ -771,7 +765,6 @@ public class WifiStateMachine extends StateMachine {
         }
         return mTelephonyManager;
     }
-    private final WifiPhoneStateListener mPhoneStateListener;
 
     private final IBatteryStats mBatteryStats;
 
@@ -789,7 +782,8 @@ public class WifiStateMachine extends StateMachine {
                             UserManager userManager, WifiInjector wifiInjector,
                             BackupManagerProxy backupManagerProxy, WifiCountryCode countryCode,
                             WifiNative wifiNative,
-                            WrongPasswordNotifier wrongPasswordNotifier) {
+                            WrongPasswordNotifier wrongPasswordNotifier,
+                            SarManager sarManager) {
         super("WifiStateMachine", looper);
         mWifiInjector = wifiInjector;
         mWifiMetrics = mWifiInjector.getWifiMetrics();
@@ -801,6 +795,7 @@ public class WifiStateMachine extends StateMachine {
         mWifiNative = wifiNative;
         mBackupManagerProxy = backupManagerProxy;
         mWrongPasswordNotifier = wrongPasswordNotifier;
+        mSarManager = sarManager;
 
         // TODO refactor WifiNative use of context out into it's own class
         mNetworkInfo = new NetworkInfo(ConnectivityManager.TYPE_WIFI, 0, NETWORKTYPE, "");
@@ -827,7 +822,6 @@ public class WifiStateMachine extends StateMachine {
                 mFacade.makeSupplicantStateTracker(context, mWifiConfigManager, getHandler());
 
         mLinkProperties = new LinkProperties();
-        mPhoneStateListener = new WifiPhoneStateListener(looper);
         mMcastLockManagerFilterController = new McastLockManagerFilterController();
 
         mNetworkInfo.setIsAvailable(false);
@@ -922,8 +916,6 @@ public class WifiStateMachine extends StateMachine {
                 R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_5GHz);
         mThresholdMinimumRssi24 = context.getResources().getInteger(
                 R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_24GHz);
-        mEnableVoiceCallSarTxPowerLimit = mContext.getResources().getBoolean(
-                R.bool.config_wifi_framework_enable_voice_call_sar_tx_power_limit);
         mEnableChipWakeUpWhenAssociated = true;
         mEnableRssiPollWhenAssociated = true;
 
@@ -3216,40 +3208,6 @@ public class WifiStateMachine extends StateMachine {
         }
     }
 
-    /**
-     * Register the phone listener if we need to set/reset the power limits during voice call for
-     * this device.
-     */
-    private void maybeRegisterPhoneListener() {
-        if (mEnableVoiceCallSarTxPowerLimit) {
-            logd("Registering for telephony call state changes");
-            getTelephonyManager().listen(
-                    mPhoneStateListener, PhoneStateListener.LISTEN_CALL_STATE);
-        }
-    }
-
-    /**
-     * Listen for phone call state events to set/reset TX power limits for SAR requirements.
-     */
-    private class WifiPhoneStateListener extends PhoneStateListener {
-        WifiPhoneStateListener(Looper looper) {
-            super(looper);
-        }
-
-        @Override
-        public void onCallStateChanged(int state, String incomingNumber) {
-            if (mEnableVoiceCallSarTxPowerLimit) {
-                if (state == CALL_STATE_OFFHOOK) {
-                    sendMessage(CMD_SELECT_TX_POWER_SCENARIO,
-                            WifiNative.TX_POWER_SCENARIO_VOICE_CALL);
-                } else if (state == CALL_STATE_IDLE) {
-                    sendMessage(CMD_SELECT_TX_POWER_SCENARIO,
-                            WifiNative.TX_POWER_SCENARIO_NORMAL);
-                }
-            }
-        }
-    }
-
      /**
      * Dynamically change the MAC address to use the locally randomized
      * MAC address generated for each network.
@@ -3416,7 +3374,6 @@ public class WifiStateMachine extends StateMachine {
                         Log.e(TAG, "Failed to load from config store");
                     }
                     maybeRegisterNetworkFactory();
-                    maybeRegisterPhoneListener();
                     break;
                 case CMD_SCREEN_STATE_CHANGED:
                     handleScreenStateChanged(message.arg1 != 0);
@@ -3448,7 +3405,6 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_ROAM_WATCHDOG_TIMER:
                 case CMD_DISABLE_P2P_WATCHDOG_TIMER:
                 case CMD_DISABLE_EPHEMERAL_NETWORK:
-                case CMD_SELECT_TX_POWER_SCENARIO:
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
                     break;
                 case CMD_SET_OPERATIONAL_MODE:
@@ -3762,14 +3718,6 @@ public class WifiStateMachine extends StateMachine {
          * driver are changed to reduce interference with bluetooth
          */
         mWifiNative.setBluetoothCoexistenceScanMode(mInterfaceName, mBluetoothConnectionActive);
-        // Check if there is a voice call on-going and set/reset the tx power limit appropriately.
-        if (mEnableVoiceCallSarTxPowerLimit) {
-            if (getTelephonyManager().isOffhook()) {
-                sendMessage(CMD_SELECT_TX_POWER_SCENARIO, WifiNative.TX_POWER_SCENARIO_VOICE_CALL);
-            } else {
-                sendMessage(CMD_SELECT_TX_POWER_SCENARIO, WifiNative.TX_POWER_SCENARIO_NORMAL);
-            }
-        }
 
         // initialize network state
         setNetworkDetailedState(DetailedState.DISCONNECTED);
@@ -3904,6 +3852,8 @@ public class WifiStateMachine extends StateMachine {
             mWifiMetrics.setWifiState(WifiMetricsProto.WifiLog.WIFI_DISCONNECTED);
             // Inform p2p service that wifi is up and ready when applicable
             p2pSendMessage(WifiStateMachine.CMD_ENABLE_P2P);
+            // Inform sar manager that wifi is Enabled
+            mSarManager.setClientWifiState(WifiManager.WIFI_STATE_ENABLED);
         }
 
         @Override
@@ -3917,6 +3867,8 @@ public class WifiStateMachine extends StateMachine {
             mWifiConnectivityManager.setWifiEnabled(false);
             // Inform metrics that Wifi is being disabled (Toggled, airplane enabled, etc)
             mWifiMetrics.setWifiState(WifiMetricsProto.WifiLog.WIFI_DISABLED);
+            // Inform sar manager that wifi is being disabled
+            mSarManager.setClientWifiState(WifiManager.WIFI_STATE_DISABLED);
 
             if (!mWifiNative.removeAllNetworks(mInterfaceName)) {
                 loge("Failed to remove networks on exiting connect mode");
@@ -4531,14 +4483,6 @@ public class WifiStateMachine extends StateMachine {
                 case CMD_ENABLE_WIFI_CONNECTIVITY_MANAGER:
                     mWifiConnectivityManager.enable(message.arg1 == 1 ? true : false);
                     break;
-                case CMD_SELECT_TX_POWER_SCENARIO:
-                    int txPowerScenario = message.arg1;
-                    logd("Setting Tx power scenario to " + txPowerScenario);
-                    if (!mWifiNative.selectTxPowerScenario(txPowerScenario)) {
-                        loge("Failed to set TX power scenario");
-                    }
-                    break;
-
                 default:
                     return NOT_HANDLED;
             }
