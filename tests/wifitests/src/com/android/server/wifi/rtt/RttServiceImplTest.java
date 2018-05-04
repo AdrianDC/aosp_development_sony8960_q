@@ -68,6 +68,7 @@ import android.os.RemoteException;
 import android.os.UserHandle;
 import android.os.WorkSource;
 import android.os.test.TestLooper;
+import android.provider.Settings;
 import android.util.Pair;
 
 import com.android.server.wifi.Clock;
@@ -94,6 +95,9 @@ import java.util.Set;
  * Unit test harness for the RttServiceImpl class.
  */
 public class RttServiceImplTest {
+
+    private static final long BACKGROUND_PROCESS_EXEC_GAP_MS = 10 * 60 * 1000;  // 10 minutes.
+
     private RttServiceImplSpy mDut;
     private TestLooper mMockLooper;
     private TestAlarmManager mAlarmManager;
@@ -186,6 +190,11 @@ public class RttServiceImplTest {
         mAlarmManager = new TestAlarmManager();
         doNothing().when(mFrameworkFacade).registerContentObserver(eq(mockContext), any(),
                 anyBoolean(), any());
+        when(mFrameworkFacade.getLongSetting(
+            eq(mockContext),
+            eq(Settings.Global.WIFI_RTT_BACKGROUND_EXEC_GAP_MS),
+            anyLong()))
+            .thenReturn(BACKGROUND_PROCESS_EXEC_GAP_MS);
         when(mockLocationManager.isLocationEnabled()).thenReturn(true);
         when(mockContext.getSystemService(Context.ALARM_SERVICE))
                 .thenReturn(mAlarmManager.getAlarmManager());
@@ -954,14 +963,14 @@ public class RttServiceImplTest {
         verifyWakeupCancelled();
 
         // (2) issue a request at time t2 = t1 + 0.5 gap: should be rejected (throttled)
-        clock.time = 100 + RttServiceImpl.BACKGROUND_PROCESS_EXEC_GAP_MS / 2;
+        clock.time = 100 + BACKGROUND_PROCESS_EXEC_GAP_MS / 2;
         mDut.startRanging(mockIbinder, mPackageName, null, request2, mockCallback);
         mMockLooper.dispatchAll();
 
         cbInorder.verify(mockCallback).onRangingFailure(RangingResultCallback.STATUS_CODE_FAIL);
 
         // (3) issue a request at time t3 = t1 + 1.1 gap: should be dispatched since enough time
-        clock.time = 100 + RttServiceImpl.BACKGROUND_PROCESS_EXEC_GAP_MS * 11 / 10;
+        clock.time = 100 + BACKGROUND_PROCESS_EXEC_GAP_MS * 11 / 10;
         mDut.startRanging(mockIbinder, mPackageName, null, request3, mockCallback);
         mMockLooper.dispatchAll();
 
@@ -1086,7 +1095,7 @@ public class RttServiceImplTest {
 
         // (2) issue a request at time t2 = t1 + 0.5 gap for {10,20}: should be dispatched since
         //     uid=20 should not be throttled
-        clock.time = 100 + RttServiceImpl.BACKGROUND_PROCESS_EXEC_GAP_MS / 2;
+        clock.time = 100 + BACKGROUND_PROCESS_EXEC_GAP_MS / 2;
         mDut.startRanging(mockIbinder, mPackageName, wsReq2, request2, mockCallback);
         mMockLooper.dispatchAll();
 
@@ -1101,7 +1110,7 @@ public class RttServiceImplTest {
         verifyWakeupCancelled();
 
         // (3) issue a request at t3 = t1 + 1.1 * gap for {10}: should be rejected (throttled)
-        clock.time = 100 + RttServiceImpl.BACKGROUND_PROCESS_EXEC_GAP_MS * 11 / 10;
+        clock.time = 100 + BACKGROUND_PROCESS_EXEC_GAP_MS * 11 / 10;
         mDut.startRanging(mockIbinder, mPackageName, wsReq1, request3, mockCallback);
         mMockLooper.dispatchAll();
 

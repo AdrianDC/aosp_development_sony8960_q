@@ -90,6 +90,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
     private PowerManager mPowerManager;
     private LocationManager mLocationManager;
     private FrameworkFacade mFrameworkFacade;
+    private long mBackgroundProcessExecGapMs;
 
     private RttServiceSynchronized mRttServiceSynchronized;
 
@@ -99,8 +100,8 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
 
     private static final long HAL_RANGING_TIMEOUT_MS = 5_000; // 5 sec
 
-    // TODO: b/69323456 convert to a settable value
-    /* package */ static final long BACKGROUND_PROCESS_EXEC_GAP_MS = 1_800_000; // 30 min
+    // Default value for RTT background throttling interval.
+    private static final long DEFAULT_BACKGROUND_PROCESS_EXEC_GAP_MS = 1_800_000; // 30 min
 
     // arbitrary, larger than anything reasonable
     /* package */ static final int MAX_QUEUED_PER_UID = 20;
@@ -261,8 +262,21 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
                                 Settings.Global.WIFI_VERBOSE_LOGGING_ENABLED, 0));
                     }
                 });
+
         enableVerboseLogging(frameworkFacade.getIntegerSetting(mContext,
                 Settings.Global.WIFI_VERBOSE_LOGGING_ENABLED, 0));
+
+        frameworkFacade.registerContentObserver(mContext,
+                Settings.Global.getUriFor(Settings.Global.WIFI_RTT_BACKGROUND_EXEC_GAP_MS),
+                true,
+                new ContentObserver(mRttServiceSynchronized.mHandler) {
+                    @Override
+                    public void onChange(boolean selfChange) {
+                        updateBackgroundThrottlingInterval(frameworkFacade);
+                    }
+                });
+
+        updateBackgroundThrottlingInterval(frameworkFacade);
 
         intentFilter = new IntentFilter();
         intentFilter.addAction(LocationManager.MODE_CHANGED_ACTION);
@@ -294,6 +308,12 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
         }
         mRttNative.mDbg = mDbg;
         mRttMetrics.mDbg = mDbg;
+    }
+
+    private void updateBackgroundThrottlingInterval(FrameworkFacade frameworkFacade) {
+        mBackgroundProcessExecGapMs = frameworkFacade.getLongSetting(mContext,
+            Settings.Global.WIFI_RTT_BACKGROUND_EXEC_GAP_MS,
+            DEFAULT_BACKGROUND_PROCESS_EXEC_GAP_MS);
     }
 
     /*
@@ -866,7 +886,7 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
             // any is permitted (infrequent enough)
             boolean allowExecution = false;
             long mostRecentExecutionPermitted =
-                    mClock.getElapsedSinceBootMillis() - BACKGROUND_PROCESS_EXEC_GAP_MS;
+                    mClock.getElapsedSinceBootMillis() - mBackgroundProcessExecGapMs;
             if (allUidsInBackground) {
                 for (int i = 0; i < ws.size(); ++i) {
                     RttRequesterInfo info = mRttRequesterInfo.get(ws.get(i));
