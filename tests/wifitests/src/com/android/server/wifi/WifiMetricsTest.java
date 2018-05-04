@@ -307,6 +307,7 @@ public class WifiMetricsTest {
     private static final int NUM_SOFT_AP_ASSOCIATED_STATIONS = 3;
     private static final int SOFT_AP_CHANNEL_FREQUENCY = 2437;
     private static final int SOFT_AP_CHANNEL_BANDWIDTH = SoftApConnectedClientsEvent.BANDWIDTH_20;
+    private static final boolean IS_MAC_RANDOMIZATION_ON = true;
 
     private ScanDetail buildMockScanDetail(boolean hidden, NetworkDetail.HSRelease hSRelease,
             String capabilities) {
@@ -662,6 +663,7 @@ public class WifiMetricsTest {
         }
 
         mWifiMetrics.setWatchdogSuccessTimeDurationMs(NUM_WATCHDOG_SUCCESS_DURATION_MS);
+        mWifiMetrics.setIsMacRandomizationOn(IS_MAC_RANDOMIZATION_ON);
     }
 
     private void addSoftApEventsToMetrics() {
@@ -930,6 +932,7 @@ public class WifiMetricsTest {
 
         assertEquals(NUM_WATCHDOG_SUCCESS_DURATION_MS,
                 mDecodedProto.watchdogTriggerToConnectionSuccessDurationMs);
+        assertEquals(IS_MAC_RANDOMIZATION_ON, mDecodedProto.isMacRandomizationOn);
     }
 
     /**
@@ -1299,7 +1302,7 @@ public class WifiMetricsTest {
     private static final int ASSOC_TIMEOUT = 1;
     private static final int LOCAL_GEN = 1;
     private static final int AUTH_FAILURE_REASON = WifiManager.ERROR_AUTH_FAILURE_WRONG_PSWD;
-    private static final int NUM_TEST_STA_EVENTS = 15;
+    private static final int NUM_TEST_STA_EVENTS = 16;
     private static final String   sSSID = "\"SomeTestSsid\"";
     private static final WifiSsid sWifiSsid = WifiSsid.createFromAsciiEncoded(sSSID);
     private static final String   sBSSID = "01:02:03:04:05:06";
@@ -1348,7 +1351,8 @@ public class WifiMetricsTest {
         {StaEvent.TYPE_CONNECT_NETWORK,                 0,                          1},
         {StaEvent.TYPE_NETWORK_AGENT_VALID_NETWORK,     0,                          0},
         {StaEvent.TYPE_FRAMEWORK_DISCONNECT,            StaEvent.DISCONNECT_API,    0},
-        {StaEvent.TYPE_SCORE_BREACH,                    0,                          0}
+        {StaEvent.TYPE_SCORE_BREACH,                    0,                          0},
+        {StaEvent.TYPE_MAC_CHANGE,                      0,                          1}
     };
     // Values used to generate the StaEvent log calls from WifiMonitor
     // <type>, <reason>, <status>, <local_gen>,
@@ -1383,7 +1387,9 @@ public class WifiMetricsTest {
         {StaEvent.TYPE_FRAMEWORK_DISCONNECT,            -1,            -1,         0,
             /**/                               0,             0,        0, 0},    /**/
         {StaEvent.TYPE_SCORE_BREACH,                    -1,            -1,         0,
-            /**/                               0,             0,        0, 0}     /**/
+            /**/                               0,             0,        0, 0},    /**/
+        {StaEvent.TYPE_MAC_CHANGE,                      -1,            -1,         0,
+            /**/                               0,             0,        0, 1}     /**/
     };
 
     /**
