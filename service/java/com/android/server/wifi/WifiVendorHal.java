@@ -2886,7 +2886,7 @@ public class WifiVendorHal {
 
         @Override
         public void onDebugErrorAlert(int errorCode, java.util.ArrayList<Byte> debugData) {
-            mVerboseLog.d("onDebugErrorAlert " + errorCode);
+            mLog.w("onDebugErrorAlert " + errorCode);
             mHalEventHandler.post(() -> {
                 WifiNative.WifiLoggerEventHandler eventHandler;
                 synchronized (sLock) {

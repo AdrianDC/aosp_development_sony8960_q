@@ -86,7 +86,7 @@ public class WifiStateMachinePrimeTest {
         mLooper = new TestLooper();
 
         when(mWifiInjector.getSelfRecovery()).thenReturn(mSelfRecovery);
-        when(mWifiInjector.makeWifiDiagnostics(eq(mWifiNative))).thenReturn(mWifiDiagnostics);
+        when(mWifiInjector.getWifiDiagnostics()).thenReturn(mWifiDiagnostics);
         when(mWifiInjector.getScanRequestProxy()).thenReturn(mScanRequestProxy);
 
         mWifiStateMachinePrime = createWifiStateMachinePrime();

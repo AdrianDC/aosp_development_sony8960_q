@@ -393,7 +393,7 @@ public class WifiStateMachineTest {
         when(mWifiInjector.getBuildProperties()).thenReturn(mBuildProperties);
         when(mWifiInjector.getKeyStore()).thenReturn(mock(KeyStore.class));
         when(mWifiInjector.getWifiBackupRestore()).thenReturn(mock(WifiBackupRestore.class));
-        when(mWifiInjector.makeWifiDiagnostics(anyObject())).thenReturn(mWifiDiagnostics);
+        when(mWifiInjector.getWifiDiagnostics()).thenReturn(mWifiDiagnostics);
         when(mWifiInjector.getWifiConfigManager()).thenReturn(mWifiConfigManager);
         when(mWifiInjector.getWifiScanner()).thenReturn(mWifiScanner);
         when(mWifiInjector.makeWifiConnectivityManager(any(WifiInfo.class), anyBoolean()))
