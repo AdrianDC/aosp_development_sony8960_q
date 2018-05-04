@@ -16,6 +16,8 @@
 
 package com.android.server.wifi;
 
+import static android.net.wifi.WifiConfiguration.NetworkSelectionStatus.DISABLED_NO_INTERNET_TEMPORARY;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -37,6 +39,7 @@ import android.net.ConnectivityManager;
 import android.net.DhcpResults;
 import android.net.LinkProperties;
 import android.net.MacAddress;
+import android.net.NetworkAgent;
 import android.net.NetworkCapabilities;
 import android.net.NetworkFactory;
 import android.net.NetworkInfo;
@@ -2123,7 +2126,7 @@ public class WifiStateMachineTest {
         Bundle thresholds = new Bundle();
         thresholds.putIntegerArrayList("thresholds", thresholdsArray);
         Message message = new Message();
-        message.what = android.net.NetworkAgent.CMD_SET_SIGNAL_STRENGTH_THRESHOLDS;
+        message.what = NetworkAgent.CMD_SET_SIGNAL_STRENGTH_THRESHOLDS;
         message.obj  = thresholds;
         messengerCaptor.getValue().send(message);
         mLooper.dispatchAll();
@@ -2432,5 +2435,108 @@ public class WifiStateMachineTest {
         mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, sBSSID);
         mLooper.dispatchAll();
         assertEquals(TEST_GLOBAL_MAC_ADDRESS.toString(), mWsm.getWifiInfo().getMacAddress());
+    }
+
+    /**
+     * Verify that we temporarily disable the network when auto-connected to a network
+     * with no internet access.
+     */
+    @Test
+    public void verifyAutoConnectedNetworkWithInternetValidationFailure() throws Exception {
+        // Simulate the first connection.
+        connect();
+        ArgumentCaptor<Messenger> messengerCaptor = ArgumentCaptor.forClass(Messenger.class);
+        verify(mConnectivityManager).registerNetworkAgent(messengerCaptor.capture(),
+                any(NetworkInfo.class), any(LinkProperties.class), any(NetworkCapabilities.class),
+                anyInt(), any(NetworkMisc.class));
+
+        WifiConfiguration currentNetwork = new WifiConfiguration();
+        currentNetwork.networkId = FRAMEWORK_NETWORK_ID;
+        currentNetwork.noInternetAccessExpected = false;
+        currentNetwork.numNoInternetAccessReports = 1;
+        when(mWifiConfigManager.getConfiguredNetwork(FRAMEWORK_NETWORK_ID))
+                .thenReturn(currentNetwork);
+        when(mWifiConfigManager.getLastSelectedNetwork()).thenReturn(FRAMEWORK_NETWORK_ID + 1);
+
+        Message message = new Message();
+        message.what = NetworkAgent.CMD_REPORT_NETWORK_STATUS;
+        message.arg1 = NetworkAgent.INVALID_NETWORK;
+        message.obj = new Bundle();
+        messengerCaptor.getValue().send(message);
+        mLooper.dispatchAll();
+
+        verify(mWifiConfigManager)
+                .incrementNetworkNoInternetAccessReports(FRAMEWORK_NETWORK_ID);
+        verify(mWifiConfigManager).updateNetworkSelectionStatus(
+                FRAMEWORK_NETWORK_ID, DISABLED_NO_INTERNET_TEMPORARY);
+    }
+
+    /**
+     * Verify that we don't temporarily disable the network when user selected to connect to a
+     * network with no internet access.
+     */
+    @Test
+    public void verifyLastSelectedNetworkWithInternetValidationFailure() throws Exception {
+        // Simulate the first connection.
+        connect();
+        ArgumentCaptor<Messenger> messengerCaptor = ArgumentCaptor.forClass(Messenger.class);
+        verify(mConnectivityManager).registerNetworkAgent(messengerCaptor.capture(),
+                any(NetworkInfo.class), any(LinkProperties.class), any(NetworkCapabilities.class),
+                anyInt(), any(NetworkMisc.class));
+
+        WifiConfiguration currentNetwork = new WifiConfiguration();
+        currentNetwork.networkId = FRAMEWORK_NETWORK_ID;
+        currentNetwork.noInternetAccessExpected = false;
+        currentNetwork.numNoInternetAccessReports = 1;
+        when(mWifiConfigManager.getConfiguredNetwork(FRAMEWORK_NETWORK_ID))
+                .thenReturn(currentNetwork);
+        when(mWifiConfigManager.getLastSelectedNetwork()).thenReturn(FRAMEWORK_NETWORK_ID);
+
+        Message message = new Message();
+        message.what = NetworkAgent.CMD_REPORT_NETWORK_STATUS;
+        message.arg1 = NetworkAgent.INVALID_NETWORK;
+        message.obj = new Bundle();
+        messengerCaptor.getValue().send(message);
+        mLooper.dispatchAll();
+
+        verify(mWifiConfigManager)
+                .incrementNetworkNoInternetAccessReports(FRAMEWORK_NETWORK_ID);
+        verify(mWifiConfigManager, never()).updateNetworkSelectionStatus(
+                FRAMEWORK_NETWORK_ID, DISABLED_NO_INTERNET_TEMPORARY);
+    }
+
+    /**
+     * Verify that we temporarily disable the network when auto-connected to a network
+     * with no internet access.
+     */
+    @Test
+    public void verifyAutoConnectedNoInternetExpectedNetworkWithInternetValidationFailure()
+            throws Exception {
+        // Simulate the first connection.
+        connect();
+        ArgumentCaptor<Messenger> messengerCaptor = ArgumentCaptor.forClass(Messenger.class);
+        verify(mConnectivityManager).registerNetworkAgent(messengerCaptor.capture(),
+                any(NetworkInfo.class), any(LinkProperties.class), any(NetworkCapabilities.class),
+                anyInt(), any(NetworkMisc.class));
+
+        WifiConfiguration currentNetwork = new WifiConfiguration();
+        currentNetwork.networkId = FRAMEWORK_NETWORK_ID;
+        currentNetwork.noInternetAccessExpected = true;
+        currentNetwork.numNoInternetAccessReports = 1;
+        when(mWifiConfigManager.getConfiguredNetwork(FRAMEWORK_NETWORK_ID + 1))
+                .thenReturn(currentNetwork);
+        when(mWifiConfigManager.getLastSelectedNetwork()).thenReturn(FRAMEWORK_NETWORK_ID);
+
+        Message message = new Message();
+        message.what = NetworkAgent.CMD_REPORT_NETWORK_STATUS;
+        message.arg1 = NetworkAgent.INVALID_NETWORK;
+        message.obj = new Bundle();
+        messengerCaptor.getValue().send(message);
+        mLooper.dispatchAll();
+
+        verify(mWifiConfigManager)
+                .incrementNetworkNoInternetAccessReports(FRAMEWORK_NETWORK_ID);
+        verify(mWifiConfigManager, never()).updateNetworkSelectionStatus(
+                FRAMEWORK_NETWORK_ID, DISABLED_NO_INTERNET_TEMPORARY);
     }
 }

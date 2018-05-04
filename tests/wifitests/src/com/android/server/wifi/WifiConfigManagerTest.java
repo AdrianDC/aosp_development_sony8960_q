@@ -643,6 +643,33 @@ public class WifiConfigManagerTest {
 
     /**
      * Verifies the update of network status using
+     * {@link WifiConfigManager#updateNetworkSelectionStatus(int, int)}.
+     */
+    @Test
+    public void testNetworkSelectionStatusTemporarilyDisabledDueToNoInternet() {
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+
+        NetworkUpdateResult result = verifyAddNetworkToWifiConfigManager(openNetwork);
+
+        int networkId = result.getNetworkId();
+        // First set it to enabled.
+        verifyUpdateNetworkSelectionStatus(
+                networkId, NetworkSelectionStatus.NETWORK_SELECTION_ENABLE, 0);
+
+        // Now set it to temporarily disabled. The threshold for no internet is 1, so
+        // disable it once to actually mark it temporarily disabled.
+        verifyUpdateNetworkSelectionStatus(
+                result.getNetworkId(), NetworkSelectionStatus.DISABLED_NO_INTERNET_TEMPORARY, 1);
+        verify(mWcmListener).onSavedNetworkTemporarilyDisabled(networkId);
+
+        // Now set it back to enabled.
+        verifyUpdateNetworkSelectionStatus(
+                result.getNetworkId(), NetworkSelectionStatus.NETWORK_SELECTION_ENABLE, 0);
+        verify(mWcmListener, times(2)).onSavedNetworkEnabled(networkId);
+    }
+
+    /**
+     * Verifies the update of network status using
      * {@link WifiConfigManager#updateNetworkSelectionStatus(int, int)} and ensures that
      * enabling a network clears out all the temporary disable counters.
      */
