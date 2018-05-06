@@ -198,6 +198,8 @@ public class WifiMetrics {
     /** Wifi Wake metrics */
     private final WifiWakeMetrics mWifiWakeMetrics = new WifiWakeMetrics();
 
+    private boolean mIsMacRandomizationOn = false;
+
     class RouterFingerPrint {
         private WifiMetricsProto.RouterFingerPrint mRouterFingerPrintProto;
         RouterFingerPrint() {
@@ -1707,6 +1709,13 @@ public class WifiMetrics {
         }
     }
 
+    /** Sets if Connected MAC Randomization feature is enabled */
+    public void setIsMacRandomizationOn(boolean enabled) {
+        synchronized (mLock) {
+            mIsMacRandomizationOn = enabled;
+        }
+    }
+
     public static final String PROTO_DUMP_ARG = "wifiMetricsProto";
     public static final String CLEAN_DUMP_ARG = "clean";
 
@@ -2050,6 +2059,8 @@ public class WifiMetrics {
 
                 mWifiPowerMetrics.dump(pw);
                 mWifiWakeMetrics.dump(pw);
+
+                pw.println("mWifiLogProto.isMacRandomizationOn=" + mIsMacRandomizationOn);
             }
         }
     }
@@ -2341,6 +2352,7 @@ public class WifiMetrics {
             mWifiLogProto.wpsMetrics = mWpsMetrics;
             mWifiLogProto.wifiPowerStats = mWifiPowerMetrics.buildProto();
             mWifiLogProto.wifiWakeStats = mWifiWakeMetrics.buildProto();
+            mWifiLogProto.isMacRandomizationOn = mIsMacRandomizationOn;
         }
     }
 
@@ -2532,6 +2544,7 @@ public class WifiMetrics {
             case StaEvent.TYPE_NETWORK_AGENT_VALID_NETWORK:
             case StaEvent.TYPE_FRAMEWORK_DISCONNECT:
             case StaEvent.TYPE_SCORE_BREACH:
+            case StaEvent.TYPE_MAC_CHANGE:
                 break;
             default:
                 Log.e(TAG, "Unknown StaEvent:" + type);
@@ -2723,6 +2736,9 @@ public class WifiMetrics {
                 break;
             case StaEvent.TYPE_SCORE_BREACH:
                 sb.append("SCORE_BREACH");
+                break;
+            case StaEvent.TYPE_MAC_CHANGE:
+                sb.append("MAC_CHANGE");
                 break;
             default:
                 sb.append("UNKNOWN " + event.type + ":");
