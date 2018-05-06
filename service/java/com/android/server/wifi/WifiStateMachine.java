@@ -4321,6 +4321,7 @@ public class WifiStateMachine extends StateMachine {
                     if (config != null) {
                         mWifiInfo.setBSSID(mLastBssid);
                         mWifiInfo.setNetworkId(mLastNetworkId);
+                        mWifiInfo.setMacAddress(mWifiNative.getMacAddress(mInterfaceName));
 
                         ScanDetailCache scanDetailCache =
                                 mWifiConfigManager.getScanDetailCacheForNetwork(config.networkId);
@@ -4866,6 +4867,7 @@ public class WifiStateMachine extends StateMachine {
                     mWifiInfo.setBSSID((String) message.obj);
                     mLastNetworkId = message.arg1;
                     mWifiInfo.setNetworkId(mLastNetworkId);
+                    mWifiInfo.setMacAddress(mWifiNative.getMacAddress(mInterfaceName));
                     if(!mLastBssid.equals(message.obj)) {
                         mLastBssid = (String) message.obj;
                         sendNetworkStateChangeBroadcast(mLastBssid);
