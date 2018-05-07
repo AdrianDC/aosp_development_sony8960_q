@@ -265,6 +265,20 @@ public class WifiConfigurationUtilTest {
     }
 
     /**
+     * Verify that the validate method fails to validate WifiConfiguration with bad ssid length.
+     */
+    @Test
+    public void testValidateNegativeCases_BadUtf8SsidLength() {
+        WifiConfiguration config = WifiConfigurationTestUtil.createOpenNetwork();
+        assertTrue(WifiConfigurationUtil.validate(config, WifiConfigurationUtil.VALIDATE_FOR_ADD));
+
+        config.SSID = "\"가하아너너ㅓ저저ㅓ어아아다자저ㅓ더타아어어러두어\"";
+        assertFalse(WifiConfigurationUtil.validate(config, WifiConfigurationUtil.VALIDATE_FOR_ADD));
+        config.SSID = "\"\"";
+        assertFalse(WifiConfigurationUtil.validate(config, WifiConfigurationUtil.VALIDATE_FOR_ADD));
+    }
+
+    /**
      * Verify that the validate method fails to validate WifiConfiguration with malformed ssid
      * string.
      */
