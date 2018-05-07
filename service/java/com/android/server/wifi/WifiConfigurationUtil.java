@@ -29,6 +29,7 @@ import android.util.Log;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.wifi.util.NativeUtil;
 
+import java.nio.charset.StandardCharsets;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -49,8 +50,8 @@ public class WifiConfigurationUtil {
      * Constants used for validating external config objects.
      */
     private static final int ENCLOSING_QUTOES_LEN = 2;
-    private static final int SSID_ASCII_MIN_LEN = 1 + ENCLOSING_QUTOES_LEN;
-    private static final int SSID_ASCII_MAX_LEN = 32 + ENCLOSING_QUTOES_LEN;
+    private static final int SSID_UTF_8_MIN_LEN = 1 + ENCLOSING_QUTOES_LEN;
+    private static final int SSID_UTF_8_MAX_LEN = 32 + ENCLOSING_QUTOES_LEN;
     private static final int SSID_HEX_MIN_LEN = 2;
     private static final int SSID_HEX_MAX_LEN = 64;
     private static final int PSK_ASCII_MIN_LEN = 8 + ENCLOSING_QUTOES_LEN;
@@ -282,13 +283,16 @@ public class WifiConfigurationUtil {
             return false;
         }
         if (ssid.startsWith("\"")) {
-            // ASCII SSID string
-            if (ssid.length() < SSID_ASCII_MIN_LEN) {
-                Log.e(TAG, "validateSsid failed: ascii string size too small: " + ssid.length());
+            // UTF-8 SSID string
+            byte[] ssidBytes = ssid.getBytes(StandardCharsets.UTF_8);
+            if (ssidBytes.length < SSID_UTF_8_MIN_LEN) {
+                Log.e(TAG, "validateSsid failed: utf-8 ssid string size too small: "
+                        + ssidBytes.length);
                 return false;
             }
-            if (ssid.length() > SSID_ASCII_MAX_LEN) {
-                Log.e(TAG, "validateSsid failed: ascii string size too large: " + ssid.length());
+            if (ssidBytes.length > SSID_UTF_8_MAX_LEN) {
+                Log.e(TAG, "validateSsid failed: utf-8 ssid string size too large: "
+                        + ssidBytes.length);
                 return false;
             }
         } else {
@@ -333,12 +337,13 @@ public class WifiConfigurationUtil {
         }
         if (psk.startsWith("\"")) {
             // ASCII PSK string
-            if (psk.length() < PSK_ASCII_MIN_LEN) {
-                Log.e(TAG, "validatePsk failed: ascii string size too small: " + psk.length());
+            byte[] pskBytes = psk.getBytes(StandardCharsets.US_ASCII);
+            if (pskBytes.length < PSK_ASCII_MIN_LEN) {
+                Log.e(TAG, "validatePsk failed: ascii string size too small: " + pskBytes.length);
                 return false;
             }
-            if (psk.length() > PSK_ASCII_MAX_LEN) {
-                Log.e(TAG, "validatePsk failed: ascii string size too large: " + psk.length());
+            if (pskBytes.length > PSK_ASCII_MAX_LEN) {
+                Log.e(TAG, "validatePsk failed: ascii string size too large: " + pskBytes.length);
                 return false;
             }
         } else {
