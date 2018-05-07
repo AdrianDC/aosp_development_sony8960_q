@@ -1513,6 +1513,42 @@ public class WifiMetrics {
     }
 
     /**
+     * Increment number of times we detected a radio mode change to MCC.
+     */
+    public void incrementNumRadioModeChangeToMcc() {
+        synchronized (mLock) {
+            mWifiLogProto.numRadioModeChangeToMcc++;
+        }
+    }
+
+    /**
+     * Increment number of times we detected a radio mode change to SCC.
+     */
+    public void incrementNumRadioModeChangeToScc() {
+        synchronized (mLock) {
+            mWifiLogProto.numRadioModeChangeToScc++;
+        }
+    }
+
+    /**
+     * Increment number of times we detected a radio mode change to SBS.
+     */
+    public void incrementNumRadioModeChangeToSbs() {
+        synchronized (mLock) {
+            mWifiLogProto.numRadioModeChangeToSbs++;
+        }
+    }
+
+    /**
+     * Increment number of times we detected a radio mode change to DBS.
+     */
+    public void incrementNumRadioModeChangeToDbs() {
+        synchronized (mLock) {
+            mWifiLogProto.numRadioModeChangeToDbs++;
+        }
+    }
+
+    /**
      * Increment N-Way network selection decision histograms:
      * Counts the size of various sets of scanDetails within a scan, and increment the occurrence
      * of that size for the associated histogram. There are ten histograms generated for each
@@ -1950,6 +1986,14 @@ public class WifiMetrics {
                         + mWifiLogProto.numPasspointProviderUninstallSuccess);
                 pw.println("mWifiLogProto.numPasspointProvidersSuccessfullyConnected="
                         + mWifiLogProto.numPasspointProvidersSuccessfullyConnected);
+                pw.println("mWifiLogProto.numRadioModeChangeToMcc="
+                        + mWifiLogProto.numRadioModeChangeToMcc);
+                pw.println("mWifiLogProto.numRadioModeChangeToScc="
+                        + mWifiLogProto.numRadioModeChangeToScc);
+                pw.println("mWifiLogProto.numRadioModeChangeToSbs="
+                        + mWifiLogProto.numRadioModeChangeToSbs);
+                pw.println("mWifiLogProto.numRadioModeChangeToDbs="
+                        + mWifiLogProto.numRadioModeChangeToDbs);
                 pw.println("mTotalSsidsInScanHistogram:"
                         + mTotalSsidsInScanHistogram.toString());
                 pw.println("mTotalBssidsInScanHistogram:"

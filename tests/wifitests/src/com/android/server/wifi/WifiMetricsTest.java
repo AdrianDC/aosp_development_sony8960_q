@@ -286,6 +286,10 @@ public class WifiMetricsTest {
     private static final int NUM_WPS_OTHER_CONNECTION_FAILURE = 16;
     private static final int NUM_WPS_SUPPLICANT_FAILURE = 12;
     private static final int NUM_WPS_CANCELLATION = 11;
+    private static final int NUM_RADIO_MODE_CHANGE_TO_MCC = 4;
+    private static final int NUM_RADIO_MODE_CHANGE_TO_SCC = 13;
+    private static final int NUM_RADIO_MODE_CHANGE_TO_SBS = 19;
+    private static final int NUM_RADIO_MODE_CHANGE_TO_DBS = 34;
     private static final long NUM_WATCHDOG_SUCCESS_DURATION_MS = 65;
 
     /** Number of notifications per "Connect to Network" notification type. */
@@ -588,6 +592,18 @@ public class WifiMetricsTest {
         for (int i = 0; i < NUM_PASSPOINT_PROVIDER_UNINSTALL_SUCCESS; i++) {
             mWifiMetrics.incrementNumPasspointProviderUninstallSuccess();
         }
+        for (int i = 0; i < NUM_RADIO_MODE_CHANGE_TO_MCC; i++) {
+            mWifiMetrics.incrementNumRadioModeChangeToMcc();
+        }
+        for (int i = 0; i < NUM_RADIO_MODE_CHANGE_TO_SCC; i++) {
+            mWifiMetrics.incrementNumRadioModeChangeToScc();
+        }
+        for (int i = 0; i < NUM_RADIO_MODE_CHANGE_TO_SBS; i++) {
+            mWifiMetrics.incrementNumRadioModeChangeToSbs();
+        }
+        for (int i = 0; i < NUM_RADIO_MODE_CHANGE_TO_DBS; i++) {
+            mWifiMetrics.incrementNumRadioModeChangeToDbs();
+        }
 
         // increment pno scan metrics
         for (int i = 0; i < NUM_PNO_SCAN_ATTEMPTS; i++) {
@@ -882,6 +898,10 @@ public class WifiMetricsTest {
                 mDecodedProto.numPasspointProviderUninstallSuccess);
         assertEquals(NUM_PASSPOINT_PROVIDERS_SUCCESSFULLY_CONNECTED,
                 mDecodedProto.numPasspointProvidersSuccessfullyConnected);
+        assertEquals(NUM_RADIO_MODE_CHANGE_TO_MCC, mDecodedProto.numRadioModeChangeToMcc);
+        assertEquals(NUM_RADIO_MODE_CHANGE_TO_SCC, mDecodedProto.numRadioModeChangeToScc);
+        assertEquals(NUM_RADIO_MODE_CHANGE_TO_SBS, mDecodedProto.numRadioModeChangeToSbs);
+        assertEquals(NUM_RADIO_MODE_CHANGE_TO_DBS, mDecodedProto.numRadioModeChangeToDbs);
 
         PnoScanMetrics pno_metrics = mDecodedProto.pnoScanMetrics;
         assertNotNull(pno_metrics);
