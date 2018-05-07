@@ -49,7 +49,10 @@ import org.mockito.Spy;
 @SmallTest
 public class ScoringParamsTest {
 
-    ScoringParams mScoringParams;
+    private static final String EXPECTED_DEFAULTS =
+            "rssi2=-83:-80:-73:-60,rssi5=-80:-77:-70:-57,pps=0:1:100,horizon=15,nud=8,expid=0";
+
+    private ScoringParams mScoringParams;
 
     /**
      * Sets up for unit test
@@ -93,9 +96,20 @@ public class ScoringParamsTest {
     @Test
     public void testToString() throws Exception {
         mScoringParams = new ScoringParams();
-        String expect =
-                "rssi2=-83:-80:-73:-60,rssi5=-80:-77:-70:-57,pps=0:1:100,horizon=15,nud=8";
+        String expect = EXPECTED_DEFAULTS;
         String actual = mScoringParams.toString();
+        assertEquals(expect, actual);
+    }
+
+    /**
+     * Test hexDigest
+     */
+    @Test
+    public void testHexDigest() throws Exception {
+        mScoringParams = new ScoringParams();
+        //hint: printf %s "$EXPECTED_DEFAULTS" | openssl dgst -hex -sha256
+        String expect = "BC3DB98DD8DD16C251FE9A0592444106B8FB09026D66558242196C7E81D1FAC2";
+        String actual = mScoringParams.hexDigest();
         assertEquals(expect, actual);
     }
 
@@ -105,8 +119,7 @@ public class ScoringParamsTest {
     @Test
     public void testUpdateEverything() throws Exception {
         mScoringParams = new ScoringParams();
-        String params =
-                "rssi2=-86:-84:-77:-10,rssi5=-88:-77:-66:-55,pps=1:10:30,horizon=3,nud=3";
+        String params = EXPECTED_DEFAULTS.replaceAll("8", "9");
         assertTrue(mScoringParams.update(params));
         assertEquals(params, mScoringParams.toString());
     }
@@ -200,6 +213,22 @@ public class ScoringParamsTest {
     }
 
     /**
+     * Test that expid is hooked up, including effect on digest
+     */
+    @Test
+    public void testExperimentIdentifier() throws Exception {
+        mScoringParams = new ScoringParams();
+        String digestBefore = mScoringParams.hexDigest();
+        assertEquals(0, mScoringParams.getExperimentIdentifier());
+        assertTrue(mScoringParams.update("expid=99"));
+        assertEquals(99, mScoringParams.getExperimentIdentifier());
+        String digestAfter = mScoringParams.hexDigest();
+        assertTrue(!digestBefore.equals(digestAfter));
+        assertTrue(mScoringParams.update("expid=0"));
+        assertEquals(digestBefore, mScoringParams.hexDigest());
+    }
+
+    /**
      * Check character set
      */
     @Test
@@ -225,6 +254,7 @@ public class ScoringParamsTest {
         assertEquals(param100.substring(0, 90),
                 mScoringParams.sanitize(param100 + "00000000000").substring(0, 90));
         assertEquals("q?=???", mScoringParams.sanitize("q\b= ~["));
+        assertEquals("", mScoringParams.sanitize(null));
     }
 
     /**

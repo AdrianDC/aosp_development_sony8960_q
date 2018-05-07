@@ -27,6 +27,11 @@ import android.util.Log;
 
 import com.android.internal.R;
 
+import libcore.util.HexEncoding;
+
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+
 /**
  * Holds parameters used for scoring networks.
  *
@@ -70,6 +75,12 @@ public class ScoringParams {
         public static final int MAX_NUD = 10;
         public int nud = 8;
 
+        /** Experiment identifier */
+        public static final String KEY_EXPID = "expid";
+        public static final int MIN_EXPID = 0;
+        public static final int MAX_EXPID = Integer.MAX_VALUE;
+        public int expid = 0;
+
         Values() {
         }
 
@@ -85,6 +96,7 @@ public class ScoringParams {
             }
             horizon = source.horizon;
             nud = source.nud;
+            expid = source.expid;
         }
 
         public void validate() throws IllegalArgumentException {
@@ -93,6 +105,7 @@ public class ScoringParams {
             validateOrderedNonNegativeArray(pps);
             validateRange(horizon, MIN_HORIZON, MAX_HORIZON);
             validateRange(nud, MIN_NUD, MAX_NUD);
+            validateRange(expid, MIN_EXPID, MAX_EXPID);
         }
 
         private void validateRssiArray(int[] rssi) throws IllegalArgumentException {
@@ -131,6 +144,7 @@ public class ScoringParams {
             updateIntArray(pps, parser, KEY_PPS);
             horizon = updateInt(parser, KEY_HORIZON, horizon);
             nud = updateInt(parser, KEY_NUD, nud);
+            expid = updateInt(parser, KEY_EXPID, expid);
         }
 
         private int updateInt(KeyValueListParser parser, String key, int defaultValue)
@@ -168,6 +182,8 @@ public class ScoringParams {
             sb.append(horizon);
             appendKey(sb, KEY_NUD);
             sb.append(nud);
+            appendKey(sb, KEY_EXPID);
+            sb.append(expid);
             return sb.toString();
         }
 
@@ -352,6 +368,15 @@ public class ScoringParams {
         return mVal.nud;
     }
 
+    /**
+     * Returns the experiment identifier.
+     *
+     * This value may be used to tag a set of experimental settings.
+     */
+    public int getExperimentIdentifier() {
+        return mVal.expid;
+    }
+
     private static final int MINIMUM_5GHZ_BAND_FREQUENCY_IN_MEGAHERTZ = 5000;
 
     private int[] getRssiArray(int frequency) {
@@ -365,5 +390,18 @@ public class ScoringParams {
     @Override
     public String toString() {
         return mVal.toString();
+    }
+
+    /**
+     * Calculates the SHA-256 digest of the scoring params, encoded in hex.
+     */
+    public String hexDigest() {
+        String digest = null;
+        try {
+            MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
+            messageDigest.update(mVal.toString().getBytes());
+            digest = HexEncoding.encodeToString(messageDigest.digest());
+        } catch (NoSuchAlgorithmException e) { }
+        return digest;
     }
 }
