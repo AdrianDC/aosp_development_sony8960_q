@@ -628,12 +628,14 @@ public class WifiConfigManagerTest {
         for (int i = 1; i <= assocRejectThreshold; i++) {
             verifyUpdateNetworkSelectionStatus(result.getNetworkId(), assocRejectReason, i);
         }
-        verify(mWcmListener).onSavedNetworkTemporarilyDisabled(networkId);
+        verify(mWcmListener).onSavedNetworkTemporarilyDisabled(
+                networkId, NetworkSelectionStatus.DISABLED_ASSOCIATION_REJECTION);
 
         // Now set it to permanently disabled.
         verifyUpdateNetworkSelectionStatus(
                 result.getNetworkId(), NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER, 0);
-        verify(mWcmListener).onSavedNetworkPermanentlyDisabled(networkId);
+        verify(mWcmListener).onSavedNetworkPermanentlyDisabled(
+                networkId, NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER);
 
         // Now set it back to enabled.
         verifyUpdateNetworkSelectionStatus(
@@ -660,7 +662,8 @@ public class WifiConfigManagerTest {
         // disable it once to actually mark it temporarily disabled.
         verifyUpdateNetworkSelectionStatus(
                 result.getNetworkId(), NetworkSelectionStatus.DISABLED_NO_INTERNET_TEMPORARY, 1);
-        verify(mWcmListener).onSavedNetworkTemporarilyDisabled(networkId);
+        verify(mWcmListener).onSavedNetworkTemporarilyDisabled(
+                networkId, NetworkSelectionStatus.DISABLED_NO_INTERNET_TEMPORARY);
 
         // Now set it back to enabled.
         verifyUpdateNetworkSelectionStatus(

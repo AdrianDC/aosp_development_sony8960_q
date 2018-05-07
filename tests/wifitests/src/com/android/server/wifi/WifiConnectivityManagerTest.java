@@ -16,6 +16,9 @@
 
 package com.android.server.wifi;
 
+import static android.net.wifi.WifiConfiguration.NetworkSelectionStatus.DISABLED_AUTHENTICATION_FAILURE;
+import static android.net.wifi.WifiConfiguration.NetworkSelectionStatus.DISABLED_NO_INTERNET_TEMPORARY;
+
 import static com.android.server.wifi.WifiConfigurationTestUtil.generateWifiConfig;
 import static com.android.server.wifi.WifiStateMachine.WIFI_WORK_SOURCE;
 
@@ -134,6 +137,8 @@ public class WifiConnectivityManagerTest {
     @Captor ArgumentCaptor<ScanResult> mCandidateScanResultCaptor;
     @Captor ArgumentCaptor<ArrayList<String>> mBssidBlacklistCaptor;
     @Captor ArgumentCaptor<ArrayList<String>> mSsidWhitelistCaptor;
+    @Captor ArgumentCaptor<WifiConfigManager.OnSavedNetworkUpdateListener>
+            mSavedNetworkUpdateListenerCaptor;
     private MockResources mResources;
     private int mFullScanMaxTxPacketRate;
     private int mFullScanMaxRxPacketRate;
@@ -299,6 +304,8 @@ public class WifiConnectivityManagerTest {
         pnoNetworkList.add(pnoNetwork);
         when(wifiConfigManager.retrievePnoNetworkList()).thenReturn(pnoNetworkList);
         when(wifiConfigManager.retrievePnoNetworkList()).thenReturn(pnoNetworkList);
+        doNothing().when(wifiConfigManager).setOnSavedNetworkUpdateListener(
+                mSavedNetworkUpdateListenerCaptor.capture());
 
         return wifiConfigManager;
     }
@@ -2039,5 +2046,22 @@ public class WifiConnectivityManagerTest {
         assertTrue(capturedScanResults.contains(mScanData.getResults()[1]));
         assertTrue(capturedScanResults.contains(mScanData.getResults()[2]));
         assertTrue(capturedScanResults.contains(mScanData.getResults()[3]));
+    }
+
+    /**
+     * Disabling the network temporarily due to lack of internet is a special reason for which we
+     * don't want WCM to trigger a disconnect (by removing the network from supplicant).
+     */
+    @Test
+    public void dontDisconnectIfNetworkTemporarilyDisabledDueToNoInternet() {
+        assertNotNull(mSavedNetworkUpdateListenerCaptor.getValue());
+
+        mSavedNetworkUpdateListenerCaptor.getValue()
+                .onSavedNetworkPermanentlyDisabled(0, DISABLED_AUTHENTICATION_FAILURE);
+        verify(mWifiConnectivityHelper).removeNetworkIfCurrent(0);
+
+        mSavedNetworkUpdateListenerCaptor.getValue()
+                .onSavedNetworkPermanentlyDisabled(0, DISABLED_NO_INTERNET_TEMPORARY);
+        // Don't remove network.
     }
 }
