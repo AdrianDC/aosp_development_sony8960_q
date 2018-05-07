@@ -1881,6 +1881,45 @@ public class WifiNative {
     }
 
     /**
+     * Callback to notify when vendor HAL detects that a change in radio mode.
+     */
+    public interface VendorHalRadioModeChangeEventHandler {
+        /**
+         * Invoked when the vendor HAL detects a change to MCC mode.
+         * MCC (Multi channel concurrency) = Multiple interfaces are active on the same band,
+         * different channels, same radios.
+         *
+         * @param band Band on which MCC is detected (specified by one of the
+         *             WifiScanner.WIFI_BAND_* constants)
+         */
+        void onMcc(int band);
+        /**
+         * Invoked when the vendor HAL detects a change to SCC mode.
+         * SCC (Single channel concurrency) = Multiple interfaces are active on the same band, same
+         * channels, same radios.
+         *
+         * @param band Band on which SCC is detected (specified by one of the
+         *             WifiScanner.WIFI_BAND_* constants)
+         */
+        void onScc(int band);
+        /**
+         * Invoked when the vendor HAL detects a change to SBS mode.
+         * SBS (Single Band Simultaneous) = Multiple interfaces are active on the same band,
+         * different channels, different radios.
+         *
+         * @param band Band on which SBS is detected (specified by one of the
+         *             WifiScanner.WIFI_BAND_* constants)
+         */
+        void onSbs(int band);
+        /**
+         * Invoked when the vendor HAL detects a change to DBS mode.
+         * DBS (Dual Band Simultaneous) = Multiple interfaces are active on the different bands,
+         * different channels, different radios.
+         */
+        void onDbs();
+    }
+
+    /**
      * Tests whether the HAL is running or not
      */
     public boolean isHalStarted() {
