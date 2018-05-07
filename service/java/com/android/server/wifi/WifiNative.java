@@ -614,6 +614,41 @@ public class WifiNative {
         }
     }
 
+    /**
+     * Radio mode change handler for the Vendor HAL daemon.
+     */
+    private class VendorHalRadioModeChangeHandlerInternal
+            implements VendorHalRadioModeChangeEventHandler {
+        @Override
+        public void onMcc(int band) {
+            synchronized (mLock) {
+                Log.i(TAG, "Device is in MCC mode now");
+                mWifiMetrics.incrementNumRadioModeChangeToMcc();
+            }
+        }
+        @Override
+        public void onScc(int band) {
+            synchronized (mLock) {
+                Log.i(TAG, "Device is in SCC mode now");
+                mWifiMetrics.incrementNumRadioModeChangeToScc();
+            }
+        }
+        @Override
+        public void onSbs(int band) {
+            synchronized (mLock) {
+                Log.i(TAG, "Device is in SBS mode now");
+                mWifiMetrics.incrementNumRadioModeChangeToSbs();
+            }
+        }
+        @Override
+        public void onDbs() {
+            synchronized (mLock) {
+                Log.i(TAG, "Device is in DBS mode now");
+                mWifiMetrics.incrementNumRadioModeChangeToDbs();
+            }
+        }
+    }
+
     // For devices that don't support the vendor HAL, we will not support any concurrency.
     // So simulate the HalDeviceManager behavior by triggering the destroy listener for
     // any active interface.
@@ -720,6 +755,8 @@ public class WifiNative {
                 Log.e(TAG, "Failed to initialize wificond");
                 return false;
             }
+            mWifiVendorHal.registerRadioModeChangeHandler(
+                    new VendorHalRadioModeChangeHandlerInternal());
             return true;
         }
     }

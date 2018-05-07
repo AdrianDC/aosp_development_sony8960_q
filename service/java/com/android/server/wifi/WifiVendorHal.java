@@ -2991,10 +2991,8 @@ public class WifiVendorHal {
                     return;
                 }
                 if (radioModeInfo0.bandInfo != radioModeInfo1.bandInfo) {
-                    mLog.i("Device is in DBS mode now");
                     handler.onDbs();
                 } else {
-                    mLog.i("Device is in SBS mode now");
                     handler.onSbs(radioModeInfo0.bandInfo);
                 }
             // 2 ifaces time sharing on 2 radios.
@@ -3012,10 +3010,8 @@ public class WifiVendorHal {
                 IfaceInfo ifaceInfo0 = radioModeInfo0.ifaceInfos.get(0);
                 IfaceInfo ifaceInfo1 = radioModeInfo0.ifaceInfos.get(1);
                 if (ifaceInfo0.channel != ifaceInfo1.channel) {
-                    mLog.i("Device is in MCC mode now");
                     handler.onMcc(radioModeInfo0.bandInfo);
                 } else {
-                    mLog.i("Device is in SCC mode now");
                     handler.onScc(radioModeInfo0.bandInfo);
                 }
             }
