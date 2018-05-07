@@ -1517,6 +1517,7 @@ public class WifiMetrics {
      */
     public void incrementNumRadioModeChangeToMcc() {
         synchronized (mLock) {
+            mWifiLogProto.numRadioModeChangeToMcc++;
         }
     }
 
@@ -1525,6 +1526,7 @@ public class WifiMetrics {
      */
     public void incrementNumRadioModeChangeToScc() {
         synchronized (mLock) {
+            mWifiLogProto.numRadioModeChangeToScc++;
         }
     }
 
@@ -1533,6 +1535,7 @@ public class WifiMetrics {
      */
     public void incrementNumRadioModeChangeToSbs() {
         synchronized (mLock) {
+            mWifiLogProto.numRadioModeChangeToSbs++;
         }
     }
 
@@ -1541,6 +1544,7 @@ public class WifiMetrics {
      */
     public void incrementNumRadioModeChangeToDbs() {
         synchronized (mLock) {
+            mWifiLogProto.numRadioModeChangeToDbs++;
         }
     }
 
@@ -1982,6 +1986,14 @@ public class WifiMetrics {
                         + mWifiLogProto.numPasspointProviderUninstallSuccess);
                 pw.println("mWifiLogProto.numPasspointProvidersSuccessfullyConnected="
                         + mWifiLogProto.numPasspointProvidersSuccessfullyConnected);
+                pw.println("mWifiLogProto.numRadioModeChangeToMcc="
+                        + mWifiLogProto.numRadioModeChangeToMcc);
+                pw.println("mWifiLogProto.numRadioModeChangeToScc="
+                        + mWifiLogProto.numRadioModeChangeToScc);
+                pw.println("mWifiLogProto.numRadioModeChangeToSbs="
+                        + mWifiLogProto.numRadioModeChangeToSbs);
+                pw.println("mWifiLogProto.numRadioModeChangeToDbs="
+                        + mWifiLogProto.numRadioModeChangeToDbs);
                 pw.println("mTotalSsidsInScanHistogram:"
                         + mTotalSsidsInScanHistogram.toString());
                 pw.println("mTotalBssidsInScanHistogram:"
