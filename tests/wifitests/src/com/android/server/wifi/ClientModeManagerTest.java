@@ -111,6 +111,7 @@ public class ClientModeManagerTest {
 
         checkWifiStateChangeListenerUpdate(WIFI_STATE_ENABLED);
         verify(mScanRequestProxy, atLeastOnce()).enableScanningForHiddenNetworks(true);
+        verify(mScanRequestProxy).clearScanResults();
     }
 
     private void checkWifiScanStateChangedBroadcast(Intent intent, int expectedCurrentState) {
@@ -143,12 +144,9 @@ public class ClientModeManagerTest {
                 .sendStickyBroadcastAsUser(intentCaptor.capture(), eq(UserHandle.ALL));
 
         List<Intent> intents = intentCaptor.getAllValues();
-        assertEquals(3, intents.size());
+        assertEquals(2, intents.size());
         checkWifiStateChangedBroadcast(intents.get(0), WIFI_STATE_DISABLING, fromState);
-        checkWifiScanStateChangedBroadcast(intents.get(1), WIFI_STATE_DISABLED);
-        checkWifiStateChangedBroadcast(intents.get(2), WIFI_STATE_DISABLED, WIFI_STATE_DISABLING);
-        verify(mScanRequestProxy).enableScanningForHiddenNetworks(false);
-        verify(mScanRequestProxy).clearScanResults();
+        checkWifiStateChangedBroadcast(intents.get(1), WIFI_STATE_DISABLED, WIFI_STATE_DISABLING);
     }
 
     private void verifyNotificationsForFailure() {
@@ -157,13 +155,10 @@ public class ClientModeManagerTest {
                 .sendStickyBroadcastAsUser(intentCaptor.capture(), eq(UserHandle.ALL));
 
         List<Intent> intents = intentCaptor.getAllValues();
-        assertEquals(3, intents.size());
+        assertEquals(2, intents.size());
         checkWifiStateChangedBroadcast(intents.get(0), WIFI_STATE_DISABLING, WIFI_STATE_UNKNOWN);
-        checkWifiScanStateChangedBroadcast(intents.get(1), WIFI_STATE_DISABLED);
-        checkWifiStateChangedBroadcast(intents.get(2), WIFI_STATE_DISABLED, WIFI_STATE_DISABLING);
+        checkWifiStateChangedBroadcast(intents.get(1), WIFI_STATE_DISABLED, WIFI_STATE_DISABLING);
         checkWifiStateChangeListenerUpdate(WIFI_STATE_DISABLED);
-        verify(mScanRequestProxy).enableScanningForHiddenNetworks(false);
-        verify(mScanRequestProxy).clearScanResults();
     }
 
     /**
