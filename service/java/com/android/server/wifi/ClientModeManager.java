@@ -189,6 +189,8 @@ public class ClientModeManager implements ActiveModeManager {
                             break;
                         }
                         sendScanAvailableBroadcast(false);
+                        mScanRequestProxy.enableScanningForHiddenNetworks(false);
+                        mScanRequestProxy.clearScanResults();
                         transitionTo(mStartedState);
                         break;
                     default:
@@ -258,6 +260,7 @@ public class ClientModeManager implements ActiveModeManager {
 
                         updateWifiState(WifiManager.WIFI_STATE_DISABLING,
                                         WifiManager.WIFI_STATE_ENABLED);
+                        mClientInterfaceName = null;
                         transitionTo(mIdleState);
                         break;
                     default:
@@ -267,24 +270,20 @@ public class ClientModeManager implements ActiveModeManager {
             }
 
             /**
-             * Clean up state, unregister listeners and send broadcast to tell WifiScanner
-             * that wifi is disabled.
+             * Clean up state, unregister listeners and update wifi state.
              */
             @Override
             public void exit() {
-                if (mClientInterfaceName == null) {
-                    return;
-                }
                 mWifiStateMachine.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
-                mWifiNative.teardownInterface(mClientInterfaceName);
-                // let WifiScanner know that wifi is down.
-                sendScanAvailableBroadcast(false);
+
+                if (mClientInterfaceName != null) {
+                    mWifiNative.teardownInterface(mClientInterfaceName);
+                    mClientInterfaceName = null;
+                    mIfaceIsUp = false;
+                }
+
                 updateWifiState(WifiManager.WIFI_STATE_DISABLED,
                                 WifiManager.WIFI_STATE_DISABLING);
-                mScanRequestProxy.enableScanningForHiddenNetworks(false);
-                mScanRequestProxy.clearScanResults();
-                mClientInterfaceName = null;
-                mIfaceIsUp = false;
             }
         }
 

@@ -614,6 +614,41 @@ public class WifiNative {
         }
     }
 
+    /**
+     * Radio mode change handler for the Vendor HAL daemon.
+     */
+    private class VendorHalRadioModeChangeHandlerInternal
+            implements VendorHalRadioModeChangeEventHandler {
+        @Override
+        public void onMcc(int band) {
+            synchronized (mLock) {
+                Log.i(TAG, "Device is in MCC mode now");
+                mWifiMetrics.incrementNumRadioModeChangeToMcc();
+            }
+        }
+        @Override
+        public void onScc(int band) {
+            synchronized (mLock) {
+                Log.i(TAG, "Device is in SCC mode now");
+                mWifiMetrics.incrementNumRadioModeChangeToScc();
+            }
+        }
+        @Override
+        public void onSbs(int band) {
+            synchronized (mLock) {
+                Log.i(TAG, "Device is in SBS mode now");
+                mWifiMetrics.incrementNumRadioModeChangeToSbs();
+            }
+        }
+        @Override
+        public void onDbs() {
+            synchronized (mLock) {
+                Log.i(TAG, "Device is in DBS mode now");
+                mWifiMetrics.incrementNumRadioModeChangeToDbs();
+            }
+        }
+    }
+
     // For devices that don't support the vendor HAL, we will not support any concurrency.
     // So simulate the HalDeviceManager behavior by triggering the destroy listener for
     // any active interface.
@@ -720,6 +755,8 @@ public class WifiNative {
                 Log.e(TAG, "Failed to initialize wificond");
                 return false;
             }
+            mWifiVendorHal.registerRadioModeChangeHandler(
+                    new VendorHalRadioModeChangeHandlerInternal());
             return true;
         }
     }
@@ -1878,6 +1915,45 @@ public class WifiNative {
          * Invoked when the vendor HAL dies.
          */
         void onDeath();
+    }
+
+    /**
+     * Callback to notify when vendor HAL detects that a change in radio mode.
+     */
+    public interface VendorHalRadioModeChangeEventHandler {
+        /**
+         * Invoked when the vendor HAL detects a change to MCC mode.
+         * MCC (Multi channel concurrency) = Multiple interfaces are active on the same band,
+         * different channels, same radios.
+         *
+         * @param band Band on which MCC is detected (specified by one of the
+         *             WifiScanner.WIFI_BAND_* constants)
+         */
+        void onMcc(int band);
+        /**
+         * Invoked when the vendor HAL detects a change to SCC mode.
+         * SCC (Single channel concurrency) = Multiple interfaces are active on the same band, same
+         * channels, same radios.
+         *
+         * @param band Band on which SCC is detected (specified by one of the
+         *             WifiScanner.WIFI_BAND_* constants)
+         */
+        void onScc(int band);
+        /**
+         * Invoked when the vendor HAL detects a change to SBS mode.
+         * SBS (Single Band Simultaneous) = Multiple interfaces are active on the same band,
+         * different channels, different radios.
+         *
+         * @param band Band on which SBS is detected (specified by one of the
+         *             WifiScanner.WIFI_BAND_* constants)
+         */
+        void onSbs(int band);
+        /**
+         * Invoked when the vendor HAL detects a change to DBS mode.
+         * DBS (Dual Band Simultaneous) = Multiple interfaces are active on the different bands,
+         * different channels, different radios.
+         */
+        void onDbs();
     }
 
     /**

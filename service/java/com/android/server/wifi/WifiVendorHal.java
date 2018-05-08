@@ -85,7 +85,9 @@ import libcore.util.NonNull;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Vendor HAL via HIDL
@@ -299,6 +301,20 @@ public class WifiVendorHal {
                     mHalEventHandler);
             mDeathEventHandler = handler;
             return true;
+        }
+    }
+
+    private WifiNative.VendorHalRadioModeChangeEventHandler mRadioModeChangeEventHandler;
+
+    /**
+     * Register to listen for radio mode change events from the HAL.
+     *
+     * @param handler Handler to notify when the vendor HAL detects a radio mode change.
+     */
+    public void registerRadioModeChangeHandler(
+            WifiNative.VendorHalRadioModeChangeEventHandler handler) {
+        synchronized (sLock) {
+            mRadioModeChangeEventHandler = handler;
         }
     }
 
@@ -2920,12 +2936,85 @@ public class WifiVendorHal {
             mIWifiChipEventCallback.onDebugErrorAlert(errorCode, debugData);
         }
 
+        private boolean areSameIfaceNames(List<IfaceInfo> ifaceList1, List<IfaceInfo> ifaceList2) {
+            List<String> ifaceNamesList1 = ifaceList1
+                    .stream()
+                    .map(i -> i.name)
+                    .collect(Collectors.toList());
+            List<String> ifaceNamesList2 = ifaceList2
+                    .stream()
+                    .map(i -> i.name)
+                    .collect(Collectors.toList());
+            return ifaceNamesList1.containsAll(ifaceNamesList2);
+        }
+
+        private boolean areSameIfaces(List<IfaceInfo> ifaceList1, List<IfaceInfo> ifaceList2) {
+            return ifaceList1.containsAll(ifaceList2);
+        }
+
         @Override
-        public void onRadioModeChange(
-                ArrayList<android.hardware.wifi.V1_2.IWifiChipEventCallback.RadioModeInfo>
-                radioModeInfoList) {
-            // Need to handle this callback.
+        public void onRadioModeChange(ArrayList<RadioModeInfo> radioModeInfoList) {
             mVerboseLog.d("onRadioModeChange " + radioModeInfoList);
+            WifiNative.VendorHalRadioModeChangeEventHandler handler;
+            synchronized (sLock) {
+                if (mRadioModeChangeEventHandler == null || radioModeInfoList == null) return;
+                handler = mRadioModeChangeEventHandler;
+            }
+            // Should only contain 1 or 2 radio infos.
+            if (radioModeInfoList.size() == 0 || radioModeInfoList.size() > 2) {
+                mLog.e("Unexpected number of radio info in list " + radioModeInfoList.size());
+                return;
+            }
+            // Not concurrency scenario, uninteresting...
+            if (radioModeInfoList.size() == 1) return;
+
+            RadioModeInfo radioModeInfo0 = radioModeInfoList.get(0);
+            RadioModeInfo radioModeInfo1 = radioModeInfoList.get(1);
+            // Number of ifaces on each radio should be equal.
+            if (radioModeInfo0.ifaceInfos.size() != radioModeInfo1.ifaceInfos.size()) {
+                mLog.e("Unexpected number of iface info in list "
+                        + radioModeInfo0.ifaceInfos.size() + ", "
+                        + radioModeInfo1.ifaceInfos.size());
+                return;
+            }
+            int numIfacesOnEachRadio = radioModeInfo0.ifaceInfos.size();
+            // Only 1 or 2 ifaces should be present on each radio.
+            if (numIfacesOnEachRadio == 0 || numIfacesOnEachRadio > 2) {
+                mLog.e("Unexpected number of iface info in list " + numIfacesOnEachRadio);
+                return;
+            }
+            // 2 ifaces simultaneous on 2 radios.
+            if (numIfacesOnEachRadio == 1) {
+                // Iface on radio0 should be different from the iface on radio1 for DBS & SBS.
+                if (areSameIfaceNames(radioModeInfo0.ifaceInfos, radioModeInfo1.ifaceInfos)) {
+                    mLog.e("Unexpected for both radio infos to have same iface");
+                    return;
+                }
+                if (radioModeInfo0.bandInfo != radioModeInfo1.bandInfo) {
+                    handler.onDbs();
+                } else {
+                    handler.onSbs(radioModeInfo0.bandInfo);
+                }
+            // 2 ifaces time sharing on 2 radios.
+            } else {
+                // Ifaces on radio0 & radio1 should be the same for MCC & SCC.
+                if (!areSameIfaces(radioModeInfo0.ifaceInfos, radioModeInfo1.ifaceInfos)) {
+                    mLog.e("Unexpected for both radio infos to have different ifaces");
+                    return;
+                }
+                // Both radio0 & radio1 should now be in the same band (could be 5G or 2G).
+                if (radioModeInfo0.bandInfo != radioModeInfo1.bandInfo) {
+                    mLog.e("Unexpected for both radio infos to have different band");
+                    return;
+                }
+                IfaceInfo ifaceInfo0 = radioModeInfo0.ifaceInfos.get(0);
+                IfaceInfo ifaceInfo1 = radioModeInfo0.ifaceInfos.get(1);
+                if (ifaceInfo0.channel != ifaceInfo1.channel) {
+                    handler.onMcc(radioModeInfo0.bandInfo);
+                } else {
+                    handler.onScc(radioModeInfo0.bandInfo);
+                }
+            }
         }
     }
 
