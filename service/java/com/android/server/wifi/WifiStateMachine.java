@@ -4740,9 +4740,15 @@ public class WifiStateMachine extends StateMachine {
             }
             setNetworkDetailedState(DetailedState.CONNECTING);
 
+            final NetworkCapabilities nc;
+            if (mWifiInfo != null && !mWifiInfo.getSSID().equals(WifiSsid.NONE)) {
+                nc = new NetworkCapabilities(mNetworkCapabilitiesFilter);
+                nc.setSSID(mWifiInfo.getSSID());
+            } else {
+                nc = mNetworkCapabilitiesFilter;
+            }
             mNetworkAgent = new WifiNetworkAgent(getHandler().getLooper(), mContext,
-                    "WifiNetworkAgent", mNetworkInfo, mNetworkCapabilitiesFilter,
-                    mLinkProperties, 60, mNetworkMisc);
+                    "WifiNetworkAgent", mNetworkInfo, nc, mLinkProperties, 60, mNetworkMisc);
 
             // We must clear the config BSSID, as the wifi chipset may decide to roam
             // from this point on and having the BSSID specified in the network block would
