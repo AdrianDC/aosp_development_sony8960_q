@@ -498,7 +498,7 @@ public class SoftApManagerTest {
         order.verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(),
                 eq(UserHandle.ALL));
         checkApStateChangedBroadcast(intentCaptor.getValue(), WIFI_AP_STATE_DISABLED,
-                WIFI_AP_STATE_DISABLING, HOTSPOT_NO_ERROR, TEST_INTERFACE_NAME,
+                WIFI_AP_STATE_DISABLING, HOTSPOT_NO_ERROR, null,
                 softApModeConfig.getTargetMode());
     }
 
