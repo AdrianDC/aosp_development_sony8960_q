@@ -314,8 +314,6 @@ public class WifiStateMachine extends StateMachine {
     private final NetworkCapabilities mDfltNetworkCapabilities;
     private SupplicantStateTracker mSupplicantStateTracker;
 
-    private int mWifiLinkLayerStatsSupported = 4; // Temporary disable
-
     // Indicates that framework is attempting to roam, set true on CMD_START_ROAM, set false when
     // wifi connects or fails to connect
     private boolean mIsAutoRoaming = false;
@@ -696,15 +694,6 @@ public class WifiStateMachine extends StateMachine {
      */
     private long mSupplicantScanIntervalMs;
 
-    private final int mThresholdQualifiedRssi24;
-    private final int mThresholdQualifiedRssi5;
-    private final int mThresholdSaturatedRssi24;
-    private final int mThresholdSaturatedRssi5;
-    private final int mThresholdMinimumRssi5;
-    private final int mThresholdMinimumRssi24;
-    private final boolean mEnableChipWakeUpWhenAssociated;
-    private final boolean mEnableRssiPollWhenAssociated;
-
     int mRunningBeaconCount = 0;
 
     /* Default parent state */
@@ -902,22 +891,6 @@ public class WifiStateMachine extends StateMachine {
 
         mTcpBufferSizes = mContext.getResources().getString(
                 com.android.internal.R.string.config_wifi_tcp_buffers);
-
-        // Load Device configs
-        mThresholdQualifiedRssi24 = context.getResources().getInteger(
-                R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_24GHz);
-        mThresholdQualifiedRssi5 = context.getResources().getInteger(
-                R.integer.config_wifi_framework_wifi_score_low_rssi_threshold_5GHz);
-        mThresholdSaturatedRssi24 = context.getResources().getInteger(
-                R.integer.config_wifi_framework_wifi_score_good_rssi_threshold_24GHz);
-        mThresholdSaturatedRssi5 = context.getResources().getInteger(
-                R.integer.config_wifi_framework_wifi_score_good_rssi_threshold_5GHz);
-        mThresholdMinimumRssi5 = context.getResources().getInteger(
-                R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_5GHz);
-        mThresholdMinimumRssi24 = context.getResources().getInteger(
-                R.integer.config_wifi_framework_wifi_score_bad_rssi_threshold_24GHz);
-        mEnableChipWakeUpWhenAssociated = true;
-        mEnableRssiPollWhenAssociated = true;
 
         // CHECKSTYLE:OFF IndentationCheck
         addState(mDefaultState);
@@ -1280,25 +1253,18 @@ public class WifiStateMachine extends StateMachine {
             loge("getWifiLinkLayerStats called without an interface");
             return null;
         }
-        WifiLinkLayerStats stats = null;
-        if (mWifiLinkLayerStatsSupported > 0) {
-            stats = mWifiNative.getWifiLinkLayerStats(mInterfaceName);
-            if (stats == null && mWifiLinkLayerStatsSupported > 0) {
-                mWifiLinkLayerStatsSupported -= 1;
-            } else if (stats != null) {
-                lastLinkLayerStatsUpdate = mClock.getWallClockMillis();
-                mOnTime = stats.on_time;
-                mTxTime = stats.tx_time;
-                mRxTime = stats.rx_time;
-                mRunningBeaconCount = stats.beacon_rx;
-            }
-        }
-        if (stats == null || mWifiLinkLayerStatsSupported <= 0) {
+        lastLinkLayerStatsUpdate = mClock.getWallClockMillis();
+        WifiLinkLayerStats stats = mWifiNative.getWifiLinkLayerStats(mInterfaceName);
+        if (stats != null) {
+            mOnTime = stats.on_time;
+            mTxTime = stats.tx_time;
+            mRxTime = stats.rx_time;
+            mRunningBeaconCount = stats.beacon_rx;
+            mWifiInfo.updatePacketRates(stats, lastLinkLayerStatsUpdate);
+        } else {
             long mTxPkts = mFacade.getTxPackets(mInterfaceName);
             long mRxPkts = mFacade.getRxPackets(mInterfaceName);
-            mWifiInfo.updatePacketRates(mTxPkts, mRxPkts);
-        } else {
-            mWifiInfo.updatePacketRates(stats, lastLinkLayerStatsUpdate);
+            mWifiInfo.updatePacketRates(mTxPkts, mRxPkts, lastLinkLayerStatsUpdate);
         }
         return stats;
     }
@@ -4873,28 +4839,15 @@ public class WifiStateMachine extends StateMachine {
                     break;
                 case CMD_RSSI_POLL:
                     if (message.arg1 == mRssiPollToken) {
-                        if (mEnableChipWakeUpWhenAssociated) {
-                            if (mVerboseLoggingEnabled) {
-                                log(" get link layer stats " + mWifiLinkLayerStatsSupported);
-                            }
-                            WifiLinkLayerStats stats = getWifiLinkLayerStats();
-                            if (stats != null) {
-                                // Sanity check the results provided by driver
-                                if (mWifiInfo.getRssi() != WifiInfo.INVALID_RSSI
-                                        && (stats.rssi_mgmt == 0
-                                        || stats.beacon_rx == 0)) {
-                                    stats = null;
-                                }
-                            }
-                            // Get Info and continue polling
-                            fetchRssiLinkSpeedAndFrequencyNative();
-                            // Send the update score to network agent.
-                            mWifiScoreReport.calculateAndReportScore(
-                                    mWifiInfo, mNetworkAgent, mWifiMetrics);
-                            if (mWifiScoreReport.shouldCheckIpLayer()) {
-                                mIpClient.confirmConfiguration();
-                                mWifiScoreReport.noteIpCheck();
-                            }
+                        getWifiLinkLayerStats();
+                        // Get Info and continue polling
+                        fetchRssiLinkSpeedAndFrequencyNative();
+                        // Send the update score to network agent.
+                        mWifiScoreReport.calculateAndReportScore(
+                                mWifiInfo, mNetworkAgent, mWifiMetrics);
+                        if (mWifiScoreReport.shouldCheckIpLayer()) {
+                            mIpClient.confirmConfiguration();
+                            mWifiScoreReport.noteIpCheck();
                         }
                         sendMessageDelayed(obtainMessage(CMD_RSSI_POLL, mRssiPollToken, 0),
                                 mPollRssiIntervalMsecs);
@@ -4905,11 +4858,7 @@ public class WifiStateMachine extends StateMachine {
                     break;
                 case CMD_ENABLE_RSSI_POLL:
                     cleanWifiScore();
-                    if (mEnableRssiPollWhenAssociated) {
-                        mEnableRssiPolling = (message.arg1 == 1);
-                    } else {
-                        mEnableRssiPolling = false;
-                    }
+                    mEnableRssiPolling = (message.arg1 == 1);
                     mRssiPollToken++;
                     if (mEnableRssiPolling) {
                         // First poll
