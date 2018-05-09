@@ -1440,6 +1440,14 @@ public class WifiStateMachine extends StateMachine {
     }
 
     /**
+     * When the underlying interface is destroyed, we must immediately tell connectivity service to
+     * mark network agent as disconnected and stop the ip client.
+     */
+    public void handleIfaceDestroyed() {
+        handleNetworkDisconnect();
+    }
+
+    /**
      * TODO: doc
      */
     public void setOperationalMode(int mode, String ifaceName) {

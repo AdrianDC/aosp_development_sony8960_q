@@ -294,6 +294,7 @@ public class ClientModeManagerTest {
         mInterfaceCallbackCaptor.getValue().onDestroyed(TEST_INTERFACE_NAME);
         mLooper.dispatchAll();
         verifyNotificationsForCleanShutdown(WIFI_STATE_ENABLED);
+        verify(mWifiStateMachine).handleIfaceDestroyed();
     }
 
     /**
@@ -318,5 +319,6 @@ public class ClientModeManagerTest {
         mLooper.dispatchAll();
 
         verifyNoMoreInteractions(mListener);
+        verify(mWifiStateMachine, never()).handleIfaceDestroyed();
     }
 }
