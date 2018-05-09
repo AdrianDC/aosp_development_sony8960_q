@@ -456,10 +456,9 @@ public class SoftApManager implements ActiveModeManager {
 
             @Override
             public void exit() {
-                if (mApInterfaceName == null) {
-                    return;
+                if (mApInterfaceName != null) {
+                    stopSoftAp();
                 }
-                stopSoftAp();
                 if (mSettingObserver != null) {
                     mSettingObserver.unregister();
                 }
@@ -531,6 +530,7 @@ public class SoftApManager implements ActiveModeManager {
                         Log.d(TAG, "Interface was cleanly destroyed.");
                         updateApState(WifiManager.WIFI_AP_STATE_DISABLING,
                                 WifiManager.WIFI_AP_STATE_ENABLED, 0);
+                        mApInterfaceName = null;
                         transitionTo(mIdleState);
                         break;
                     case CMD_INTERFACE_DOWN:
