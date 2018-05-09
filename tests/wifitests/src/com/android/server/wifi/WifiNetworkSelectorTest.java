@@ -427,6 +427,56 @@ public class WifiNetworkSelectorTest {
     }
 
     /**
+     * New network selection is performed if the currently connected network
+     * has no internet access and the user did not explicitly choose to stay connected.
+     *
+     * WifiStateMachine is connected to a network with no internet connectivity.
+     * scanDetails contains a valid networks.
+     * Perform a network selection after the first one.
+     *
+     * Expected behavior: the first network is recommended by Network Selector
+     */
+    @Test
+    public void noInternetAccessNetworkIsNotSufficient() {
+        String[] ssids = {"\"test1\""};
+        String[] bssids = {"6c:f3:7f:ae:8c:f3"};
+        int[] freqs = {5180};
+        String[] caps = {"[WPA2-EAP-CCMP][ESS]"};
+        int[] levels = {mThresholdQualifiedRssi5G + 5};
+        int[] securities = {SECURITY_PSK};
+
+        ScanDetailsAndWifiConfigs scanDetailsAndConfigs =
+                WifiNetworkSelectorTestUtil.setupScanDetailsAndConfigStore(ssids, bssids,
+                        freqs, caps, levels, securities, mWifiConfigManager, mClock);
+        List<ScanDetail> scanDetails = scanDetailsAndConfigs.getScanDetails();
+        HashSet<String> blacklist = new HashSet<String>();
+        WifiConfiguration[] savedConfigs = scanDetailsAndConfigs.getWifiConfigs();
+
+        // connect to test1
+        mWifiNetworkSelector.selectNetwork(scanDetails, blacklist, mWifiInfo, false, true, false);
+        when(mWifiInfo.getNetworkId()).thenReturn(0);
+        when(mWifiInfo.getBSSID()).thenReturn(bssids[0]);
+        when(mWifiInfo.is24GHz()).thenReturn(false);
+        when(mWifiInfo.is5GHz()).thenReturn(true);
+        when(mWifiInfo.getFrequency()).thenReturn(5000);
+        when(mWifiInfo.getRssi()).thenReturn(levels[0]);
+
+        when(mClock.getElapsedSinceBootMillis()).thenReturn(SystemClock.elapsedRealtime()
+                + WifiNetworkSelector.MINIMUM_NETWORK_SELECTION_INTERVAL_MS + 2000);
+
+        // Increment the network's no internet access reports.
+        savedConfigs[0].numNoInternetAccessReports = 5;
+
+        // Do another network selection.
+        WifiConfiguration candidate = mWifiNetworkSelector.selectNetwork(scanDetails,
+                blacklist, mWifiInfo, true, false, false);
+
+        ScanResult chosenScanResult = scanDetails.get(0).getScanResult();
+        WifiNetworkSelectorTestUtil.verifySelectedScanResult(mWifiConfigManager,
+                chosenScanResult, candidate);
+    }
+
+    /**
      * Blacklisted BSSID is filtered out for network selection.
      *
      * WifiStateMachine is disconnected.

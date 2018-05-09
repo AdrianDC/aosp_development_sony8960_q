@@ -179,6 +179,12 @@ public class WifiNetworkSelector {
             return false;
         }
 
+        // Network with no internet access reports is not qualified.
+        if (network.numNoInternetAccessReports > 0 && !network.noInternetAccessExpected) {
+            localLog("Current network has [" + network.numNoInternetAccessReports
+                    + "] no-internet access reports.");
+            return false;
+        }
         return true;
     }
 
