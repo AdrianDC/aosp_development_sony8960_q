@@ -2639,6 +2639,12 @@ public class WifiStateMachine extends StateMachine {
         mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
     }
 
+    /**
+     * Helper method used to send state about supplicant - This is NOT information about the current
+     * wifi connection state.
+     *
+     * TODO: b/79504296 This broadcast has been deprecated and should be removed
+     */
     private void sendSupplicantConnectionChangedBroadcast(boolean connected) {
         Intent intent = new Intent(WifiManager.SUPPLICANT_CONNECTION_CHANGE_ACTION);
         intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
@@ -3675,6 +3681,7 @@ public class WifiStateMachine extends StateMachine {
         if (!mWifiConfigManager.migrateFromLegacyStore()) {
             Log.e(TAG, "Failed to migrate from legacy config store");
         }
+        // TODO: b/79504296 This broadcast has been deprecated and should be removed
         sendSupplicantConnectionChangedBroadcast(true);
 
         mWifiNative.setExternalSim(mInterfaceName, true);
@@ -3745,6 +3752,8 @@ public class WifiStateMachine extends StateMachine {
         if (mNetworkAgent != null) mNetworkAgent.sendNetworkInfo(mNetworkInfo);
         mCountryCode.setReadyForChange(false);
         mInterfaceName = null;
+        // TODO: b/79504296 This broadcast has been deprecated and should be removed
+        sendSupplicantConnectionChangedBroadcast(false);
     }
 
     void registerConnected() {
