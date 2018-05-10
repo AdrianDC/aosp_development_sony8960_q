@@ -91,6 +91,17 @@ public class VelocityBasedConnectedScoreTest {
     }
 
     /**
+     * Generate a score with no updates
+     *
+     * Expect no crash, passing score
+     */
+    @Test
+    public void noCrashWhenNoData() throws Exception {
+        int score = mVelocityBasedConnectedScore.generateScore();
+        assertTrue(score > ConnectedScore.WIFI_TRANSITION_SCORE);
+    }
+
+    /**
      *
      * Low RSSI, but some data is moving and error rate is low.
      *

@@ -133,6 +133,13 @@ public class ClientModeManager implements ActiveModeManager {
             @Override
             public void onDestroyed(String ifaceName) {
                 if (mClientInterfaceName != null && mClientInterfaceName.equals(ifaceName)) {
+                    Log.d(TAG, "STA iface " + ifaceName + " was destroyed, stopping client mode");
+
+                    // we must immediately clean up state in WSM to unregister all client mode
+                    // related objects
+                    // Note: onDestroyed is only called from the WSM thread
+                    mWifiStateMachine.handleIfaceDestroyed();
+
                     sendMessage(CMD_INTERFACE_DESTROYED);
                 }
             }
