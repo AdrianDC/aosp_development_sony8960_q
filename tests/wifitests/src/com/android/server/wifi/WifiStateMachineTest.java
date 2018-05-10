@@ -2366,5 +2366,6 @@ public class WifiStateMachineTest {
         mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
         mLooper.dispatchAll();
         verify(mIpClient).shutdown();
+        verify(mIpClient).awaitShutdown();
     }
 }

@@ -3735,7 +3735,12 @@ public class WifiStateMachine extends StateMachine {
         mIsRunning = false;
         updateBatteryWorkSource(null);
 
-        if (mIpClient != null) mIpClient.shutdown();
+        if (mIpClient != null) {
+            mIpClient.shutdown();
+            // Block to make sure IpClient has really shut down, lest cleanup
+            // race with, say, bringup code over in tethering.
+            mIpClient.awaitShutdown();
+        }
         mNetworkInfo.setIsAvailable(false);
         if (mNetworkAgent != null) mNetworkAgent.sendNetworkInfo(mNetworkInfo);
         mCountryCode.setReadyForChange(false);
