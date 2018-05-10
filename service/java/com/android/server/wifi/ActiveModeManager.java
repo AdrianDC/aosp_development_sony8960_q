@@ -22,6 +22,9 @@ import android.net.wifi.WifiManager;
 import android.os.UserHandle;
 import android.util.Log;
 
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
+
 /**
  * Base class for available WiFi operating modes.
  *
@@ -39,6 +42,11 @@ public interface ActiveModeManager {
      * Method used to stop the Manager for a give Wifi operational mode.
      */
     void stop();
+
+    /**
+     * Method to dump for logging state.
+     */
+    void dump(FileDescriptor fd, PrintWriter pw, String[] args);
 
     /**
      * Method that allows Mode Managers to update WifiScanner about the current state.
