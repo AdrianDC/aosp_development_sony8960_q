@@ -966,10 +966,17 @@ public class WifiServiceImpl extends IWifiManager.Stub {
                             LocalOnlyHotspotCallback.ERROR_INCOMPATIBLE_MODE);
                     break;
                 case WifiManager.IFACE_IP_MODE_CONFIGURATION_ERROR:
-                    // there was an error setting up the hotspot...  trigger onFailed for the
-                    // registered LOHS requestors
-                    sendHotspotFailedMessageToAllLOHSRequestInfoEntriesLocked(
-                            LocalOnlyHotspotCallback.ERROR_GENERIC);
+                    Slog.d(TAG, "IP mode config error - need to clean up");
+                    if (mLocalOnlyHotspotRequests.isEmpty()) {
+                        Slog.d(TAG, "no LOHS requests, stop softap");
+                        stopSoftAp();
+                    } else {
+                        Slog.d(TAG, "we have LOHS requests, clean them up");
+                        // there was an error setting up the hotspot...  trigger onFailed for the
+                        // registered LOHS requestors
+                        sendHotspotFailedMessageToAllLOHSRequestInfoEntriesLocked(
+                                LocalOnlyHotspotCallback.ERROR_GENERIC);
+                    }
                     updateInterfaceIpStateInternal(null, WifiManager.IFACE_IP_MODE_UNSPECIFIED);
                     break;
                 case WifiManager.IFACE_IP_MODE_UNSPECIFIED:
