@@ -109,6 +109,7 @@ public class WifiMetrics {
     private final PnoScanMetrics mPnoScanMetrics = new PnoScanMetrics();
     private final WpsMetrics mWpsMetrics = new WpsMetrics();
     private Handler mHandler;
+    private ScoringParams mScoringParams;
     private WifiConfigManager mWifiConfigManager;
     private WifiNetworkSelector mWifiNetworkSelector;
     private PasspointManager mPasspointManager;
@@ -450,6 +451,11 @@ public class WifiMetrics {
                 }
             }
         };
+    }
+
+    /** Sets internal ScoringParams member */
+    public void setScoringParams(ScoringParams scoringParams) {
+        mScoringParams = scoringParams;
     }
 
     /** Sets internal WifiConfigManager member */
@@ -1770,10 +1776,11 @@ public class WifiMetrics {
      *
      * @param fd unused
      * @param pw PrintWriter for writing dump to
-     * @param args unused
+     * @param args [wifiMetricsProto [clean]]
      */
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         synchronized (mLock) {
+            consolidateScoringParams();
             if (args != null && args.length > 0 && PROTO_DUMP_ARG.equals(args[0])) {
                 // Dump serialized WifiLog proto
                 consolidateProto(true);
@@ -2116,6 +2123,7 @@ public class WifiMetrics {
                 mWifiWakeMetrics.dump(pw);
 
                 pw.println("mWifiLogProto.isMacRandomizationOn=" + mIsMacRandomizationOn);
+                pw.println("mWifiLogProto.scoreExperimentId=" + mWifiLogProto.scoreExperimentId);
             }
         }
     }
@@ -2408,6 +2416,20 @@ public class WifiMetrics {
             mWifiLogProto.wifiPowerStats = mWifiPowerMetrics.buildProto();
             mWifiLogProto.wifiWakeStats = mWifiWakeMetrics.buildProto();
             mWifiLogProto.isMacRandomizationOn = mIsMacRandomizationOn;
+        }
+    }
+
+    /** Sets the scoring experiment id to current value */
+    private void consolidateScoringParams() {
+        synchronized (mLock) {
+            if (mScoringParams != null) {
+                int experimentIdentifier = mScoringParams.getExperimentIdentifier();
+                if (experimentIdentifier == 0) {
+                    mWifiLogProto.scoreExperimentId = "";
+                } else {
+                    mWifiLogProto.scoreExperimentId = "x" + experimentIdentifier;
+                }
+            }
         }
     }
 
