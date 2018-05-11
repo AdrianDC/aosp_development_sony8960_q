@@ -12,6 +12,10 @@ endif
 
 LOCAL_CFLAGS += -Wall -Wextra -Wno-unused-parameter -Werror
 
+ifneq (,$(filter userdebug eng,$(TARGET_BUILD_VARIANT)))
+LOCAL_CFLAGS += -DDCHECK_ALWAYS_ON
+endif
+
 LOCAL_SRC_FILES := $(call all-subdir-cpp-files) $(call all-subdir-c-files)
 
 LOCAL_C_INCLUDES += \
