@@ -2013,6 +2013,8 @@ public class WifiServiceImplTest {
         assertEquals(HOTSPOT_FAILED, message.what);
         assertEquals(ERROR_GENERIC, message.arg1);
 
+        verify(mWifiController, never()).sendMessage(eq(CMD_SET_AP), eq(0), eq(0));
+
         // sendMessage should only happen once since the requestor should be unregistered
         reset(mHandler);
 
@@ -2021,6 +2023,18 @@ public class WifiServiceImplTest {
         mWifiServiceImpl.updateInterfaceIpState(WIFI_IFACE_NAME, IFACE_IP_MODE_CONFIGURATION_ERROR);
         mLooper.dispatchAll();
         verify(mHandler, never()).handleMessage(any(Message.class));
+    }
+
+    /**
+     * Verify that softap mode is stopped for tethering if we receive an update with an ip mode
+     * configuration error.
+     */
+    @Test
+    public void testStopSoftApWhenIpConfigFails() throws Exception {
+        mWifiServiceImpl.updateInterfaceIpState(WIFI_IFACE_NAME, IFACE_IP_MODE_CONFIGURATION_ERROR);
+        mLooper.dispatchAll();
+
+        verify(mWifiController).sendMessage(eq(CMD_SET_AP), eq(0), eq(0));
     }
 
     /**
