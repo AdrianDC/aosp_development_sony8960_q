@@ -50,7 +50,6 @@ import android.net.NetworkUtils;
 import android.net.RouteInfo;
 import android.net.StaticIpConfiguration;
 import android.net.TrafficStats;
-import android.net.apf.ApfCapabilities;
 import android.net.dhcp.DhcpClient;
 import android.net.ip.IpClient;
 import android.net.wifi.RssiPacketCountInfo;
@@ -2639,6 +2638,12 @@ public class WifiStateMachine extends StateMachine {
         mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
     }
 
+    /**
+     * Helper method used to send state about supplicant - This is NOT information about the current
+     * wifi connection state.
+     *
+     * TODO: b/79504296 This broadcast has been deprecated and should be removed
+     */
     private void sendSupplicantConnectionChangedBroadcast(boolean connected) {
         Intent intent = new Intent(WifiManager.SUPPLICANT_CONNECTION_CHANGE_ACTION);
         intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
@@ -3675,6 +3680,7 @@ public class WifiStateMachine extends StateMachine {
         if (!mWifiConfigManager.migrateFromLegacyStore()) {
             Log.e(TAG, "Failed to migrate from legacy config store");
         }
+        // TODO: b/79504296 This broadcast has been deprecated and should be removed
         sendSupplicantConnectionChangedBroadcast(true);
 
         mWifiNative.setExternalSim(mInterfaceName, true);
@@ -3745,6 +3751,8 @@ public class WifiStateMachine extends StateMachine {
         if (mNetworkAgent != null) mNetworkAgent.sendNetworkInfo(mNetworkInfo);
         mCountryCode.setReadyForChange(false);
         mInterfaceName = null;
+        // TODO: b/79504296 This broadcast has been deprecated and should be removed
+        sendSupplicantConnectionChangedBroadcast(false);
     }
 
     void registerConnected() {
@@ -4996,17 +5004,10 @@ public class WifiStateMachine extends StateMachine {
                 mIpClient.setTcpBufferSizes(mTcpBufferSizes);
             }
             final IpClient.ProvisioningConfiguration prov;
-
-            ApfCapabilities apfCapabilities = mWifiNative.getApfCapabilities(mInterfaceName);
-            if (mContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)) {
-                // Temporarily disable APF on automotive platforms to work around b/78905546.
-                apfCapabilities = null;
-            }
-
             if (!isUsingStaticIp) {
                 prov = IpClient.buildProvisioningConfiguration()
                             .withPreDhcpAction()
-                            .withApfCapabilities(apfCapabilities)
+                            .withApfCapabilities(mWifiNative.getApfCapabilities(mInterfaceName))
                             .withNetwork(getCurrentNetwork())
                             .withDisplayName(currentConfig.SSID)
                             .withRandomMacAddress()
@@ -5015,7 +5016,7 @@ public class WifiStateMachine extends StateMachine {
                 StaticIpConfiguration staticIpConfig = currentConfig.getStaticIpConfiguration();
                 prov = IpClient.buildProvisioningConfiguration()
                             .withStaticConfiguration(staticIpConfig)
-                            .withApfCapabilities(apfCapabilities)
+                            .withApfCapabilities(mWifiNative.getApfCapabilities(mInterfaceName))
                             .withNetwork(getCurrentNetwork())
                             .withDisplayName(currentConfig.SSID)
                             .build();
