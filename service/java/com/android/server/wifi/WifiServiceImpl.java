@@ -148,6 +148,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     private static final int RUN_WITH_SCISSORS_TIMEOUT_MILLIS = 4000;
 
     final WifiStateMachine mWifiStateMachine;
+    final WifiStateMachinePrime mWifiStateMachinePrime;
     final ScanRequestProxy mScanRequestProxy;
 
     private final Context mContext;
@@ -453,6 +454,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
         mUserManager = mWifiInjector.getUserManager();
         mCountryCode = mWifiInjector.getWifiCountryCode();
         mWifiStateMachine = mWifiInjector.getWifiStateMachine();
+        mWifiStateMachinePrime = mWifiInjector.getWifiStateMachinePrime();
         mWifiStateMachine.enableRssiPolling(true);
         mScanRequestProxy = mWifiInjector.getScanRequestProxy();
         mSettingsStore = mWifiInjector.getWifiSettingsStore();
@@ -2520,6 +2522,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             mWifiLockManager.dump(pw);
             pw.println();
             mWifiMulticastLockManager.dump(pw);
+            pw.println();
+            mWifiStateMachinePrime.dump(fd, pw, args);
             pw.println();
             mWifiStateMachine.dump(fd, pw, args);
             pw.println();
