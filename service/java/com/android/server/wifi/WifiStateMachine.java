@@ -1142,7 +1142,7 @@ public class WifiStateMachine extends StateMachine {
                 || !mWifiConfigManager.updateLastConnectUid(netId, uid)) {
             logi("connectToUserSelectNetwork Allowing uid " + uid
                     + " with insufficient permissions to connect=" + netId);
-        } else {
+        } else if (mWifiPermissionsUtil.checkNetworkSettingsPermission(uid)) {
             // Note user connect choice here, so that it will be considered in the next network
             // selection.
             mWifiConnectivityManager.setUserConnectChoice(netId);
