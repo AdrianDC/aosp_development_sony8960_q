@@ -20,6 +20,9 @@ import android.annotation.NonNull;
 import android.content.Context;
 import android.os.Looper;
 
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
+
 /**
  *  Manager to handle API calls when wifi is disabled (other mode managers could be active, but this
  *  class triggers calls to the default implementations).
@@ -39,6 +42,11 @@ public class DefaultModeManager implements ActiveModeManager {
      * Stop is not used in default mode.
      */
     public void stop() { };
+
+    /**
+     * Dump is not used in default mode.
+     */
+    public void dump(FileDescriptor fd, PrintWriter pw, String[] args) { }
 
     DefaultModeManager(Context context, @NonNull Looper looper) {
         mContext = context;
