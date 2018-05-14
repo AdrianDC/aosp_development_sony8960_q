@@ -140,7 +140,7 @@ public class WifiStateMachinePrime {
         mDefaultModeManager = defaultModeManager;
         mBatteryStats = batteryStats;
         mSelfRecovery = mWifiInjector.getSelfRecovery();
-        mWifiDiagnostics = mWifiInjector.makeWifiDiagnostics(mWifiNative);
+        mWifiDiagnostics = mWifiInjector.getWifiDiagnostics();
         mScanRequestProxy = mWifiInjector.getScanRequestProxy();
         mModeStateMachine = new ModeStateMachine();
         mWifiNativeStatusListener = new WifiNativeStatusListener();

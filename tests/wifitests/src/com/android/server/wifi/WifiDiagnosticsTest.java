@@ -59,7 +59,6 @@ import java.util.regex.Pattern;
  */
 @SmallTest
 public class WifiDiagnosticsTest {
-    @Mock WifiStateMachine mWsm;
     @Mock WifiNative mWifiNative;
     @Mock BuildProperties mBuildProperties;
     @Mock Context mContext;
@@ -69,6 +68,7 @@ public class WifiDiagnosticsTest {
     @Mock Runtime mJavaRuntime;
     @Mock Process mExternalProcess;
     @Mock ActivityManagerService mActivityManagerService;
+    @Mock WifiMetrics mWifiMetrics;
     WifiDiagnostics mWifiDiagnostics;
 
     private static final String FAKE_RING_BUFFER_NAME = "fake-ring-buffer";
@@ -76,6 +76,8 @@ public class WifiDiagnosticsTest {
     private static final int LARGE_RING_BUFFER_SIZE_KB = 1024;
     private static final int BYTES_PER_KBYTE = 1024;
     private static final long FAKE_CONNECTION_ID = 1;
+    private static final int ALERT_REASON_CODE = 1;
+    private static final byte[] ALERT_DATA = {0 , 4, 5};
 
     private WifiNative.RingBufferStatus mFakeRbs;
     /**
@@ -118,9 +120,10 @@ public class WifiDiagnosticsTest {
         when(mWifiInjector.makeLog(anyString())).thenReturn(mLog);
         when(mWifiInjector.getJavaRuntime()).thenReturn(mJavaRuntime);
         when(mWifiInjector.getActivityManagerService()).thenReturn(mActivityManagerService);
+        when(mWifiInjector.getWifiMetrics()).thenReturn(mWifiMetrics);
 
         mWifiDiagnostics = new WifiDiagnostics(
-                mContext, mWifiInjector, mWsm, mWifiNative, mBuildProperties, mLastMileLogger);
+                mContext, mWifiInjector, mWifiNative, mBuildProperties, mLastMileLogger);
         mWifiNative.enableVerboseLogging(0);
     }
 
@@ -697,6 +700,22 @@ public class WifiDiagnosticsTest {
                 mFakeRbs, new byte[SMALL_RING_BUFFER_SIZE_KB * BYTES_PER_KBYTE + 1]);
         mWifiDiagnostics.captureBugReportData(WifiDiagnostics.REPORT_REASON_NONE);
         assertEquals(0, getLoggerRingBufferData().length);
+    }
+
+    /**
+     * Verifies that we capture a bugreport & store alert data when WifiNative invokes
+     * the alert callback.
+     */
+    @Test
+    public void onWifiAlertCapturesBugreportAndIncrementsMetrics() throws Exception {
+        mWifiDiagnostics.onWifiAlert(ALERT_REASON_CODE, ALERT_DATA);
+
+        assertEquals(1, mWifiDiagnostics.getAlertReports().size());
+        WifiDiagnostics.BugReport alertReport = mWifiDiagnostics.getAlertReports().get(0);
+        assertEquals(ALERT_REASON_CODE, alertReport.errorCode);
+        assertArrayEquals(ALERT_DATA, alertReport.alertData);
+
+        verify(mWifiMetrics).incrementAlertReasonCount(ALERT_REASON_CODE);
     }
 
     /** Verifies that we skip the firmware and driver dumps if verbose is not enabled. */
