@@ -1401,6 +1401,37 @@ public class SupplicantStaIfaceHalTest {
     }
 
     /**
+     * When wpa_supplicant is dead, we could end up getting a remote exception on a hwbinder call
+     * and then the death notification.
+     */
+    @Test
+    public void testHandleRemoteExceptonAndDeathNotification() throws Exception {
+        executeAndValidateInitializationSequence();
+        assertTrue(mDut.registerDeathHandler(mSupplicantHalDeathHandler));
+        assertTrue(mDut.isInitializationComplete());
+
+        // Throw remote exception on hwbinder call.
+        when(mISupplicantStaIfaceMock.setPowerSave(anyBoolean()))
+                .thenThrow(new RemoteException());
+        assertFalse(mDut.setPowerSave(WLAN0_IFACE_NAME, true));
+        verify(mISupplicantStaIfaceMock).setPowerSave(true);
+
+        // Check that remote exception cleared all internal state.
+        assertFalse(mDut.isInitializationComplete());
+
+        // Ensure that futher calls fail because the remote exception clears any state.
+        assertFalse(mDut.setPowerSave(WLAN0_IFACE_NAME, true));
+        //.. No call to ISupplicantStaIface object
+
+        // Now trigger a death notification and ensure it's handled.
+        assertNotNull(mSupplicantDeathCaptor.getValue());
+        mSupplicantDeathCaptor.getValue().serviceDied(5L);
+
+        // External death notification fires only once!
+        verify(mSupplicantHalDeathHandler).onDeath();
+    }
+
+    /**
      * Tests the setting of log level.
      */
     @Test
@@ -1590,10 +1621,6 @@ public class SupplicantStaIfaceHalTest {
                     .getInterface(any(ISupplicant.IfaceInfo.class),
                             any(ISupplicant.getInterfaceCallback.class));
         }
-        if (causeRemoteException) {
-            mInOrder.verify(mWifiMonitor).broadcastSupplicantDisconnectionEvent(
-                    eq(WLAN0_IFACE_NAME));
-        }
         if (!causeRemoteException && !getZeroInterfaces && !getNullInterface) {
             mInOrder.verify(mISupplicantStaIfaceMock)
                     .registerCallback(any(ISupplicantStaIfaceCallback.class));
@@ -1654,10 +1681,6 @@ public class SupplicantStaIfaceHalTest {
                 .addInterface(any(ISupplicant.IfaceInfo.class),
                         any(android.hardware.wifi.supplicant.V1_1.ISupplicant
                                 .addInterfaceCallback.class));
-        if (causeRemoteException) {
-            mInOrder.verify(mWifiMonitor).broadcastSupplicantDisconnectionEvent(
-                    eq(WLAN0_IFACE_NAME));
-        }
         if (!causeRemoteException && !getNullInterface) {
             mInOrder.verify(mISupplicantStaIfaceMockV1_1)
                     .registerCallback_1_1(

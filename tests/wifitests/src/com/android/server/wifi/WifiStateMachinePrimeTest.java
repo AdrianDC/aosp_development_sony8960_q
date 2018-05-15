@@ -38,6 +38,9 @@ import org.mockito.MockitoAnnotations;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintWriter;
+
 /**
  * Unit tests for {@link com.android.server.wifi.WifiStateMachinePrime}.
  */
@@ -86,7 +89,7 @@ public class WifiStateMachinePrimeTest {
         mLooper = new TestLooper();
 
         when(mWifiInjector.getSelfRecovery()).thenReturn(mSelfRecovery);
-        when(mWifiInjector.makeWifiDiagnostics(eq(mWifiNative))).thenReturn(mWifiDiagnostics);
+        when(mWifiInjector.getWifiDiagnostics()).thenReturn(mWifiDiagnostics);
         when(mWifiInjector.getScanRequestProxy()).thenReturn(mScanRequestProxy);
 
         mWifiStateMachinePrime = createWifiStateMachinePrime();
@@ -644,4 +647,32 @@ public class WifiStateMachinePrimeTest {
         verify(mSoftApStateMachineCallback).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLED, 0);
     }
 
+    /**
+     * Verify that we do not crash when calling dump and wifi is fully disabled.
+     */
+    @Test
+    public void dumpWhenWifiFullyOffDoesNotCrash() throws Exception {
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        PrintWriter writer = new PrintWriter(stream);
+        mWifiStateMachinePrime.dump(null, writer, null);
+    }
+
+    /**
+     * Verify that we trigger dump on active mode managers.
+     */
+    @Test
+    public void dumpCallsActiveModeManagers() throws Exception {
+        enterSoftApActiveMode();
+        enterClientModeActiveState();
+        enterScanOnlyModeActiveState();
+
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        PrintWriter writer = new PrintWriter(stream);
+        mWifiStateMachinePrime.dump(null, writer, null);
+
+        verify(mSoftApManager).dump(eq(null), eq(writer), eq(null));
+        // can only be in scan or client, so we should not have a client mode active
+        verify(mClientModeManager, never()).dump(eq(null), eq(writer), eq(null));
+        verify(mScanOnlyModeManager).dump(eq(null), eq(writer), eq(null));
+    }
 }

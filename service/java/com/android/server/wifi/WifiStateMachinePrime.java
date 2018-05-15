@@ -34,6 +34,9 @@ import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
 import com.android.server.wifi.WifiNative.StatusListener;
 
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
+
 /**
  * This class provides the implementation for different WiFi operating modes.
  *
@@ -137,7 +140,7 @@ public class WifiStateMachinePrime {
         mDefaultModeManager = defaultModeManager;
         mBatteryStats = batteryStats;
         mSelfRecovery = mWifiInjector.getSelfRecovery();
-        mWifiDiagnostics = mWifiInjector.makeWifiDiagnostics(mWifiNative);
+        mWifiDiagnostics = mWifiInjector.getWifiDiagnostics();
         mScanRequestProxy = mWifiInjector.getScanRequestProxy();
         mModeStateMachine = new ModeStateMachine();
         mWifiNativeStatusListener = new WifiNativeStatusListener();
@@ -214,6 +217,21 @@ public class WifiStateMachinePrime {
             }
             updateBatteryStatsWifiState(false);
         });
+    }
+
+    /**
+     * Dump current state for active mode managers.
+     *
+     * Must be called from WifiStateMachine thread.
+     */
+    public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+        pw.println("Dump of " + TAG);
+
+        pw.println("Current wifi mode: " + getCurrentMode());
+        pw.println("NumActiveModeManagers: " + mActiveModeManagers.size());
+        for (ActiveModeManager manager : mActiveModeManagers) {
+            manager.dump(fd, pw, args);
+        }
     }
 
     protected String getCurrentMode() {
