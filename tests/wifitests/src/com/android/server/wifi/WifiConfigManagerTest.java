@@ -3607,6 +3607,8 @@ public class WifiConfigManagerTest {
         configuration.status = WifiConfiguration.Status.DISABLED;
         configuration.getNetworkSelectionStatus().setNetworkSelectionStatus(
                 NetworkSelectionStatus.NETWORK_SELECTION_PERMANENTLY_DISABLED);
+        configuration.getNetworkSelectionStatus().setNetworkSelectionDisableReason(
+                NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER);
     }
 
     /**
