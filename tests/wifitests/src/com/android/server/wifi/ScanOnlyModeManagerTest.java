@@ -170,7 +170,7 @@ public class ScanOnlyModeManagerTest {
         mLooper.dispatchAll();
         verify(mWifiNative).teardownInterface(TEST_INTERFACE_NAME);
         verify(mContext, never()).sendStickyBroadcastAsUser(any(), eq(UserHandle.ALL));
-        checkWifiStateChangeListenerUpdate(WIFI_STATE_DISABLED);
+        verifyNoMoreInteractions(mListener);
     }
 
     /**
@@ -214,7 +214,6 @@ public class ScanOnlyModeManagerTest {
         mLooper.dispatchAll();
         verify(mContext, never()).sendStickyBroadcastAsUser(any(), eq(UserHandle.ALL));
         checkWifiStateChangeListenerUpdate(WIFI_STATE_UNKNOWN);
-        checkWifiStateChangeListenerUpdate(WIFI_STATE_DISABLED);
         verify(mScanRequestProxy).clearScanResults();
     }
 
@@ -245,10 +244,6 @@ public class ScanOnlyModeManagerTest {
 
         mScanOnlyModeManager.stop();
         mLooper.dispatchAll();
-
-        verify(mListener).onStateChanged(WIFI_STATE_DISABLED);
-
-        reset(mListener);
 
         // now trigger interface destroyed and make sure callback doesn't get called
         mInterfaceCallbackCaptor.getValue().onDestroyed(TEST_INTERFACE_NAME);
@@ -282,6 +277,5 @@ public class ScanOnlyModeManagerTest {
         inOrder.verify(mWakeupController).start();
         inOrder.verify(mWakeupController).stop();
         inOrder.verify(mWifiNative).teardownInterface(eq(TEST_INTERFACE_NAME));
-        inOrder.verify(mListener).onStateChanged(eq(WIFI_STATE_DISABLED));
     }
 }

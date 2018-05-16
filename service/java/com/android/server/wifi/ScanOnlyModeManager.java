@@ -52,6 +52,8 @@ public class ScanOnlyModeManager implements ActiveModeManager {
     private String mClientInterfaceName;
     private boolean mIfaceIsUp = false;
 
+    private boolean mExpectedStop = false;
+
     ScanOnlyModeManager(@NonNull Context context, @NonNull Looper looper,
                         @NonNull WifiNative wifiNative, @NonNull Listener listener,
                         @NonNull WifiMetrics wifiMetrics,
@@ -78,6 +80,7 @@ public class ScanOnlyModeManager implements ActiveModeManager {
      */
     public void stop() {
         Log.d(TAG, " currentstate: " + getCurrentStateName());
+        mExpectedStop = true;
         mStateMachine.quitNow();
     }
 
@@ -118,6 +121,18 @@ public class ScanOnlyModeManager implements ActiveModeManager {
      * @param state new Wifi state
      */
     private void updateWifiState(int state) {
+        if (mExpectedStop) {
+            Log.d(TAG, "expected stop, not triggering callbacks: state = " + state);
+            return;
+        }
+
+        // Once we report the mode has stopped/failed any other stop signals are redundant
+        // note: this can happen in failure modes where we get multiple callbacks as underlying
+        // components/interface stops or the underlying interface is destroyed in cleanup
+        if (state == WifiManager.WIFI_STATE_UNKNOWN || state == WifiManager.WIFI_STATE_DISABLED) {
+            mExpectedStop = true;
+        }
+
         mListener.onStateChanged(state);
     }
 
@@ -266,6 +281,9 @@ public class ScanOnlyModeManager implements ActiveModeManager {
                     mClientInterfaceName = null;
                 }
                 updateWifiState(WifiManager.WIFI_STATE_DISABLED);
+
+                // once we leave started, nothing else to do...  stop the state machine
+                mStateMachine.quitNow();
             }
         }
     }
