@@ -290,6 +290,7 @@ public class WifiMetricsTest {
     private static final int NUM_RADIO_MODE_CHANGE_TO_SCC = 13;
     private static final int NUM_RADIO_MODE_CHANGE_TO_SBS = 19;
     private static final int NUM_RADIO_MODE_CHANGE_TO_DBS = 34;
+    private static final int NUM_SOFTAP_USER_BAND_PREFERENCE_UNSATISFIED = 14;
     private static final long NUM_WATCHDOG_SUCCESS_DURATION_MS = 65;
 
     /** Number of notifications per "Connect to Network" notification type. */
@@ -604,6 +605,9 @@ public class WifiMetricsTest {
         for (int i = 0; i < NUM_RADIO_MODE_CHANGE_TO_DBS; i++) {
             mWifiMetrics.incrementNumRadioModeChangeToDbs();
         }
+        for (int i = 0; i < NUM_SOFTAP_USER_BAND_PREFERENCE_UNSATISFIED; i++) {
+            mWifiMetrics.incrementNumSoftApUserBandPreferenceUnsatisfied();
+        }
 
         // increment pno scan metrics
         for (int i = 0; i < NUM_PNO_SCAN_ATTEMPTS; i++) {
@@ -902,6 +906,8 @@ public class WifiMetricsTest {
         assertEquals(NUM_RADIO_MODE_CHANGE_TO_SCC, mDecodedProto.numRadioModeChangeToScc);
         assertEquals(NUM_RADIO_MODE_CHANGE_TO_SBS, mDecodedProto.numRadioModeChangeToSbs);
         assertEquals(NUM_RADIO_MODE_CHANGE_TO_DBS, mDecodedProto.numRadioModeChangeToDbs);
+        assertEquals(NUM_SOFTAP_USER_BAND_PREFERENCE_UNSATISFIED,
+                mDecodedProto.numSoftApUserBandPreferenceUnsatisfied);
 
         PnoScanMetrics pno_metrics = mDecodedProto.pnoScanMetrics;
         assertNotNull(pno_metrics);

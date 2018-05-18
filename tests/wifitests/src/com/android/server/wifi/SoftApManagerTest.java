@@ -42,6 +42,7 @@ import android.net.Uri;
 import android.net.wifi.IApInterfaceEventCallback;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
+import android.net.wifi.WifiScanner;
 import android.os.UserHandle;
 import android.os.test.TestLooper;
 import android.provider.Settings;
@@ -57,8 +58,6 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -72,13 +71,11 @@ public class SoftApManagerTest {
     private static final String TEST_SSID = "TestSSID";
     private static final String TEST_PASSWORD = "TestPassword";
     private static final String TEST_COUNTRY_CODE = "TestCountry";
-    private static final Integer[] ALLOWED_2G_CHANNELS = {1, 2, 3, 4};
     private static final String TEST_INTERFACE_NAME = "testif0";
     private static final String OTHER_INTERFACE_NAME = "otherif";
     private static final int TEST_NUM_CONNECTED_CLIENTS = 4;
-
-    private final ArrayList<Integer> mAllowed2GChannels =
-            new ArrayList<>(Arrays.asList(ALLOWED_2G_CHANNELS));
+    private static final int[] ALLOWED_2G_CHANNELS = {2412, 2417, 2437};
+    private static final int[] ALLOWED_5G_CHANNELS = {5180, 5190, 5240};
 
     private final WifiConfiguration mDefaultApConfig = createDefaultApConfig();
 
@@ -597,6 +594,105 @@ public class SoftApManagerTest {
 
         verify(mWifiMetrics).addSoftApChannelSwitchedEvent(channelFrequency, channelBandwidth,
                 apConfig.getTargetMode());
+    }
+
+    @Test
+    public void updatesMetricsOnChannelSwitchedEventDetectsBandUnsatisfiedOnBand2Ghz()
+            throws Exception {
+        WifiConfiguration config = createDefaultApConfig();
+        config.apBand = WifiConfiguration.AP_BAND_2GHZ;
+
+        SoftApModeConfiguration apConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, config);
+        startSoftApAndVerifyEnabled(apConfig);
+
+        final int channelFrequency = 2437;
+        final int channelBandwidth = IApInterfaceEventCallback.BANDWIDTH_20;
+        when(mWifiNative.getChannelsForBand(WifiScanner.WIFI_BAND_24_GHZ))
+                .thenReturn(ALLOWED_5G_CHANNELS);
+        mSoftApListenerCaptor.getValue().onSoftApChannelSwitched(channelFrequency,
+                channelBandwidth);
+        mLooper.dispatchAll();
+
+        verify(mWifiNative).getChannelsForBand(WifiScanner.WIFI_BAND_24_GHZ);
+        verify(mWifiMetrics).addSoftApChannelSwitchedEvent(channelFrequency, channelBandwidth,
+                apConfig.getTargetMode());
+        verify(mWifiMetrics).incrementNumSoftApUserBandPreferenceUnsatisfied();
+    }
+
+    @Test
+    public void updatesMetricsOnChannelSwitchedEventDetectsBandUnsatisfiedOnBand5Ghz()
+            throws Exception {
+        WifiConfiguration config = createDefaultApConfig();
+        config.apBand = WifiConfiguration.AP_BAND_5GHZ;
+
+        SoftApModeConfiguration apConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, config);
+        startSoftApAndVerifyEnabled(apConfig);
+
+        final int channelFrequency = 5180;
+        final int channelBandwidth = IApInterfaceEventCallback.BANDWIDTH_20;
+        when(mWifiNative.getChannelsForBand(WifiScanner.WIFI_BAND_5_GHZ))
+                .thenReturn(ALLOWED_2G_CHANNELS);
+        mSoftApListenerCaptor.getValue().onSoftApChannelSwitched(channelFrequency,
+                channelBandwidth);
+        mLooper.dispatchAll();
+
+        verify(mWifiNative).getChannelsForBand(WifiScanner.WIFI_BAND_5_GHZ);
+        verify(mWifiMetrics).addSoftApChannelSwitchedEvent(channelFrequency, channelBandwidth,
+                apConfig.getTargetMode());
+        verify(mWifiMetrics).incrementNumSoftApUserBandPreferenceUnsatisfied();
+    }
+
+    @Test
+    public void updatesMetricsOnChannelSwitchedEventDetectsBandUnsatisfiedOnBandAny()
+            throws Exception {
+        WifiConfiguration config = createDefaultApConfig();
+        config.apBand = WifiConfiguration.AP_BAND_ANY;
+
+        SoftApModeConfiguration apConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, config);
+        startSoftApAndVerifyEnabled(apConfig);
+
+        final int channelFrequency = 2437;
+        final int channelBandwidth = IApInterfaceEventCallback.BANDWIDTH_20;
+        when(mWifiNative.getChannelsForBand(WifiScanner.WIFI_BAND_24_GHZ))
+                .thenReturn(new int[0]);
+        when(mWifiNative.getChannelsForBand(WifiScanner.WIFI_BAND_5_GHZ))
+                .thenReturn(new int[0]);
+        mSoftApListenerCaptor.getValue().onSoftApChannelSwitched(channelFrequency,
+                channelBandwidth);
+        mLooper.dispatchAll();
+
+        verify(mWifiNative).getChannelsForBand(WifiScanner.WIFI_BAND_24_GHZ);
+        verify(mWifiNative).getChannelsForBand(WifiScanner.WIFI_BAND_5_GHZ);
+        verify(mWifiMetrics).addSoftApChannelSwitchedEvent(channelFrequency, channelBandwidth,
+                apConfig.getTargetMode());
+        verify(mWifiMetrics).incrementNumSoftApUserBandPreferenceUnsatisfied();
+    }
+
+    @Test
+    public void updatesMetricsOnChannelSwitchedEventDetectsBandUnsatisfiedOnlyWhenRequired()
+            throws Exception {
+        WifiConfiguration config = createDefaultApConfig();
+        config.apBand = WifiConfiguration.AP_BAND_2GHZ;
+
+        SoftApModeConfiguration apConfig =
+                new SoftApModeConfiguration(WifiManager.IFACE_IP_MODE_TETHERED, config);
+        startSoftApAndVerifyEnabled(apConfig);
+
+        final int channelFrequency = 2437;
+        final int channelBandwidth = IApInterfaceEventCallback.BANDWIDTH_20;
+        when(mWifiNative.getChannelsForBand(WifiScanner.WIFI_BAND_24_GHZ))
+                .thenReturn(ALLOWED_2G_CHANNELS);
+        mSoftApListenerCaptor.getValue().onSoftApChannelSwitched(channelFrequency,
+                channelBandwidth);
+        mLooper.dispatchAll();
+
+        verify(mWifiNative).getChannelsForBand(WifiScanner.WIFI_BAND_24_GHZ);
+        verify(mWifiMetrics).addSoftApChannelSwitchedEvent(channelFrequency, channelBandwidth,
+                apConfig.getTargetMode());
+        verify(mWifiMetrics, never()).incrementNumSoftApUserBandPreferenceUnsatisfied();
     }
 
     @Test

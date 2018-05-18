@@ -26,6 +26,7 @@ import android.content.Intent;
 import android.database.ContentObserver;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
+import android.net.wifi.WifiScanner;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
@@ -37,6 +38,7 @@ import android.util.Log;
 
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.IState;
 import com.android.internal.util.State;
 import com.android.internal.util.StateMachine;
@@ -47,7 +49,9 @@ import com.android.server.wifi.util.ApConfigUtil;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
+import java.util.Arrays;
 import java.util.Locale;
+import java.util.stream.Stream;
 
 /**
  * Manage WiFi in AP mode.
@@ -530,6 +534,29 @@ public class SoftApManager implements ActiveModeManager {
                                 + " Bandwidth: " + mReportedBandwidth);
                         mWifiMetrics.addSoftApChannelSwitchedEvent(mReportedFrequency,
                                 mReportedBandwidth, mMode);
+                        int[] allowedChannels = new int[0];
+                        if (mApConfig.apBand == WifiConfiguration.AP_BAND_2GHZ) {
+                            allowedChannels =
+                                    mWifiNative.getChannelsForBand(WifiScanner.WIFI_BAND_24_GHZ);
+                        } else if (mApConfig.apBand == WifiConfiguration.AP_BAND_5GHZ) {
+                            allowedChannels =
+                                    mWifiNative.getChannelsForBand(WifiScanner.WIFI_BAND_5_GHZ);
+                        } else if (mApConfig.apBand == WifiConfiguration.AP_BAND_ANY) {
+                            int[] allowed2GChannels =
+                                    mWifiNative.getChannelsForBand(WifiScanner.WIFI_BAND_24_GHZ);
+                            int[] allowed5GChannels =
+                                    mWifiNative.getChannelsForBand(WifiScanner.WIFI_BAND_5_GHZ);
+                            allowedChannels = Stream.concat(
+                                    Arrays.stream(allowed2GChannels).boxed(),
+                                    Arrays.stream(allowed5GChannels).boxed())
+                                    .mapToInt(Integer::valueOf)
+                                    .toArray();
+                        }
+                        if (!ArrayUtils.contains(allowedChannels, mReportedFrequency)) {
+                            Log.e(TAG, "Channel does not satisfy user band preference: "
+                                    + mReportedFrequency);
+                            mWifiMetrics.incrementNumSoftApUserBandPreferenceUnsatisfied();
+                        }
                         break;
                     case CMD_TIMEOUT_TOGGLE_CHANGED:
                         boolean isEnabled = (message.arg1 == 1);
