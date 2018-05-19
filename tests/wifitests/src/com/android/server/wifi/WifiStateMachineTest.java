@@ -17,6 +17,7 @@
 package com.android.server.wifi;
 
 import static android.net.wifi.WifiConfiguration.NetworkSelectionStatus.DISABLED_NO_INTERNET_TEMPORARY;
+import static android.net.wifi.WifiConfiguration.NetworkSelectionStatus.NETWORK_SELECTION_ENABLE;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -2523,9 +2524,9 @@ public class WifiStateMachineTest {
         currentNetwork.networkId = FRAMEWORK_NETWORK_ID;
         currentNetwork.noInternetAccessExpected = true;
         currentNetwork.numNoInternetAccessReports = 1;
-        when(mWifiConfigManager.getConfiguredNetwork(FRAMEWORK_NETWORK_ID + 1))
+        when(mWifiConfigManager.getConfiguredNetwork(FRAMEWORK_NETWORK_ID))
                 .thenReturn(currentNetwork);
-        when(mWifiConfigManager.getLastSelectedNetwork()).thenReturn(FRAMEWORK_NETWORK_ID);
+        when(mWifiConfigManager.getLastSelectedNetwork()).thenReturn(FRAMEWORK_NETWORK_ID + 1);
 
         Message message = new Message();
         message.what = NetworkAgent.CMD_REPORT_NETWORK_STATUS;
@@ -2538,5 +2539,32 @@ public class WifiStateMachineTest {
                 .incrementNetworkNoInternetAccessReports(FRAMEWORK_NETWORK_ID);
         verify(mWifiConfigManager, never()).updateNetworkSelectionStatus(
                 FRAMEWORK_NETWORK_ID, DISABLED_NO_INTERNET_TEMPORARY);
+    }
+
+    /**
+     * Verify that we enable the network when we detect validated internet access.
+     */
+    @Test
+    public void verifyNetworkSelectionEnableOnInternetValidation() throws Exception {
+        // Simulate the first connection.
+        connect();
+        ArgumentCaptor<Messenger> messengerCaptor = ArgumentCaptor.forClass(Messenger.class);
+        verify(mConnectivityManager).registerNetworkAgent(messengerCaptor.capture(),
+                any(NetworkInfo.class), any(LinkProperties.class), any(NetworkCapabilities.class),
+                anyInt(), any(NetworkMisc.class));
+
+        when(mWifiConfigManager.getLastSelectedNetwork()).thenReturn(FRAMEWORK_NETWORK_ID + 1);
+
+        Message message = new Message();
+        message.what = NetworkAgent.CMD_REPORT_NETWORK_STATUS;
+        message.arg1 = NetworkAgent.VALID_NETWORK;
+        message.obj = new Bundle();
+        messengerCaptor.getValue().send(message);
+        mLooper.dispatchAll();
+
+        verify(mWifiConfigManager)
+                .setNetworkValidatedInternetAccess(FRAMEWORK_NETWORK_ID, true);
+        verify(mWifiConfigManager).updateNetworkSelectionStatus(
+                FRAMEWORK_NETWORK_ID, NETWORK_SELECTION_ENABLE);
     }
 }
