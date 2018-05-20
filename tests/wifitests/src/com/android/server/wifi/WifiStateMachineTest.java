@@ -2395,4 +2395,42 @@ public class WifiStateMachineTest {
         verify(mIpClient).shutdown();
         verify(mIpClient).awaitShutdown();
     }
+
+    /**
+     * Verify that WifiInfo's MAC address is updated when the state machine receives
+     * NETWORK_CONNECTION_EVENT while in ConnectedState.
+     */
+    @Test
+    public void verifyWifiInfoMacUpdatedWithNetworkConnectionWhileConnected() throws Exception {
+        when(mWifiNative.getMacAddress(WIFI_IFACE_NAME))
+                .thenReturn(TEST_LOCAL_MAC_ADDRESS.toString());
+        connect();
+        assertEquals("ConnectedState", getCurrentState().getName());
+        assertEquals(TEST_LOCAL_MAC_ADDRESS.toString(), mWsm.getWifiInfo().getMacAddress());
+
+        when(mWifiNative.getMacAddress(WIFI_IFACE_NAME))
+                .thenReturn(TEST_GLOBAL_MAC_ADDRESS.toString());
+        mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, sBSSID);
+        mLooper.dispatchAll();
+        assertEquals(TEST_GLOBAL_MAC_ADDRESS.toString(), mWsm.getWifiInfo().getMacAddress());
+    }
+
+    /**
+     * Verify that WifiInfo's MAC address is updated when the state machine receives
+     * NETWORK_CONNECTION_EVENT while in DisconnectedState.
+     */
+    @Test
+    public void verifyWifiInfoMacUpdatedWithNetworkConnectionWhileDisconnected() throws Exception {
+        when(mWifiNative.getMacAddress(WIFI_IFACE_NAME))
+                .thenReturn(TEST_LOCAL_MAC_ADDRESS.toString());
+        disconnect();
+        assertEquals("DisconnectedState", getCurrentState().getName());
+        assertEquals(TEST_LOCAL_MAC_ADDRESS.toString(), mWsm.getWifiInfo().getMacAddress());
+
+        when(mWifiNative.getMacAddress(WIFI_IFACE_NAME))
+                .thenReturn(TEST_GLOBAL_MAC_ADDRESS.toString());
+        mWsm.sendMessage(WifiMonitor.NETWORK_CONNECTION_EVENT, 0, 0, sBSSID);
+        mLooper.dispatchAll();
+        assertEquals(TEST_GLOBAL_MAC_ADDRESS.toString(), mWsm.getWifiInfo().getMacAddress());
+    }
 }

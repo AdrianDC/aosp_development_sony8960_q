@@ -1549,6 +1549,15 @@ public class WifiMetrics {
     }
 
     /**
+     * Increment number of times we detected a channel did not satisfy user band preference.
+     */
+    public void incrementNumSoftApUserBandPreferenceUnsatisfied() {
+        synchronized (mLock) {
+            mWifiLogProto.numSoftApUserBandPreferenceUnsatisfied++;
+        }
+    }
+
+    /**
      * Increment N-Way network selection decision histograms:
      * Counts the size of various sets of scanDetails within a scan, and increment the occurrence
      * of that size for the associated histogram. There are ten histograms generated for each
@@ -1994,6 +2003,8 @@ public class WifiMetrics {
                         + mWifiLogProto.numRadioModeChangeToSbs);
                 pw.println("mWifiLogProto.numRadioModeChangeToDbs="
                         + mWifiLogProto.numRadioModeChangeToDbs);
+                pw.println("mWifiLogProto.numSoftApUserBandPreferenceUnsatisfied="
+                        + mWifiLogProto.numSoftApUserBandPreferenceUnsatisfied);
                 pw.println("mTotalSsidsInScanHistogram:"
                         + mTotalSsidsInScanHistogram.toString());
                 pw.println("mTotalBssidsInScanHistogram:"

@@ -87,7 +87,6 @@ import android.net.wifi.WifiManager;
 import android.net.wifi.WifiScanner;
 import android.net.wifi.WifiSsid;
 import android.net.wifi.WifiWakeReasonAndCounts;
-import android.os.Handler;
 import android.os.Looper;
 import android.os.RemoteException;
 import android.os.test.TestLooper;
@@ -300,8 +299,7 @@ public class WifiVendorHalTest {
         mWifiVendorHal.initialize(mVendorHalDeathHandler);
         ArgumentCaptor<WifiVendorHal.HalDeviceManagerStatusListener> hdmCallbackCaptor =
                 ArgumentCaptor.forClass(WifiVendorHal.HalDeviceManagerStatusListener.class);
-        verify(mHalDeviceManager).registerStatusListener(hdmCallbackCaptor.capture(),
-                any(Handler.class));
+        verify(mHalDeviceManager).registerStatusListener(hdmCallbackCaptor.capture(), eq(null));
         mHalDeviceManagerStatusCallbacks = hdmCallbackCaptor.getValue();
 
     }
@@ -2261,8 +2259,6 @@ public class WifiVendorHalTest {
 
         RadioModeInfo radioModeInfo0 = new RadioModeInfo();
         radioModeInfo0.bandInfo = WifiScanner.WIFI_BAND_5_GHZ;
-        RadioModeInfo radioModeInfo1 = new RadioModeInfo();
-        radioModeInfo1.bandInfo = WifiScanner.WIFI_BAND_5_GHZ;
 
         IfaceInfo ifaceInfo0 = new IfaceInfo();
         ifaceInfo0.name = TEST_IFACE_NAME;
@@ -2273,12 +2269,9 @@ public class WifiVendorHalTest {
 
         radioModeInfo0.ifaceInfos.add(ifaceInfo0);
         radioModeInfo0.ifaceInfos.add(ifaceInfo1);
-        radioModeInfo1.ifaceInfos.add(ifaceInfo0);
-        radioModeInfo1.ifaceInfos.add(ifaceInfo1);
 
         ArrayList<RadioModeInfo> radioModeInfos = new ArrayList<>();
         radioModeInfos.add(radioModeInfo0);
-        radioModeInfos.add(radioModeInfo1);
 
         mIWifiChipEventCallbackV12.onRadioModeChange(radioModeInfos);
         verify(mVendorHalRadioModeChangeHandler).onScc(WifiScanner.WIFI_BAND_5_GHZ);
@@ -2294,97 +2287,23 @@ public class WifiVendorHalTest {
         startHalInStaModeAndRegisterRadioModeChangeCallback();
 
         RadioModeInfo radioModeInfo0 = new RadioModeInfo();
-        radioModeInfo0.bandInfo = WifiScanner.WIFI_BAND_5_GHZ;
-        RadioModeInfo radioModeInfo1 = new RadioModeInfo();
-        radioModeInfo1.bandInfo = WifiScanner.WIFI_BAND_5_GHZ;
+        radioModeInfo0.bandInfo = WifiScanner.WIFI_BAND_BOTH;
 
         IfaceInfo ifaceInfo0 = new IfaceInfo();
         ifaceInfo0.name = TEST_IFACE_NAME;
-        ifaceInfo0.channel = 34;
+        ifaceInfo0.channel = 1;
         IfaceInfo ifaceInfo1 = new IfaceInfo();
         ifaceInfo1.name = TEST_IFACE_NAME_1;
         ifaceInfo1.channel = 36;
 
         radioModeInfo0.ifaceInfos.add(ifaceInfo0);
         radioModeInfo0.ifaceInfos.add(ifaceInfo1);
-        radioModeInfo1.ifaceInfos.add(ifaceInfo0);
-        radioModeInfo1.ifaceInfos.add(ifaceInfo1);
 
         ArrayList<RadioModeInfo> radioModeInfos = new ArrayList<>();
         radioModeInfos.add(radioModeInfo0);
-        radioModeInfos.add(radioModeInfo1);
 
         mIWifiChipEventCallbackV12.onRadioModeChange(radioModeInfos);
-        verify(mVendorHalRadioModeChangeHandler).onMcc(WifiScanner.WIFI_BAND_5_GHZ);
-
-        verifyNoMoreInteractions(mVendorHalRadioModeChangeHandler);
-    }
-
-    /**
-     * Verifies radio mode change callback error cases.
-     */
-    @Test
-    public void testRadioModeChangeCallbackErrorTimeSharingWithDifferentIfacesOnBothRadios()
-            throws Exception {
-        startHalInStaModeAndRegisterRadioModeChangeCallback();
-
-        RadioModeInfo radioModeInfo0 = new RadioModeInfo();
-        radioModeInfo0.bandInfo = WifiScanner.WIFI_BAND_5_GHZ;
-        RadioModeInfo radioModeInfo1 = new RadioModeInfo();
-        radioModeInfo1.bandInfo = WifiScanner.WIFI_BAND_5_GHZ;
-
-        IfaceInfo ifaceInfo0 = new IfaceInfo();
-        ifaceInfo0.name = TEST_IFACE_NAME;
-        ifaceInfo0.channel = 34;
-        IfaceInfo ifaceInfo1 = new IfaceInfo();
-        ifaceInfo1.name = TEST_IFACE_NAME_1;
-        ifaceInfo1.channel = 34;
-
-        radioModeInfo0.ifaceInfos.add(ifaceInfo0);
-        radioModeInfo0.ifaceInfos.add(ifaceInfo0);
-        radioModeInfo1.ifaceInfos.add(ifaceInfo1);
-        radioModeInfo1.ifaceInfos.add(ifaceInfo1);
-
-        ArrayList<RadioModeInfo> radioModeInfos = new ArrayList<>();
-        radioModeInfos.add(radioModeInfo0);
-        radioModeInfos.add(radioModeInfo1);
-
-        mIWifiChipEventCallbackV12.onRadioModeChange(radioModeInfos);
-        // Ignored....
-
-        verifyNoMoreInteractions(mVendorHalRadioModeChangeHandler);
-    }
-
-    /**
-     * Verifies radio mode change callback error cases.
-     */
-    @Test
-    public void testRadioModeChangeCallbackErrorTimeSharingWithDifferentNumberOfIfacesOnBothRadios()
-            throws Exception {
-        startHalInStaModeAndRegisterRadioModeChangeCallback();
-
-        RadioModeInfo radioModeInfo0 = new RadioModeInfo();
-        radioModeInfo0.bandInfo = WifiScanner.WIFI_BAND_5_GHZ;
-        RadioModeInfo radioModeInfo1 = new RadioModeInfo();
-        radioModeInfo1.bandInfo = WifiScanner.WIFI_BAND_5_GHZ;
-
-        IfaceInfo ifaceInfo0 = new IfaceInfo();
-        ifaceInfo0.name = TEST_IFACE_NAME;
-        ifaceInfo0.channel = 34;
-        IfaceInfo ifaceInfo1 = new IfaceInfo();
-        ifaceInfo1.name = TEST_IFACE_NAME_1;
-        ifaceInfo1.channel = 34;
-
-        radioModeInfo0.ifaceInfos.add(ifaceInfo0);
-        radioModeInfo1.ifaceInfos.add(ifaceInfo1);
-        radioModeInfo1.ifaceInfos.add(ifaceInfo1);
-
-        ArrayList<RadioModeInfo> radioModeInfos = new ArrayList<>();
-        radioModeInfos.add(radioModeInfo0);
-        radioModeInfos.add(radioModeInfo1);
-
-        mIWifiChipEventCallbackV12.onRadioModeChange(radioModeInfos);
-        // Ignored....
+        verify(mVendorHalRadioModeChangeHandler).onMcc(WifiScanner.WIFI_BAND_BOTH);
 
         verifyNoMoreInteractions(mVendorHalRadioModeChangeHandler);
     }
@@ -2408,41 +2327,6 @@ public class WifiVendorHalTest {
 
         radioModeInfo0.ifaceInfos.add(ifaceInfo0);
         radioModeInfo1.ifaceInfos.add(ifaceInfo0);
-
-        ArrayList<RadioModeInfo> radioModeInfos = new ArrayList<>();
-        radioModeInfos.add(radioModeInfo0);
-        radioModeInfos.add(radioModeInfo1);
-
-        mIWifiChipEventCallbackV12.onRadioModeChange(radioModeInfos);
-        // Ignored....
-
-        verifyNoMoreInteractions(mVendorHalRadioModeChangeHandler);
-    }
-
-    /**
-     * Verifies radio mode change callback error cases.
-     */
-    @Test
-    public void testRadioModeChangeCallbackErrorTimeSharingWithDifferentBandsOnBothRadios()
-            throws Exception {
-        startHalInStaModeAndRegisterRadioModeChangeCallback();
-
-        RadioModeInfo radioModeInfo0 = new RadioModeInfo();
-        radioModeInfo0.bandInfo = WifiScanner.WIFI_BAND_24_GHZ;
-        RadioModeInfo radioModeInfo1 = new RadioModeInfo();
-        radioModeInfo1.bandInfo = WifiScanner.WIFI_BAND_5_GHZ;
-
-        IfaceInfo ifaceInfo0 = new IfaceInfo();
-        ifaceInfo0.name = TEST_IFACE_NAME;
-        ifaceInfo0.channel = 34;
-        IfaceInfo ifaceInfo1 = new IfaceInfo();
-        ifaceInfo1.name = TEST_IFACE_NAME_1;
-        ifaceInfo1.channel = 36;
-
-        radioModeInfo0.ifaceInfos.add(ifaceInfo0);
-        radioModeInfo0.ifaceInfos.add(ifaceInfo1);
-        radioModeInfo1.ifaceInfos.add(ifaceInfo0);
-        radioModeInfo1.ifaceInfos.add(ifaceInfo1);
 
         ArrayList<RadioModeInfo> radioModeInfos = new ArrayList<>();
         radioModeInfos.add(radioModeInfo0);

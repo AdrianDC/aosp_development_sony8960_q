@@ -297,8 +297,7 @@ public class WifiVendorHal {
     public boolean initialize(WifiNative.VendorHalDeathEventHandler handler) {
         synchronized (sLock) {
             mHalDeviceManager.initialize();
-            mHalDeviceManager.registerStatusListener(mHalDeviceManagerStatusCallbacks,
-                    mHalEventHandler);
+            mHalDeviceManager.registerStatusListener(mHalDeviceManagerStatusCallbacks, null);
             mDeathEventHandler = handler;
             return true;
         }
@@ -2965,13 +2964,12 @@ public class WifiVendorHal {
                 mLog.e("Unexpected number of radio info in list " + radioModeInfoList.size());
                 return;
             }
-            // Not concurrency scenario, uninteresting...
-            if (radioModeInfoList.size() == 1) return;
-
             RadioModeInfo radioModeInfo0 = radioModeInfoList.get(0);
-            RadioModeInfo radioModeInfo1 = radioModeInfoList.get(1);
+            RadioModeInfo radioModeInfo1 =
+                    radioModeInfoList.size() == 2 ? radioModeInfoList.get(1) : null;
             // Number of ifaces on each radio should be equal.
-            if (radioModeInfo0.ifaceInfos.size() != radioModeInfo1.ifaceInfos.size()) {
+            if (radioModeInfo1 != null
+                    && radioModeInfo0.ifaceInfos.size() != radioModeInfo1.ifaceInfos.size()) {
                 mLog.e("Unexpected number of iface info in list "
                         + radioModeInfo0.ifaceInfos.size() + ", "
                         + radioModeInfo1.ifaceInfos.size());
@@ -2984,7 +2982,7 @@ public class WifiVendorHal {
                 return;
             }
             // 2 ifaces simultaneous on 2 radios.
-            if (numIfacesOnEachRadio == 1) {
+            if (radioModeInfoList.size() == 2 && numIfacesOnEachRadio == 1) {
                 // Iface on radio0 should be different from the iface on radio1 for DBS & SBS.
                 if (areSameIfaceNames(radioModeInfo0.ifaceInfos, radioModeInfo1.ifaceInfos)) {
                     mLog.e("Unexpected for both radio infos to have same iface");
@@ -2995,18 +2993,8 @@ public class WifiVendorHal {
                 } else {
                     handler.onSbs(radioModeInfo0.bandInfo);
                 }
-            // 2 ifaces time sharing on 2 radios.
-            } else {
-                // Ifaces on radio0 & radio1 should be the same for MCC & SCC.
-                if (!areSameIfaces(radioModeInfo0.ifaceInfos, radioModeInfo1.ifaceInfos)) {
-                    mLog.e("Unexpected for both radio infos to have different ifaces");
-                    return;
-                }
-                // Both radio0 & radio1 should now be in the same band (could be 5G or 2G).
-                if (radioModeInfo0.bandInfo != radioModeInfo1.bandInfo) {
-                    mLog.e("Unexpected for both radio infos to have different band");
-                    return;
-                }
+            // 2 ifaces time sharing on 1 radio.
+            } else if (radioModeInfoList.size() == 1 && numIfacesOnEachRadio == 2) {
                 IfaceInfo ifaceInfo0 = radioModeInfo0.ifaceInfos.get(0);
                 IfaceInfo ifaceInfo1 = radioModeInfo0.ifaceInfos.get(1);
                 if (ifaceInfo0.channel != ifaceInfo1.channel) {
@@ -3014,6 +3002,8 @@ public class WifiVendorHal {
                 } else {
                     handler.onScc(radioModeInfo0.bandInfo);
                 }
+            } else {
+                // Not concurrency scenario, uninteresting...
             }
         }
     }
