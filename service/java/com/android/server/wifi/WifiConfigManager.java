@@ -119,10 +119,11 @@ public class WifiConfigManager {
             5,  //  threshold for DISABLED_AUTHENTICATION_FAILURE
             5,  //  threshold for DISABLED_DHCP_FAILURE
             5,  //  threshold for DISABLED_DNS_FAILURE
+            1,  //  threshold for DISABLED_NO_INTERNET_TEMPORARY
             1,  //  threshold for DISABLED_WPS_START
             6,  //  threshold for DISABLED_TLS_VERSION_MISMATCH
             1,  //  threshold for DISABLED_AUTHENTICATION_NO_CREDENTIALS
-            1,  //  threshold for DISABLED_NO_INTERNET
+            1,  //  threshold for DISABLED_NO_INTERNET_PERMANENT
             1,  //  threshold for DISABLED_BY_WIFI_MANAGER
             1,  //  threshold for DISABLED_BY_USER_SWITCH
             1   //  threshold for DISABLED_BY_WRONG_PASSWORD
@@ -141,10 +142,11 @@ public class WifiConfigManager {
             5 * 60 * 1000,      // threshold for DISABLED_AUTHENTICATION_FAILURE
             5 * 60 * 1000,      // threshold for DISABLED_DHCP_FAILURE
             5 * 60 * 1000,      // threshold for DISABLED_DNS_FAILURE
+            10 * 60 * 1000,     // threshold for DISABLED_NO_INTERNET_TEMPORARY
             0 * 60 * 1000,      // threshold for DISABLED_WPS_START
             Integer.MAX_VALUE,  // threshold for DISABLED_TLS_VERSION
             Integer.MAX_VALUE,  // threshold for DISABLED_AUTHENTICATION_NO_CREDENTIALS
-            Integer.MAX_VALUE,  // threshold for DISABLED_NO_INTERNET
+            Integer.MAX_VALUE,  // threshold for DISABLED_NO_INTERNET_PERMANENT
             Integer.MAX_VALUE,  // threshold for DISABLED_BY_WIFI_MANAGER
             Integer.MAX_VALUE,  // threshold for DISABLED_BY_USER_SWITCH
             Integer.MAX_VALUE   // threshold for DISABLED_BY_WRONG_PASSWORD

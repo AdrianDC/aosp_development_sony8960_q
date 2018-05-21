@@ -5292,10 +5292,20 @@ public class WifiStateMachine extends StateMachine {
                                         config.networkId, false);
                                 mWifiConfigManager.updateNetworkSelectionStatus(config.networkId,
                                         WifiConfiguration.NetworkSelectionStatus
-                                        .DISABLED_NO_INTERNET);
+                                        .DISABLED_NO_INTERNET_PERMANENT);
+                            } else {
+                                mWifiConfigManager.incrementNetworkNoInternetAccessReports(
+                                        config.networkId);
+                                // If this was not the last selected network, update network
+                                // selection status to temporarily disable the network.
+                                if (mWifiConfigManager.getLastSelectedNetwork() != config.networkId
+                                        && !config.noInternetAccessExpected) {
+                                    mWifiConfigManager.updateNetworkSelectionStatus(
+                                            config.networkId,
+                                            WifiConfiguration.NetworkSelectionStatus
+                                                    .DISABLED_NO_INTERNET_TEMPORARY);
+                                }
                             }
-                            mWifiConfigManager.incrementNetworkNoInternetAccessReports(
-                                    config.networkId);
                         }
                     }
                     return HANDLED;
