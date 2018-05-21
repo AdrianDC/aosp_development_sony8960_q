@@ -102,18 +102,6 @@ public class ScoringParamsTest {
     }
 
     /**
-     * Test hexDigest
-     */
-    @Test
-    public void testHexDigest() throws Exception {
-        mScoringParams = new ScoringParams();
-        //hint: printf %s "$EXPECTED_DEFAULTS" | openssl dgst -hex -sha256
-        String expect = "BC3DB98DD8DD16C251FE9A0592444106B8FB09026D66558242196C7E81D1FAC2";
-        String actual = mScoringParams.hexDigest();
-        assertEquals(expect, actual);
-    }
-
-    /**
      * Test complete update
      */
     @Test
@@ -213,19 +201,14 @@ public class ScoringParamsTest {
     }
 
     /**
-     * Test that expid is hooked up, including effect on digest
+     * Test that expid is hooked up
      */
     @Test
     public void testExperimentIdentifier() throws Exception {
         mScoringParams = new ScoringParams();
-        String digestBefore = mScoringParams.hexDigest();
         assertEquals(0, mScoringParams.getExperimentIdentifier());
         assertTrue(mScoringParams.update("expid=99"));
         assertEquals(99, mScoringParams.getExperimentIdentifier());
-        String digestAfter = mScoringParams.hexDigest();
-        assertTrue(!digestBefore.equals(digestAfter));
-        assertTrue(mScoringParams.update("expid=0"));
-        assertEquals(digestBefore, mScoringParams.hexDigest());
     }
 
     /**

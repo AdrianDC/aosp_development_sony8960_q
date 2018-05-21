@@ -27,11 +27,6 @@ import android.util.Log;
 
 import com.android.internal.R;
 
-import libcore.util.HexEncoding;
-
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-
 /**
  * Holds parameters used for scoring networks.
  *
@@ -390,18 +385,5 @@ public class ScoringParams {
     @Override
     public String toString() {
         return mVal.toString();
-    }
-
-    /**
-     * Calculates the SHA-256 digest of the scoring params, encoded in hex.
-     */
-    public String hexDigest() {
-        String digest = null;
-        try {
-            MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
-            messageDigest.update(mVal.toString().getBytes());
-            digest = HexEncoding.encodeToString(messageDigest.digest());
-        } catch (NoSuchAlgorithmException e) { }
-        return digest;
     }
 }
