@@ -167,7 +167,7 @@ public class WifiConfigManager {
         /**
          * Invoked on saved network being permanently disabled.
          */
-        void onSavedNetworkPermanentlyDisabled(int networkId);
+        void onSavedNetworkPermanentlyDisabled(int networkId, int disableReason);
         /**
          * Invoked on saved network being removed.
          */
@@ -175,7 +175,7 @@ public class WifiConfigManager {
         /**
          * Invoked on saved network being temporarily disabled.
          */
-        void onSavedNetworkTemporarilyDisabled(int networkId);
+        void onSavedNetworkTemporarilyDisabled(int networkId, int disableReason);
         /**
          * Invoked on saved network being updated.
          */
@@ -1303,7 +1303,9 @@ public class WifiConfigManager {
         // Only need a valid time filled in for temporarily disabled networks.
         status.setDisableTime(mClock.getElapsedSinceBootMillis());
         status.setNetworkSelectionDisableReason(disableReason);
-        if (mListener != null) mListener.onSavedNetworkTemporarilyDisabled(config.networkId);
+        if (mListener != null) {
+            mListener.onSavedNetworkTemporarilyDisabled(config.networkId, disableReason);
+        }
     }
 
     /**
@@ -1317,7 +1319,9 @@ public class WifiConfigManager {
         status.setDisableTime(
                 NetworkSelectionStatus.INVALID_NETWORK_SELECTION_DISABLE_TIMESTAMP);
         status.setNetworkSelectionDisableReason(disableReason);
-        if (mListener != null) mListener.onSavedNetworkPermanentlyDisabled(config.networkId);
+        if (mListener != null) {
+            mListener.onSavedNetworkPermanentlyDisabled(config.networkId, disableReason);
+        }
     }
 
     /**

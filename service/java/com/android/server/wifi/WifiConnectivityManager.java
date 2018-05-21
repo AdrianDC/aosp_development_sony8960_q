@@ -16,6 +16,8 @@
 
 package com.android.server.wifi;
 
+import static android.net.wifi.WifiConfiguration.NetworkSelectionStatus.DISABLED_NO_INTERNET_TEMPORARY;
+
 import static com.android.server.wifi.WifiStateMachine.WIFI_WORK_SOURCE;
 
 import android.app.AlarmManager;
@@ -37,7 +39,6 @@ import android.util.Log;
 
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.util.ArrayUtils;
 import com.android.server.wifi.hotspot2.PasspointNetworkEvaluator;
 import com.android.server.wifi.util.ScanResultUtil;
 
@@ -545,11 +546,12 @@ public class WifiConnectivityManager {
             updatePnoScan();
         }
         @Override
-        public void onSavedNetworkTemporarilyDisabled(int networkId) {
+        public void onSavedNetworkTemporarilyDisabled(int networkId, int disableReason) {
+            if (disableReason == DISABLED_NO_INTERNET_TEMPORARY) return;
             mConnectivityHelper.removeNetworkIfCurrent(networkId);
         }
         @Override
-        public void onSavedNetworkPermanentlyDisabled(int networkId) {
+        public void onSavedNetworkPermanentlyDisabled(int networkId, int disableReason) {
             mConnectivityHelper.removeNetworkIfCurrent(networkId);
             updatePnoScan();
         }
