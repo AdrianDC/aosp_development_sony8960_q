@@ -41,8 +41,8 @@ public class PrimaryUserAdminHelper extends AndroidTestCase {
         ComponentName cn = PrimaryUserDeviceAdmin.ADMIN_RECEIVER_COMPONENT;
         if (mDpm.isAdminActive(cn)) {
             mDpm.removeActiveAdmin(cn);
-            // Wait until device admin is not active (with 2 minutes timeout).
-            for (int i = 0; i < 2 * 60 && mDpm.isAdminActive(cn); i++) {
+            // Wait until device admin is not active (with 5 minutes timeout).
+            for (int i = 0; i < 5 * 60 && mDpm.isAdminActive(cn); i++) {
                 Thread.sleep(1000);  // 1 second.
             }
         }
