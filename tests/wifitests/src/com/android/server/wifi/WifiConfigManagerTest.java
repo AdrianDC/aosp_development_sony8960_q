@@ -628,12 +628,42 @@ public class WifiConfigManagerTest {
         for (int i = 1; i <= assocRejectThreshold; i++) {
             verifyUpdateNetworkSelectionStatus(result.getNetworkId(), assocRejectReason, i);
         }
-        verify(mWcmListener).onSavedNetworkTemporarilyDisabled(networkId);
+        verify(mWcmListener).onSavedNetworkTemporarilyDisabled(
+                networkId, NetworkSelectionStatus.DISABLED_ASSOCIATION_REJECTION);
 
         // Now set it to permanently disabled.
         verifyUpdateNetworkSelectionStatus(
                 result.getNetworkId(), NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER, 0);
-        verify(mWcmListener).onSavedNetworkPermanentlyDisabled(networkId);
+        verify(mWcmListener).onSavedNetworkPermanentlyDisabled(
+                networkId, NetworkSelectionStatus.DISABLED_BY_WIFI_MANAGER);
+
+        // Now set it back to enabled.
+        verifyUpdateNetworkSelectionStatus(
+                result.getNetworkId(), NetworkSelectionStatus.NETWORK_SELECTION_ENABLE, 0);
+        verify(mWcmListener, times(2)).onSavedNetworkEnabled(networkId);
+    }
+
+    /**
+     * Verifies the update of network status using
+     * {@link WifiConfigManager#updateNetworkSelectionStatus(int, int)}.
+     */
+    @Test
+    public void testNetworkSelectionStatusTemporarilyDisabledDueToNoInternet() {
+        WifiConfiguration openNetwork = WifiConfigurationTestUtil.createOpenNetwork();
+
+        NetworkUpdateResult result = verifyAddNetworkToWifiConfigManager(openNetwork);
+
+        int networkId = result.getNetworkId();
+        // First set it to enabled.
+        verifyUpdateNetworkSelectionStatus(
+                networkId, NetworkSelectionStatus.NETWORK_SELECTION_ENABLE, 0);
+
+        // Now set it to temporarily disabled. The threshold for no internet is 1, so
+        // disable it once to actually mark it temporarily disabled.
+        verifyUpdateNetworkSelectionStatus(
+                result.getNetworkId(), NetworkSelectionStatus.DISABLED_NO_INTERNET_TEMPORARY, 1);
+        verify(mWcmListener).onSavedNetworkTemporarilyDisabled(
+                networkId, NetworkSelectionStatus.DISABLED_NO_INTERNET_TEMPORARY);
 
         // Now set it back to enabled.
         verifyUpdateNetworkSelectionStatus(
