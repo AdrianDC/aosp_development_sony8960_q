@@ -230,6 +230,7 @@ public class WifiInjector {
         mConnectivityLocalLog = new LocalLog(ActivityManager.isLowRamDeviceStatic() ? 256 : 512);
         mScoringParams = new ScoringParams(mContext, mFrameworkFacade,
                 new Handler(wifiStateMachineLooper));
+        mWifiMetrics.setScoringParams(mScoringParams);
         mWifiNetworkSelector = new WifiNetworkSelector(mContext, mScoringParams,
                 mWifiConfigManager, mClock,
                 mConnectivityLocalLog);
