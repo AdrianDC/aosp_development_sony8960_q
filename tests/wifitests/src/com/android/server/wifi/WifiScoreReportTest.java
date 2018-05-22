@@ -25,6 +25,7 @@ import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -157,6 +158,20 @@ public class WifiScoreReportTest {
         mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mWifiMetrics);
         verify(mNetworkAgent).sendNetworkScore(anyInt());
         verify(mWifiMetrics).incrementWifiScoreCount(anyInt());
+    }
+
+    /**
+     * Test for no score report if rssi is invalid
+     *
+     * The score should be sent to neither the NetworkAgent nor the
+     * WifiMetrics
+     */
+    @Test
+    public void calculateAndReportScoreDoesNotReportWhenRssiIsNotValid() throws Exception {
+        mWifiInfo.setRssi(WifiInfo.INVALID_RSSI);
+        mWifiScoreReport.calculateAndReportScore(mWifiInfo, mNetworkAgent, mWifiMetrics);
+        verify(mNetworkAgent, never()).sendNetworkScore(anyInt());
+        verify(mWifiMetrics, never()).incrementWifiScoreCount(anyInt());
     }
 
     /**

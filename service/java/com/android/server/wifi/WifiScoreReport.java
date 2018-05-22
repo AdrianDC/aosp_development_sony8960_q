@@ -89,6 +89,10 @@ public class WifiScoreReport {
      */
     public void calculateAndReportScore(WifiInfo wifiInfo, NetworkAgent networkAgent,
                                         WifiMetrics wifiMetrics) {
+        if (wifiInfo.getRssi() == WifiInfo.INVALID_RSSI) {
+            Log.d(TAG, "Not reporting score because RSSI is invalid");
+            return;
+        }
         int score;
 
         long millis = mClock.getWallClockMillis();
