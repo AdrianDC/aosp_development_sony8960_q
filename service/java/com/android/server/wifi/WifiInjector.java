@@ -20,6 +20,7 @@ import android.annotation.NonNull;
 import android.app.ActivityManager;
 import android.app.AppOpsManager;
 import android.content.Context;
+import android.hardware.SystemSensorManager;
 import android.net.NetworkKey;
 import android.net.NetworkScoreManager;
 import android.net.wifi.IWifiScanner;
@@ -253,7 +254,7 @@ public class WifiInjector {
                 this, mWifiConfigManager,
                 mWifiPermissionsUtil, mWifiMetrics, mClock);
         mSarManager = new SarManager(mContext, makeTelephonyManager(), wifiStateMachineLooper,
-                mWifiNative);
+                mWifiNative, new SystemSensorManager(mContext, wifiStateMachineLooper));
         if (mUseRealLogger) {
             mWifiDiagnostics = new WifiDiagnostics(
                     mContext, this, mWifiNative, mBuildProperties,
