@@ -53,6 +53,8 @@ public class ClientModeManager implements ActiveModeManager {
     private String mClientInterfaceName;
     private boolean mIfaceIsUp = false;
 
+    private boolean mExpectedStop = false;
+
     ClientModeManager(Context context, @NonNull Looper looper, WifiNative wifiNative,
             Listener listener, WifiMetrics wifiMetrics, ScanRequestProxy scanRequestProxy,
             WifiStateMachine wifiStateMachine) {
@@ -77,6 +79,7 @@ public class ClientModeManager implements ActiveModeManager {
      */
     public void stop() {
         Log.d(TAG, " currentstate: " + getCurrentStateName());
+        mExpectedStop = true;
         if (mClientInterfaceName != null) {
             if (mIfaceIsUp) {
                 updateWifiState(WifiManager.WIFI_STATE_DISABLING,
@@ -127,7 +130,19 @@ public class ClientModeManager implements ActiveModeManager {
      * @param currentState current wifi state
      */
     private void updateWifiState(int newState, int currentState) {
-        mListener.onStateChanged(newState);
+        if (!mExpectedStop) {
+            mListener.onStateChanged(newState);
+        } else {
+            Log.d(TAG, "expected stop, not triggering callbacks: newState = " + newState);
+        }
+
+        // Once we report the mode has stopped/failed any other stop signals are redundant
+        // note: this can happen in failure modes where we get multiple callbacks as underlying
+        // components/interface stops or the underlying interface is destroyed in cleanup
+        if (newState == WifiManager.WIFI_STATE_UNKNOWN
+                || newState == WifiManager.WIFI_STATE_DISABLED) {
+            mExpectedStop = true;
+        }
 
         if (newState == WifiManager.WIFI_STATE_UNKNOWN) {
             // do not need to broadcast failure to system
@@ -314,6 +329,9 @@ public class ClientModeManager implements ActiveModeManager {
 
                 updateWifiState(WifiManager.WIFI_STATE_DISABLED,
                                 WifiManager.WIFI_STATE_DISABLING);
+
+                // once we leave started, nothing else to do...  stop the state machine
+                mStateMachine.quitNow();
             }
         }
 
