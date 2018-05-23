@@ -72,6 +72,7 @@ public class WifiMetricsTest {
     WifiMetricsProto.WifiLog mDecodedProto;
     TestLooper mTestLooper;
     @Mock Clock mClock;
+    @Mock ScoringParams mScoringParams;
     @Mock WifiConfigManager mWcm;
     @Mock PasspointManager mPpm;
     @Mock WifiNetworkSelector mWns;
@@ -86,6 +87,7 @@ public class WifiMetricsTest {
                 new WifiAwareMetrics(mClock), new RttMetrics(mClock));
         mWifiMetrics.setWifiConfigManager(mWcm);
         mWifiMetrics.setPasspointManager(mPpm);
+        mWifiMetrics.setScoringParams(mScoringParams);
         mWifiMetrics.setWifiNetworkSelector(mWns);
     }
 
@@ -1735,6 +1737,30 @@ public class WifiMetricsTest {
         assertEquals(IS_WIFI_NETWORKS_AVAILABLE_NOTIFICATION_ON,
                 mDecodedProto.isWifiNetworksAvailableNotificationOn);
         assertEquals(0, mDecodedProto.numOpenNetworkRecommendationUpdates);
+    }
+
+    /**
+     * Check ScoringParams
+     */
+    @Test
+    public void testExperimentId() throws Exception {
+        final int id = 42;
+        final String expectId = "x" + id;
+        when(mScoringParams.getExperimentIdentifier()).thenReturn(id);
+        dumpProtoAndDeserialize();
+        assertEquals(expectId, mDecodedProto.scoreExperimentId);
+    }
+
+    /**
+     * Check ScoringParams default case
+     */
+    @Test
+    public void testDefaultExperimentId() throws Exception {
+        final int id = 0;
+        final String expectId = "";
+        when(mScoringParams.getExperimentIdentifier()).thenReturn(id);
+        dumpProtoAndDeserialize();
+        assertEquals(expectId, mDecodedProto.scoreExperimentId);
     }
 
     /** short hand for instantiating an anonymous int array, instead of 'new int[]{a1, a2, ...}' */
