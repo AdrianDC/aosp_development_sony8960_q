@@ -232,6 +232,7 @@ public class WifiMetricsTest {
     private static final int NUM_LAST_RESORT_WATCHDOG_TRIGGERS_WITH_BAD_OTHER = 10;
     private static final int NUM_LAST_RESORT_WATCHDOG_SUCCESSES = 5;
     private static final int WATCHDOG_TOTAL_CONNECTION_FAILURE_COUNT_AFTER_TRIGGER = 6;
+    private static final int RSSI_POLL_FREQUENCY = 5150;
     private static final int NUM_RSSI_LEVELS_TO_INCREMENT = 20;
     private static final int FIRST_RSSI_LEVEL = -80;
     private static final int NUM_OPEN_NETWORK_SCAN_RESULTS = 1;
@@ -490,15 +491,16 @@ public class WifiMetricsTest {
         }
         for (int i = 0; i < NUM_RSSI_LEVELS_TO_INCREMENT; i++) {
             for (int j = 0; j <= i; j++) {
-                mWifiMetrics.incrementRssiPollRssiCount(MIN_RSSI_LEVEL + i);
+                mWifiMetrics.incrementRssiPollRssiCount(RSSI_POLL_FREQUENCY, MIN_RSSI_LEVEL + i);
             }
         }
         for (int i = 1; i < NUM_OUT_OF_BOUND_ENTRIES; i++) {
-            mWifiMetrics.incrementRssiPollRssiCount(MIN_RSSI_LEVEL - i);
+            mWifiMetrics.incrementRssiPollRssiCount(RSSI_POLL_FREQUENCY, MIN_RSSI_LEVEL - i);
         }
         for (int i = 1; i < NUM_OUT_OF_BOUND_ENTRIES; i++) {
-            mWifiMetrics.incrementRssiPollRssiCount(MAX_RSSI_LEVEL + i);
+            mWifiMetrics.incrementRssiPollRssiCount(RSSI_POLL_FREQUENCY, MAX_RSSI_LEVEL + i);
         }
+
         // Test alert-reason clamping.
         mWifiMetrics.incrementAlertReasonCount(WifiLoggerHal.WIFI_ALERT_REASON_MIN - 1);
         mWifiMetrics.incrementAlertReasonCount(WifiLoggerHal.WIFI_ALERT_REASON_MAX + 1);
@@ -813,6 +815,8 @@ public class WifiMetricsTest {
         assertEquals(TEST_RECORD_DURATION_SEC,
                 mDecodedProto.recordDurationSec);
         for (int i = 0; i < NUM_RSSI_LEVELS_TO_INCREMENT; i++) {
+            assertEquals(RSSI_POLL_FREQUENCY,
+                    mDecodedProto.rssiPollRssiCount[i].frequency);
             assertEquals(MIN_RSSI_LEVEL + i, mDecodedProto.rssiPollRssiCount[i].rssi);
             assertEquals(i + 1, mDecodedProto.rssiPollRssiCount[i].count);
         }
@@ -1817,7 +1821,7 @@ public class WifiMetricsTest {
         if (!dontDeserializeBeforePoll) {
             dumpProtoAndDeserialize();
         }
-        mWifiMetrics.incrementRssiPollRssiCount(scanRssi + rssiDelta);
+        mWifiMetrics.incrementRssiPollRssiCount(RSSI_POLL_FREQUENCY, scanRssi + rssiDelta);
     }
 
     /**
