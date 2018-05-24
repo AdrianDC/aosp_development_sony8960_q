@@ -543,10 +543,14 @@ public class WifiVendorHal {
 
     private boolean retrieveWifiChip(IWifiIface iface) {
         synchronized (sLock) {
+            boolean registrationNeeded = mIWifiChip == null;
             mIWifiChip = mHalDeviceManager.getChip(iface);
             if (mIWifiChip == null) {
                 mLog.err("Failed to get the chip created for the Iface").flush();
                 return false;
+            }
+            if (!registrationNeeded) {
+                return true;
             }
             if (!registerChipCallback()) {
                 mLog.err("Failed to register chip callback").flush();
