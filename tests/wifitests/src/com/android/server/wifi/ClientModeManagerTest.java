@@ -158,7 +158,7 @@ public class ClientModeManagerTest {
         assertEquals(2, intents.size());
         checkWifiStateChangedBroadcast(intents.get(0), WIFI_STATE_DISABLING, WIFI_STATE_UNKNOWN);
         checkWifiStateChangedBroadcast(intents.get(1), WIFI_STATE_DISABLED, WIFI_STATE_DISABLING);
-        checkWifiStateChangeListenerUpdate(WIFI_STATE_DISABLED);
+        checkWifiStateChangeListenerUpdate(WIFI_STATE_UNKNOWN);
     }
 
     /**
@@ -227,11 +227,14 @@ public class ClientModeManagerTest {
     @Test
     public void clientModeStopCleansUpState() throws Exception {
         startClientModeAndVerifyEnabled();
-        reset(mContext);
+        reset(mContext, mListener);
         mClientModeManager.stop();
         mLooper.dispatchAll();
 
         verifyNotificationsForCleanShutdown(WIFI_STATE_ENABLED);
+
+        // on an explicit stop, we should not trigger the callback
+        verifyNoMoreInteractions(mListener);
     }
 
     /**
@@ -308,11 +311,6 @@ public class ClientModeManagerTest {
 
         mClientModeManager.stop();
         mLooper.dispatchAll();
-
-        verify(mListener).onStateChanged(WIFI_STATE_DISABLING);
-        verify(mListener).onStateChanged(WIFI_STATE_DISABLED);
-
-        reset(mListener);
 
         // now trigger interface destroyed and make sure callback doesn't get called
         mInterfaceCallbackCaptor.getValue().onDestroyed(TEST_INTERFACE_NAME);
