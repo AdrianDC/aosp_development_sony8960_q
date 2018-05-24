@@ -514,6 +514,7 @@ public class SoftApManager implements ActiveModeManager {
                         WifiManager.WIFI_AP_STATE_DISABLING, 0);
                 mApInterfaceName = null;
                 mIfaceIsUp = false;
+                mStateMachine.quitNow();
             }
 
             @Override
