@@ -94,6 +94,7 @@ import android.os.test.TestLooper;
 import android.support.test.filters.SmallTest;
 
 import com.android.internal.os.PowerProfile;
+import com.android.internal.telephony.TelephonyIntents;
 import com.android.internal.util.AsyncChannel;
 import com.android.server.wifi.WifiServiceImpl.LocalOnlyRequestorCallback;
 import com.android.server.wifi.hotspot2.PasspointProvisioningTestUtil;
@@ -2767,5 +2768,23 @@ public class WifiServiceImplTest {
         apConfig.apBand = WifiConfiguration.AP_BAND_2GHZ;
 
         return apConfig;
+    }
+
+    /**
+     * Verifies that sim state change does not set or reset the country code
+     */
+    @Test
+    public void testSimStateChangeDoesNotResetCountryCode() {
+        mWifiServiceImpl.checkAndStartWifi();
+        verify(mContext).registerReceiver(mBroadcastReceiverCaptor.capture(),
+                (IntentFilter) argThat((IntentFilter filter) ->
+                        filter.hasAction(TelephonyIntents.ACTION_SIM_STATE_CHANGED)));
+
+        int userHandle = TEST_USER_HANDLE;
+        // Send the broadcast
+        Intent intent = new Intent(TelephonyIntents.ACTION_SIM_STATE_CHANGED);
+        intent.putExtra(Intent.EXTRA_USER_HANDLE, userHandle);
+        mBroadcastReceiverCaptor.getValue().onReceive(mContext, intent);
+        verifyNoMoreInteractions(mWifiCountryCode);
     }
 }
