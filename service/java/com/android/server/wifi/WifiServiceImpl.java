@@ -2182,12 +2182,30 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
     @Override
     public boolean isDualBandSupported() {
-        //TODO: Should move towards adding a driver API that checks at runtime
+        //TODO (b/80552904): Should move towards adding a driver API that checks at runtime
         if (mVerboseLoggingEnabled) {
             mLog.info("isDualBandSupported uid=%").c(Binder.getCallingUid()).flush();
         }
+
         return mContext.getResources().getBoolean(
                 com.android.internal.R.bool.config_wifi_dual_band_support);
+    }
+
+    /**
+     * Method allowing callers with NETWORK_SETTINGS permission to check if this is a dual mode
+     * capable device (STA+AP).
+     *
+     * @return true if a dual mode capable device
+     */
+    @Override
+    public boolean needs5GHzToAnyApBandConversion() {
+        enforceNetworkSettingsPermission();
+
+        if (mVerboseLoggingEnabled) {
+            mLog.info("needs5GHzToAnyApBandConversion uid=%").c(Binder.getCallingUid()).flush();
+        }
+        return mContext.getResources().getBoolean(
+                com.android.internal.R.bool.config_wifi_convert_apband_5ghz_to_any);
     }
 
     /**
@@ -2209,7 +2227,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
 
         if (dhcpResults.ipAddress != null &&
                 dhcpResults.ipAddress.getAddress() instanceof Inet4Address) {
-            info.ipAddress = NetworkUtils.inetAddressToInt((Inet4Address) dhcpResults.ipAddress.getAddress());
+            info.ipAddress = NetworkUtils.inetAddressToInt(
+                    (Inet4Address) dhcpResults.ipAddress.getAddress());
         }
 
         if (dhcpResults.gateway != null) {
