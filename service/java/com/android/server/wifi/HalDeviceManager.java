@@ -204,6 +204,16 @@ public class HalDeviceManager {
         return getSupportedIfaceTypesInternal(chip);
     }
 
+    /**
+     * Checks whether the device (the combination of all Wi-Fi chips on the device) supports a
+     * concurrent combination of 1 or more STAs and 1 or more APs.
+     *
+     * @return true if STA+AP concurrency is supported, false otherwise.
+     */
+    public boolean isConcurrentStaPlusApSupported() {
+        return isConcurrentStaPlusApSupportedInternal();
+    }
+
     // interface-specific behavior
 
     /**
@@ -1311,6 +1321,49 @@ public class HalDeviceManager {
         }
 
         return results;
+    }
+
+    private boolean isConcurrentStaPlusApSupportedInternal() {
+        if (mDbg) Log.d(TAG, "isConcurrentStaPlusApSupportedInternal");
+
+        synchronized (mLock) {
+            WifiChipInfo[] chipInfos = getAllChipInfo();
+            if (chipInfos == null) {
+                Log.e(TAG, "isConcurrentStaPlusApSupportedInternal: no chip info found");
+                stopWifi(); // major error: shutting down
+                return false;
+            }
+
+            if (!validateInterfaceCache(chipInfos)) {
+                Log.e(TAG, "isConcurrentStaPlusApSupportedInternal: local cache is invalid!");
+                stopWifi(); // major error: shutting down
+                return false;
+            }
+
+            // check whether any chip individually supports AP+STA
+            // TODO b/80270202: this does not fully handle multi-chip behavior
+            for (WifiChipInfo chipInfo : chipInfos) {
+                for (IWifiChip.ChipMode chipMode : chipInfo.availableModes) {
+                    for (IWifiChip.ChipIfaceCombination chipIfaceCombo : chipMode
+                            .availableCombinations) {
+                        int[][] expandedIfaceCombos = expandIfaceCombos(chipIfaceCombo);
+                        if (VDBG) {
+                            Log.d(TAG, chipIfaceCombo + " expands to " + Arrays.deepToString(
+                                    expandedIfaceCombos));
+                        }
+
+                        for (int[] expandedIfaceCombo : expandedIfaceCombos) {
+                            if (expandedIfaceCombo[IfaceType.STA] > 0
+                                    && expandedIfaceCombo[IfaceType.AP] > 0) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     private IWifiIface createIface(int ifaceType, boolean lowPriority,
