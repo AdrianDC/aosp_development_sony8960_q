@@ -687,6 +687,22 @@ public class HalDeviceManagerTest {
     //////////////////////////////////////////////////////////////////////////////////////
 
     /**
+     * Validate STA+AP concurrency derivation from chip configuration.
+     */
+    @Test
+    public void testIsConcurrentStaPlusApSupportedChipV1() throws Exception {
+        TestChipV1 chipMock = new TestChipV1();
+        chipMock.initialize();
+        mInOrder = inOrder(mServiceManagerMock, mWifiMock, chipMock.chip,
+                mManagerStatusListenerMock);
+        executeAndValidateInitializationSequence();
+        executeAndValidateStartupSequence();
+
+        assertFalse("STA+AP concurrency should be FALSE for TestChipV1",
+                mDut.isConcurrentStaPlusApSupported());
+    }
+
+    /**
      * Validate creation of AP interface when in STA mode - but with no interface created. Expect
      * a change in chip mode.
      */
@@ -1189,6 +1205,22 @@ public class HalDeviceManagerTest {
     //////////////////////////////////////////////////////////////////////////////////////
 
     /**
+     * Validate STA+AP concurrency derivation from chip configuration.
+     */
+    @Test
+    public void testIsConcurrentStaPlusApSupportedChipV2() throws Exception {
+        TestChipV2 chipMock = new TestChipV2();
+        chipMock.initialize();
+        mInOrder = inOrder(mServiceManagerMock, mWifiMock, chipMock.chip,
+                mManagerStatusListenerMock);
+        executeAndValidateInitializationSequence();
+        executeAndValidateStartupSequence();
+
+        assertTrue("STA+AP concurrency should be TRUE for TestChipV2",
+                mDut.isConcurrentStaPlusApSupported());
+    }
+
+    /**
      * Validate a flow sequence for test chip 2:
      * - create STA
      * - create P2P
@@ -1466,6 +1498,22 @@ public class HalDeviceManagerTest {
     //////////////////////////////////////////////////////////////////////////////////////
 
     /**
+     * Validate STA+AP concurrency derivation from chip configuration.
+     */
+    @Test
+    public void testIsConcurrentStaPlusApSupportedChipV3() throws Exception {
+        TestChipV3 chipMock = new TestChipV3();
+        chipMock.initialize();
+        mInOrder = inOrder(mServiceManagerMock, mWifiMock, chipMock.chip,
+                mManagerStatusListenerMock);
+        executeAndValidateInitializationSequence();
+        executeAndValidateStartupSequence();
+
+        assertTrue("STA+AP concurrency should be TRUE for TestChipV3",
+                mDut.isConcurrentStaPlusApSupported());
+    }
+
+    /**
      * Validate a flow sequence for test chip 3:
      * - create STA
      * - create P2P
@@ -1729,6 +1777,22 @@ public class HalDeviceManagerTest {
     //////////////////////////////////////////////////////////////////////////////////////
     // TestChipV4 Specific Tests
     //////////////////////////////////////////////////////////////////////////////////////
+
+    /**
+     * Validate STA+AP concurrency derivation from chip configuration.
+     */
+    @Test
+    public void testIsConcurrentStaPlusApSupportedChipV4() throws Exception {
+        TestChipV4 chipMock = new TestChipV4();
+        chipMock.initialize();
+        mInOrder = inOrder(mServiceManagerMock, mWifiMock, chipMock.chip,
+                mManagerStatusListenerMock);
+        executeAndValidateInitializationSequence();
+        executeAndValidateStartupSequence();
+
+        assertTrue("STA+AP concurrency should be TRUE for TestChipV4",
+                mDut.isConcurrentStaPlusApSupported());
+    }
 
     /**
      * Validate a flow sequence for test chip 4:
