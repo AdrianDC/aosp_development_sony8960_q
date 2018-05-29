@@ -1749,6 +1749,12 @@ static void nfcManager_doSetScreenState(JNIEnv* e, jobject o,
       << StringPrintf("%s: state = %d prevScreenState= %d, discovry_param = %d",
                       __FUNCTION__, state, prevScreenState, discovry_param);
 
+  if (prevScreenState == state) {
+    DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
+        "New screen state is same as previous state. No action taken");
+    return;
+  }
+
   if (sIsDisabling || !sIsNfaEnabled ||
       (NFC_GetNCIVersion() != NCI_VERSION_2_0))
     return;
