@@ -153,7 +153,6 @@ static void nfaDeviceManagementCallback(uint8_t event,
                                         tNFA_DM_CBACK_DATA* eventData);
 static bool isPeerToPeer(tNFA_ACTIVATED& activated);
 static bool isListenMode(tNFA_ACTIVATED& activated);
-static void enableDisableLptd(bool enable);
 static tNFA_STATUS stopPolling_rfDiscoveryDisabled();
 static tNFA_STATUS startPolling_rfDiscoveryDisabled(
     tNFA_TECHNOLOGY_MASK tech_mask);
@@ -1169,7 +1168,6 @@ static void nfcManager_enableDiscovery(JNIEnv* e, jobject o,
   // Check polling configuration
   if (tech_mask != 0) {
     stopPolling_rfDiscoveryDisabled();
-    enableDisableLptd(enable_lptd);
     startPolling_rfDiscoveryDisabled(tech_mask);
 
     // Start P2P listening if tag polling was enabled
@@ -1255,52 +1253,6 @@ void nfcManager_disableDiscovery(JNIEnv* e, jobject o) {
     PowerSwitch::getInstance().setLevel(PowerSwitch::LOW_POWER);
 TheEnd:
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: exit", __func__);
-}
-
-void enableDisableLptd(bool enable) {
-  // This method is *NOT* thread-safe. Right now
-  // it is only called from the same thread so it's
-  // not an issue.
-  static bool sCheckedLptd = false;
-  static bool sHasLptd = false;
-
-  tNFA_STATUS stat = NFA_STATUS_OK;
-  if (!sCheckedLptd) {
-    sCheckedLptd = true;
-    SyncEventGuard guard(sNfaGetConfigEvent);
-    tNFA_PMID configParam[1] = {NCI_PARAM_ID_TAGSNIFF_CFG};
-    stat = NFA_GetConfig(1, configParam);
-    if (stat != NFA_STATUS_OK) {
-      LOG(ERROR) << StringPrintf("%s: NFA_GetConfig failed", __func__);
-      return;
-    }
-    sNfaGetConfigEvent.wait();
-    if (sCurrentConfigLen < 4 || sConfig[1] != NCI_PARAM_ID_TAGSNIFF_CFG) {
-      LOG(ERROR) << StringPrintf(
-          "%s: Config TLV length %d returned is too short", __func__,
-          sCurrentConfigLen);
-      return;
-    }
-    if (sConfig[3] == 0) {
-      LOG(ERROR) << StringPrintf(
-          "%s: LPTD is disabled, not enabling in current config", __func__);
-      return;
-    }
-    sHasLptd = true;
-  }
-  // Bail if we checked and didn't find any LPTD config before
-  if (!sHasLptd) return;
-  uint8_t enable_byte = enable ? 0x01 : 0x00;
-
-  SyncEventGuard guard(sNfaSetConfigEvent);
-
-  stat = NFA_SetConfig(NCI_PARAM_ID_TAGSNIFF_CFG, 1, &enable_byte);
-  if (stat == NFA_STATUS_OK)
-    sNfaSetConfigEvent.wait();
-  else
-    LOG(ERROR) << StringPrintf("%s: Could not configure LPTD feature",
-                               __func__);
-  return;
 }
 
 /*******************************************************************************
@@ -2056,20 +2008,6 @@ bool isDiscoveryStarted() { return sRfEnabled; }
 **
 *******************************************************************************/
 void doStartupConfig() {
-  struct nfc_jni_native_data* nat = getNative(0, 0);
-  tNFA_STATUS stat = NFA_STATUS_FAILED;
-
-  // If polling for Active mode, set the ordering so that we choose Active over
-  // Passive mode first.
-  if (nat && (nat->tech_mask &
-              (NFA_TECHNOLOGY_MASK_A_ACTIVE | NFA_TECHNOLOGY_MASK_F_ACTIVE))) {
-    uint8_t act_mode_order_param[] = {0x01};
-    SyncEventGuard guard(sNfaSetConfigEvent);
-    stat = NFA_SetConfig(NCI_PARAM_ID_ACT_ORDER, sizeof(act_mode_order_param),
-                         &act_mode_order_param[0]);
-    if (stat == NFA_STATUS_OK) sNfaSetConfigEvent.wait();
-  }
-
   // configure RF polling frequency for each technology
   static tNFA_DM_DISC_FREQ_CFG nfa_dm_disc_freq_cfg;
   // values in the polling_frequency[] map to members of nfa_dm_disc_freq_cfg
