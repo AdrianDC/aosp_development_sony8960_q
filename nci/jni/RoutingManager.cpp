@@ -84,6 +84,9 @@ RoutingManager::RoutingManager() {
     }
   }
 
+  mOffHostAidRoutingPowerState =
+      NfcConfig::getUnsigned(NAME_OFFHOST_AID_ROUTE_PWR_STATE, 0x01);
+
   memset(&mEeInfo, 0, sizeof(mEeInfo));
   mReceivedEeInfo = false;
   mSeTechMask = 0x00;
@@ -359,8 +362,10 @@ bool RoutingManager::addAidRouting(const uint8_t* aid, uint8_t aidLen,
                                    int route, int aidInfo) {
   static const char fn[] = "RoutingManager::addAidRouting";
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter", fn);
+  uint8_t powerState =
+      (route == mDefaultOffHostRoute) ? mOffHostAidRoutingPowerState : 0x01;
   tNFA_STATUS nfaStat =
-      NFA_EeAddAidRouting(route, aidLen, (uint8_t*)aid, 0x01, aidInfo);
+      NFA_EeAddAidRouting(route, aidLen, (uint8_t*)aid, powerState, aidInfo);
   if (nfaStat == NFA_STATUS_OK) {
     DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: routed AID", fn);
     return true;
