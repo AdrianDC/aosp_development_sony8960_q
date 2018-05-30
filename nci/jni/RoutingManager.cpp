@@ -143,6 +143,8 @@ bool RoutingManager::initialize(nfc_jni_native_data* native) {
           (eeHandle == (mDefaultOffHostRoute | NFA_HANDLE_GROUP_EE))) {
         if (mEeInfo.ee_disc_info[i].la_protocol != 0)
           seTechMask |= NFA_TECHNOLOGY_MASK_A;
+        if (mEeInfo.ee_disc_info[i].lb_protocol != 0)
+          seTechMask |= NFA_TECHNOLOGY_MASK_B;
       }
       if ((mDefaultFelicaRoute != 0) &&
           (eeHandle == (mDefaultFelicaRoute | NFA_HANDLE_GROUP_EE))) {
