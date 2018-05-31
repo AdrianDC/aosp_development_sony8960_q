@@ -1584,20 +1584,22 @@ static bool isPeerToPeer(tNFA_ACTIVATED& activated) {
 **
 *******************************************************************************/
 static bool isListenMode(tNFA_ACTIVATED& activated) {
-  return ((NFC_DISCOVERY_TYPE_LISTEN_A ==
-           activated.activate_ntf.rf_tech_param.mode) ||
-          (NFC_DISCOVERY_TYPE_LISTEN_B ==
-           activated.activate_ntf.rf_tech_param.mode) ||
-          (NFC_DISCOVERY_TYPE_LISTEN_F ==
-           activated.activate_ntf.rf_tech_param.mode) ||
-          (NFC_DISCOVERY_TYPE_LISTEN_A_ACTIVE ==
-           activated.activate_ntf.rf_tech_param.mode) ||
-          (NFC_DISCOVERY_TYPE_LISTEN_F_ACTIVE ==
-           activated.activate_ntf.rf_tech_param.mode) ||
-          (NFC_DISCOVERY_TYPE_LISTEN_ISO15693 ==
-           activated.activate_ntf.rf_tech_param.mode) ||
-          (NFC_DISCOVERY_TYPE_LISTEN_B_PRIME ==
-           activated.activate_ntf.rf_tech_param.mode));
+  return (
+      (NFC_DISCOVERY_TYPE_LISTEN_A ==
+       activated.activate_ntf.rf_tech_param.mode) ||
+      (NFC_DISCOVERY_TYPE_LISTEN_B ==
+       activated.activate_ntf.rf_tech_param.mode) ||
+      (NFC_DISCOVERY_TYPE_LISTEN_F ==
+       activated.activate_ntf.rf_tech_param.mode) ||
+      (NFC_DISCOVERY_TYPE_LISTEN_A_ACTIVE ==
+       activated.activate_ntf.rf_tech_param.mode) ||
+      (NFC_DISCOVERY_TYPE_LISTEN_F_ACTIVE ==
+       activated.activate_ntf.rf_tech_param.mode) ||
+      (NFC_DISCOVERY_TYPE_LISTEN_ISO15693 ==
+       activated.activate_ntf.rf_tech_param.mode) ||
+      (NFC_DISCOVERY_TYPE_LISTEN_B_PRIME ==
+       activated.activate_ntf.rf_tech_param.mode) ||
+      (NFC_INTERFACE_EE_DIRECT_RF == activated.activate_ntf.intf_param.type));
 }
 
 /*******************************************************************************
@@ -1816,7 +1818,8 @@ static void nfcManager_doSetScreenState(JNIEnv* e, jobject o,
   }
   if ((state == NFA_SCREEN_STATE_OFF_LOCKED ||
        state == NFA_SCREEN_STATE_OFF_UNLOCKED) &&
-      prevScreenState == NFA_SCREEN_STATE_ON_UNLOCKED) {
+      prevScreenState == NFA_SCREEN_STATE_ON_UNLOCKED && (!sP2pActive) &&
+      (!sSeRfActive)) {
     // screen turns off, disconnect tag if connected
     nativeNfcTag_doDisconnect(NULL, NULL);
   }
