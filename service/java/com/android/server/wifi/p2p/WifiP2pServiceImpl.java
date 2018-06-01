@@ -127,6 +127,13 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
     private static final Boolean RELOAD = true;
     private static final Boolean NO_RELOAD = false;
 
+    private static final String[] RECEIVER_PERMISSIONS_FOR_BROADCAST = {
+            android.Manifest.permission.ACCESS_COARSE_LOCATION,
+            android.Manifest.permission.ACCESS_NETWORK_STATE,
+            android.Manifest.permission.ACCESS_WIFI_STATE,
+            android.Manifest.permission.CHANGE_WIFI_STATE
+    };
+
     // Two minutes comes from the wpa_supplicant setting
     private static final int GROUP_CREATING_WAIT_TIME_MS = 120 * 1000;
     private static int sGroupCreatingTimeoutIndex = 0;
@@ -1190,6 +1197,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                 mNetworkInfo.setIsAvailable(true);
                 sendP2pConnectionChangedBroadcast();
                 initializeP2pSettings();
+                refreshBroadcasts();
             }
 
             @Override
@@ -1201,7 +1209,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         transitionTo(mP2pDisabledState);
                         break;
                     case ENABLE_P2P:
-                        // Nothing to do
+                        refreshBroadcasts();
                         break;
                     case DISABLE_P2P:
                         if (mPeers.clear()) {
@@ -2537,14 +2545,17 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             final Intent intent = new Intent(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION);
             intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
             intent.putExtra(WifiP2pManager.EXTRA_WIFI_P2P_DEVICE, new WifiP2pDevice(mThisDevice));
-            mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
+            // Formerly sticky
+            mContext.sendBroadcastAsUserMultiplePermissions(intent, UserHandle.ALL,
+                    RECEIVER_PERMISSIONS_FOR_BROADCAST);
         }
 
         private void sendPeersChangedBroadcast() {
             final Intent intent = new Intent(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION);
             intent.putExtra(WifiP2pManager.EXTRA_P2P_DEVICE_LIST, new WifiP2pDeviceList(mPeers));
             intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
-            mContext.sendBroadcastAsUser(intent, UserHandle.ALL);
+            mContext.sendBroadcastAsUserMultiplePermissions(intent, UserHandle.ALL,
+                    RECEIVER_PERMISSIONS_FOR_BROADCAST);
         }
 
         private void sendP2pConnectionChangedBroadcast() {
@@ -2555,7 +2566,9 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             intent.putExtra(WifiP2pManager.EXTRA_WIFI_P2P_INFO, new WifiP2pInfo(mWifiP2pInfo));
             intent.putExtra(WifiP2pManager.EXTRA_NETWORK_INFO, new NetworkInfo(mNetworkInfo));
             intent.putExtra(WifiP2pManager.EXTRA_WIFI_P2P_GROUP, new WifiP2pGroup(mGroup));
-            mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
+            // Formerly sticky
+            mContext.sendBroadcastAsUserMultiplePermissions(intent, UserHandle.ALL,
+                    RECEIVER_PERMISSIONS_FOR_BROADCAST);
             if (mWifiChannel != null) {
                 mWifiChannel.sendMessage(WifiP2pServiceImpl.P2P_CONNECTION_CHANGED,
                         new NetworkInfo(mNetworkInfo));
@@ -2569,6 +2582,15 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
             Intent intent = new Intent(WifiP2pManager.WIFI_P2P_PERSISTENT_GROUPS_CHANGED_ACTION);
             intent.addFlags(Intent.FLAG_RECEIVER_REGISTERED_ONLY_BEFORE_BOOT);
             mContext.sendStickyBroadcastAsUser(intent, UserHandle.ALL);
+        }
+
+        /**
+         * These broadcasts were formerly sticky; send them again after critical changes to ease
+         * transition.
+         */
+        private void refreshBroadcasts() {
+            sendThisDeviceChangedBroadcast();
+            sendP2pConnectionChangedBroadcast();
         }
 
         private void startDhcpServer(String intf) {
