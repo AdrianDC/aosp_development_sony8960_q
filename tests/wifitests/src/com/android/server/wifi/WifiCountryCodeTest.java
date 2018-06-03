@@ -126,50 +126,6 @@ public class WifiCountryCodeTest {
     }
 
     /**
-     * Test if we can reset the country code upon sim card is removed.
-     * @throws Exception
-     */
-    @Test
-    public void resetCountryCodeWhenSIMCardRemoved() throws Exception {
-        mWifiCountryCode.setCountryCode(mTelephonyCountryCode);
-        // Supplicant started.
-        mWifiCountryCode.setReadyForChange(true);
-        // Wifi get L2 connected.
-        mWifiCountryCode.setReadyForChange(false);
-        assertEquals(mTelephonyCountryCode, mWifiCountryCode.getCountryCodeSentToDriver());
-        // SIM card is removed.
-        mWifiCountryCode.simCardRemoved();
-        // Country code restting is not applied yet.
-        assertEquals(mTelephonyCountryCode, mWifiCountryCode.getCountryCodeSentToDriver());
-        mWifiCountryCode.setReadyForChange(true);
-        // Country code restting is applied when supplicant is ready.
-        verify(mWifiNative, times(2)).setCountryCode(any(), anyString());
-        assertEquals(mDefaultCountryCode, mWifiCountryCode.getCountryCodeSentToDriver());
-    }
-
-    /**
-     * Test if we can reset the country code upon airplane mode is enabled.
-     * @throws Exception
-     */
-    @Test
-    public void resetCountryCodeWhenAirplaneModeEnabled() throws Exception {
-        mWifiCountryCode.setCountryCode(mTelephonyCountryCode);
-        // Supplicant started.
-        mWifiCountryCode.setReadyForChange(true);
-        // Wifi get L2 connected.
-        mWifiCountryCode.setReadyForChange(false);
-        assertEquals(mTelephonyCountryCode, mWifiCountryCode.getCountryCodeSentToDriver());
-        // Airplane mode is enabled.
-        mWifiCountryCode.simCardRemoved();
-        // Country code restting is not applied yet.
-        assertEquals(mTelephonyCountryCode, mWifiCountryCode.getCountryCodeSentToDriver());
-        mWifiCountryCode.setReadyForChange(true);
-        // Country code restting is applied when supplicant is ready.
-        verify(mWifiNative, times(2)).setCountryCode(any(), anyString());
-        assertEquals(mDefaultCountryCode, mWifiCountryCode.getCountryCodeSentToDriver());
-    }
-
-    /**
      * Test if we can reset to the default country code when phone is out of service, when
      * |config_wifi_revert_country_code_on_cellular_loss| is set to true;
      * Telephony service calls |setCountryCode| with an empty string when phone is out of service.

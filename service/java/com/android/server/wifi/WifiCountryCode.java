@@ -79,20 +79,6 @@ public class WifiCountryCode {
     }
 
     /**
-     * This is called when sim card is removed.
-     * In this case we should invalid all other country codes except the
-     * phone default one.
-     */
-    public synchronized void simCardRemoved() {
-        if (DBG) Log.d(TAG, "SIM Card Removed");
-        // SIM card is removed, we need to reset the country code to phone default.
-        mTelephonyCountryCode = null;
-        if (mReady) {
-            updateCountryCode();
-        }
-    }
-
-    /**
      * This is called when airplane mode is enabled.
      * In this case we should invalidate all other country code except the
      * phone default one.
