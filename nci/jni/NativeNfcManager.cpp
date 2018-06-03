@@ -907,7 +907,13 @@ static jboolean nfcManager_unrouteAid(JNIEnv* e, jobject, jbyteArray aid) {
 **
 *******************************************************************************/
 static jboolean nfcManager_commitRouting(JNIEnv* e, jobject) {
-  return RoutingManager::getInstance().commitRouting();
+  if (sRfEnabled) {
+    /*Update routing table only in Idle state.*/
+    startRfDiscovery(false);
+  }
+  jboolean commitStatus = RoutingManager::getInstance().commitRouting();
+  startRfDiscovery(true);
+  return commitStatus;
 }
 
 /*******************************************************************************
