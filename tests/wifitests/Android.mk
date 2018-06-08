@@ -62,9 +62,10 @@ LOCAL_STATIC_JAVA_LIBRARIES := \
 
 LOCAL_JAVA_LIBRARIES := \
 	android.test.runner \
-	wifi-service \
-	services \
-	android.hidl.manager-V1.0-java
+	android.hidl.manager-V1.0-java \
+	android.test.base \
+	android.test.mock \
+	conscrypt
 
 # These must be explicitly included because they are not normally accessible
 # from apps.

@@ -2310,31 +2310,64 @@ public class SupplicantStaNetworkHal {
             }
         }
     }
+
+    /**
+     * Method to mock out the V1_1 ISupplicantStaNetwork retrieval in unit tests.
+     *
+     * @return 1.1 ISupplicantStaNetwork object if the device is running the 1.1 supplicant hal
+     * service, null otherwise.
+     */
+    protected android.hardware.wifi.supplicant.V1_1.ISupplicantStaNetwork
+    getSupplicantStaNetworkForV1_1Mockable() {
+        if (mISupplicantStaNetwork == null) return null;
+        return android.hardware.wifi.supplicant.V1_1.ISupplicantStaNetwork.castFrom(
+                mISupplicantStaNetwork);
+    }
+
     /**
      * Send eap identity response.
      *
-     * @param identityStr Identity as a string.
+     * @param identityStr identity used for EAP-Identity
+     * @param encryptedIdentityStr encrypted identity used for EAP-AKA/EAP-SIM
      * @return true if succeeds, false otherwise.
      */
-    public boolean sendNetworkEapIdentityResponse(String identityStr) {
+    public boolean sendNetworkEapIdentityResponse(String identityStr,
+                                                  String encryptedIdentityStr) {
         synchronized (mLock) {
             try {
-                ArrayList<Byte> identity = NativeUtil.stringToByteArrayList(identityStr);
-                return sendNetworkEapIdentityResponse(identity);
+                ArrayList<Byte> unencryptedIdentity =
+                        NativeUtil.stringToByteArrayList(identityStr);
+                ArrayList<Byte> encryptedIdentity = null;
+                if (!TextUtils.isEmpty(encryptedIdentityStr)) {
+                    encryptedIdentity = NativeUtil.stringToByteArrayList(encryptedIdentityStr);
+                }
+                return sendNetworkEapIdentityResponse(unencryptedIdentity, encryptedIdentity);
             } catch (IllegalArgumentException e) {
-                Log.e(TAG, "Illegal argument " + identityStr, e);
+                Log.e(TAG, "Illegal argument " + identityStr + "," + encryptedIdentityStr, e);
                 return false;
             }
         }
     }
     /** See ISupplicantStaNetwork.hal for documentation */
-    private boolean sendNetworkEapIdentityResponse(ArrayList<Byte> identity) {
+    private boolean sendNetworkEapIdentityResponse(ArrayList<Byte> unencryptedIdentity,
+                                                   ArrayList<Byte> encryptedIdentity) {
         synchronized (mLock) {
             final String methodStr = "sendNetworkEapIdentityResponse";
             if (!checkISupplicantStaNetworkAndLogFailure(methodStr)) return false;
             try {
-                SupplicantStatus status =
-                        mISupplicantStaNetwork.sendNetworkEapIdentityResponse(identity);
+                SupplicantStatus status;
+                android.hardware.wifi.supplicant.V1_1.ISupplicantStaNetwork
+                        iSupplicantStaNetworkV11 =
+                        getSupplicantStaNetworkForV1_1Mockable();
+
+                if (iSupplicantStaNetworkV11 != null && encryptedIdentity != null) {
+                    status = iSupplicantStaNetworkV11.sendNetworkEapIdentityResponse_1_1(
+                            unencryptedIdentity, encryptedIdentity);
+                } else {
+                    status = mISupplicantStaNetwork.sendNetworkEapIdentityResponse(
+                            unencryptedIdentity);
+                }
+
                 return checkStatusAndLogFailure(status, methodStr);
             } catch (RemoteException e) {
                 handleRemoteException(e, methodStr);
@@ -2385,9 +2418,7 @@ public class SupplicantStaNetworkHal {
     private boolean checkStatusAndLogFailure(SupplicantStatus status, final String methodStr) {
         synchronized (mLock) {
             if (status.code != SupplicantStatusCode.SUCCESS) {
-                Log.e(TAG, "ISupplicantStaNetwork." + methodStr + " failed: "
-                        + SupplicantStaIfaceHal.supplicantStatusCodeToString(status.code) + ", "
-                        + status.debugMessage);
+                Log.e(TAG, "ISupplicantStaNetwork." + methodStr + " failed: " + status);
                 return false;
             } else {
                 if (mVerboseLoggingEnabled) {

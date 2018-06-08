@@ -65,6 +65,13 @@ public class FrameworkFacade {
     }
 
     /**
+     * Mockable facade to Settings.Secure.getInt(.).
+     */
+    public int getSecureIntegerSetting(Context context, String name, int def) {
+        return Settings.Secure.getInt(context.getContentResolver(), name, def);
+    }
+
+    /**
      * Helper method for classes to register a ContentObserver
      * {@see ContentResolver#registerContentObserver(Uri,boolean,ContentObserver)}.
      *
@@ -77,6 +84,17 @@ public class FrameworkFacade {
             boolean notifyForDescendants, ContentObserver contentObserver) {
         context.getContentResolver().registerContentObserver(uri, notifyForDescendants,
                 contentObserver);
+    }
+
+    /**
+     * Helper method for classes to unregister a ContentObserver
+     * {@see ContentResolver#unregisterContentObserver(ContentObserver)}.
+     *
+     * @param context
+     * @param contentObserver
+     */
+    public void unregisterContentObserver(Context context, ContentObserver contentObserver) {
+        context.getContentResolver().unregisterContentObserver(contentObserver);
     }
 
     public IBinder getService(String serviceName) {
