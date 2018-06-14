@@ -201,7 +201,7 @@ public class WifiVendorHal {
 
         mVerboseLog.err("% returns %")
                 .c(niceMethodName(trace, 3))
-                .c(HexDump.dumpHexString(result))
+                .c(result == null ? "(null)" : HexDump.dumpHexString(result))
                 .flush();
 
         return result;
