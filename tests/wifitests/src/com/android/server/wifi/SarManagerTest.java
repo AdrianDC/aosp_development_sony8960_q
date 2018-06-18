@@ -374,6 +374,10 @@ public class SarManagerTest {
         /* Device should set tx power scenario to NORMAL again */
         inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
         assertFalse(mSarInfo.mIsVoiceCall);
+
+        /* Disable WiFi State */
+        mSarMgr.setClientWifiState(WifiManager.WIFI_STATE_DISABLED);
+        inOrder.verify(mWifiNative, never()).selectTxPowerScenario(any(SarInfo.class));
     }
 
     /**
@@ -395,6 +399,134 @@ public class SarManagerTest {
 
         /* Device should not set tx power scenario at all */
         inOrder.verify(mWifiNative, never()).selectTxPowerScenario(any(SarInfo.class));
+    }
+
+    /**
+     * Test that for devices supporting SAR the following scenario:
+     * - Wifi enabled
+     * - A call starts
+     * - Wifi disabled
+     * - Call ends
+     * - Wifi back on
+     */
+    @Test
+    public void testSarMgr_enabledSar_wifiOn_offHook_wifiOff_onHook() throws Exception {
+        createSarManager(true, false);
+
+        InOrder inOrder = inOrder(mWifiNative);
+
+        /* Enable WiFi State */
+        mSarMgr.setClientWifiState(WifiManager.WIFI_STATE_ENABLED);
+        captureSarInfo(mWifiNative);
+
+        /* Now device should set tx power scenario to NORMAL */
+        inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertFalse(mSarInfo.mIsVoiceCall);
+
+        /* Set phone state to OFFHOOK */
+        mPhoneStateListener.onCallStateChanged(CALL_STATE_OFFHOOK, "");
+        inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertTrue(mSarInfo.mIsVoiceCall);
+
+        /* Disable WiFi State */
+        mSarMgr.setClientWifiState(WifiManager.WIFI_STATE_DISABLED);
+        inOrder.verify(mWifiNative, never()).selectTxPowerScenario(any(SarInfo.class));
+
+        /* Set state back to ONHOOK */
+        mPhoneStateListener.onCallStateChanged(CALL_STATE_IDLE, "");
+        inOrder.verify(mWifiNative, never()).selectTxPowerScenario(any(SarInfo.class));
+
+        /* Enable WiFi State again */
+        mSarMgr.setClientWifiState(WifiManager.WIFI_STATE_ENABLED);
+        inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertFalse(mSarInfo.mIsVoiceCall);
+    }
+
+    /**
+     * Test that for devices supporting SAR, Wifi disabled, a call starts, a call ends, Wifi
+     * enabled.
+     */
+    @Test
+    public void testSarMgr_enabledSar_wifiOff_offHook_onHook_wifiOn() throws Exception {
+        createSarManager(true, false);
+
+        InOrder inOrder = inOrder(mWifiNative);
+
+        /* Set phone state to OFFHOOK */
+        mPhoneStateListener.onCallStateChanged(CALL_STATE_OFFHOOK, "");
+        inOrder.verify(mWifiNative, never()).selectTxPowerScenario(any(SarInfo.class));
+
+        /* Set state back to ONHOOK */
+        mPhoneStateListener.onCallStateChanged(CALL_STATE_IDLE, "");
+        inOrder.verify(mWifiNative, never()).selectTxPowerScenario(any(SarInfo.class));
+
+        /* Enable WiFi State */
+        mSarMgr.setClientWifiState(WifiManager.WIFI_STATE_ENABLED);
+        captureSarInfo(mWifiNative);
+
+        inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertFalse(mSarInfo.mIsVoiceCall);
+    }
+
+    /**
+     * Test that for devices supporting SAR, Wifi disabled, a call starts, wifi on, wifi off,
+     * call ends.
+     */
+    @Test
+    public void testSarMgr_enabledSar_offHook_wifiOnOff_onHook() throws Exception {
+        createSarManager(true, false);
+
+        InOrder inOrder = inOrder(mWifiNative);
+
+        /* Set phone state to OFFHOOK */
+        mPhoneStateListener.onCallStateChanged(CALL_STATE_OFFHOOK, "");
+        inOrder.verify(mWifiNative, never()).selectTxPowerScenario(any(SarInfo.class));
+
+        /* Enable WiFi State */
+        mSarMgr.setClientWifiState(WifiManager.WIFI_STATE_ENABLED);
+        captureSarInfo(mWifiNative);
+        assertNotNull(mSarInfo);
+
+        inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertTrue(mSarInfo.mIsVoiceCall);
+
+        /* Disable WiFi State */
+        mSarMgr.setClientWifiState(WifiManager.WIFI_STATE_DISABLED);
+        inOrder.verify(mWifiNative, never()).selectTxPowerScenario(any(SarInfo.class));
+
+        /* Set state back to ONHOOK */
+        mPhoneStateListener.onCallStateChanged(CALL_STATE_IDLE, "");
+        inOrder.verify(mWifiNative, never()).selectTxPowerScenario(any(SarInfo.class));
+    }
+
+    /**
+     * Test the error case for for devices supporting SAR, Wifi enabled, a call starts,
+     * call ends. With all of these cases, the call to set Tx power scenario fails.
+     */
+    @Test
+    public void testSarMgr_enabledSar_error_wifiOn_offOnHook() throws Exception {
+        createSarManager(true, false);
+
+        when(mWifiNative.selectTxPowerScenario(any(SarInfo.class))).thenReturn(false);
+        InOrder inOrder = inOrder(mWifiNative);
+
+        /* Enable WiFi State */
+        mSarMgr.setClientWifiState(WifiManager.WIFI_STATE_ENABLED);
+        captureSarInfo(mWifiNative);
+        assertNotNull(mSarInfo);
+
+        inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertFalse(mSarInfo.mIsVoiceCall);
+
+        /* Set phone state to OFFHOOK */
+        mPhoneStateListener.onCallStateChanged(CALL_STATE_OFFHOOK, "");
+        inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertTrue(mSarInfo.mIsVoiceCall);
+
+        /* Set state back to ONHOOK */
+        mPhoneStateListener.onCallStateChanged(CALL_STATE_IDLE, "");
+        inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertFalse(mSarInfo.mIsVoiceCall);
     }
 
     /**
@@ -653,5 +785,247 @@ public class SarManagerTest {
         inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
         assertEquals(SarInfo.SAR_SENSOR_NEAR_HEAD, mSarInfo.mSensorState);
         assertFalse(mSarInfo.mIsVoiceCall);
+    }
+
+    /**
+     * Test that Start of SoftAP for a device that does not have SAR enabled does not result in
+     * setting the Tx power scenario
+     */
+    @Test
+    public void testSarMgr_disabledTxPowerScenario_sapOn() throws Exception {
+        createSarManager(false, false);
+
+        /* Enable WiFi SoftAP State */
+        mSarMgr.setSapWifiState(WifiManager.WIFI_AP_STATE_ENABLED);
+
+        verify(mWifiNative, never()).selectTxPowerScenario(any(SarInfo.class));
+    }
+
+    /**
+     * Test that Start of SoftAP for a device that has SAR enabled, SAR sensor disabled.
+     */
+    @Test
+    public void testSarMgr_enabledTxPowerScenario_sapOn() throws Exception {
+        createSarManager(true, false);
+
+        InOrder inOrder = inOrder(mWifiNative);
+
+        /* Enable WiFi SoftAP State */
+        mSarMgr.setSapWifiState(WifiManager.WIFI_AP_STATE_ENABLED);
+        captureSarInfo(mWifiNative);
+
+        inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertFalse(mSarInfo.mIsVoiceCall);
+        assertTrue(mSarInfo.mIsWifiSapEnabled);
+        assertFalse(mSarInfo.mIsWifiScanOnlyEnabled);
+    }
+
+    /**
+     * Test that for a device that has SAR enabled, SAR sensor enabled, near head, and when
+     * wifi sta is enabled, turning on sap then turning it off.
+     */
+    @Test
+    public void testSarMgr_enabledTxPowerScenario_staOn_sapOnOff() throws Exception {
+        createSarManager(true, true);
+
+        InOrder inOrder = inOrder(mWifiNative);
+
+        /* Sensor event */
+        sendSensorEvent(SAR_SENSOR_EVENT_HEAD);
+        inOrder.verify(mWifiNative, never()).selectTxPowerScenario(any(SarInfo.class));
+
+        /* Enable WiFi Client State */
+        mSarMgr.setClientWifiState(WifiManager.WIFI_STATE_ENABLED);
+        captureSarInfo(mWifiNative);
+
+        inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertEquals(SarInfo.SAR_SENSOR_NEAR_HEAD, mSarInfo.mSensorState);
+        assertFalse(mSarInfo.mIsWifiSapEnabled);
+
+        /* Enable WiFi SoftAP State */
+        mSarMgr.setSapWifiState(WifiManager.WIFI_AP_STATE_ENABLED);
+        inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertEquals(SarInfo.SAR_SENSOR_NEAR_HEAD, mSarInfo.mSensorState);
+        assertTrue(mSarInfo.mIsWifiSapEnabled);
+
+        /* Disable Wifi SoftAP state */
+        mSarMgr.setSapWifiState(WifiManager.WIFI_AP_STATE_DISABLED);
+        inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertEquals(SarInfo.SAR_SENSOR_NEAR_HEAD, mSarInfo.mSensorState);
+        assertFalse(mSarInfo.mIsWifiSapEnabled);
+    }
+
+    /**
+     * Test that for a device that has SAR enabled, SAR sensor enabled, Near body, and when
+     * disabling wifi softAP while Wifi Sta is also disabled, no update to the HAL for Tx
+     * power scenario is issued.
+     * Then, when wifi client is enabled, the Tx Power scenario is set.
+     * This is to verify that no call to update tx power when all wifi modes are disabled.
+     */
+    @Test
+    public void testSarMgr_enabledTxPowerScenario_sapOnOff_staOffOn() throws Exception {
+        createSarManager(true, true);
+
+        InOrder inOrder = inOrder(mWifiNative);
+
+        /* Sensor event */
+        sendSensorEvent(SAR_SENSOR_EVENT_BODY);
+        inOrder.verify(mWifiNative, never()).selectTxPowerScenario(any(SarInfo.class));
+
+        /* Enable WiFi softAP State */
+        mSarMgr.setSapWifiState(WifiManager.WIFI_AP_STATE_ENABLED);
+        captureSarInfo(mWifiNative);
+
+        inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertEquals(SarInfo.SAR_SENSOR_NEAR_BODY, mSarInfo.mSensorState);
+        assertTrue(mSarInfo.mIsWifiSapEnabled);
+
+        /* Disable Wifi SoftAP state */
+        mSarMgr.setSapWifiState(WifiManager.WIFI_AP_STATE_DISABLED);
+        inOrder.verify(mWifiNative, never()).selectTxPowerScenario(any(SarInfo.class));
+
+        /* Enable WiFi Clinet State */
+        mSarMgr.setClientWifiState(WifiManager.WIFI_STATE_ENABLED);
+        inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertEquals(SarInfo.SAR_SENSOR_NEAR_BODY, mSarInfo.mSensorState);
+        assertFalse(mSarInfo.mIsWifiSapEnabled);
+    }
+
+    /**
+     * Test that for a device that has SAR enabled, when scan-only state is enabled with both SoftAP
+     * and Client states disabled, the SarInfo is reported with proper values.
+     */
+    @Test
+    public void testSarMgr_enabledTxPowerScenario_staOff_sapOff_scanOnlyOn() throws Exception {
+        createSarManager(true, false);
+
+        /* Enable Wifi ScanOnly State */
+        mSarMgr.setScanOnlyWifiState(WifiManager.WIFI_STATE_ENABLED);
+        captureSarInfo(mWifiNative);
+
+        verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertFalse(mSarInfo.mIsWifiSapEnabled);
+        assertTrue(mSarInfo.mIsWifiScanOnlyEnabled);
+    }
+
+    /**
+     * Test that for a device that has SAR enabled, when scan-only state is enabled, and then
+     * client state is enabled, no additional setting of Tx power scenario is initiated
+     */
+    @Test
+    public void testSarMgr_enabledTxPowerScenario_staOn_sapOff_scanOnlyOn() throws Exception {
+        createSarManager(true, false);
+
+        InOrder inOrder = inOrder(mWifiNative);
+
+        /* Enable Wifi ScanOnly State */
+        mSarMgr.setScanOnlyWifiState(WifiManager.WIFI_STATE_ENABLED);
+        captureSarInfo(mWifiNative);
+
+        inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertFalse(mSarInfo.mIsWifiSapEnabled);
+        assertTrue(mSarInfo.mIsWifiScanOnlyEnabled);
+
+        /* Now enable Client state */
+        mSarMgr.setClientWifiState(WifiManager.WIFI_STATE_ENABLED);
+        inOrder.verify(mWifiNative, never()).selectTxPowerScenario(any(SarInfo.class));
+    }
+
+    /**
+     * Test the success case for for devices supporting SAR, with no SAR sensor support,
+     * Wifi enabled, SoftAP enabled, wifi disabled, scan-only enabled, SoftAP disabled.
+     *
+     * SarManager should report these changes as they occur(only when changes occur to
+     * inputs affecting the SAR scenario).
+     */
+    @Test
+    public void testSarMgr_enabledTxPowerScenario_wifi_sap_scanOnly() throws Exception {
+        createSarManager(true, false);
+
+        InOrder inOrder = inOrder(mWifiNative);
+
+        /* Enable WiFi State */
+        mSarMgr.setClientWifiState(WifiManager.WIFI_STATE_ENABLED);
+        captureSarInfo(mWifiNative);
+
+        inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertFalse(mSarInfo.mIsVoiceCall);
+        assertFalse(mSarInfo.mIsWifiSapEnabled);
+        assertFalse(mSarInfo.mIsWifiScanOnlyEnabled);
+
+        /* Enable SoftAP state */
+        mSarMgr.setSapWifiState(WifiManager.WIFI_AP_STATE_ENABLED);
+        inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertFalse(mSarInfo.mIsVoiceCall);
+        assertTrue(mSarInfo.mIsWifiSapEnabled);
+        assertFalse(mSarInfo.mIsWifiScanOnlyEnabled);
+
+        /* Disable WiFi State */
+        mSarMgr.setClientWifiState(WifiManager.WIFI_STATE_DISABLED);
+        inOrder.verify(mWifiNative, never()).selectTxPowerScenario(any(SarInfo.class));
+
+        /* Enable ScanOnly state */
+        mSarMgr.setScanOnlyWifiState(WifiManager.WIFI_STATE_ENABLED);
+        inOrder.verify(mWifiNative, never()).selectTxPowerScenario(any(SarInfo.class));
+
+        /* Disable SoftAP state */
+        mSarMgr.setSapWifiState(WifiManager.WIFI_AP_STATE_DISABLED);
+        inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertFalse(mSarInfo.mIsVoiceCall);
+        assertFalse(mSarInfo.mIsWifiSapEnabled);
+        assertTrue(mSarInfo.mIsWifiScanOnlyEnabled);
+    }
+
+    /**
+     * Test the error case for devices supporting SAR, with no SAR sensor support,
+     * Wifi enabled, SoftAP enabled, wifi disabled, scan-only enabled, SoftAP disabled
+     * Throughout this test case, calls to the hal return with error.
+     */
+    @Test
+    public void testSarMgr_enabledTxPowerScenario_error_wifi_sap_scanOnly() throws Exception {
+        createSarManager(true, false);
+
+        when(mWifiNative.selectTxPowerScenario(any(SarInfo.class))).thenReturn(false);
+        InOrder inOrder = inOrder(mWifiNative);
+
+        /* Enable WiFi State */
+        mSarMgr.setClientWifiState(WifiManager.WIFI_STATE_ENABLED);
+        captureSarInfo(mWifiNative);
+
+        inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertFalse(mSarInfo.mIsVoiceCall);
+        assertFalse(mSarInfo.mIsWifiSapEnabled);
+        assertFalse(mSarInfo.mIsWifiScanOnlyEnabled);
+
+        /* Enable SoftAP state */
+        mSarMgr.setSapWifiState(WifiManager.WIFI_AP_STATE_ENABLED);
+        inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertFalse(mSarInfo.mIsVoiceCall);
+        assertTrue(mSarInfo.mIsWifiSapEnabled);
+        assertFalse(mSarInfo.mIsWifiScanOnlyEnabled);
+
+        /* Disable WiFi State, reporting should still happen */
+        mSarMgr.setClientWifiState(WifiManager.WIFI_STATE_DISABLED);
+        inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertFalse(mSarInfo.mIsVoiceCall);
+        assertTrue(mSarInfo.mIsWifiSapEnabled);
+        assertFalse(mSarInfo.mIsWifiScanOnlyEnabled);
+        assertFalse(mSarInfo.mIsWifiClientEnabled);
+
+        /* Enable ScanOnly state */
+        mSarMgr.setScanOnlyWifiState(WifiManager.WIFI_STATE_ENABLED);
+        inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertFalse(mSarInfo.mIsVoiceCall);
+        assertTrue(mSarInfo.mIsWifiSapEnabled);
+        assertTrue(mSarInfo.mIsWifiScanOnlyEnabled);
+        assertFalse(mSarInfo.mIsWifiClientEnabled);
+
+        /* Disable SoftAP state */
+        mSarMgr.setSapWifiState(WifiManager.WIFI_AP_STATE_DISABLED);
+        inOrder.verify(mWifiNative).selectTxPowerScenario(eq(mSarInfo));
+        assertFalse(mSarInfo.mIsVoiceCall);
+        assertFalse(mSarInfo.mIsWifiSapEnabled);
+        assertTrue(mSarInfo.mIsWifiScanOnlyEnabled);
+        assertFalse(mSarInfo.mIsWifiClientEnabled);
     }
 }

@@ -465,7 +465,7 @@ public class WifiInjector {
                                            @NonNull SoftApModeConfiguration config) {
         return new SoftApManager(mContext, mWifiStateMachineHandlerThread.getLooper(),
                 mFrameworkFacade, mWifiNative, mCountryCode.getCountryCode(), callback,
-                mWifiApConfigStore, config, mWifiMetrics);
+                mWifiApConfigStore, config, mWifiMetrics, mSarManager);
     }
 
     /**
@@ -477,7 +477,8 @@ public class WifiInjector {
     public ScanOnlyModeManager makeScanOnlyModeManager(
             @NonNull ScanOnlyModeManager.Listener listener) {
         return new ScanOnlyModeManager(mContext, mWifiStateMachineHandlerThread.getLooper(),
-                mWifiNative, listener, mWifiMetrics, mScanRequestProxy, mWakeupController);
+                mWifiNative, listener, mWifiMetrics, mScanRequestProxy, mWakeupController,
+                mSarManager);
     }
 
     /**

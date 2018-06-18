@@ -42,6 +42,8 @@ import java.util.List;
  * This class provides the Support for SAR to control WiFi TX power limits.
  * It deals with the following:
  * - Tracking the STA state through calls from  the ClientModeManager.
+ * - Tracking the SAP state through calls from SoftApManager
+ * - Tracking the Scan-Only state through ScanOnlyModeManager
  * - Tracking the state of the Cellular calls or data.
  * - Tracking the sensor indicating proximity to user head/hand/body.
  * - It constructs the sar info and send it towards the HAL
@@ -182,6 +184,58 @@ public class SarManager {
     }
 
     /**
+     * Update Wifi SoftAP State
+     */
+    public void setSapWifiState(int state) {
+        boolean newIsEnabled;
+        /* No action is taken if SAR is not enabled */
+        if (!mEnableSarTxPowerLimit) {
+            return;
+        }
+
+        if (state == WifiManager.WIFI_AP_STATE_DISABLED) {
+            newIsEnabled = false;
+        } else if (state == WifiManager.WIFI_AP_STATE_ENABLED) {
+            newIsEnabled = true;
+        } else {
+            /* No change so exiting with no action */
+            return;
+        }
+
+        /* Report change to HAL if needed */
+        if (mSarInfo.mIsWifiSapEnabled != newIsEnabled) {
+            mSarInfo.mIsWifiSapEnabled = newIsEnabled;
+            updateSarScenario();
+        }
+    }
+
+    /**
+     * Update Wifi ScanOnly State
+     */
+    public void setScanOnlyWifiState(int state) {
+        boolean newIsEnabled;
+        /* No action is taken if SAR is not enabled */
+        if (!mEnableSarTxPowerLimit) {
+            return;
+        }
+
+        if (state == WifiManager.WIFI_STATE_DISABLED) {
+            newIsEnabled = false;
+        } else if (state == WifiManager.WIFI_STATE_ENABLED) {
+            newIsEnabled = true;
+        } else {
+            /* No change so exiting with no action */
+            return;
+        }
+
+        /* Report change to HAL if needed */
+        if (mSarInfo.mIsWifiScanOnlyEnabled != newIsEnabled) {
+            mSarInfo.mIsWifiScanOnlyEnabled = newIsEnabled;
+            updateSarScenario();
+        }
+    }
+
+    /**
      * Report Cell state event
      */
     private void onCellStateChangeEvent(int state) {
@@ -238,7 +292,6 @@ public class SarManager {
      * Enable/disable verbose logging.
      */
     public void enableVerboseLogging(int verbose) {
-        Log.d(TAG, "Inside enableVerboseLogging: " + verbose);
         if (verbose > 0) {
             mVerboseLoggingEnabled = true;
         } else {
