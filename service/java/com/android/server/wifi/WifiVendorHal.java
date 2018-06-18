@@ -2653,56 +2653,6 @@ public class WifiVendorHal {
         return android.hardware.wifi.V1_2.IWifiStaIface.castFrom(iface);
     }
 
-    /* TODO: This method is to be removed in a future change */
-    private int frameworkToHalTxPowerScenario(int scenario) {
-        switch (scenario) {
-            case WifiNative.TX_POWER_SCENARIO_VOICE_CALL:
-                return android.hardware.wifi.V1_1.IWifiChip.TxPowerScenario.VOICE_CALL;
-            default:
-                throw new IllegalArgumentException("bad scenario: " + scenario);
-        }
-    }
-
-    /**
-     * TODO: This method will be removed in a future change
-     *       It will be replaced with another method receiving SarInfo
-     *       instance instead of the int for scenario
-     *
-     * Select one of the pre-configured TX power level scenarios or reset it back to normal.
-     * Primarily used for meeting SAR requirements during voice calls.
-     *
-     * @param scenario Should be one {@link WifiNative#TX_POWER_SCENARIO_NORMAL} or
-     *        {@link WifiNative#TX_POWER_SCENARIO_VOICE_CALL}.
-     * @return true for success; false for failure or if the HAL version does not support this API.
-     */
-    public boolean selectTxPowerScenario(int scenario) {
-        synchronized (sLock) {
-            try {
-                android.hardware.wifi.V1_1.IWifiChip iWifiChipV11 = getWifiChipForV1_1Mockable();
-                if (iWifiChipV11 == null) return boolResult(false);
-                WifiStatus status;
-                if (scenario != WifiNative.TX_POWER_SCENARIO_NORMAL) {
-                    int halScenario;
-                    try {
-                        halScenario = frameworkToHalTxPowerScenario(scenario);
-                    } catch (IllegalArgumentException e) {
-                        mLog.err("Illegal argument for select tx power scenario")
-                                .c(e.toString()).flush();
-                        return false;
-                    }
-                    status = iWifiChipV11.selectTxPowerScenario(halScenario);
-                } else {
-                    status = iWifiChipV11.resetTxPowerScenario();
-                }
-                if (!ok(status)) return false;
-            } catch (RemoteException e) {
-                handleRemoteException(e);
-                return false;
-            }
-            return true;
-        }
-    }
-
     /**
      * sarPowerBackoffRequired_1_1()
      * This method checks if we need to backoff wifi Tx power due to SAR requirements.
