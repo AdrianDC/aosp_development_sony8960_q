@@ -2240,7 +2240,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                                 mNwService.addInterfaceToLocalNetwork(
                                         ifname, mDhcpResults.getRoutes(ifname));
                             }
-                        } catch (RemoteException e) {
+                        } catch (Exception e) {
                             loge("Failed to add iface to local network " + e);
                         }
                         break;
