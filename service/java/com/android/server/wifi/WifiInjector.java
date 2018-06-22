@@ -205,7 +205,8 @@ public class WifiInjector {
                 SystemProperties.get(BOOT_DEFAULT_WIFI_COUNTRY_CODE),
                 mContext.getResources()
                         .getBoolean(R.bool.config_wifi_revert_country_code_on_cellular_loss));
-        mWifiApConfigStore = new WifiApConfigStore(mContext, mBackupManagerProxy);
+        mWifiApConfigStore = new WifiApConfigStore(
+                mContext, wifiStateMachineLooper, mBackupManagerProxy, mFrameworkFacade);
 
         // WifiConfigManager/Store objects and their dependencies.
         // New config store
