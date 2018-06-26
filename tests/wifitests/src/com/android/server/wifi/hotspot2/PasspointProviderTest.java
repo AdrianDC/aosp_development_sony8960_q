@@ -47,8 +47,8 @@ import com.android.server.wifi.hotspot2.anqp.ThreeGPPNetworkElement;
 import com.android.server.wifi.hotspot2.anqp.eap.AuthParam;
 import com.android.server.wifi.hotspot2.anqp.eap.EAPMethod;
 import com.android.server.wifi.hotspot2.anqp.eap.NonEAPInnerAuth;
-
 import com.android.server.wifi.util.InformationElementUtil.RoamingConsortium;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
@@ -447,7 +447,7 @@ public class PasspointProviderTest {
      * @throws Exception
      */
     @Test
-    public void match3GPPNetworkDomainName() throws Exception {
+    public void matchFQDNWith3GPPNetworkDomainName() throws Exception {
         String testImsi = "1234567890";
 
         // Setup test provider.
@@ -472,13 +472,56 @@ public class PasspointProviderTest {
     }
 
     /**
-     * Verify that a provider is a roaming provider when a roaming consortium OI matches an OI
-     * in the roaming consortium ANQP element.
+     * Verify that a provider is a home provider when its FQDN, roaming consortium OI, and
+     * IMSI all matched against the ANQP elements, since we prefer matching home provider over
+     * roaming provider.
      *
      * @throws Exception
      */
     @Test
-    public void matchRoamingConsortium() throws Exception {
+    public void matchFQDNOverRoamingProvider() throws Exception {
+        // Setup test data.
+        String testDomain = "test.com";
+        String testImsi = "1234567890";
+        long[] providerRCOIs = new long[] {0x1234L, 0x2345L};
+        Long[] anqpRCOIs = new Long[] {0x1234L, 0x2133L};
+
+        // Setup test provider.
+        PasspointConfiguration config = new PasspointConfiguration();
+        HomeSp homeSp = new HomeSp();
+        homeSp.setFqdn(testDomain);
+        homeSp.setRoamingConsortiumOis(providerRCOIs);
+        config.setHomeSp(homeSp);
+        Credential credential = new Credential();
+        Credential.SimCredential simCredential = new Credential.SimCredential();
+        simCredential.setImsi(testImsi);
+        credential.setSimCredential(simCredential);
+        config.setCredential(credential);
+        when(mSimAccessor.getMatchingImsis(new IMSIParameter(testImsi, false)))
+                .thenReturn(Arrays.asList(new String[] {testImsi}));
+        mProvider = createProvider(config);
+
+        // Setup ANQP elements.
+        Map<ANQPElementType, ANQPElement> anqpElementMap = new HashMap<>();
+        anqpElementMap.put(ANQPElementType.ANQPDomName,
+                createDomainNameElement(new String[] {testDomain}));
+        anqpElementMap.put(ANQPElementType.ANQPRoamingConsortium,
+                createRoamingConsortiumElement(anqpRCOIs));
+        anqpElementMap.put(ANQPElementType.ANQP3GPPNetwork,
+                createThreeGPPNetworkElement(new String[] {"123456"}));
+
+        assertEquals(PasspointMatch.HomeProvider,
+                mProvider.match(anqpElementMap, mRoamingConsortium));
+    }
+
+    /**
+     * Verify that a provider is a roaming provider when a roaming consortium OI matches an OI
+     * in the roaming consortium ANQP element and no NAI realm is provided.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void matchRoamingConsortiumWithoutNAIRealm() throws Exception {
         long[] providerRCOIs = new long[] {0x1234L, 0x2345L};
         Long[] anqpRCOIs = new Long[] {0x1234L, 0x2133L};
 
@@ -505,12 +548,87 @@ public class PasspointProviderTest {
 
     /**
      * Verify that a provider is a roaming provider when a roaming consortium OI matches an OI
-     * in the roaming consortium information element.
+     * in the roaming consortium ANQP element and the provider's credential matches the
+     * NAI realm provided.
      *
      * @throws Exception
      */
     @Test
-    public void matchRoamingConsortiumIe() throws Exception {
+    public void matchRoamingConsortiumWithNAIRealmMatch() throws Exception {
+        long[] providerRCOIs = new long[] {0x1234L, 0x2345L};
+        Long[] anqpRCOIs = new Long[] {0x1234L, 0x2133L};
+        String testRealm = "realm.com";
+
+        // Setup test provider.
+        PasspointConfiguration config = new PasspointConfiguration();
+        HomeSp homeSp = new HomeSp();
+        homeSp.setRoamingConsortiumOis(providerRCOIs);
+        config.setHomeSp(homeSp);
+        Credential credential = new Credential();
+        credential.setRealm(testRealm);
+        Credential.UserCredential userCredential = new Credential.UserCredential();
+        userCredential.setNonEapInnerMethod(Credential.UserCredential.AUTH_METHOD_MSCHAPV2);
+        credential.setUserCredential(userCredential);
+        config.setCredential(credential);
+        mProvider = createProvider(config);
+
+        // Setup Roaming Consortium ANQP element.
+        Map<ANQPElementType, ANQPElement> anqpElementMap = new HashMap<>();
+        anqpElementMap.put(ANQPElementType.ANQPRoamingConsortium,
+                createRoamingConsortiumElement(anqpRCOIs));
+        anqpElementMap.put(ANQPElementType.ANQPNAIRealm,
+                createNAIRealmElement(testRealm, EAPConstants.EAP_TTLS,
+                        new NonEAPInnerAuth(NonEAPInnerAuth.AUTH_TYPE_MSCHAPV2)));
+
+        assertEquals(PasspointMatch.RoamingProvider,
+                mProvider.match(anqpElementMap, mRoamingConsortium));
+    }
+
+    /**
+     * Verify that there is no match when a roaming consortium OI matches an OI
+     * in the roaming consortium ANQP element and but NAI realm is not matched.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void matchRoamingConsortiumWithNAIRealmMisMatch() throws Exception {
+        long[] providerRCOIs = new long[] {0x1234L, 0x2345L};
+        Long[] anqpRCOIs = new Long[] {0x1234L, 0x2133L};
+        String testRealm = "realm.com";
+
+        // Setup test provider.
+        PasspointConfiguration config = new PasspointConfiguration();
+        HomeSp homeSp = new HomeSp();
+        homeSp.setRoamingConsortiumOis(providerRCOIs);
+        config.setHomeSp(homeSp);
+        Credential credential = new Credential();
+        credential.setRealm(testRealm);
+        Credential.UserCredential userCredential = new Credential.UserCredential();
+        userCredential.setNonEapInnerMethod(Credential.UserCredential.AUTH_METHOD_MSCHAPV2);
+        credential.setUserCredential(userCredential);
+        config.setCredential(credential);
+        mProvider = createProvider(config);
+
+        // Setup Roaming Consortium ANQP element.
+        Map<ANQPElementType, ANQPElement> anqpElementMap = new HashMap<>();
+        anqpElementMap.put(ANQPElementType.ANQPRoamingConsortium,
+                createRoamingConsortiumElement(anqpRCOIs));
+        // Set up NAI with different EAP method
+        anqpElementMap.put(ANQPElementType.ANQPNAIRealm,
+                createNAIRealmElement(testRealm, EAPConstants.EAP_TLS, null));
+
+        assertEquals(PasspointMatch.None,
+                mProvider.match(anqpElementMap, mRoamingConsortium));
+    }
+
+    /**
+     * Verify that a provider is a roaming provider when a roaming consortium OI matches an OI
+     * in the roaming consortium information element and no NAI realm is provided.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void matchRoamingConsortiumIeWithoutNAIRealm() throws Exception {
         long[] providerRCOIs = new long[] {0x1234L, 0x2345L};
         long[] ieRCOIs = new long[] {0x1234L, 0x2133L};
 
@@ -537,7 +655,84 @@ public class PasspointProviderTest {
     }
 
     /**
-     * Verify that none of matched providers are not found when a roaming consortium OI doesn't
+     * Verify that a provider is a roaming provider when a roaming consortium OI matches an OI
+     * in the roaming consortium information element and the provider's credential matches the
+     * NAI realm provided.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void matchRoamingConsortiumIeWithNAIRealmMatch() throws Exception {
+        long[] providerRCOIs = new long[] {0x1234L, 0x2345L};
+        long[] ieRCOIs = new long[] {0x1234L, 0x2133L};
+        String testRealm = "realm.com";
+
+        // Setup test provider.
+        PasspointConfiguration config = new PasspointConfiguration();
+        HomeSp homeSp = new HomeSp();
+        homeSp.setRoamingConsortiumOis(providerRCOIs);
+        config.setHomeSp(homeSp);
+        Credential credential = new Credential();
+        credential.setRealm(testRealm);
+        Credential.UserCredential userCredential = new Credential.UserCredential();
+        userCredential.setNonEapInnerMethod(Credential.UserCredential.AUTH_METHOD_MSCHAPV2);
+        credential.setUserCredential(userCredential);
+        config.setCredential(credential);
+        mProvider = createProvider(config);
+
+        // Setup Roaming Consortium ANQP element.
+        Map<ANQPElementType, ANQPElement> anqpElementMap = new HashMap<>();
+
+        // Setup Roaming Consortium Information element.
+        when(mRoamingConsortium.getRoamingConsortiums()).thenReturn(ieRCOIs);
+        anqpElementMap.put(ANQPElementType.ANQPNAIRealm,
+                createNAIRealmElement(testRealm, EAPConstants.EAP_TTLS,
+                        new NonEAPInnerAuth(NonEAPInnerAuth.AUTH_TYPE_MSCHAPV2)));
+
+        assertEquals(PasspointMatch.RoamingProvider,
+                mProvider.match(anqpElementMap, mRoamingConsortium));
+    }
+
+    /**
+     * Verify that there is no match when a roaming consortium OI matches an OI
+     * in the roaming consortium information element, but NAI realm is not matched.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void matchRoamingConsortiumIeWithNAIRealmMismatch() throws Exception {
+        long[] providerRCOIs = new long[] {0x1234L, 0x2345L};
+        long[] ieRCOIs = new long[] {0x1234L, 0x2133L};
+        String testRealm = "realm.com";
+
+        // Setup test provider.
+        PasspointConfiguration config = new PasspointConfiguration();
+        HomeSp homeSp = new HomeSp();
+        homeSp.setRoamingConsortiumOis(providerRCOIs);
+        config.setHomeSp(homeSp);
+        Credential credential = new Credential();
+        credential.setRealm(testRealm);
+        Credential.UserCredential userCredential = new Credential.UserCredential();
+        userCredential.setNonEapInnerMethod(Credential.UserCredential.AUTH_METHOD_MSCHAPV2);
+        credential.setUserCredential(userCredential);
+        config.setCredential(credential);
+        mProvider = createProvider(config);
+
+        // Setup Roaming Consortium ANQP element.
+        Map<ANQPElementType, ANQPElement> anqpElementMap = new HashMap<>();
+
+        // Setup Roaming Consortium Information element.
+        when(mRoamingConsortium.getRoamingConsortiums()).thenReturn(ieRCOIs);
+        // Set up NAI with different EAP method
+        anqpElementMap.put(ANQPElementType.ANQPNAIRealm,
+                createNAIRealmElement(testRealm, EAPConstants.EAP_TLS, null));
+
+        assertEquals(PasspointMatch.None,
+                mProvider.match(anqpElementMap, mRoamingConsortium));
+    }
+
+    /**
+     * Verify that none of matched providers are found when a roaming consortium OI doesn't
      * matches an OI in the roaming consortium information element and
      * none of NAI realms match each other.
      *
@@ -571,15 +766,16 @@ public class PasspointProviderTest {
     }
 
     /**
-     * Verify that a provider is a roaming provider when the provider's IMSI parameter and an
-     * IMSI from the SIM card matches a MCC-MNC in the 3GPP Network ANQP element.
+     * Verify that a provider is a roaming provider when the provider's IMSI parameter and an IMSI
+     * from the SIM card matches a MCC-MNC in the 3GPP Network ANQP element regardless of NAI realm
+     * mismatch.
      *
      * @throws Exception
      */
     @Test
-    public void matchThreeGPPNetwork() throws Exception {
+    public void matchThreeGPPNetworkWithNAIRealmMismatch() throws Exception {
         String testImsi = "1234567890";
-
+        String testRealm = "realm.com";
         // Setup test provider.
         PasspointConfiguration config = new PasspointConfiguration();
         config.setHomeSp(new HomeSp());
@@ -597,18 +793,60 @@ public class PasspointProviderTest {
         anqpElementMap.put(ANQPElementType.ANQP3GPPNetwork,
                 createThreeGPPNetworkElement(new String[] {"123456"}));
 
+        // Setup NAI Realm ANQP element with different realm.
+        anqpElementMap.put(ANQPElementType.ANQPNAIRealm,
+                createNAIRealmElement(testRealm, EAPConstants.EAP_TTLS,
+                new NonEAPInnerAuth(NonEAPInnerAuth.AUTH_TYPE_MSCHAPV2)));
+
         assertEquals(PasspointMatch.RoamingProvider,
             mProvider.match(anqpElementMap, mRoamingConsortium));
     }
 
     /**
-     * Verify that a provider is a roaming provider when its credential matches a NAI realm in
-     * the NAI Realm ANQP element.
+     * Verify that a provider is a roaming provider when the provider's IMSI parameter and an IMSI
+     * from the SIM card matches a MCC-MNC in the 3GPP Network ANQP element regardless of NAI realm
+     * match.
      *
      * @throws Exception
      */
     @Test
-    public void matchNAIRealm() throws Exception {
+    public void matchThreeGPPNetworkWithNAIRealmMatch() throws Exception {
+        String testImsi = "1234567890";
+        String testRealm = "realm.com";
+        // Setup test provider.
+        PasspointConfiguration config = new PasspointConfiguration();
+        config.setHomeSp(new HomeSp());
+        Credential credential = new Credential();
+        Credential.SimCredential simCredential = new Credential.SimCredential();
+        simCredential.setImsi(testImsi);
+        credential.setSimCredential(simCredential);
+        config.setCredential(credential);
+        credential.setRealm(testRealm);
+        when(mSimAccessor.getMatchingImsis(new IMSIParameter(testImsi, false)))
+                .thenReturn(Arrays.asList(new String[] {testImsi}));
+        mProvider = createProvider(config);
+
+        // Setup 3GPP Network ANQP element.
+        Map<ANQPElementType, ANQPElement> anqpElementMap = new HashMap<>();
+        anqpElementMap.put(ANQPElementType.ANQP3GPPNetwork,
+                createThreeGPPNetworkElement(new String[] {"123456"}));
+
+        // Setup NAI Realm ANQP element with same realm.
+        anqpElementMap.put(ANQPElementType.ANQPNAIRealm,
+                createNAIRealmElement(testRealm, EAPConstants.EAP_AKA, null));
+
+        assertEquals(PasspointMatch.RoamingProvider,
+                mProvider.match(anqpElementMap, mRoamingConsortium));
+    }
+
+    /**
+     * Verify that a provider is a roaming provider when its credential only matches a NAI realm in
+     * the NAI Realm ANQP element and not match for Domain Name, RoamingConsortium and 3GPP.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void matchOnlyNAIRealmWithOtherInformationMismatch() throws Exception {
         String testRealm = "realm.com";
 
         // Setup test provider.
@@ -632,48 +870,6 @@ public class PasspointProviderTest {
             mProvider.match(anqpElementMap, mRoamingConsortium));
     }
 
-    /**
-     * Verify that a provider is a home provider when its FQDN, roaming consortium OI, and
-     * IMSI all matched against the ANQP elements, since we prefer matching home provider over
-     * roaming provider.
-     *
-     * @throws Exception
-     */
-    @Test
-    public void matchHomeOverRoamingProvider() throws Exception {
-        // Setup test data.
-        String testDomain = "test.com";
-        String testImsi = "1234567890";
-        long[] providerRCOIs = new long[] {0x1234L, 0x2345L};
-        Long[] anqpRCOIs = new Long[] {0x1234L, 0x2133L};
-
-        // Setup test provider.
-        PasspointConfiguration config = new PasspointConfiguration();
-        HomeSp homeSp = new HomeSp();
-        homeSp.setFqdn(testDomain);
-        homeSp.setRoamingConsortiumOis(providerRCOIs);
-        config.setHomeSp(homeSp);
-        Credential credential = new Credential();
-        Credential.SimCredential simCredential = new Credential.SimCredential();
-        simCredential.setImsi(testImsi);
-        credential.setSimCredential(simCredential);
-        config.setCredential(credential);
-        when(mSimAccessor.getMatchingImsis(new IMSIParameter(testImsi, false)))
-                .thenReturn(Arrays.asList(new String[] {testImsi}));
-        mProvider = createProvider(config);
-
-        // Setup ANQP elements.
-        Map<ANQPElementType, ANQPElement> anqpElementMap = new HashMap<>();
-        anqpElementMap.put(ANQPElementType.ANQPDomName,
-                createDomainNameElement(new String[] {testDomain}));
-        anqpElementMap.put(ANQPElementType.ANQPRoamingConsortium,
-                createRoamingConsortiumElement(anqpRCOIs));
-        anqpElementMap.put(ANQPElementType.ANQP3GPPNetwork,
-                createThreeGPPNetworkElement(new String[] {"123456"}));
-
-        assertEquals(PasspointMatch.HomeProvider,
-            mProvider.match(anqpElementMap, mRoamingConsortium));
-    }
 
     /**
      * Verify that an expected WifiConfiguration will be returned for a Passpoint provider
