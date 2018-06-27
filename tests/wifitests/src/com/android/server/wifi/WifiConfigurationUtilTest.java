@@ -614,6 +614,21 @@ public class WifiConfigurationUtilTest {
     }
 
     /**
+     * Verify that WifiConfigurationUtil.isSameNetwork returns true when two WifiConfiguration
+     * objects have the different EAP anonymous(pseudonym) identity in EAP-SIM.
+     */
+    @Test
+    public void testIsSameNetworkReturnsTrueOnDifferentEapAnonymousIdentityInEapSim() {
+        WifiConfiguration network1 = WifiConfigurationTestUtil.createEapNetwork(TEST_SSID);
+        WifiConfiguration network2 = WifiConfigurationTestUtil.createEapNetwork(TEST_SSID);
+        network1.enterpriseConfig.setEapMethod(WifiEnterpriseConfig.Eap.SIM);
+        network2.enterpriseConfig.setEapMethod(WifiEnterpriseConfig.Eap.SIM);
+        network1.enterpriseConfig.setAnonymousIdentity("Identity1");
+        network2.enterpriseConfig.setAnonymousIdentity("Identity2");
+        assertTrue(WifiConfigurationUtil.isSameNetwork(network1, network2));
+    }
+
+    /**
      * Verify the instance of {@link android.net.wifi.WifiScanner.PnoSettings.PnoNetwork} created
      * for a EAP network using {@link WifiConfigurationUtil#createPnoNetwork(WifiConfiguration)
      * }.
