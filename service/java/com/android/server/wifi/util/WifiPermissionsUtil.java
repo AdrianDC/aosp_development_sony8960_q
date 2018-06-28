@@ -173,27 +173,28 @@ public class WifiPermissionsUtil {
      */
     public void enforceCanAccessScanResults(String pkgName, int uid) throws SecurityException {
         mAppOps.checkPackage(uid, pkgName);
+
+        // Apps with NETWORK_SETTINGS & NETWORK_SETUP_WIZARD are granted a bypass.
+        if (checkNetworkSettingsPermission(uid) || checkNetworkSetupWizardPermission(uid)) {
+            return;
+        }
+
+        // Location mode must be enabled
+        if (!isLocationModeEnabled()) {
+            // Location mode is disabled, scan results cannot be returned
+            throw new SecurityException("Location mode is disabled for the device");
+        }
+
         // Check if the calling Uid has CAN_READ_PEER_MAC_ADDRESS permission.
         boolean canCallingUidAccessLocation = checkCallerHasPeersMacAddressPermission(uid);
-        // LocationAccess by App: Location Mode must be enabled and caller must have
+        // LocationAccess by App: caller must have
         // Coarse Location permission to have access to location information.
-        boolean canAppPackageUseLocation = isLocationModeEnabled(pkgName)
-                        && checkCallersLocationPermission(pkgName, uid);
-        // "Connectivity" apps can access scan results if they have both the location permission and
-        // (ACCESS_WIFI_STATE or CHANGE_WIFI_STATE), if wifi is enabled and location is off.
-        // While subtle, the requirement of having wifi enabled is enforced by the lack of private
-        // information when wifi is toggled off and we will not enter Scan mode if Location is
-        // toggled off.
-        boolean appTypeConnectivity = checkCallersLocationPermission(pkgName, uid)
-                && (checkChangePermission(uid) || checkWifiAccessPermission(uid));
+        boolean canAppPackageUseLocation = checkCallersLocationPermission(pkgName, uid);
 
         // If neither caller or app has location access, there is no need to check
         // any other permissions. Deny access to scan results.
         if (!canCallingUidAccessLocation && !canAppPackageUseLocation) {
-            // also check if it is a connectivity app
-            if (!appTypeConnectivity) {
-                throw new SecurityException("UID " + uid + " has no location permission");
-            }
+            throw new SecurityException("UID " + uid + " has no location permission");
         }
         // Check if Wifi Scan request is an operation allowed for this App.
         if (!isScanAllowedbyApps(pkgName, uid)) {
@@ -273,8 +274,7 @@ public class WifiPermissionsUtil {
         return mAppOps.noteOp(op, uid, pkgName) == AppOpsManager.MODE_ALLOWED;
     }
 
-    private boolean isLocationModeEnabled(String pkgName) {
-        // Location mode check on applications that are later than version.
+    private boolean isLocationModeEnabled() {
         return (mSettingsStore.getLocationModeSetting(mContext)
                  != Settings.Secure.LOCATION_MODE_OFF);
     }
