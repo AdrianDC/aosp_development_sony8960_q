@@ -323,13 +323,15 @@ public class SarManager {
      * Dumps SarManager state (as well as its SarInfo member variable state)
      */
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-        pw.println("*** WiFi SAR Manager Dump ***");
+        pw.println("Dump of SarManager");
         pw.println("isSarSupported: " + mSupportSarTxPowerLimit);
         pw.println("isSarVoiceCallSupported: " + mSupportSarVoiceCall);
         pw.println("isSarSoftApSupported: " + mSupportSarSoftAp);
         pw.println("isSarSensorSupported: " + mSupportSarSensor);
         pw.println("");
-        mSarInfo.dump(fd, pw, args);
+        if (mSarInfo != null) {
+            mSarInfo.dump(fd, pw, args);
+        }
     }
 
     /**

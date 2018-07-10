@@ -83,6 +83,7 @@ public class SarInfo {
     private boolean mLastReportedIsWifiSapEnabled = false;
     private boolean mLastReportedIsVoiceCall = false;
     private int mLastReportedScenario = INITIAL_SAR_SCENARIO;
+    private long mLastReportedScenarioTs = 0;
 
     /**
      * shouldReport()
@@ -129,6 +130,7 @@ public class SarInfo {
         mLastReportedIsWifiSapEnabled = isWifiSapEnabled;
         mLastReportedIsVoiceCall = isVoiceCall;
         mLastReportedScenario = attemptedSarScenario;
+        mLastReportedScenarioTs = System.currentTimeMillis();
 
         mAllWifiDisabled = false;
     }
@@ -160,7 +162,7 @@ public class SarInfo {
      * Dumps the state of SarInfo
      */
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-        pw.println("*** WiFi SAR Info Dump  ***");
+        pw.println("Dump of SarInfo");
         pw.println("Current values:");
         pw.println("    Sensor state is: " + sensorStateToString(sensorState));
         pw.println("    Voice Call state is: " + isVoiceCall);
@@ -171,6 +173,9 @@ public class SarInfo {
         pw.println("    Sensor state is: " + sensorStateToString(mLastReportedSensorState));
         pw.println("    Soft AP state is: " + mLastReportedIsWifiSapEnabled);
         pw.println("    Voice Call state is: " + mLastReportedIsVoiceCall);
+        pw.println("Last reported scenario: " + mLastReportedScenario);
+        pw.println("Reported " +  (System.currentTimeMillis() - mLastReportedScenarioTs) / 1000
+                + " seconds ago");
     }
 
     /**
