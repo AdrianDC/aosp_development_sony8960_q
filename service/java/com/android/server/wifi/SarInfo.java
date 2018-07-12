@@ -23,7 +23,7 @@ import java.io.PrintWriter;
  * This class represents the list of SAR inputs that will be used to select the proper
  * power profile.
  * This includes:
- *  - SAR body sensor status
+ *  - SAR sensor status
  *  - Is there an ongoing voice call
  *  - Is SoftAP active
  * It also contains info about state of the other Wifi modes
@@ -64,14 +64,17 @@ public class SarInfo {
     /* For Logging */
     private static final String TAG = "WifiSarInfo";
 
-    public boolean mSarSensorEnabled;
+    /* SAR support configs */
+    public boolean sarVoiceCallSupported;
+    public boolean sarSapSupported;
+    public boolean sarSensorSupported;
 
-    public int mSensorState = SAR_SENSOR_FREE_SPACE;
-    public boolean mIsWifiClientEnabled = false;
-    public boolean mIsWifiSapEnabled = false;
-    public boolean mIsWifiScanOnlyEnabled = false;
-    public boolean mIsVoiceCall = false;
-    public int mAttemptedSarScenario = RESET_SAR_SCENARIO;
+    public int sensorState = SAR_SENSOR_FREE_SPACE;
+    public boolean isWifiClientEnabled = false;
+    public boolean isWifiSapEnabled = false;
+    public boolean isWifiScanOnlyEnabled = false;
+    public boolean isVoiceCall = false;
+    public int attemptedSarScenario = RESET_SAR_SCENARIO;
 
     private boolean mAllWifiDisabled = true;
 
@@ -80,10 +83,6 @@ public class SarInfo {
     private boolean mLastReportedIsWifiSapEnabled = false;
     private boolean mLastReportedIsVoiceCall = false;
     private int mLastReportedScenario = INITIAL_SAR_SCENARIO;
-
-    SarInfo(boolean sarSensorEnabled) {
-        mSarSensorEnabled = sarSensorEnabled;
-    }
 
     /**
      * shouldReport()
@@ -100,7 +99,7 @@ public class SarInfo {
      */
     public boolean shouldReport() {
         /* Check if all Wifi modes are disabled */
-        if (!mIsWifiClientEnabled && !mIsWifiSapEnabled && !mIsWifiScanOnlyEnabled) {
+        if (!isWifiClientEnabled && !isWifiSapEnabled && !isWifiScanOnlyEnabled) {
             mAllWifiDisabled = true;
             return false;
         }
@@ -111,9 +110,9 @@ public class SarInfo {
         }
 
         /* Check if some change happened since last successful reporting */
-        if ((mSensorState != mLastReportedSensorState)
-                || (mIsWifiSapEnabled != mLastReportedIsWifiSapEnabled)
-                || (mIsVoiceCall != mLastReportedIsVoiceCall)) {
+        if ((sensorState != mLastReportedSensorState)
+                || (isWifiSapEnabled != mLastReportedIsWifiSapEnabled)
+                || (isVoiceCall != mLastReportedIsVoiceCall)) {
             return true;
         } else {
             return false;
@@ -126,10 +125,10 @@ public class SarInfo {
      * This results in caching the last reported inputs for future comparison.
      */
     public void reportingSuccessful() {
-        mLastReportedSensorState = mSensorState;
-        mLastReportedIsWifiSapEnabled = mIsWifiSapEnabled;
-        mLastReportedIsVoiceCall = mIsVoiceCall;
-        mLastReportedScenario = mAttemptedSarScenario;
+        mLastReportedSensorState = sensorState;
+        mLastReportedIsWifiSapEnabled = isWifiSapEnabled;
+        mLastReportedIsVoiceCall = isVoiceCall;
+        mLastReportedScenario = attemptedSarScenario;
 
         mAllWifiDisabled = false;
     }
@@ -152,7 +151,7 @@ public class SarInfo {
      * another call to set the SAR scenario to the same value would be redundant.
      */
     public boolean setSarScenarioNeeded(int scenario) {
-        mAttemptedSarScenario = scenario;
+        attemptedSarScenario = scenario;
         return (mLastReportedScenario != scenario);
     }
 
@@ -163,11 +162,11 @@ public class SarInfo {
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         pw.println("*** WiFi SAR Info Dump  ***");
         pw.println("Current values:");
-        pw.println("    Sensor state is: " + sensorStateToString(mSensorState));
-        pw.println("    Voice Call state is: " + mIsVoiceCall);
-        pw.println("    Wifi Client state is: " + mIsWifiClientEnabled);
-        pw.println("    Wifi Soft AP state is: " + mIsWifiSapEnabled);
-        pw.println("    Wifi ScanOnly state is: " + mIsWifiScanOnlyEnabled);
+        pw.println("    Sensor state is: " + sensorStateToString(sensorState));
+        pw.println("    Voice Call state is: " + isVoiceCall);
+        pw.println("    Wifi Client state is: " + isWifiClientEnabled);
+        pw.println("    Wifi Soft AP state is: " + isWifiSapEnabled);
+        pw.println("    Wifi ScanOnly state is: " + isWifiScanOnlyEnabled);
         pw.println("Last reported values:");
         pw.println("    Sensor state is: " + sensorStateToString(mLastReportedSensorState));
         pw.println("    Soft AP state is: " + mLastReportedIsWifiSapEnabled);

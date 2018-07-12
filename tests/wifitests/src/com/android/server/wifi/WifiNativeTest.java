@@ -593,7 +593,7 @@ public class WifiNativeTest {
     @Test
     public void testSelectTxPowerScenario_success() throws Exception {
         when(mWifiVendorHal.selectTxPowerScenario(any(SarInfo.class))).thenReturn(true);
-        SarInfo sarInfo = new SarInfo(true);
+        SarInfo sarInfo = new SarInfo();
         assertTrue(mWifiNative.selectTxPowerScenario(sarInfo));
         verify(mWifiVendorHal).selectTxPowerScenario(sarInfo);
     }
@@ -604,7 +604,7 @@ public class WifiNativeTest {
     @Test
     public void testSelectTxPowerScenario_failure() throws Exception {
         when(mWifiVendorHal.selectTxPowerScenario(any(SarInfo.class))).thenReturn(false);
-        SarInfo sarInfo = new SarInfo(true);
+        SarInfo sarInfo = new SarInfo();
         assertFalse(mWifiNative.selectTxPowerScenario(sarInfo));
         verify(mWifiVendorHal).selectTxPowerScenario(sarInfo);
     }
