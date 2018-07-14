@@ -52,7 +52,7 @@ public class CarrierNetworkConfigTest {
     private static final String TEST_CARRIER_NAME = "Test Carrier";
     private static final SubscriptionInfo TEST_SUBSCRIPTION_INFO =
             new SubscriptionInfo(TEST_SUBSCRIPTION_ID, null, 0, TEST_CARRIER_NAME, null, 0, 0,
-                    null, 0, null, 0, 0, null);
+                    null, 0, null, "0", "0", null);
 
     @Mock Context mContext;
     @Mock CarrierConfigManager mCarrierConfigManager;
@@ -139,7 +139,7 @@ public class CarrierNetworkConfigTest {
         int updatedInternalEapType = WifiEnterpriseConfig.Eap.AKA;
         String updatedCarrierName = "Updated Carrier";
         SubscriptionInfo updatedSubscriptionInfo = new SubscriptionInfo(TEST_SUBSCRIPTION_ID,
-                null, 0, updatedCarrierName, null, 0, 0, null, 0, null, 0, 0, null);
+                null, 0, updatedCarrierName, null, 0, 0, null, 0, null, "0", "0", null);
         when(mSubscriptionManager.getActiveSubscriptionInfoList())
                 .thenReturn(Arrays.asList(new SubscriptionInfo[] {updatedSubscriptionInfo}));
         when(mCarrierConfigManager.getConfigForSubId(TEST_SUBSCRIPTION_ID))
