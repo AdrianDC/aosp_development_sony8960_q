@@ -90,6 +90,7 @@ public class SoftApManagerTest {
     @Mock FrameworkFacade mFrameworkFacade;
     @Mock WifiApConfigStore mWifiApConfigStore;
     @Mock WifiMetrics mWifiMetrics;
+    @Mock SarManager mSarManager;
     final ArgumentCaptor<WifiNative.InterfaceCallback> mWifiNativeInterfaceCallbackCaptor =
             ArgumentCaptor.forClass(WifiNative.InterfaceCallback.class);
     final ArgumentCaptor<WifiNative.SoftApListener> mSoftApListenerCaptor =
@@ -133,7 +134,8 @@ public class SoftApManagerTest {
                                                            mCallback,
                                                            mWifiApConfigStore,
                                                            config,
-                                                           mWifiMetrics);
+                                                           mWifiMetrics,
+                                                           mSarManager);
         mLooper.dispatchAll();
 
         return newSoftApManager;
@@ -205,7 +207,8 @@ public class SoftApManagerTest {
                                                            mCallback,
                                                            mWifiApConfigStore,
                                                            nullApConfig,
-                                                           mWifiMetrics);
+                                                           mWifiMetrics,
+                                                           mSarManager);
         mLooper.dispatchAll();
         newSoftApManager.start();
         mLooper.dispatchAll();
@@ -247,7 +250,8 @@ public class SoftApManagerTest {
                                                            mCallback,
                                                            mWifiApConfigStore,
                                                            nullApConfig,
-                                                           mWifiMetrics);
+                                                           mWifiMetrics,
+                                                           mSarManager);
         mLooper.dispatchAll();
         newSoftApManager.start();
         mLooper.dispatchAll();
@@ -288,7 +292,8 @@ public class SoftApManagerTest {
                                                            mCallback,
                                                            mWifiApConfigStore,
                                                            nullApConfig,
-                                                           mWifiMetrics);
+                                                           mWifiMetrics,
+                                                           mSarManager);
         mLooper.dispatchAll();
         newSoftApManager.start();
         mLooper.dispatchAll();
@@ -329,7 +334,8 @@ public class SoftApManagerTest {
                                                            mCallback,
                                                            mWifiApConfigStore,
                                                            softApConfig,
-                                                           mWifiMetrics);
+                                                           mWifiMetrics,
+                                                           mSarManager);
         mLooper.dispatchAll();
         newSoftApManager.start();
         mLooper.dispatchAll();
@@ -371,7 +377,8 @@ public class SoftApManagerTest {
                                                            mCallback,
                                                            mWifiApConfigStore,
                                                            softApConfig,
-                                                           mWifiMetrics);
+                                                           mWifiMetrics,
+                                                           mSarManager);
         mLooper.dispatchAll();
         newSoftApManager.start();
         mLooper.dispatchAll();
@@ -408,7 +415,8 @@ public class SoftApManagerTest {
                                                            mCallback,
                                                            mWifiApConfigStore,
                                                            softApModeConfig,
-                                                           mWifiMetrics);
+                                                           mWifiMetrics,
+                                                           mSarManager);
 
         mLooper.dispatchAll();
         newSoftApManager.start();
@@ -429,6 +437,7 @@ public class SoftApManagerTest {
         mLooper.dispatchAll();
         /* Verify no state changes. */
         verify(mCallback, never()).onStateChanged(anyInt(), anyInt());
+        verify(mSarManager, never()).setSapWifiState(anyInt());
         verify(mContext, never()).sendStickyBroadcastAsUser(any(), any());
         verify(mWifiNative, never()).teardownInterface(anyString());
     }
@@ -459,6 +468,7 @@ public class SoftApManagerTest {
                 softApModeConfig.getTargetMode());
 
         order.verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_DISABLED, 0);
+        verify(mSarManager).setSapWifiState(WifiManager.WIFI_AP_STATE_DISABLED);
         order.verify(mContext).sendStickyBroadcastAsUser(intentCaptor.capture(),
                 eq(UserHandle.ALL));
         checkApStateChangedBroadcast(intentCaptor.getValue(), WIFI_AP_STATE_DISABLED,
@@ -938,6 +948,7 @@ public class SoftApManagerTest {
         mLooper.dispatchAll();
         order.verify(mCallback).onStateChanged(WifiManager.WIFI_AP_STATE_ENABLED, 0);
         order.verify(mCallback).onNumClientsChanged(0);
+        verify(mSarManager).setSapWifiState(WifiManager.WIFI_AP_STATE_ENABLED);
         verify(mContext, times(2)).sendStickyBroadcastAsUser(intentCaptor.capture(),
                                                              eq(UserHandle.ALL));
         List<Intent> capturedIntents = intentCaptor.getAllValues();

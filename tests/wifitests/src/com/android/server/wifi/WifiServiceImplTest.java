@@ -2838,4 +2838,31 @@ public class WifiServiceImplTest {
         mBroadcastReceiverCaptor.getValue().onReceive(mContext, intent);
         verifyNoMoreInteractions(mWifiCountryCode);
     }
+
+    /**
+     * Verify calls to notify users of a softap config change check the NETWORK_SETTINGS permission.
+     */
+    @Test
+    public void testNotifyUserOfApBandConversionChecksNetworkSettingsPermission() {
+        mWifiServiceImpl.notifyUserOfApBandConversion(TEST_PACKAGE_NAME);
+        verify(mContext).enforceCallingOrSelfPermission(
+                eq(android.Manifest.permission.NETWORK_SETTINGS),
+                eq("WifiService"));
+        verify(mWifiApConfigStore).notifyUserOfApBandConversion(eq(TEST_PACKAGE_NAME));
+    }
+
+    /**
+     * Verify calls to notify users do not trigger a notification when NETWORK_SETTINGS is not held
+     * by the caller.
+     */
+    @Test
+    public void testNotifyUserOfApBandConversionThrowsExceptionWithoutNetworkSettingsPermission() {
+        doThrow(new SecurityException()).when(mContext)
+                .enforceCallingOrSelfPermission(eq(android.Manifest.permission.NETWORK_SETTINGS),
+                                                eq("WifiService"));
+        try {
+            mWifiServiceImpl.notifyUserOfApBandConversion(TEST_PACKAGE_NAME);
+            fail("Expected Security exception");
+        } catch (SecurityException e) { }
+    }
 }

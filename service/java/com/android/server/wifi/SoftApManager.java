@@ -93,6 +93,8 @@ public class SoftApManager implements ActiveModeManager {
     private int mNumAssociatedStations = 0;
     private boolean mTimeoutEnabled = false;
 
+    private final SarManager mSarManager;
+
     /**
      * Listener for soft AP events.
      */
@@ -118,7 +120,8 @@ public class SoftApManager implements ActiveModeManager {
                          @NonNull WifiManager.SoftApCallback callback,
                          @NonNull WifiApConfigStore wifiApConfigStore,
                          @NonNull SoftApModeConfiguration apConfig,
-                         @NonNull WifiMetrics wifiMetrics) {
+                         @NonNull WifiMetrics wifiMetrics,
+                         @NonNull SarManager sarManager) {
         mContext = context;
         mFrameworkFacade = framework;
         mWifiNative = wifiNative;
@@ -133,6 +136,7 @@ public class SoftApManager implements ActiveModeManager {
             mApConfig = config;
         }
         mWifiMetrics = wifiMetrics;
+        mSarManager = sarManager;
         mStateMachine = new SoftApStateMachine(looper);
     }
 
@@ -491,6 +495,9 @@ public class SoftApManager implements ActiveModeManager {
                 if (mSettingObserver != null) {
                     mSettingObserver.register();
                 }
+                
+                mSarManager.setSapWifiState(WifiManager.WIFI_AP_STATE_ENABLED);
+
                 Log.d(TAG, "Resetting num stations on start");
                 mNumAssociatedStations = 0;
                 scheduleTimeoutMessage();
@@ -512,6 +519,8 @@ public class SoftApManager implements ActiveModeManager {
                 mWifiMetrics.addSoftApUpChangedEvent(false, mMode);
                 updateApState(WifiManager.WIFI_AP_STATE_DISABLED,
                         WifiManager.WIFI_AP_STATE_DISABLING, 0);
+
+                mSarManager.setSapWifiState(WifiManager.WIFI_AP_STATE_DISABLED);
                 mApInterfaceName = null;
                 mIfaceIsUp = false;
                 mStateMachine.quitNow();
