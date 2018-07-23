@@ -284,6 +284,7 @@ public class PasspointManagerTest {
         PasspointProvider provider = createMockProvider(config);
         when(mObjectFactory.makePasspointProvider(eq(config), eq(mWifiKeyStore),
                 eq(mSimAccessor), anyLong(), eq(TEST_CREATOR_UID))).thenReturn(provider);
+
         assertTrue(mManager.addOrUpdateProvider(config, TEST_CREATOR_UID));
 
         return provider;
@@ -1378,9 +1379,10 @@ public class PasspointManagerTest {
      * @throws Exception
      */
     @Test
-    public void updateMetrics() throws Exception {
+    public void updateMetrics() {
         PasspointProvider provider = addTestProvider(TEST_FQDN);
-
+        ArgumentCaptor<Map<String, PasspointProvider>> argCaptor = ArgumentCaptor.forClass(
+                Map.class);
         // Provider have not provided a successful network connection.
         int expectedInstalledProviders = 1;
         int expectedConnectedProviders = 0;
@@ -1388,7 +1390,10 @@ public class PasspointManagerTest {
         mManager.updateMetrics();
         verify(mWifiMetrics).updateSavedPasspointProfiles(
                 eq(expectedInstalledProviders), eq(expectedConnectedProviders));
-        reset(provider);
+
+        verify(mWifiMetrics).updateSavedPasspointProfilesInfo(argCaptor.capture());
+        assertEquals(expectedInstalledProviders, argCaptor.getValue().size());
+        assertEquals(provider, argCaptor.getValue().get(TEST_FQDN));
         reset(mWifiMetrics);
 
         // Provider have provided a successful network connection.
@@ -1398,6 +1403,7 @@ public class PasspointManagerTest {
         verify(mWifiMetrics).updateSavedPasspointProfiles(
                 eq(expectedInstalledProviders), eq(expectedConnectedProviders));
     }
+
     /**
      * Verify Passpoint Manager's provisioning APIs by invoking methods in PasspointProvisioner for
      * initiailization and provisioning a provider.
