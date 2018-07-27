@@ -55,9 +55,11 @@ public class SarManager {
 
     private SarInfo mSarInfo;
 
-    /* Configuration for SAR */
-    private boolean mEnableSarTxPowerLimit;
-    private boolean mEnableSarBodyProximity;
+    /* Configuration for SAR support */
+    private boolean mSupportSarTxPowerLimit;
+    private boolean mSupportSarVoiceCall;
+    private boolean mSupportSarSoftAp;
+    private boolean mSupportSarSensor;
     /* Sensor event definitions */
     private int mSarSensorEventFreeSpace;
     private int mSarSensorEventNearBody;
@@ -92,27 +94,36 @@ public class SarManager {
         mSensorListener = new SarSensorEventListener();
 
         readSarConfigs();
-        if (mEnableSarTxPowerLimit) {
-            mSarInfo = new SarInfo(mEnableSarBodyProximity);
+        if (mSupportSarTxPowerLimit) {
+            mSarInfo = new SarInfo();
+            setSarConfigsInInfo();
             registerListeners();
         }
     }
 
     private void readSarConfigs() {
-        mEnableSarTxPowerLimit = mContext.getResources().getBoolean(
+        mSupportSarTxPowerLimit = mContext.getResources().getBoolean(
                 R.bool.config_wifi_framework_enable_sar_tx_power_limit);
         /* In case SAR is disabled,
-           then SAR sensor is automatically disabled as well (irrespective of the config) */
-        if (!mEnableSarTxPowerLimit) {
-            mEnableSarBodyProximity = false;
+           then all SAR inputs are automatically disabled as well (irrespective of the config) */
+        if (!mSupportSarTxPowerLimit) {
+            mSupportSarVoiceCall = false;
+            mSupportSarSoftAp = false;
+            mSupportSarSensor = false;
             return;
         }
 
-        mEnableSarBodyProximity = mContext.getResources().getBoolean(
+        /* Voice calls are supported when SAR is supported */
+        mSupportSarVoiceCall = true;
+
+        mSupportSarSoftAp = mContext.getResources().getBoolean(
+                R.bool.config_wifi_framework_enable_soft_ap_sar_tx_power_limit);
+
+        mSupportSarSensor = mContext.getResources().getBoolean(
                 R.bool.config_wifi_framework_enable_body_proximity_sar_tx_power_limit);
 
         /* Read the sar sensor event Ids */
-        if (mEnableSarBodyProximity) {
+        if (mSupportSarSensor) {
             mSarSensorEventFreeSpace = mContext.getResources().getInteger(
                     R.integer.config_wifi_framework_sar_free_space_event_id);
             mSarSensorEventNearBody = mContext.getResources().getInteger(
@@ -124,18 +135,26 @@ public class SarManager {
         }
     }
 
+    private void setSarConfigsInInfo() {
+        mSarInfo.sarVoiceCallSupported = mSupportSarVoiceCall;
+        mSarInfo.sarSapSupported = mSupportSarSoftAp;
+        mSarInfo.sarSensorSupported = mSupportSarSensor;
+    }
+
     private void registerListeners() {
-        /* Listen for Phone State changes */
-        registerPhoneStateListener();
+        if (mSupportSarVoiceCall) {
+            /* Listen for Phone State changes */
+            registerPhoneStateListener();
+        }
 
         /* Only listen for SAR sensor if supported */
-        if (mEnableSarBodyProximity) {
+        if (mSupportSarSensor) {
             /* Register the SAR sensor listener.
              * If this fails, we will assume worst case (near head) */
             if (!registerSensorListener()) {
                 Log.e(TAG, "Failed to register sensor listener, setting Sensor to NearHead");
                 /*TODO Need to add a metric to determine how often this happens */
-                mSarInfo.mSensorState = SarInfo.SAR_SENSOR_NEAR_HEAD;
+                mSarInfo.sensorState = SarInfo.SAR_SENSOR_NEAR_HEAD;
             }
         }
     }
@@ -162,8 +181,8 @@ public class SarManager {
      */
     public void setClientWifiState(int state) {
         boolean newIsEnabled;
-        /* No action is taken if SAR is not enabled */
-        if (!mEnableSarTxPowerLimit) {
+        /* No action is taken if SAR is not supported */
+        if (!mSupportSarTxPowerLimit) {
             return;
         }
 
@@ -177,8 +196,8 @@ public class SarManager {
         }
 
         /* Report change to HAL if needed */
-        if (mSarInfo.mIsWifiClientEnabled != newIsEnabled) {
-            mSarInfo.mIsWifiClientEnabled = newIsEnabled;
+        if (mSarInfo.isWifiClientEnabled != newIsEnabled) {
+            mSarInfo.isWifiClientEnabled = newIsEnabled;
             updateSarScenario();
         }
     }
@@ -188,8 +207,8 @@ public class SarManager {
      */
     public void setSapWifiState(int state) {
         boolean newIsEnabled;
-        /* No action is taken if SAR is not enabled */
-        if (!mEnableSarTxPowerLimit) {
+        /* No action is taken if SAR is not supported */
+        if (!mSupportSarTxPowerLimit) {
             return;
         }
 
@@ -203,8 +222,8 @@ public class SarManager {
         }
 
         /* Report change to HAL if needed */
-        if (mSarInfo.mIsWifiSapEnabled != newIsEnabled) {
-            mSarInfo.mIsWifiSapEnabled = newIsEnabled;
+        if (mSarInfo.isWifiSapEnabled != newIsEnabled) {
+            mSarInfo.isWifiSapEnabled = newIsEnabled;
             updateSarScenario();
         }
     }
@@ -214,8 +233,8 @@ public class SarManager {
      */
     public void setScanOnlyWifiState(int state) {
         boolean newIsEnabled;
-        /* No action is taken if SAR is not enabled */
-        if (!mEnableSarTxPowerLimit) {
+        /* No action is taken if SAR is not supported */
+        if (!mSupportSarTxPowerLimit) {
             return;
         }
 
@@ -229,8 +248,8 @@ public class SarManager {
         }
 
         /* Report change to HAL if needed */
-        if (mSarInfo.mIsWifiScanOnlyEnabled != newIsEnabled) {
-            mSarInfo.mIsWifiScanOnlyEnabled = newIsEnabled;
+        if (mSarInfo.isWifiScanOnlyEnabled != newIsEnabled) {
+            mSarInfo.isWifiScanOnlyEnabled = newIsEnabled;
             updateSarScenario();
         }
     }
@@ -256,8 +275,8 @@ public class SarManager {
         }
 
         /* Report change to HAL if needed */
-        if (mSarInfo.mIsVoiceCall != newIsVoiceCall) {
-            mSarInfo.mIsVoiceCall = newIsVoiceCall;
+        if (mSarInfo.isVoiceCall != newIsVoiceCall) {
+            mSarInfo.isVoiceCall = newIsVoiceCall;
             updateSarScenario();
         }
     }
@@ -281,9 +300,9 @@ public class SarManager {
         }
 
         /* Report change to HAL if needed */
-        if (mSarInfo.mSensorState != newSensorState) {
+        if (mSarInfo.sensorState != newSensorState) {
             Log.d(TAG, "Setting Sensor state to " + SarInfo.sensorStateToString(newSensorState));
-            mSarInfo.mSensorState = newSensorState;
+            mSarInfo.sensorState = newSensorState;
             updateSarScenario();
         }
     }
@@ -304,11 +323,15 @@ public class SarManager {
      * Dumps SarManager state (as well as its SarInfo member variable state)
      */
     public void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
-        pw.println("*** WiFi SAR Manager Dump ***");
-        pw.println("isSarEnabled: " + mEnableSarTxPowerLimit);
-        pw.println("isSarSensorEnabled: " + mEnableSarBodyProximity);
+        pw.println("Dump of SarManager");
+        pw.println("isSarSupported: " + mSupportSarTxPowerLimit);
+        pw.println("isSarVoiceCallSupported: " + mSupportSarVoiceCall);
+        pw.println("isSarSoftApSupported: " + mSupportSarSoftAp);
+        pw.println("isSarSensorSupported: " + mSupportSarSensor);
         pw.println("");
-        mSarInfo.dump(fd, pw, args);
+        if (mSarInfo != null) {
+            mSarInfo.dump(fd, pw, args);
+        }
     }
 
     /**
@@ -330,7 +353,7 @@ public class SarManager {
             Log.d(TAG, "Received Phone State Change: " + state);
 
             /* In case of an unsolicited event */
-            if (!mEnableSarTxPowerLimit) {
+            if (!mSupportSarTxPowerLimit || !mSupportSarVoiceCall) {
                 return;
             }
             onCellStateChangeEvent(state);

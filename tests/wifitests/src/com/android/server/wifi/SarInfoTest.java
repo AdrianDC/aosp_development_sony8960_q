@@ -39,7 +39,7 @@ public class SarInfoTest {
 
     @Before
     public void setUp() throws Exception {
-        mSarInfo = new SarInfo(true);
+        mSarInfo = new SarInfo();
     }
 
     @After
@@ -142,7 +142,7 @@ public class SarInfoTest {
      */
     @Test
     public void testSarInfo_shouldReport_wifi_enabled() throws Exception {
-        mSarInfo.mIsWifiClientEnabled = true;
+        mSarInfo.isWifiClientEnabled = true;
         assertTrue(mSarInfo.shouldReport());
     }
 
@@ -151,7 +151,7 @@ public class SarInfoTest {
      */
     @Test
     public void testSarInfo_check_sensor_wifi_disabled() throws Exception {
-        mSarInfo.mSensorState = SarInfo.SAR_SENSOR_NEAR_HEAD;
+        mSarInfo.sensorState = SarInfo.SAR_SENSOR_NEAR_HEAD;
         assertFalse(mSarInfo.shouldReport());
     }
 
@@ -160,11 +160,11 @@ public class SarInfoTest {
      */
     @Test
     public void testSarInfo_check_sensor_wifi_enabled() throws Exception {
-        mSarInfo.mIsWifiSapEnabled = true;
+        mSarInfo.isWifiSapEnabled = true;
         assertTrue(mSarInfo.shouldReport());
         mSarInfo.reportingSuccessful();
 
-        mSarInfo.mSensorState = SarInfo.SAR_SENSOR_NEAR_HEAD;
+        mSarInfo.sensorState = SarInfo.SAR_SENSOR_NEAR_HEAD;
         assertTrue(mSarInfo.shouldReport());
     }
 
@@ -175,8 +175,8 @@ public class SarInfoTest {
      */
     @Test
     public void testSarInfo_check_sensor_multiple_wifi_enabled() throws Exception {
-        mSarInfo.mIsWifiScanOnlyEnabled = true;
-        mSarInfo.mSensorState = SarInfo.SAR_SENSOR_NEAR_HEAD;
+        mSarInfo.isWifiScanOnlyEnabled = true;
+        mSarInfo.sensorState = SarInfo.SAR_SENSOR_NEAR_HEAD;
         assertTrue(mSarInfo.shouldReport());
         mSarInfo.reportingSuccessful();
 
@@ -189,16 +189,16 @@ public class SarInfoTest {
      */
     @Test
     public void testSarInfo_check_sensor_multiple_values_wifi_enabled() throws Exception {
-        mSarInfo.mIsWifiClientEnabled = true;
-        mSarInfo.mSensorState = SarInfo.SAR_SENSOR_NEAR_HEAD;
+        mSarInfo.isWifiClientEnabled = true;
+        mSarInfo.sensorState = SarInfo.SAR_SENSOR_NEAR_HEAD;
         assertTrue(mSarInfo.shouldReport());
         mSarInfo.reportingSuccessful();
 
-        mSarInfo.mSensorState = SarInfo.SAR_SENSOR_NEAR_BODY;
+        mSarInfo.sensorState = SarInfo.SAR_SENSOR_NEAR_BODY;
         assertTrue(mSarInfo.shouldReport());
         mSarInfo.reportingSuccessful();
 
-        mSarInfo.mSensorState = SarInfo.SAR_SENSOR_NEAR_HEAD;
+        mSarInfo.sensorState = SarInfo.SAR_SENSOR_NEAR_HEAD;
         assertTrue(mSarInfo.shouldReport());
     }
 
@@ -207,10 +207,10 @@ public class SarInfoTest {
      */
     @Test
     public void testSarInfo_change_sensors_while_wifi_disabled() throws Exception {
-        mSarInfo.mSensorState = SarInfo.SAR_SENSOR_NEAR_HEAD;
+        mSarInfo.sensorState = SarInfo.SAR_SENSOR_NEAR_HEAD;
         assertFalse(mSarInfo.shouldReport());
 
-        mSarInfo.mIsWifiClientEnabled = true;
+        mSarInfo.isWifiClientEnabled = true;
         assertTrue(mSarInfo.shouldReport());
         mSarInfo.reportingSuccessful();
     }
@@ -222,11 +222,11 @@ public class SarInfoTest {
      */
     @Test
     public void testSarInfo_voice_call_wifi_enabled() throws Exception {
-        mSarInfo.mIsWifiClientEnabled = true;
+        mSarInfo.isWifiClientEnabled = true;
         assertTrue(mSarInfo.shouldReport());
         mSarInfo.reportingSuccessful();
 
-        mSarInfo.mIsVoiceCall = true;
+        mSarInfo.isVoiceCall = true;
         assertTrue(mSarInfo.shouldReport());
     }
 
@@ -237,11 +237,11 @@ public class SarInfoTest {
      */
     @Test
     public void testSarInfo_sap_wifi_enabled() throws Exception {
-        mSarInfo.mIsWifiClientEnabled = true;
+        mSarInfo.isWifiClientEnabled = true;
         assertTrue(mSarInfo.shouldReport());
         mSarInfo.reportingSuccessful();
 
-        mSarInfo.mIsWifiSapEnabled = true;
+        mSarInfo.isWifiSapEnabled = true;
         assertTrue(mSarInfo.shouldReport());
     }
 
@@ -252,8 +252,8 @@ public class SarInfoTest {
      */
     @Test
     public void testSarInfo_check_sensor_reporting_no_success_reporting() throws Exception {
-        mSarInfo.mIsWifiClientEnabled = true;
-        mSarInfo.mSensorState = SarInfo.SAR_SENSOR_NEAR_HEAD;
+        mSarInfo.isWifiClientEnabled = true;
+        mSarInfo.sensorState = SarInfo.SAR_SENSOR_NEAR_HEAD;
         assertTrue(mSarInfo.shouldReport());
 
         /* No call to reportingSuccessful() will be done */
@@ -271,17 +271,17 @@ public class SarInfoTest {
      */
     @Test
     public void testSarInfo_check_sensor_reporting_no_success_reporting_revert() throws Exception {
-        mSarInfo.mIsWifiClientEnabled = true;
-        mSarInfo.mSensorState = SarInfo.SAR_SENSOR_NEAR_HEAD;
+        mSarInfo.isWifiClientEnabled = true;
+        mSarInfo.sensorState = SarInfo.SAR_SENSOR_NEAR_HEAD;
         assertTrue(mSarInfo.shouldReport());
         mSarInfo.reportingSuccessful();
 
         /* Changing the sensor state and fail to report */
-        mSarInfo.mSensorState = SarInfo.SAR_SENSOR_NEAR_BODY;
+        mSarInfo.sensorState = SarInfo.SAR_SENSOR_NEAR_BODY;
         assertTrue(mSarInfo.shouldReport());
 
         /* Changing the sensor back to the same value as last reported */
-        mSarInfo.mSensorState = SarInfo.SAR_SENSOR_NEAR_HEAD;
+        mSarInfo.sensorState = SarInfo.SAR_SENSOR_NEAR_HEAD;
         assertFalse(mSarInfo.shouldReport());
     }
 }
