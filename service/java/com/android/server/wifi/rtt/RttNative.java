@@ -166,6 +166,11 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
      */
     public boolean rangeRequest(int cmdId, RangingRequest request,
             boolean isCalledFromPrivilegedContext) {
+        return rangeRequestInternal(cmdId, request, isCalledFromPrivilegedContext, true);
+    }
+
+    private boolean rangeRequestInternal(int cmdId, RangingRequest request,
+            boolean isCalledFromPrivilegedContext, boolean tryToReinitIfNecessary) {
         if (mDbg) {
             Log.v(TAG,
                     "rangeRequest: cmdId=" + cmdId + ", # of requests=" + request.mRttPeers.size());
@@ -175,6 +180,11 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
         synchronized (mLock) {
             if (!isReady()) {
                 Log.e(TAG, "rangeRequest: RttController is null");
+                if (tryToReinitIfNecessary) {
+                    updateController();
+                    return rangeRequestInternal(cmdId, request, isCalledFromPrivilegedContext,
+                            false);
+                }
                 return false;
             }
 
@@ -192,6 +202,14 @@ public class RttNative extends IWifiRttControllerEventCallback.Stub {
 
             try {
                 WifiStatus status = mIWifiRttController.rangeRequest(cmdId, rttConfig);
+                if (status.code == WifiStatusCode.ERROR_WIFI_RTT_CONTROLLER_INVALID
+                        && tryToReinitIfNecessary) {
+                    Log.d(TAG, "rangeRequest: RTT controller invalidated from under us - reinit!");
+                    mIWifiRttController = null;
+                    updateController();
+                    return rangeRequestInternal(cmdId, request, isCalledFromPrivilegedContext,
+                            false);
+                }
                 if (status.code != WifiStatusCode.SUCCESS) {
                     Log.e(TAG, "rangeRequest: cannot issue range request -- code=" + status.code);
                     return false;
