@@ -406,7 +406,7 @@ bool RoutingManager::commitRouting() {
 
 void RoutingManager::onNfccShutdown() {
   static const char fn[] = "RoutingManager:onNfccShutdown";
-  if (mDefaultOffHostRoute == 0x00) return;
+  if ((mDefaultOffHostRoute == 0x00) && (mDefaultFelicaRoute == 0x00)) return;
 
   tNFA_STATUS nfaStat = NFA_STATUS_FAILED;
   uint8_t actualNumEe = MAX_NUM_EE;
@@ -419,9 +419,13 @@ void RoutingManager::onNfccShutdown() {
   }
   if (actualNumEe != 0) {
     for (uint8_t xx = 0; xx < actualNumEe; xx++) {
-      if ((eeInfo[xx].num_interface != 0) &&
-          (eeInfo[xx].ee_interface[0] != NCI_NFCEE_INTERFACE_HCI_ACCESS) &&
-          (eeInfo[xx].ee_status == NFA_EE_STATUS_ACTIVE)) {
+      bool bIsOffHostEEPresent =
+          (NFC_GetNCIVersion() < NCI_VERSION_2_0)
+              ? (eeInfo[xx].num_interface != 0)
+              : (eeInfo[xx].ee_interface[0] !=
+                 NCI_NFCEE_INTERFACE_HCI_ACCESS) &&
+                    (eeInfo[xx].ee_status == NFA_EE_STATUS_ACTIVE);
+      if (bIsOffHostEEPresent) {
         DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
             "%s: Handle: 0x%04x Change Status Active to Inactive", fn,
             eeInfo[xx].ee_handle);
