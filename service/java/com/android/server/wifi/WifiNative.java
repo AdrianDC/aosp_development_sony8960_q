@@ -2820,21 +2820,14 @@ public class WifiNative {
     }
 
     /**
-     * Tx power level scenarios that can be selected.
-     */
-    public static final int TX_POWER_SCENARIO_NORMAL = 0;
-    public static final int TX_POWER_SCENARIO_VOICE_CALL = 1;
-
-    /**
-     * Select one of the pre-configured TX power level scenarios or reset it back to normal.
-     * Primarily used for meeting SAR requirements during voice calls.
+     * Select one of the pre-configured transmit power level scenarios or reset it back to normal.
+     * Primarily used for meeting SAR requirements.
      *
-     * @param scenario Should be one {@link #TX_POWER_SCENARIO_NORMAL} or
-     *        {@link #TX_POWER_SCENARIO_VOICE_CALL}.
+     * @param sarInfo The collection of inputs used to select the SAR scenario.
      * @return true for success; false for failure or if the HAL version does not support this API.
      */
-    public boolean selectTxPowerScenario(int scenario) {
-        return mWifiVendorHal.selectTxPowerScenario(scenario);
+    public boolean selectTxPowerScenario(SarInfo sarInfo) {
+        return mWifiVendorHal.selectTxPowerScenario(sarInfo);
     }
 
     /********************************************************

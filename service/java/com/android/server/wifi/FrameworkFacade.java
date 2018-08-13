@@ -136,17 +136,6 @@ public class FrameworkFacade {
        return true;
     }
 
-    /**
-     * Create a new instance of WifiApConfigStore.
-     * @param context reference to a Context
-     * @param backupManagerProxy reference to a BackupManagerProxy
-     * @return an instance of WifiApConfigStore
-     */
-    public WifiApConfigStore makeApConfigStore(Context context,
-                                               BackupManagerProxy backupManagerProxy) {
-        return new WifiApConfigStore(context, backupManagerProxy);
-    }
-
     public long getTxPackets(String iface) {
         return TrafficStats.getTxPackets(iface);
     }

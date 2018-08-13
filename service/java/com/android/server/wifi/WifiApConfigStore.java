@@ -17,15 +17,25 @@
 package com.android.server.wifi;
 
 import android.annotation.NonNull;
+import android.app.Notification;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.KeyMgmt;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Log;
 
 import com.android.internal.R;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.messages.nano.SystemMessageProto.SystemMessage;
+import com.android.internal.notification.SystemNotificationChannels;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -43,6 +53,10 @@ import java.util.UUID;
  * Provides API for reading/writing soft access point configuration.
  */
 public class WifiApConfigStore {
+
+    // Intent when user has interacted with the softap settings change notification
+    public static final String ACTION_HOTSPOT_CONFIG_USER_TAPPED_CONTENT =
+            "com.android.server.wifi.WifiApConfigStoreUtil.HOTSPOT_CONFIG_USER_TAPPED_CONTENT";
 
     private static final String TAG = "WifiApConfigStore";
 
@@ -71,19 +85,26 @@ public class WifiApConfigStore {
     private ArrayList<Integer> mAllowed2GChannel = null;
 
     private final Context mContext;
+    private final Handler mHandler;
     private final String mApConfigFile;
     private final BackupManagerProxy mBackupManagerProxy;
+    private final FrameworkFacade mFrameworkFacade;
     private boolean mRequiresApBandConversion = false;
 
-    WifiApConfigStore(Context context, BackupManagerProxy backupManagerProxy) {
-        this(context, backupManagerProxy, DEFAULT_AP_CONFIG_FILE);
+    WifiApConfigStore(Context context, Looper looper,
+            BackupManagerProxy backupManagerProxy, FrameworkFacade frameworkFacade) {
+        this(context, looper, backupManagerProxy, frameworkFacade, DEFAULT_AP_CONFIG_FILE);
     }
 
     WifiApConfigStore(Context context,
+                      Looper looper,
                       BackupManagerProxy backupManagerProxy,
+                      FrameworkFacade frameworkFacade,
                       String apConfigFile) {
         mContext = context;
+        mHandler = new Handler(looper);
         mBackupManagerProxy = backupManagerProxy;
+        mFrameworkFacade = frameworkFacade;
         mApConfigFile = apConfigFile;
 
         String ap2GChannelListStr = mContext.getResources().getString(
@@ -111,7 +132,29 @@ public class WifiApConfigStore {
             /* Save the default configuration to persistent storage. */
             writeApConfiguration(mApConfigFile, mWifiApConfig);
         }
+
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(ACTION_HOTSPOT_CONFIG_USER_TAPPED_CONTENT);
+        mContext.registerReceiver(
+                mBroadcastReceiver, filter, null /* broadcastPermission */, mHandler);
     }
+
+    private final BroadcastReceiver mBroadcastReceiver =
+            new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    // For now we only have one registered listener, but we easily could expand this
+                    // to support multiple signals.  Starting off with a switch to support trivial
+                    // expansion.
+                    switch(intent.getAction()) {
+                        case ACTION_HOTSPOT_CONFIG_USER_TAPPED_CONTENT:
+                            handleUserHotspotConfigTappedContent();
+                            break;
+                        default:
+                            Log.e(TAG, "Unknown action " + intent.getAction());
+                    }
+                }
+            };
 
     /**
      * Return the current soft access point configuration.
@@ -143,6 +186,43 @@ public class WifiApConfigStore {
 
     public ArrayList<Integer> getAllowed2GChannel() {
         return mAllowed2GChannel;
+    }
+
+    /**
+     * Helper method to create and send notification to user of apBand conversion.
+     *
+     * @param packageName name of the calling app
+     */
+    public void notifyUserOfApBandConversion(String packageName) {
+        Log.w(TAG, "ready to post notification - triggered by " + packageName);
+        Notification notification = createConversionNotification();
+        NotificationManager notificationManager = (NotificationManager)
+                    mContext.getSystemService(Context.NOTIFICATION_SERVICE);
+        notificationManager.notify(SystemMessage.NOTE_SOFTAP_CONFIG_CHANGED, notification);
+    }
+
+    private Notification createConversionNotification() {
+        CharSequence title = mContext.getText(R.string.wifi_softap_config_change);
+        CharSequence contentSummary = mContext.getText(R.string.wifi_softap_config_change_summary);
+        CharSequence content = mContext.getText(R.string.wifi_softap_config_change_detailed);
+        int color = mContext.getResources()
+                .getColor(R.color.system_notification_accent_color, mContext.getTheme());
+
+        return new Notification.Builder(mContext, SystemNotificationChannels.NETWORK_STATUS)
+                .setSmallIcon(R.drawable.ic_wifi_settings)
+                .setPriority(Notification.PRIORITY_HIGH)
+                .setCategory(Notification.CATEGORY_SYSTEM)
+                .setContentTitle(title)
+                .setContentText(contentSummary)
+                .setContentIntent(getPrivateBroadcast(ACTION_HOTSPOT_CONFIG_USER_TAPPED_CONTENT))
+                .setTicker(title)
+                .setShowWhen(false)
+                .setLocalOnly(true)
+                .setColor(color)
+                .setStyle(new Notification.BigTextStyle().bigText(content)
+                                                         .setBigContentTitle(title)
+                                                         .setSummaryText(contentSummary))
+                .build();
     }
 
     private WifiConfiguration apBandCheckConvert(WifiConfiguration config) {
@@ -385,5 +465,30 @@ public class WifiApConfigStore {
         }
 
         return true;
+    }
+
+    /**
+     * Helper method to start up settings on the softap config page.
+     */
+    private void startSoftApSettings() {
+        mContext.startActivity(
+                new Intent("com.android.settings.WIFI_TETHER_SETTINGS")
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+    }
+
+    /**
+     * Helper method to trigger settings to open the softap config page
+     */
+    private void handleUserHotspotConfigTappedContent() {
+        startSoftApSettings();
+        NotificationManager notificationManager = (NotificationManager)
+                mContext.getSystemService(Context.NOTIFICATION_SERVICE);
+        notificationManager.cancel(SystemMessage.NOTE_SOFTAP_CONFIG_CHANGED);
+    }
+
+    private PendingIntent getPrivateBroadcast(String action) {
+        Intent intent = new Intent(action).setPackage("android");
+        return mFrameworkFacade.getBroadcast(
+                mContext, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
     }
 }
