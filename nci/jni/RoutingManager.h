@@ -91,6 +91,7 @@ class RoutingManager {
   uint8_t mDefaultSysCodePowerstate;
   uint8_t mOffHostAidRoutingPowerState;
   bool mReceivedEeInfo;
+  bool mAidRoutingConfigured;
   tNFA_EE_CBACK_DATA mCbEventData;
   tNFA_EE_DISCOVER_REQ mEeInfo;
   tNFA_TECHNOLOGY_MASK mSeTechMask;
