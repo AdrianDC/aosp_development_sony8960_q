@@ -92,7 +92,10 @@ import com.android.nfc.cardemulation.CardEmulationManager;
 import com.android.nfc.dhimpl.NativeNfcManager;
 import com.android.nfc.handover.HandoverDataParser;
 
+import java.io.File;
 import java.io.FileDescriptor;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
@@ -103,6 +106,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Scanner;
 
 
 public class NfcService implements DeviceHostListener {
@@ -123,6 +127,8 @@ public class NfcService implements DeviceHostListener {
     static final String TRON_NFC_CE = "nfc_ce";
     static final String TRON_NFC_P2P = "nfc_p2p";
     static final String TRON_NFC_TAG = "nfc_tag";
+
+    static final String NATIVE_LOG_FILE_NAME = "native_logs";
 
     static final int MSG_NDEF_TAG = 0;
     static final int MSG_LLCP_LINK_ACTIVATION = 1;
@@ -1658,6 +1664,7 @@ public class NfcService implements DeviceHostListener {
                 mRoutingWakeLock.release();
             }
             Log.e(TAG, "Watchdog triggered, aborting.");
+            storeNativeCrashLogs();
             mDeviceHost.doAbort(getName());
         }
 
@@ -2610,6 +2617,41 @@ public class NfcService implements DeviceHostListener {
         }
     }
 
+    private void copyNativeCrashLogsIfAny(PrintWriter pw) {
+      try {
+          File file = new File(mContext.getFilesDir(), NATIVE_LOG_FILE_NAME);
+          if (!file.exists()) {
+            return;
+          }
+          pw.println("---BEGIN: NATIVE CRASH LOG----");
+          Scanner sc = new Scanner(file);
+          while(sc.hasNextLine()) {
+              String s = sc.nextLine();
+              pw.println(s);
+          }
+          pw.println("---END: NATIVE CRASH LOG----");
+          sc.close();
+      } catch (IOException e) {
+          Log.e(TAG, "Exception in copyNativeCrashLogsIfAny " + e);
+      }
+    }
+
+    private void storeNativeCrashLogs() {
+      try {
+          File file = new File(mContext.getFilesDir(), NATIVE_LOG_FILE_NAME);
+          if (!file.exists()) {
+              file.createNewFile();
+          }
+
+          FileOutputStream fos = new FileOutputStream(file);
+          mDeviceHost.dump(fos.getFD());
+          fos.flush();
+          fos.close();
+      } catch (IOException e) {
+          Log.e(TAG, "Exception in storeNativeCrashLogs " + e);
+      }
+    }
+
     void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
         if (mContext.checkCallingOrSelfPermission(android.Manifest.permission.DUMP)
                 != PackageManager.PERMISSION_GRANTED) {
@@ -2629,6 +2671,7 @@ public class NfcService implements DeviceHostListener {
                 mCardEmulationManager.dump(fd, pw, args);
             }
             mNfcDispatcher.dump(fd, pw, args);
+            copyNativeCrashLogsIfAny(pw);
             pw.flush();
             mDeviceHost.dump(fd);
         }
