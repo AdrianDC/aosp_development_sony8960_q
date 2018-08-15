@@ -65,7 +65,6 @@ libmm-vdec-inc          += frameworks/native/include/media/openmax
 libmm-vdec-inc          += frameworks/native/include/media/hardware
 libmm-vdec-inc          += hardware/qcom/media/msm8974/libc2dcolorconvert
 libmm-vdec-inc          += frameworks/av/include/media/stagefright
-libmm-vdec-inc          += hardware/qcom/display/libqservice
 libmm-vdec-inc          += $(vdec-inc)
 
 LOCAL_MODULE                    := libOmxVdec

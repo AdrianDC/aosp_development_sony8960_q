@@ -49,7 +49,6 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <fcntl.h>
 #include <limits.h>
 #include <qdMetaData.h>
-#include <QServiceUtils.h>
 
 #ifndef _ANDROID_
 #include <sys/ioctl.h>
@@ -9557,7 +9556,7 @@ int omx_vdec::secureDisplay(int mode) {
         interface_cast<qService::IQService>(sm->getService(String16("display.qservice")));
 
     if (displayBinder != NULL) {
-        securing(mode);
+        displayBinder->securing(mode);
         if (mode == qService::IQService::END) {
             m_secure_display = true;
         }
@@ -9582,7 +9581,7 @@ int omx_vdec::unsecureDisplay(int mode) {
         interface_cast<qService::IQService>(sm->getService(String16("display.qservice")));
 
     if (displayBinder != NULL)
-        unsecuring(mode);
+        displayBinder->unsecuring(mode);
     else
         DEBUG_PRINT_ERROR("unsecureDisplay(%d) display.qservice unavailable", mode);
     return 0;
