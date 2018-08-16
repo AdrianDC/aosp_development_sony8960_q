@@ -28,6 +28,8 @@ import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.os.SystemProperties;
+
 import android.util.Base64;
 import android.util.Log;
 import android.util.Pair;
@@ -2162,6 +2164,7 @@ public class WifiMetrics {
 
                 pw.println("mWifiLogProto.isMacRandomizationOn=" + mIsMacRandomizationOn);
                 pw.println("mWifiLogProto.scoreExperimentId=" + mWifiLogProto.scoreExperimentId);
+                pw.println("Hardware Version: " + SystemProperties.get("ro.boot.revision", ""));
             }
         }
     }
@@ -2528,6 +2531,7 @@ public class WifiMetrics {
             mWifiLogProto.wifiPowerStats = mWifiPowerMetrics.buildProto();
             mWifiLogProto.wifiWakeStats = mWifiWakeMetrics.buildProto();
             mWifiLogProto.isMacRandomizationOn = mIsMacRandomizationOn;
+            mWifiLogProto.hardwareRevision = SystemProperties.get("ro.boot.revision", "");
         }
     }
 
