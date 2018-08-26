@@ -102,6 +102,11 @@ $(call add_json_bool, NativeCoverage,                    $(filter true,$(NATIVE_
 $(call add_json_list, CoveragePaths,                     $(COVERAGE_PATHS))
 $(call add_json_list, CoverageExcludePaths,              $(COVERAGE_EXCLUDE_PATHS))
 
+ifeq ($(TARGET_ADDITIONAL_GRALLOC_10_USAGE_BITS),)
+  $(call add_json_str, Additional_gralloc_10_usage_bits, 0)
+else
+  $(call add_json_str, Additional_gralloc_10_usage_bits, $(TARGET_ADDITIONAL_GRALLOC_10_USAGE_BITS))
+endif
 $(call add_json_bool, Has_legacy_camera_hal1,            $(filter true,$(if $(filter true,$(TARGET_HAS_LEGACY_CAMERA_HAL1)),true,false)))
 $(call add_json_str,  Target_shim_libs,                  $(subst $(space),:,$(TARGET_LD_SHIM_LIBS)))
 $(call add_json_bool, Uses_media_extensions,             $(filter true,$(if $(filter true,$(TARGET_USES_MEDIA_EXTENSIONS)),true,false)))
