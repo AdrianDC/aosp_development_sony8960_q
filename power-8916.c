@@ -133,10 +133,10 @@ static void set_power_profile(int profile)
     } else if (profile == PROFILE_HIGH_PERFORMANCE) {
         if (is_target_8916()) {
             perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_high_performance_8916,
-                    ARRAY_SIZE(profile_power_save_8916));
+                    ARRAY_SIZE(profile_high_performance_8916));
         } else {
             perform_hint_action(DEFAULT_PROFILE_HINT_ID, profile_high_performance_8939,
-                    ARRAY_SIZE(profile_power_save_8939));
+                    ARRAY_SIZE(profile_high_performance_8939));
         }
         ALOGD("%s: Set performance mode", __func__);
     }
