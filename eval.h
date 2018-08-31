@@ -78,7 +78,7 @@ class Evaluator {
   }
   void clear_delayed_output_commands() { delayed_output_commands_.clear(); }
 
-  static const unordered_set<Symbol>& used_undefined_vars() {
+  static const SymbolSet& used_undefined_vars() {
     return used_undefined_vars_;
   }
 
@@ -114,13 +114,20 @@ class Evaluator {
                Value* rhs,
                StringPiece orig_rhs,
                AssignOp op,
-               bool is_override = false);
+               bool is_override,
+               bool *needs_assign);
   void DoInclude(const string& fname);
 
   Var* LookupVarGlobal(Symbol name);
 
   // Equivalent to LookupVarInCurrentScope, but doesn't mark as used.
   Var* PeekVarInCurrentScope(Symbol name);
+
+  void MarkVarsReadonly(Value *var_list);
+
+  void EvalRuleSpecificAssign(const vector<Symbol>& targets,
+                              const RuleStmt *stmt,
+                              const StringPiece& lhs_string, size_t separator_pos);
 
   unordered_map<Symbol, Vars*> rule_vars_;
   vector<const Rule*> rules_;
@@ -153,9 +160,7 @@ class Evaluator {
   unique_ptr<string> export_message_;
   bool export_error_;
 
-  static unordered_set<Symbol> used_undefined_vars_;
-
-  Symbol kati_readonly_;
+  static SymbolSet used_undefined_vars_;
 };
 
 #endif  // EVAL_H_
