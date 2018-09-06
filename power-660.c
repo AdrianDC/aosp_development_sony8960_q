@@ -122,7 +122,7 @@ static void process_video_encode_hint(void *metadata)
                     GO_HISPEED_LOAD_BIG, 0x5F,
                     ABOVE_HISPEED_DELAY_BIG, 0x4,
                     TARGET_LOADS_BIG, 0x5F,
-                    SCHED_IDLE_NR_RUN, 0X5,
+                    SCHED_SPILL_NR_RUN, 0X5,
                     CPUBW_HWMON_SAMPLE_MS, 0xA
                 };
                 memcpy(resource_values, res, MIN_VAL(sizeof(resource_values), sizeof(res)));

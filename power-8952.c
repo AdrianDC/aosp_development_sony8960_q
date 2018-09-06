@@ -61,7 +61,7 @@ static int profile_high_performance[] = {
 };
 
 static int profile_power_save[] = {
-    CPUS_ONLINE_MAX_LIMIT_BIG, 0x0,
+    CPUS_ONLINE_MAX_BIG, 0x0,
     CPU0_MAX_FREQ_NONTURBO_MAX,
     CPU4_MAX_FREQ_NONTURBO_MAX,
 };
