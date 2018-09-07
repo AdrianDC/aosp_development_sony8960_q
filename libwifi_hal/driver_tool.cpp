@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
+#include <grp.h>
+#include <pwd.h>
+#include <sys/types.h>
+
 #include "wifi_hal/driver_tool.h"
 
 #include <android-base/logging.h>
-#include <private/android_filesystem_config.h>
 
 #include "hardware_legacy/wifi.h"
 
@@ -35,7 +38,29 @@ bool DriverTool::TakeOwnershipOfFirmwareReload() {
     return true;  // HAL doesn't think we need to load firmware for any mode.
   }
 
-  if (chown(WIFI_DRIVER_FW_PATH_PARAM, AID_WIFI, AID_WIFI) != 0) {
+  errno = 0;
+  struct passwd *pwd = getpwnam("wifi");
+  if (pwd == nullptr) {
+    if (errno == 0) {
+      PLOG(ERROR) << "No user 'wifi' found";
+    } else {
+      PLOG(ERROR) << "Error getting uid for wifi: " << strerror(errno);
+    }
+    return false;
+  }
+
+  errno = 0;
+  struct group *grp = getgrnam("wifi");
+  if (grp == nullptr) {
+    if (errno == 0) {
+      PLOG(ERROR) << "No group 'wifi' found";
+    } else {
+      PLOG(ERROR) << "Error getting gid for wifi: " << strerror(errno);
+    }
+    return false;
+  }
+
+  if (chown(WIFI_DRIVER_FW_PATH_PARAM, pwd->pw_uid, grp->gr_gid) != 0) {
     PLOG(ERROR) << "Error changing ownership of '" << WIFI_DRIVER_FW_PATH_PARAM
                 << "' to wifi:wifi";
     return false;
