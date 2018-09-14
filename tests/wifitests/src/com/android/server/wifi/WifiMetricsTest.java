@@ -67,6 +67,7 @@ import java.util.BitSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -79,6 +80,7 @@ public class WifiMetricsTest {
     WifiMetrics mWifiMetrics;
     WifiMetricsProto.WifiLog mDecodedProto;
     TestLooper mTestLooper;
+    Random mRandom = new Random();
     @Mock Clock mClock;
     @Mock ScoringParams mScoringParams;
     @Mock WifiConfigManager mWcm;
@@ -1976,5 +1978,90 @@ public class WifiMetricsTest {
             if ((mask & 1) != 0) bitSet.set(bitIndex);
         }
         return bitSet;
+    }
+
+    private int nextRandInt() {
+        return mRandom.nextInt(10000);
+    }
+
+    private WifiLinkLayerStats nextRandomStats(WifiLinkLayerStats current) {
+        WifiLinkLayerStats out = new WifiLinkLayerStats();
+        out.timeStampInMs = current.timeStampInMs + nextRandInt();
+        out.on_time = current.on_time + nextRandInt();
+        out.tx_time = current.tx_time + nextRandInt();
+        out.rx_time = current.rx_time + nextRandInt();
+        out.on_time_scan = current.on_time_scan + nextRandInt();
+        return out;
+    }
+
+    private void assertWifiLinkLayerUsageHasDiff(WifiLinkLayerStats oldStats,
+            WifiLinkLayerStats newStats) {
+        assertEquals(newStats.timeStampInMs - oldStats.timeStampInMs,
+                mDecodedProto.wifiLinkLayerUsageStats.loggingDurationMs);
+        assertEquals(newStats.on_time - oldStats.on_time,
+                mDecodedProto.wifiLinkLayerUsageStats.radioOnTimeMs);
+        assertEquals(newStats.tx_time - oldStats.tx_time,
+                mDecodedProto.wifiLinkLayerUsageStats.radioTxTimeMs);
+        assertEquals(newStats.rx_time - oldStats.rx_time,
+                mDecodedProto.wifiLinkLayerUsageStats.radioRxTimeMs);
+        assertEquals(newStats.on_time_scan - oldStats.on_time_scan,
+                mDecodedProto.wifiLinkLayerUsageStats.radioScanTimeMs);
+    }
+
+    /**
+     * Verify that WifiMetrics is counting link layer usage correctly when given a series of
+     * valid input.
+     * @throws Exception
+     */
+    @Test
+    public void testWifiLinkLayerUsageStats() throws Exception {
+        WifiLinkLayerStats stat1 = nextRandomStats(new WifiLinkLayerStats());
+        WifiLinkLayerStats stat2 = nextRandomStats(stat1);
+        WifiLinkLayerStats stat3 = nextRandomStats(stat2);
+        mWifiMetrics.incrementWifiLinkLayerUsageStats(stat1);
+        mWifiMetrics.incrementWifiLinkLayerUsageStats(stat2);
+        mWifiMetrics.incrementWifiLinkLayerUsageStats(stat3);
+        dumpProtoAndDeserialize();
+
+        // After 2 increments, the counters should have difference between |stat1| and |stat3|
+        assertWifiLinkLayerUsageHasDiff(stat1, stat3);
+    }
+
+    /**
+     * Verify that null input is handled and wifi link layer usage stats are not incremented.
+     * @throws Exception
+     */
+    @Test
+    public void testWifiLinkLayerUsageStatsNullInput() throws Exception {
+        WifiLinkLayerStats stat1 = nextRandomStats(new WifiLinkLayerStats());
+        WifiLinkLayerStats stat2 = null;
+        mWifiMetrics.incrementWifiLinkLayerUsageStats(stat1);
+        mWifiMetrics.incrementWifiLinkLayerUsageStats(stat2);
+        dumpProtoAndDeserialize();
+
+        // Counter should be zero
+        assertWifiLinkLayerUsageHasDiff(stat1, stat1);
+    }
+
+    /**
+     * Verify that when the new data appears to be bad link layer usage stats are not being
+     * incremented and the buffered WifiLinkLayerStats get cleared.
+     * @throws Exception
+     */
+    @Test
+    public void testWifiLinkLayerUsageStatsChipReset() throws Exception {
+        WifiLinkLayerStats stat1 = nextRandomStats(new WifiLinkLayerStats());
+        WifiLinkLayerStats stat2 = nextRandomStats(stat1);
+        stat2.on_time = stat1.on_time - 1;
+        WifiLinkLayerStats stat3 = nextRandomStats(stat2);
+        WifiLinkLayerStats stat4 = nextRandomStats(stat3);
+        mWifiMetrics.incrementWifiLinkLayerUsageStats(stat1);
+        mWifiMetrics.incrementWifiLinkLayerUsageStats(stat2);
+        mWifiMetrics.incrementWifiLinkLayerUsageStats(stat3);
+        mWifiMetrics.incrementWifiLinkLayerUsageStats(stat4);
+        dumpProtoAndDeserialize();
+
+        // Should only count the difference between |stat3| and |stat4|
+        assertWifiLinkLayerUsageHasDiff(stat3, stat4);
     }
 }
