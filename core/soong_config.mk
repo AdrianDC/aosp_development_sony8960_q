@@ -109,7 +109,7 @@ else
 endif
 $(call add_json_bool, Has_legacy_camera_hal1,            $(filter true,$(if $(filter true,$(TARGET_HAS_LEGACY_CAMERA_HAL1)),true,false)))
 $(call add_json_str_omitempty, Target_process_sdk_version_override, $(TARGET_PROCESS_SDK_VERSION_OVERRIDE))
-$(call add_json_str,  Target_shim_libs,                  $(subst $(space),:,$(TARGET_LD_SHIM_LIBS)))
+$(call add_json_str_omitempty, Target_shim_libs,         $(subst $(space),:,$(TARGET_LD_SHIM_LIBS)))
 $(call add_json_bool, Uses_media_extensions,             $(filter true,$(if $(filter true,$(TARGET_USES_MEDIA_EXTENSIONS)),true,false)))
 $(call add_json_bool, Uses_qcom_bsp_legacy,              $(filter true,$(if $(filter msm7x27a msm7x30 msm8660 msm8960,$(TARGET_BOARD_PLATFORM)),true,false)))
 
