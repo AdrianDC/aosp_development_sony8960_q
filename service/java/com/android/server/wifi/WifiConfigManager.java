@@ -2733,6 +2733,8 @@ public class WifiConfigManager {
         if (mConfiguredNetworks.sizeForAllUsers() == 0) {
             Log.w(TAG, "No stored networks found.");
         }
+        // resetSimNetworks may already have been called. Call it again to reset loaded SIM configs.
+        resetSimNetworks(mSimPresent);
         sendConfiguredNetworksChangedBroadcast();
         mPendingStoreRead = false;
     }
