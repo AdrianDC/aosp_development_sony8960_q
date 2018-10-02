@@ -15,6 +15,7 @@
  */
 package com.android.server.wifi;
 
+import android.annotation.NonNull;
 import android.hardware.wifi.V1_0.IWifiApIface;
 import android.hardware.wifi.V1_0.IWifiChip;
 import android.hardware.wifi.V1_0.IWifiChipEventCallback;
@@ -80,8 +81,6 @@ import com.android.server.wifi.util.BitMask;
 import com.android.server.wifi.util.NativeUtil;
 
 import com.google.errorprone.annotations.CompileTimeConstant;
-
-import libcore.util.NonNull;
 
 import java.util.ArrayList;
 import java.util.HashMap;
