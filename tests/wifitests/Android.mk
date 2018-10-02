@@ -78,6 +78,7 @@ LOCAL_JNI_SHARED_LIBRARIES := \
 	libbacktrace \
 	libbase \
 	libbinder \
+	libbinderthreadstate \
 	libc++ \
 	libcamera_client \
 	libcamera_metadata \
