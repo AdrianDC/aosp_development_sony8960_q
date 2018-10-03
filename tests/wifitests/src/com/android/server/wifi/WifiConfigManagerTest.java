@@ -3563,6 +3563,133 @@ public class WifiConfigManagerTest {
         assertEquals(newMac, retrievedConfig.getRandomizedMacAddress());
     }
 
+    /**
+     * Verifies that the method resetSimNetworks updates SIM presence status and SIM configs.
+     */
+    @Test
+    public void testResetSimNetworks() {
+        String expectedIdentity = "13214561234567890@wlan.mnc456.mcc321.3gppnetwork.org";
+        when(mTelephonyManager.getSubscriberId()).thenReturn("3214561234567890");
+        when(mTelephonyManager.getSimState()).thenReturn(TelephonyManager.SIM_STATE_READY);
+        when(mTelephonyManager.getSimOperator()).thenReturn("321456");
+        when(mTelephonyManager.getCarrierInfoForImsiEncryption(anyInt())).thenReturn(null);
+
+        WifiConfiguration network = WifiConfigurationTestUtil.createEapNetwork();
+        WifiConfiguration simNetwork = WifiConfigurationTestUtil.createEapNetwork(
+                WifiEnterpriseConfig.Eap.SIM, WifiEnterpriseConfig.Phase2.NONE);
+        WifiConfiguration peapSimNetwork = WifiConfigurationTestUtil.createEapNetwork(
+                WifiEnterpriseConfig.Eap.PEAP, WifiEnterpriseConfig.Phase2.SIM);
+        network.enterpriseConfig.setIdentity("identity1");
+        network.enterpriseConfig.setAnonymousIdentity("anonymous_identity1");
+        simNetwork.enterpriseConfig.setIdentity("identity2");
+        simNetwork.enterpriseConfig.setAnonymousIdentity("anonymous_identity2");
+        peapSimNetwork.enterpriseConfig.setIdentity("identity3");
+        peapSimNetwork.enterpriseConfig.setAnonymousIdentity("anonymous_identity3");
+        verifyAddNetworkToWifiConfigManager(network);
+        verifyAddNetworkToWifiConfigManager(simNetwork);
+        verifyAddNetworkToWifiConfigManager(peapSimNetwork);
+
+        // Verify SIM is not present initially.
+        assertFalse(mWifiConfigManager.isSimPresent());
+
+        // Call resetSimNetworks with true(SIM is present).
+        mWifiConfigManager.resetSimNetworks(true);
+
+        // Verify SIM is present, SIM configs are reset and non-SIM configs are not changed.
+        assertTrue(mWifiConfigManager.isSimPresent());
+        WifiConfigurationTestUtil.assertConfigurationEqualForConfigManagerAddOrUpdate(
+                network,
+                mWifiConfigManager.getConfiguredNetworkWithPassword(network.networkId));
+        WifiConfiguration retrievedSimNetwork =
+                mWifiConfigManager.getConfiguredNetwork(simNetwork.networkId);
+        assertEquals(expectedIdentity, retrievedSimNetwork.enterpriseConfig.getIdentity());
+        assertTrue(retrievedSimNetwork.enterpriseConfig.getAnonymousIdentity().isEmpty());
+        WifiConfiguration retrievedPeapSimNetwork =
+                mWifiConfigManager.getConfiguredNetwork(peapSimNetwork.networkId);
+        assertEquals(expectedIdentity, retrievedPeapSimNetwork.enterpriseConfig.getIdentity());
+        assertFalse(retrievedPeapSimNetwork.enterpriseConfig.getAnonymousIdentity().isEmpty());
+
+        // Call resetSimNetworks with false(SIM is not present).
+        when(mTelephonyManager.getSubscriberId()).thenReturn("3214561234567891");
+        retrievedSimNetwork.enterpriseConfig.setAnonymousIdentity("anonymous_identity22");
+        verifyUpdateNetworkToWifiConfigManagerWithoutIpChange(retrievedSimNetwork);
+        mWifiConfigManager.resetSimNetworks(false);
+
+        // Verify SIM is not present and all configs are not changed.
+        assertFalse(mWifiConfigManager.isSimPresent());
+        WifiConfigurationTestUtil.assertConfigurationEqualForConfigManagerAddOrUpdate(
+                network,
+                mWifiConfigManager.getConfiguredNetworkWithPassword(network.networkId));
+        WifiConfigurationTestUtil.assertConfigurationEqualForConfigManagerAddOrUpdate(
+                retrievedSimNetwork,
+                mWifiConfigManager.getConfiguredNetworkWithPassword(simNetwork.networkId));
+        WifiConfigurationTestUtil.assertConfigurationEqualForConfigManagerAddOrUpdate(
+                retrievedPeapSimNetwork,
+                mWifiConfigManager.getConfiguredNetworkWithPassword(peapSimNetwork.networkId));
+    }
+
+    /**
+     * Verifies that the method resetSimNetworks updates SIM presence status if
+     * getSimIdentity returns null.
+     */
+    @Test
+    public void testResetSimNetworksWithNullIdentity() {
+        WifiConfiguration simNetwork = WifiConfigurationTestUtil.createEapNetwork(
+                WifiEnterpriseConfig.Eap.SIM, WifiEnterpriseConfig.Phase2.NONE);
+        verifyAddNetworkToWifiConfigManager(simNetwork);
+
+        assertFalse(mWifiConfigManager.isSimPresent());
+
+        mWifiConfigManager.resetSimNetworks(true);
+        assertTrue(mWifiConfigManager.isSimPresent());
+
+        mWifiConfigManager.resetSimNetworks(false);
+        assertFalse(mWifiConfigManager.isSimPresent());
+    }
+
+    /**
+     * Verifies that SIM config is reset if store is read after the method resetSimNetworks
+     * is called.
+     */
+    @Test
+    public void testResetSimNetworksIsCalledAgainAfterLoadFromStore() {
+        String expectedIdentity = "13214561234567890@wlan.mnc456.mcc321.3gppnetwork.org";
+        when(mTelephonyManager.getSubscriberId()).thenReturn("3214561234567890");
+        when(mTelephonyManager.getSimState()).thenReturn(TelephonyManager.SIM_STATE_READY);
+        when(mTelephonyManager.getSimOperator()).thenReturn("321456");
+        when(mTelephonyManager.getCarrierInfoForImsiEncryption(anyInt())).thenReturn(null);
+
+        WifiConfiguration simNetwork = WifiConfigurationTestUtil.createEapNetwork(
+                WifiEnterpriseConfig.Eap.SIM, WifiEnterpriseConfig.Phase2.NONE);
+        simNetwork.enterpriseConfig.setIdentity("identity");
+        simNetwork.enterpriseConfig.setAnonymousIdentity("anonymous_identity");
+
+        // Set up the store data.
+        List<WifiConfiguration> sharedNetworks = new ArrayList<WifiConfiguration>() {
+            {
+                add(simNetwork);
+            }
+        };
+        setupStoreDataForRead(sharedNetworks, new ArrayList<WifiConfiguration>(),
+                new HashSet<String>());
+
+        // 1. Call resetSimNetworks with true(SIM is present).
+        mWifiConfigManager.resetSimNetworks(true);
+
+        // Verify SIM is present.
+        assertTrue(mWifiConfigManager.isSimPresent());
+
+        // 2. Read from store now.
+        assertTrue(mWifiConfigManager.loadFromStore());
+
+        // Verify SIM is present just in case and SIM config is reset.
+        assertTrue(mWifiConfigManager.isSimPresent());
+        WifiConfiguration retrievedSimNetwork =
+                mWifiConfigManager.getConfiguredNetwork(simNetwork.networkId);
+        assertEquals(expectedIdentity, retrievedSimNetwork.enterpriseConfig.getIdentity());
+        assertTrue(retrievedSimNetwork.enterpriseConfig.getAnonymousIdentity().isEmpty());
+    }
+
     private NetworkUpdateResult verifyAddOrUpdateNetworkWithProxySettingsAndPermissions(
             boolean withNetworkSettings,
             boolean withProfileOwnerPolicy,
