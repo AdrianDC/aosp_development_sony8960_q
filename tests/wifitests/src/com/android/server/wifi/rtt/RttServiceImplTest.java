@@ -305,13 +305,16 @@ public class RttServiceImplTest {
         RangingRequest request = RttTestUtils.getDummyRangingRequest((byte) 0xA);
         PeerHandle peerHandle1 = new PeerHandle(1022);
         PeerHandle peerHandle2 = new PeerHandle(1023);
+        PeerHandle peerHandle3 = new PeerHandle(1024);
         request.mRttPeers.add(ResponderConfig.fromWifiAwarePeerHandleWithDefaults(peerHandle1));
         request.mRttPeers.add(ResponderConfig.fromWifiAwarePeerHandleWithDefaults(peerHandle2));
+        request.mRttPeers.add(ResponderConfig.fromWifiAwarePeerHandleWithDefaults(peerHandle3));
         Map<Integer, MacAddress> peerHandleToMacMap = new HashMap<>();
         MacAddress macAwarePeer1 = MacAddress.fromString("AA:BB:CC:DD:EE:FF");
         MacAddress macAwarePeer2 = MacAddress.fromString("BB:BB:BB:EE:EE:EE");
         peerHandleToMacMap.put(peerHandle1.peerId, macAwarePeer1);
         peerHandleToMacMap.put(peerHandle2.peerId, macAwarePeer2);
+        peerHandleToMacMap.put(peerHandle3.peerId, null); // bad answer from Aware (expired?)
 
         AwareTranslatePeerHandlesToMac answer = new AwareTranslatePeerHandlesToMac(mDefaultUid,
                 peerHandleToMacMap);
@@ -327,7 +330,8 @@ public class RttServiceImplTest {
 
         RangingRequest finalRequest = mRequestCaptor.getValue();
         assertNotEquals("Request to native is not null", null, finalRequest);
-        assertEquals("Size of request", request.mRttPeers.size(), finalRequest.mRttPeers.size());
+        assertEquals("Size of request", request.mRttPeers.size() - 1,
+                finalRequest.mRttPeers.size());
         assertEquals("Aware peer 1 MAC", macAwarePeer1,
                 finalRequest.mRttPeers.get(finalRequest.mRttPeers.size() - 2).macAddress);
         assertEquals("Aware peer 2 MAC", macAwarePeer2,
@@ -1452,12 +1456,13 @@ public class RttServiceImplTest {
 
             Map<Integer, byte[]> result = new HashMap<>();
             for (Integer peerId: peerIds) {
-                byte[] mac = mPeerIdToMacMap.get(peerId).toByteArray();
-                if (mac == null) {
-                    continue;
+                byte[] macBytes = null;
+                MacAddress macAddr = mPeerIdToMacMap.get(peerId);
+                if (macAddr != null) {
+                    macBytes = macAddr.toByteArray();
                 }
 
-                result.put(peerId, mac);
+                result.put(peerId, macBytes);
             }
 
             try {
