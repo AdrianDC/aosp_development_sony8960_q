@@ -25,6 +25,7 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.*;
 
+import android.annotation.NonNull;
 import android.app.test.MockAnswerUtil;
 import android.content.Context;
 import android.hardware.wifi.supplicant.V1_0.ISupplicant;
@@ -53,8 +54,6 @@ import com.android.server.wifi.hotspot2.AnqpEvent;
 import com.android.server.wifi.hotspot2.IconEvent;
 import com.android.server.wifi.hotspot2.WnmData;
 import com.android.server.wifi.util.NativeUtil;
-
-import libcore.util.NonNull;
 
 import org.junit.Before;
 import org.junit.Test;
