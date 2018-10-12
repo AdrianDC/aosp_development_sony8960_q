@@ -4857,7 +4857,9 @@ public class WifiStateMachine extends StateMachine {
                     break;
                 case CMD_RSSI_POLL:
                     if (message.arg1 == mRssiPollToken) {
-                        getWifiLinkLayerStats();
+                        WifiLinkLayerStats stats = getWifiLinkLayerStats();
+                        mWifiMetrics.incrementWifiLinkLayerUsageStats(stats);
+
                         // Get Info and continue polling
                         fetchRssiLinkSpeedAndFrequencyNative();
                         // Send the update score to network agent.
