@@ -57,8 +57,6 @@ LOCAL_SRC_FILES := $(call all-java-files-under, java) \
 
 LOCAL_JAVA_LIBRARIES := \
 	android.hidl.manager-V1.0-java \
-	bouncycastle \
-	conscrypt \
 	error_prone_annotations \
 	jsr305 \
 	services
