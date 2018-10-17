@@ -1904,6 +1904,13 @@ public class NfcService implements DeviceHostListener {
         return mDeviceHost.createLlcpServerSocket(sap, sn, miu, rw, linearBufferLength);
     }
 
+    public int getAidRoutingTableSize ()
+    {
+        int aidTableSize = 0x00;
+        aidTableSize = mDeviceHost.getAidTableSize();
+        return aidTableSize;
+    }
+
     public void sendMockNdefTag(NdefMessage msg) {
         sendMessage(MSG_MOCK_NDEF, msg);
     }
