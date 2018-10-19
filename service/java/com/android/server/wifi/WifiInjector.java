@@ -20,6 +20,7 @@ import android.annotation.NonNull;
 import android.app.ActivityManager;
 import android.app.AppOpsManager;
 import android.content.Context;
+import android.hardware.SystemSensorManager;
 import android.net.NetworkKey;
 import android.net.NetworkScoreManager;
 import android.net.wifi.IWifiScanner;
@@ -204,7 +205,8 @@ public class WifiInjector {
                 SystemProperties.get(BOOT_DEFAULT_WIFI_COUNTRY_CODE),
                 mContext.getResources()
                         .getBoolean(R.bool.config_wifi_revert_country_code_on_cellular_loss));
-        mWifiApConfigStore = new WifiApConfigStore(mContext, mBackupManagerProxy);
+        mWifiApConfigStore = new WifiApConfigStore(
+                mContext, wifiStateMachineLooper, mBackupManagerProxy, mFrameworkFacade);
 
         // WifiConfigManager/Store objects and their dependencies.
         // New config store
@@ -253,7 +255,7 @@ public class WifiInjector {
                 this, mWifiConfigManager,
                 mWifiPermissionsUtil, mWifiMetrics, mClock);
         mSarManager = new SarManager(mContext, makeTelephonyManager(), wifiStateMachineLooper,
-                mWifiNative);
+                mWifiNative, new SystemSensorManager(mContext, wifiStateMachineLooper));
         if (mUseRealLogger) {
             mWifiDiagnostics = new WifiDiagnostics(
                     mContext, this, mWifiNative, mBuildProperties,
@@ -464,7 +466,7 @@ public class WifiInjector {
                                            @NonNull SoftApModeConfiguration config) {
         return new SoftApManager(mContext, mWifiStateMachineHandlerThread.getLooper(),
                 mFrameworkFacade, mWifiNative, mCountryCode.getCountryCode(), callback,
-                mWifiApConfigStore, config, mWifiMetrics);
+                mWifiApConfigStore, config, mWifiMetrics, mSarManager);
     }
 
     /**
@@ -476,7 +478,8 @@ public class WifiInjector {
     public ScanOnlyModeManager makeScanOnlyModeManager(
             @NonNull ScanOnlyModeManager.Listener listener) {
         return new ScanOnlyModeManager(mContext, mWifiStateMachineHandlerThread.getLooper(),
-                mWifiNative, listener, mWifiMetrics, mScanRequestProxy, mWakeupController);
+                mWifiNative, listener, mWifiMetrics, mScanRequestProxy, mWakeupController,
+                mSarManager);
     }
 
     /**
