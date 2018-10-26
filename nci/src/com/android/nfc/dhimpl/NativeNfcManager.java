@@ -70,8 +70,8 @@ public class NativeNfcManager implements DeviceHost {
     public native int doGetLastError();
 
     @Override
-    public void checkFirmware() {
-        doDownload();
+    public boolean checkFirmware() {
+        return doDownload();
     }
 
     private native boolean doInitialize();

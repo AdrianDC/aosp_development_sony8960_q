@@ -1609,12 +1609,12 @@ static void nfcManager_doAbort(JNIEnv* e, jobject, jstring msg) {
 static jboolean nfcManager_doDownload(JNIEnv*, jobject) {
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter", __func__);
   NfcAdaptation& theInstance = NfcAdaptation::GetInstance();
-
+  bool result = JNI_FALSE;
   theInstance.Initialize();  // start GKI, NCI task, NFC task
-  theInstance.DownloadFirmware();
+  result = theInstance.DownloadFirmware();
   theInstance.Finalize();
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: exit", __func__);
-  return JNI_TRUE;
+  return result;
 }
 
 /*******************************************************************************
