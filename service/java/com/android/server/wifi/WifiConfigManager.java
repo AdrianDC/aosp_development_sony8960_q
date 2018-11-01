@@ -2470,13 +2470,23 @@ public class WifiConfigManager {
                     currentIdentity = TelephonyUtil.getSimIdentity(mTelephonyManager,
                         new TelephonyUtil(), config);
                 }
+                if (mVerboseLoggingEnabled) {
+                    Log.d(TAG, "New identity for config " + config + ": " + currentIdentity);
+                }
+
                 // Update the loaded config
                 if (currentIdentity == null) {
-                    Log.d(TAG, "Identity is null");
-                    return;
+                    Log.d(TAG, "Identity is null for config:" + config);
+                    break;
                 }
-                config.enterpriseConfig.setIdentity(currentIdentity.first);
-                if (config.enterpriseConfig.getEapMethod() != WifiEnterpriseConfig.Eap.PEAP) {
+
+                if (config.enterpriseConfig.getEapMethod() == WifiEnterpriseConfig.Eap.PEAP) {
+                    config.enterpriseConfig.setIdentity(currentIdentity.first);
+                    // do not reset anonymous identity since it may be dependent on user-entry
+                    // (i.e. cannot re-request on every reboot/SIM re-entry)
+                } else {
+                    // reset identity as well: supplicant will ask us for it
+                    config.enterpriseConfig.setIdentity("");
                     config.enterpriseConfig.setAnonymousIdentity("");
                 }
             }
