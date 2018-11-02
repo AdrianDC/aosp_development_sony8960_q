@@ -140,19 +140,18 @@ static int set_power_profile(int profile)
 }
 
 /**
- * If target is SDM630:
- *     return true
- * else:
- *     return false
+ * Returns true if the target is SDM630.
  */
 static bool is_target_SDM630(void)
 {
-    static bool is_SDM630 = false;
+    static int is_SDM630 = -1;
     int soc_id;
 
+    if (is_SDM630 >= 0)
+        return is_SDM630;
+
     soc_id = get_soc_id();
-    if (soc_id == 318 || soc_id == 327)
-        is_SDM630 = true;
+    is_SDM630 = soc_id == 318 || soc_id == 327;
 
     return is_SDM630;
 }

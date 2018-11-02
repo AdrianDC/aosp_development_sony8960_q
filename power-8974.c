@@ -53,19 +53,18 @@
 static int first_display_off_hint;
 
 /**
- * If target is 8974pro:
- *     return true
- * else:
- *     return false
+ * Returns true if the target is MSM8974AB or MSM8974AC.
  */
 static bool is_target_8974pro(void)
 {
-    static bool is_8974pro = false;
+    static int is_8974pro = -1;
     int soc_id;
 
+    if (is_8974pro >= 0)
+        return is_8974pro;
+
     soc_id = get_soc_id();
-    if (soc_id == 194 || (soc_id >= 208 && soc_id <= 218))
-        is_8974pro = true;
+    is_8974pro = soc_id == 194 || (soc_id >= 208 && soc_id <= 218);
 
     return is_8974pro;
 }
