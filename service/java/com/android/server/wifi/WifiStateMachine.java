@@ -4039,6 +4039,7 @@ public class WifiStateMachine extends StateMachine {
                         Pair<String, String> identityPair =
                                 TelephonyUtil.getSimIdentity(getTelephonyManager(),
                                         new TelephonyUtil(), targetWificonfiguration);
+                        Log.i(TAG, "SUP_REQUEST_IDENTITY: identityPair=" + identityPair);
                         if (identityPair != null && identityPair.first != null) {
                             mWifiNative.simIdentityResponse(mInterfaceName, netId,
                                     identityPair.first, identityPair.second);
