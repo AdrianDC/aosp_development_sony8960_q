@@ -2793,6 +2793,8 @@ public class WifiMetrics {
             case StaEvent.TYPE_FRAMEWORK_DISCONNECT:
             case StaEvent.TYPE_SCORE_BREACH:
             case StaEvent.TYPE_MAC_CHANGE:
+            case StaEvent.TYPE_WIFI_ENABLED:
+            case StaEvent.TYPE_WIFI_DISABLED:
                 break;
             default:
                 Log.e(TAG, "Unknown StaEvent:" + type);
@@ -2987,6 +2989,12 @@ public class WifiMetrics {
                 break;
             case StaEvent.TYPE_MAC_CHANGE:
                 sb.append("MAC_CHANGE");
+                break;
+            case StaEvent.TYPE_WIFI_ENABLED:
+                sb.append("WIFI_ENABLED");
+                break;
+            case StaEvent.TYPE_WIFI_DISABLED:
+                sb.append("WIFI_DISABLED");
                 break;
             default:
                 sb.append("UNKNOWN " + event.type + ":");

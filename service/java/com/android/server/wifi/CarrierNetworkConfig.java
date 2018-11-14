@@ -59,6 +59,7 @@ public class CarrierNetworkConfig {
 
     private final Map<String, NetworkInfo> mCarrierNetworkMap;
     private boolean mIsCarrierImsiEncryptionInfoAvailable = false;
+    private ImsiEncryptionInfo mLastImsiEncryptionInfo = null; // used for dumpsys only
 
     /**
      * Enable/disable verbose logging.
@@ -137,9 +138,9 @@ public class CarrierNetworkConfig {
             return false;
         }
         try {
-            ImsiEncryptionInfo imsiEncryptionInfo = telephonyManager
+            mLastImsiEncryptionInfo = telephonyManager
                     .getCarrierInfoForImsiEncryption(TelephonyManager.KEY_TYPE_WLAN);
-            if (imsiEncryptionInfo == null) {
+            if (mLastImsiEncryptionInfo == null) {
                 return false;
             }
         } catch (RuntimeException e) {
@@ -280,5 +281,6 @@ public class CarrierNetworkConfig {
         pw.println("mCarrierNetworkMap=" + mCarrierNetworkMap);
         pw.println("mIsCarrierImsiEncryptionInfoAvailable="
                 + mIsCarrierImsiEncryptionInfoAvailable);
+        pw.println("mLastImsiEncryptionInfo=" + mLastImsiEncryptionInfo);
     }
 }
