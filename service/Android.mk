@@ -16,31 +16,6 @@ LOCAL_PATH := $(call my-dir)
 
 ifneq ($(TARGET_BUILD_PDK), true)
 
-# Make the JNI part
-# ============================================================
-include $(CLEAR_VARS)
-
-LOCAL_CFLAGS += -Wall -Werror -Wextra -Wno-unused-parameter -Wno-unused-function \
-                -Wunused-variable -Winit-self -Wwrite-strings -Wshadow
-
-LOCAL_C_INCLUDES += \
-	$(JNI_H_INCLUDE) \
-
-LOCAL_SHARED_LIBRARIES += \
-	liblog \
-	libnativehelper \
-	libcutils \
-	libutils \
-	libdl
-
-LOCAL_SRC_FILES := \
-	jni/com_android_server_wifi_WifiNative.cpp \
-	jni/jni_helper.cpp
-
-LOCAL_MODULE := libwifi-service
-
-include $(BUILD_SHARED_LIBRARY)
-
 # Build the java code
 # ============================================================
 
