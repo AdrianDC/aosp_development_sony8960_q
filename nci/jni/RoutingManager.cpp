@@ -129,6 +129,8 @@ bool RoutingManager::initialize(nfc_jni_native_data* native) {
       }
     }
 
+    mReceivedEeInfo = false;
+
     DLOG_IF(INFO, nfc_debug_enabled)
         << StringPrintf("%s: Number of EE is %d", fn, mEeInfo.num_ee);
     for (uint8_t i = 0; i < mEeInfo.num_ee; i++) {
