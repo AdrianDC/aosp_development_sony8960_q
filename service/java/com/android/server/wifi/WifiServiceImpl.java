@@ -1583,6 +1583,21 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     }
 
     /**
+     * Method used to inform user of Ap Configuration conversion due to hardware.
+     */
+    @Override
+    public void notifyUserOfApBandConversion(String packageName) {
+        enforceNetworkSettingsPermission();
+
+        if (mVerboseLoggingEnabled) {
+            mLog.info("notifyUserOfApBandConversion uid=% packageName=%")
+                    .c(Binder.getCallingUid()).c(packageName).flush();
+        }
+
+        mWifiApConfigStore.notifyUserOfApBandConversion(packageName);
+    }
+
+    /**
      * see {@link android.net.wifi.WifiManager#isScanAlwaysAvailable()}
      */
     @Override
@@ -2556,6 +2571,11 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             if (wifiScoreReport != null) {
                 pw.println("WifiScoreReport:");
                 wifiScoreReport.dump(fd, pw, args);
+            }
+            pw.println();
+            SarManager sarManager = mWifiInjector.getSarManager();
+            if (sarManager != null) {
+                sarManager.dump(fd, pw, args);
             }
             pw.println();
         }

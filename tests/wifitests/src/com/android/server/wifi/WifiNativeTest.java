@@ -586,4 +586,26 @@ public class WifiNativeTest {
         verify(mWificondControl).startHostapd(WIFI_IFACE_NAME, mockListener);
         verify(mWifiMetrics).incrementNumSetupSoftApInterfaceFailureDueToHostapd();
     }
+
+    /**
+     * Test that selectTxPowerScenario() calls into WifiVendorHal (success case)
+     */
+    @Test
+    public void testSelectTxPowerScenario_success() throws Exception {
+        when(mWifiVendorHal.selectTxPowerScenario(any(SarInfo.class))).thenReturn(true);
+        SarInfo sarInfo = new SarInfo();
+        assertTrue(mWifiNative.selectTxPowerScenario(sarInfo));
+        verify(mWifiVendorHal).selectTxPowerScenario(sarInfo);
+    }
+
+    /**
+     * Test that selectTxPowerScenario() calls into WifiVendorHal (failure case)
+     */
+    @Test
+    public void testSelectTxPowerScenario_failure() throws Exception {
+        when(mWifiVendorHal.selectTxPowerScenario(any(SarInfo.class))).thenReturn(false);
+        SarInfo sarInfo = new SarInfo();
+        assertFalse(mWifiNative.selectTxPowerScenario(sarInfo));
+        verify(mWifiVendorHal).selectTxPowerScenario(sarInfo);
+    }
 }

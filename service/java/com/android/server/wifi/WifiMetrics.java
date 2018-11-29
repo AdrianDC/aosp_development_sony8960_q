@@ -18,14 +18,18 @@ package com.android.server.wifi;
 
 import android.hardware.wifi.supplicant.V1_0.ISupplicantStaIfaceCallback;
 import android.net.NetworkAgent;
+import android.net.wifi.EAPConstants;
 import android.net.wifi.ScanResult;
 import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
+import android.net.wifi.hotspot2.PasspointConfiguration;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.os.SystemProperties;
+
 import android.util.Base64;
 import android.util.Log;
 import android.util.Pair;
@@ -174,6 +178,8 @@ public class WifiMetrics {
             new SparseIntArray();
     private final SparseIntArray mAvailableSavedPasspointProviderBssidsInScanHistogram =
             new SparseIntArray();
+
+    private final SparseIntArray mInstalledPasspointProfileType = new SparseIntArray();
 
     /** Mapping of "Connect to Network" notifications to counts. */
     private final SparseIntArray mConnectToNetworkNotificationCount = new SparseIntArray();
@@ -2028,6 +2034,14 @@ public class WifiMetrics {
                         + mWifiLogProto.numPasspointProviderUninstallSuccess);
                 pw.println("mWifiLogProto.numPasspointProvidersSuccessfullyConnected="
                         + mWifiLogProto.numPasspointProvidersSuccessfullyConnected);
+
+                pw.println("mWifiLogProto.installedPasspointProfileType: ");
+                for (int i = 0; i < mInstalledPasspointProfileType.size(); i++) {
+                    int eapType = mInstalledPasspointProfileType.keyAt(i);
+                    pw.println("EAP_METHOD (" + eapType + "): "
+                            + mInstalledPasspointProfileType.valueAt(i));
+                }
+
                 pw.println("mWifiLogProto.numRadioModeChangeToMcc="
                         + mWifiLogProto.numRadioModeChangeToMcc);
                 pw.println("mWifiLogProto.numRadioModeChangeToScc="
@@ -2150,6 +2164,7 @@ public class WifiMetrics {
 
                 pw.println("mWifiLogProto.isMacRandomizationOn=" + mIsMacRandomizationOn);
                 pw.println("mWifiLogProto.scoreExperimentId=" + mWifiLogProto.scoreExperimentId);
+                pw.println("Hardware Version: " + SystemProperties.get("ro.boot.revision", ""));
             }
         }
     }
@@ -2202,6 +2217,56 @@ public class WifiMetrics {
         synchronized (mLock) {
             mWifiLogProto.numPasspointProviders = numSavedProfiles;
             mWifiLogProto.numPasspointProvidersSuccessfullyConnected = numConnectedProfiles;
+        }
+    }
+
+    /**
+     * Update number of times for type of saved Passpoint profile.
+     *
+     * @param providers Passpoint providers installed on the device.
+     */
+    public void updateSavedPasspointProfilesInfo(
+            Map<String, PasspointProvider> providers) {
+        int passpointType;
+        int eapType;
+        PasspointConfiguration config;
+        synchronized (mLock) {
+            mInstalledPasspointProfileType.clear();
+            for (Map.Entry<String, PasspointProvider> entry : providers.entrySet()) {
+                config = entry.getValue().getConfig();
+                if (config.getCredential().getUserCredential() != null) {
+                    eapType = EAPConstants.EAP_TTLS;
+                } else if (config.getCredential().getCertCredential() != null) {
+                    eapType = EAPConstants.EAP_TLS;
+                } else if (config.getCredential().getSimCredential() != null) {
+                    eapType = config.getCredential().getSimCredential().getEapType();
+                } else {
+                    eapType = -1;
+                }
+                switch (eapType) {
+                    case EAPConstants.EAP_TLS:
+                        passpointType = WifiMetricsProto.PasspointProfileTypeCount.TYPE_EAP_TLS;
+                        break;
+                    case EAPConstants.EAP_TTLS:
+                        passpointType = WifiMetricsProto.PasspointProfileTypeCount.TYPE_EAP_TTLS;
+                        break;
+                    case EAPConstants.EAP_SIM:
+                        passpointType = WifiMetricsProto.PasspointProfileTypeCount.TYPE_EAP_SIM;
+                        break;
+                    case EAPConstants.EAP_AKA:
+                        passpointType = WifiMetricsProto.PasspointProfileTypeCount.TYPE_EAP_AKA;
+                        break;
+                    case EAPConstants.EAP_AKA_PRIME:
+                        passpointType =
+                                WifiMetricsProto.PasspointProfileTypeCount.TYPE_EAP_AKA_PRIME;
+                        break;
+                    default:
+                        passpointType = WifiMetricsProto.PasspointProfileTypeCount.TYPE_UNKNOWN;
+
+                }
+                int count = mInstalledPasspointProfileType.get(passpointType);
+                mInstalledPasspointProfileType.put(passpointType, count + 1);
+            }
         }
     }
 
@@ -2405,6 +2470,23 @@ public class WifiMetrics {
                 keyVal.count = mConnectToNetworkNotificationActionCount.valueAt(i);
                 notificationActionCountArray[i] = keyVal;
             }
+
+            /**
+             * Convert the SparseIntArray of saved Passpoint profile types and counts to proto's
+             * repeated IntKeyVal array.
+             */
+            int counts = mInstalledPasspointProfileType.size();
+            mWifiLogProto.installedPasspointProfileType =
+                    new WifiMetricsProto.PasspointProfileTypeCount[counts];
+            for (int i = 0; i < counts; i++) {
+                mWifiLogProto.installedPasspointProfileType[i] =
+                        new WifiMetricsProto.PasspointProfileTypeCount();
+                mWifiLogProto.installedPasspointProfileType[i].eapMethodType =
+                        mInstalledPasspointProfileType.keyAt(i);
+                mWifiLogProto.installedPasspointProfileType[i].count =
+                        mInstalledPasspointProfileType.valueAt(i);
+            }
+
             mWifiLogProto.connectToNetworkNotificationActionCount = notificationActionCountArray;
 
             mWifiLogProto.openNetworkRecommenderBlacklistSize =
@@ -2449,6 +2531,7 @@ public class WifiMetrics {
             mWifiLogProto.wifiPowerStats = mWifiPowerMetrics.buildProto();
             mWifiLogProto.wifiWakeStats = mWifiWakeMetrics.buildProto();
             mWifiLogProto.isMacRandomizationOn = mIsMacRandomizationOn;
+            mWifiLogProto.hardwareRevision = SystemProperties.get("ro.boot.revision", "");
         }
     }
 
@@ -2529,6 +2612,7 @@ public class WifiMetrics {
             mWpsMetrics.clear();
             mWifiWakeMetrics.clear();
             mObserved80211mcApInScanHistogram.clear();
+            mInstalledPasspointProfileType.clear();
         }
     }
 

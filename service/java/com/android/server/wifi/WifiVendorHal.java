@@ -201,7 +201,7 @@ public class WifiVendorHal {
 
         mVerboseLog.err("% returns %")
                 .c(niceMethodName(trace, 3))
-                .c(HexDump.dumpHexString(result))
+                .c(result == null ? "(null)" : HexDump.dumpHexString(result))
                 .flush();
 
         return result;
@@ -2653,13 +2653,123 @@ public class WifiVendorHal {
         return android.hardware.wifi.V1_2.IWifiStaIface.castFrom(iface);
     }
 
+    /**
+     * sarPowerBackoffRequired_1_1()
+     * This method checks if we need to backoff wifi Tx power due to SAR requirements.
+     * It handles the case when the device is running the V1_1 version of WifiChip HAL
+     * In that HAL version, it is required to perform wifi Tx power backoff only if
+     * a voice call is ongoing.
+     */
+    private boolean sarPowerBackoffRequired_1_1(SarInfo sarInfo) {
+        /* As long as no voice call is active (in case voice call is supported),
+         * no backoff is needed */
+        if (sarInfo.sarVoiceCallSupported) {
+            return sarInfo.isVoiceCall;
+        } else {
+            return false;
+        }
+    }
 
-    private int frameworkToHalTxPowerScenario(int scenario) {
-        switch (scenario) {
-            case WifiNative.TX_POWER_SCENARIO_VOICE_CALL:
+    /**
+     * frameworkToHalTxPowerScenario_1_1()
+     * This method maps the information inside the SarInfo instance into a SAR scenario
+     * when device is running the V1_1 version of WifiChip HAL.
+     * In this HAL version, only one scenario is defined which is for VOICE_CALL (if voice call is
+     * supported).
+     * Otherwise, an exception is thrown.
+     */
+    private int frameworkToHalTxPowerScenario_1_1(SarInfo sarInfo) {
+        if (sarInfo.sarVoiceCallSupported && sarInfo.isVoiceCall) {
+            return android.hardware.wifi.V1_1.IWifiChip.TxPowerScenario.VOICE_CALL;
+        } else {
+            throw new IllegalArgumentException("bad scenario: voice call not active/supported");
+        }
+    }
+
+    /**
+     * sarPowerBackoffRequired_1_2()
+     * This method checks if we need to backoff wifi Tx power due to SAR requirements.
+     * It handles the case when the device is running the V1_2 version of WifiChip HAL
+     * In that HAL version, behavior depends on if SAR sensor input is considered in this device.
+     * If it is, then whenever the device is near the user body/hand/head, back-off is required.
+     * Otherwise, we should revert to the V1_1 HAL behavior which is only to perform backoff when
+     * a voice call is ongoing.
+     */
+    private boolean sarPowerBackoffRequired_1_2(SarInfo sarInfo) {
+        /* If SAR sensor is supported, output only dependent on device proximity */
+        if (sarInfo.sarSensorSupported) {
+            return (sarInfo.sensorState != SarInfo.SAR_SENSOR_FREE_SPACE);
+        }
+        if (sarInfo.sarSapSupported && sarInfo.isWifiSapEnabled) {
+            return true;
+        }
+        if (sarInfo.sarVoiceCallSupported && sarInfo.isVoiceCall) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * frameworkToHalTxPowerScenario_1_2()
+     * This method maps the information inside the SarInfo instance into a SAR scenario
+     * when device is running the V1_2 version of WifiChip HAL.
+     * In this HAL version, behavior depends on if SAR sensor input is considered in this device.
+     * If it is, then based on regulatory compliance requirements,
+     *   - There is no need to treat NEAR_HAND different from NEAR_BODY, both can be considered
+     *     near the user body.
+     *   - Running in softAP mode can be treated the same way as running a voice call from tx power
+     *     backoff perspective.
+     * If SAR sensor input is not supported in this device, but SoftAP is,
+     * we make these assumptions:
+     *   - All voice calls are treated as if device is near the head.
+     *   - SoftAP scenario is treated as if device is near the body.
+     * In case neither SAR sensor, nor SoftAP is supported, then we should revert to the V1_1 HAL
+     * behavior, and the only valid scenario would be when a voice call is ongoing.
+     */
+    private int frameworkToHalTxPowerScenario_1_2(SarInfo sarInfo) {
+        if (sarInfo.sarSensorSupported) {
+            switch(sarInfo.sensorState) {
+                case SarInfo.SAR_SENSOR_NEAR_BODY:
+                case SarInfo.SAR_SENSOR_NEAR_HAND:
+                    if (sarInfo.isVoiceCall || sarInfo.isWifiSapEnabled) {
+                        return android.hardware.wifi.V1_2.IWifiChip
+                                .TxPowerScenario.ON_BODY_CELL_ON;
+                    } else {
+                        return android.hardware.wifi.V1_2.IWifiChip
+                                .TxPowerScenario.ON_BODY_CELL_OFF;
+                    }
+
+                case SarInfo.SAR_SENSOR_NEAR_HEAD:
+                    if (sarInfo.isVoiceCall || sarInfo.isWifiSapEnabled) {
+                        return android.hardware.wifi.V1_2.IWifiChip
+                                .TxPowerScenario.ON_HEAD_CELL_ON;
+                    } else {
+                        return android.hardware.wifi.V1_2.IWifiChip
+                                .TxPowerScenario.ON_HEAD_CELL_OFF;
+                    }
+
+                default:
+                    throw new IllegalArgumentException("bad scenario: Invalid sensor state");
+            }
+        } else if (sarInfo.sarSapSupported && sarInfo.sarVoiceCallSupported) {
+            if (sarInfo.isVoiceCall) {
+                return android.hardware.wifi.V1_2.IWifiChip
+                        .TxPowerScenario.ON_HEAD_CELL_ON;
+            } else if (sarInfo.isWifiSapEnabled) {
+                return android.hardware.wifi.V1_2.IWifiChip
+                        .TxPowerScenario.ON_BODY_CELL_ON;
+            } else {
+                throw new IllegalArgumentException("bad scenario: no voice call/softAP active");
+            }
+        } else if (sarInfo.sarVoiceCallSupported) {
+            /* SAR Sensors and SoftAP not supported, act like V1_1 */
+            if (sarInfo.isVoiceCall) {
                 return android.hardware.wifi.V1_1.IWifiChip.TxPowerScenario.VOICE_CALL;
-            default:
-                throw new IllegalArgumentException("bad scenario: " + scenario);
+            } else {
+                throw new IllegalArgumentException("bad scenario: voice call not active");
+            }
+        } else {
+            throw new IllegalArgumentException("Invalid case: voice call not supported");
         }
     }
 
@@ -2667,35 +2777,130 @@ public class WifiVendorHal {
      * Select one of the pre-configured TX power level scenarios or reset it back to normal.
      * Primarily used for meeting SAR requirements during voice calls.
      *
-     * @param scenario Should be one {@link WifiNative#TX_POWER_SCENARIO_NORMAL} or
-     *        {@link WifiNative#TX_POWER_SCENARIO_VOICE_CALL}.
+     * Note: If it was found out that the scenario to be reported is the same as last reported one,
+     *       then exit with success.
+     *       This is to handle the case when some HAL versions deal with different inputs equally,
+     *       in that case, we should not call the hal unless there is a change in scenario.
+     * Note: It is assumed that this method is only called if SAR is enabled. The logic of whether
+     *       to call it or not resides in SarManager class.
+     * Note: This method is called whether SAR sensor is supported or not. The passed SarInfo object
+     *       contains a flag to indicate the SAR sensor support.
+     *
+     * @param sarInfo The collection of inputs to select the SAR scenario.
      * @return true for success; false for failure or if the HAL version does not support this API.
      */
-    public boolean selectTxPowerScenario(int scenario) {
+    public boolean selectTxPowerScenario(SarInfo sarInfo) {
         synchronized (sLock) {
-            try {
-                android.hardware.wifi.V1_1.IWifiChip iWifiChipV11 = getWifiChipForV1_1Mockable();
-                if (iWifiChipV11 == null) return boolResult(false);
-                WifiStatus status;
-                if (scenario != WifiNative.TX_POWER_SCENARIO_NORMAL) {
-                    int halScenario;
-                    try {
-                        halScenario = frameworkToHalTxPowerScenario(scenario);
-                    } catch (IllegalArgumentException e) {
-                        mLog.err("Illegal argument for select tx power scenario")
-                                .c(e.toString()).flush();
+            // First attempt to get a V_1_2 instance of the Wifi HAL.
+            android.hardware.wifi.V1_2.IWifiChip iWifiChipV12 = getWifiChipForV1_2Mockable();
+            if (iWifiChipV12 != null) {
+                return selectTxPowerScenario_1_2(iWifiChipV12, sarInfo);
+            }
+
+            // Now attempt to get a V_1_1 instance of the Wifi HAL.
+            android.hardware.wifi.V1_1.IWifiChip iWifiChipV11 = getWifiChipForV1_1Mockable();
+            if (iWifiChipV11 != null) {
+                return selectTxPowerScenario_1_1(iWifiChipV11, sarInfo);
+            }
+
+            // HAL version does not support SAR
+            return false;
+        }
+    }
+
+    private boolean selectTxPowerScenario_1_1(
+            android.hardware.wifi.V1_1.IWifiChip iWifiChip, SarInfo sarInfo) {
+        WifiStatus status;
+        try {
+            if (sarPowerBackoffRequired_1_1(sarInfo)) {
+                // Power backoff is needed, so calculate the required scenario,
+                // and attempt to set it.
+                int halScenario = frameworkToHalTxPowerScenario_1_1(sarInfo);
+                if (sarInfo.setSarScenarioNeeded(halScenario)) {
+                    status = iWifiChip.selectTxPowerScenario(halScenario);
+                    if (ok(status)) {
+                        mLog.d("Setting SAR scenario to " + halScenario);
+                        return true;
+                    } else {
+                        mLog.e("Failed to set SAR scenario to " + halScenario);
                         return false;
                     }
-                    status = iWifiChipV11.selectTxPowerScenario(halScenario);
-                } else {
-                    status = iWifiChipV11.resetTxPowerScenario();
                 }
-                if (!ok(status)) return false;
-            } catch (RemoteException e) {
-                handleRemoteException(e);
-                return false;
+
+                // Reaching here means setting SAR scenario would be redundant,
+                // do nothing and return with success.
+                return true;
             }
+
+            // We don't need to perform power backoff, so attempt to reset SAR scenario.
+            if (sarInfo.resetSarScenarioNeeded()) {
+                status = iWifiChip.resetTxPowerScenario();
+                if (ok(status)) {
+                    mLog.d("Resetting SAR scenario");
+                    return true;
+                } else {
+                    mLog.e("Failed to reset SAR scenario");
+                    return false;
+                }
+            }
+
+            // Resetting SAR scenario would be redundant,
+            // do nothing and return with success.
             return true;
+        } catch (RemoteException e) {
+            handleRemoteException(e);
+            return false;
+        } catch (IllegalArgumentException e) {
+            mLog.err("Illegal argument for selectTxPowerScenario_1_1()").c(e.toString()).flush();
+            return false;
+        }
+    }
+
+    private boolean selectTxPowerScenario_1_2(
+            android.hardware.wifi.V1_2.IWifiChip iWifiChip, SarInfo sarInfo) {
+        WifiStatus status;
+        try {
+            if (sarPowerBackoffRequired_1_2(sarInfo)) {
+                // Power backoff is needed, so calculate the required scenario,
+                // and attempt to set it.
+                int halScenario = frameworkToHalTxPowerScenario_1_2(sarInfo);
+                if (sarInfo.setSarScenarioNeeded(halScenario)) {
+                    status = iWifiChip.selectTxPowerScenario_1_2(halScenario);
+                    if (ok(status)) {
+                        mLog.d("Setting SAR scenario to " + halScenario);
+                        return true;
+                    } else {
+                        mLog.e("Failed to set SAR scenario to " + halScenario);
+                        return false;
+                    }
+                }
+
+                // Reaching here means setting SAR scenario would be redundant,
+                // do nothing and return with success.
+                return true;
+            }
+
+            // We don't need to perform power backoff, so attempt to reset SAR scenario.
+            if (sarInfo.resetSarScenarioNeeded()) {
+                status = iWifiChip.resetTxPowerScenario();
+                if (ok(status)) {
+                    mLog.d("Resetting SAR scenario");
+                    return true;
+                } else {
+                    mLog.e("Failed to reset SAR scenario");
+                    return false;
+                }
+            }
+
+            // Resetting SAR scenario would be redundant,
+            // do nothing and return with success.
+            return true;
+        } catch (RemoteException e) {
+            handleRemoteException(e);
+            return false;
+        } catch (IllegalArgumentException e) {
+            mLog.err("Illegal argument for selectTxPowerScenario_1_2()").c(e.toString()).flush();
+            return false;
         }
     }
 
