@@ -57,7 +57,7 @@ import android.net.DhcpResults;
 import android.net.Network;
 import android.net.NetworkUtils;
 import android.net.Uri;
-import android.net.ip.IpClient;
+import android.net.ip.IpClientUtil;
 import android.net.wifi.ISoftApCallback;
 import android.net.wifi.IWifiManager;
 import android.net.wifi.ScanResult;
@@ -2530,7 +2530,7 @@ public class WifiServiceImpl extends IWifiManager.Stub {
             // WifiMetrics proto bytes were requested. Dump only these.
             mWifiStateMachine.updateWifiMetrics();
             mWifiMetrics.dump(fd, pw, args);
-        } else if (args != null && args.length > 0 && IpClient.DUMP_ARG.equals(args[0])) {
+        } else if (args != null && args.length > 0 && IpClientUtil.DUMP_ARG.equals(args[0])) {
             // IpClient dump was requested. Pass it along and take no further action.
             String[] ipClientArgs = new String[args.length - 1];
             System.arraycopy(args, 1, ipClientArgs, 0, ipClientArgs.length);

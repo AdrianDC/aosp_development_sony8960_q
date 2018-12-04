@@ -33,7 +33,10 @@ import android.net.LinkAddress;
 import android.net.LinkProperties;
 import android.net.NetworkInfo;
 import android.net.NetworkUtils;
-import android.net.ip.IpClient;
+import android.net.ip.IIpClient;
+import android.net.ip.IpClientCallbacks;
+import android.net.ip.IpClientUtil;
+import android.net.shared.ProvisioningConfiguration;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WpsInfo;
 import android.net.wifi.p2p.IWifiP2pManager;
@@ -52,6 +55,7 @@ import android.net.wifi.p2p.nsd.WifiP2pServiceRequest;
 import android.net.wifi.p2p.nsd.WifiP2pServiceResponse;
 import android.os.Binder;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.INetworkManagementService;
@@ -113,7 +117,8 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
     private Context mContext;
 
     INetworkManagementService mNwService;
-    private IpClient mIpClient;
+    private IIpClient mIpClient;
+    private int mIpClientStartIndex = 0;
     private DhcpResults mDhcpResults;
 
     private P2pStateMachine mP2pStateMachine;
@@ -443,49 +448,78 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
     }
 
     private void stopIpClient() {
+        // Invalidate all previous start requests
+        mIpClientStartIndex++;
         if (mIpClient != null) {
-            mIpClient.stop();
+            try {
+                mIpClient.stop();
+            } catch (RemoteException e) {
+                e.rethrowFromSystemServer();
+            }
             mIpClient = null;
         }
         mDhcpResults = null;
     }
 
-    private void startIpClient(String ifname) {
+    private void startIpClient(String ifname, Handler smHandler) {
         stopIpClient();
+        mIpClientStartIndex++;
+        IpClientUtil.makeIpClient(mContext, ifname, new IpClientCallbacksImpl(
+                mIpClientStartIndex, smHandler));
+    }
 
-        mIpClient = new IpClient(mContext, ifname,
-                new IpClient.Callback() {
-                    @Override
-                    public void onPreDhcpAction() {
-                        mP2pStateMachine.sendMessage(IPC_PRE_DHCP_ACTION);
-                    }
-                    @Override
-                    public void onPostDhcpAction() {
-                        mP2pStateMachine.sendMessage(IPC_POST_DHCP_ACTION);
-                    }
-                    @Override
-                    public void onNewDhcpResults(DhcpResults dhcpResults) {
-                        mP2pStateMachine.sendMessage(IPC_DHCP_RESULTS, dhcpResults);
-                    }
-                    @Override
-                    public void onProvisioningSuccess(LinkProperties newLp) {
-                        mP2pStateMachine.sendMessage(IPC_PROVISIONING_SUCCESS);
-                    }
-                    @Override
-                    public void onProvisioningFailure(LinkProperties newLp) {
-                        mP2pStateMachine.sendMessage(IPC_PROVISIONING_FAILURE);
-                    }
-                },
-                mNwService);
+    private class IpClientCallbacksImpl extends IpClientCallbacks {
+        private final int mStartIndex;
+        private final Handler mHandler;
 
-        final IpClient.ProvisioningConfiguration config =
-                mIpClient.buildProvisioningConfiguration()
-                         .withoutIPv6()
-                         .withoutIpReachabilityMonitor()
-                         .withPreDhcpAction(30 * 1000)
-                         .withProvisioningTimeoutMs(36 * 1000)
-                         .build();
-        mIpClient.startProvisioning(config);
+        private IpClientCallbacksImpl(int startIndex, Handler handler) {
+            mStartIndex = startIndex;
+            mHandler = handler;
+        }
+
+        @Override
+        public void onIpClientCreated(IIpClient ipClient) {
+            mHandler.post(() -> {
+                if (mIpClientStartIndex != mStartIndex) {
+                    // This start request is obsolete
+                    return;
+                }
+
+                final ProvisioningConfiguration config =
+                        new ProvisioningConfiguration.Builder()
+                                .withoutIPv6()
+                                .withoutIpReachabilityMonitor()
+                                .withPreDhcpAction(30 * 1000)
+                                .withProvisioningTimeoutMs(36 * 1000)
+                                .build();
+                try {
+                    mIpClient.startProvisioning(config.toStableParcelable());
+                } catch (RemoteException e) {
+                    e.rethrowFromSystemServer();
+                }
+            });
+        }
+
+        @Override
+        public void onPreDhcpAction() {
+            mP2pStateMachine.sendMessage(IPC_PRE_DHCP_ACTION);
+        }
+        @Override
+        public void onPostDhcpAction() {
+            mP2pStateMachine.sendMessage(IPC_POST_DHCP_ACTION);
+        }
+        @Override
+        public void onNewDhcpResults(DhcpResults dhcpResults) {
+            mP2pStateMachine.sendMessage(IPC_DHCP_RESULTS, dhcpResults);
+        }
+        @Override
+        public void onProvisioningSuccess(LinkProperties newLp) {
+            mP2pStateMachine.sendMessage(IPC_PROVISIONING_SUCCESS);
+        }
+        @Override
+        public void onProvisioningFailure(LinkProperties newLp) {
+            mP2pStateMachine.sendMessage(IPC_PROVISIONING_FAILURE);
+        }
     }
 
     /**
@@ -624,10 +658,10 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
         pw.println("mDeathDataByBinder " + mDeathDataByBinder);
         pw.println();
 
-        final IpClient ipClient = mIpClient;
+        final IIpClient ipClient = mIpClient;
         if (ipClient != null) {
             pw.println("mIpClient:");
-            ipClient.dump(fd, pw, args);
+            IpClientUtil.dumpIpClient(ipClient, fd, pw, args);
         }
     }
 
@@ -1971,7 +2005,7 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                             startDhcpServer(mGroup.getInterface());
                         } else {
                             mWifiNative.setP2pGroupIdle(mGroup.getInterface(), GROUP_IDLE_TIME_S);
-                            startIpClient(mGroup.getInterface());
+                            startIpClient(mGroup.getInterface(), getHandler());
                             WifiP2pDevice groupOwner = mGroup.getOwner();
                             WifiP2pDevice peer = mPeers.get(groupOwner.deviceAddress);
                             if (peer != null) {
@@ -2233,7 +2267,11 @@ public class WifiP2pServiceImpl extends IWifiP2pManager.Stub {
                         break;
                     case IPC_PRE_DHCP_ACTION:
                         mWifiNative.setP2pPowerSave(mGroup.getInterface(), false);
-                        mIpClient.completedPreDhcpAction();
+                        try {
+                            mIpClient.completedPreDhcpAction();
+                        } catch (RemoteException e) {
+                            e.rethrowFromSystemServer();
+                        }
                         break;
                     case IPC_POST_DHCP_ACTION:
                         mWifiNative.setP2pPowerSave(mGroup.getInterface(), true);
