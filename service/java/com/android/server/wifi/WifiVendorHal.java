@@ -2660,22 +2660,28 @@ public class WifiVendorHal {
      * a voice call is ongoing.
      */
     private boolean sarPowerBackoffRequired_1_1(SarInfo sarInfo) {
-        /* As long as no voice call is active, no backoff is needed */
-        return sarInfo.mIsVoiceCall;
+        /* As long as no voice call is active (in case voice call is supported),
+         * no backoff is needed */
+        if (sarInfo.sarVoiceCallSupported) {
+            return sarInfo.isVoiceCall;
+        } else {
+            return false;
+        }
     }
 
     /**
      * frameworkToHalTxPowerScenario_1_1()
      * This method maps the information inside the SarInfo instance into a SAR scenario
      * when device is running the V1_1 version of WifiChip HAL.
-     * In this HAL version, only one scenario is defined which is for VOICE_CALL
-     * otherwise, an exception is thrown.
+     * In this HAL version, only one scenario is defined which is for VOICE_CALL (if voice call is
+     * supported).
+     * Otherwise, an exception is thrown.
      */
     private int frameworkToHalTxPowerScenario_1_1(SarInfo sarInfo) {
-        if (sarInfo.mIsVoiceCall) {
+        if (sarInfo.sarVoiceCallSupported && sarInfo.isVoiceCall) {
             return android.hardware.wifi.V1_1.IWifiChip.TxPowerScenario.VOICE_CALL;
         } else {
-            throw new IllegalArgumentException("bad scenario: voice call not active");
+            throw new IllegalArgumentException("bad scenario: voice call not active/supported");
         }
     }
 
@@ -2689,11 +2695,17 @@ public class WifiVendorHal {
      * a voice call is ongoing.
      */
     private boolean sarPowerBackoffRequired_1_2(SarInfo sarInfo) {
-        if (sarInfo.mSarSensorEnabled) {
-            return (sarInfo.mSensorState != SarInfo.SAR_SENSOR_FREE_SPACE);
-        } else {
-            return sarInfo.mIsVoiceCall;
+        /* If SAR sensor is supported, output only dependent on device proximity */
+        if (sarInfo.sarSensorSupported) {
+            return (sarInfo.sensorState != SarInfo.SAR_SENSOR_FREE_SPACE);
         }
+        if (sarInfo.sarSapSupported && sarInfo.isWifiSapEnabled) {
+            return true;
+        }
+        if (sarInfo.sarVoiceCallSupported && sarInfo.isVoiceCall) {
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -2706,15 +2718,19 @@ public class WifiVendorHal {
      *     near the user body.
      *   - Running in softAP mode can be treated the same way as running a voice call from tx power
      *     backoff perspective.
-     * If SAR sensor input is not considered in this device, then we should revert to the V1_1 HAL
+     * If SAR sensor input is not supported in this device, but SoftAP is,
+     * we make these assumptions:
+     *   - All voice calls are treated as if device is near the head.
+     *   - SoftAP scenario is treated as if device is near the body.
+     * In case neither SAR sensor, nor SoftAP is supported, then we should revert to the V1_1 HAL
      * behavior, and the only valid scenario would be when a voice call is ongoing.
      */
     private int frameworkToHalTxPowerScenario_1_2(SarInfo sarInfo) {
-        if (sarInfo.mSarSensorEnabled) {
-            switch(sarInfo.mSensorState) {
+        if (sarInfo.sarSensorSupported) {
+            switch(sarInfo.sensorState) {
                 case SarInfo.SAR_SENSOR_NEAR_BODY:
                 case SarInfo.SAR_SENSOR_NEAR_HAND:
-                    if (sarInfo.mIsVoiceCall || sarInfo.mIsWifiSapEnabled) {
+                    if (sarInfo.isVoiceCall || sarInfo.isWifiSapEnabled) {
                         return android.hardware.wifi.V1_2.IWifiChip
                                 .TxPowerScenario.ON_BODY_CELL_ON;
                     } else {
@@ -2723,7 +2739,7 @@ public class WifiVendorHal {
                     }
 
                 case SarInfo.SAR_SENSOR_NEAR_HEAD:
-                    if (sarInfo.mIsVoiceCall || sarInfo.mIsWifiSapEnabled) {
+                    if (sarInfo.isVoiceCall || sarInfo.isWifiSapEnabled) {
                         return android.hardware.wifi.V1_2.IWifiChip
                                 .TxPowerScenario.ON_HEAD_CELL_ON;
                     } else {
@@ -2734,13 +2750,25 @@ public class WifiVendorHal {
                 default:
                     throw new IllegalArgumentException("bad scenario: Invalid sensor state");
             }
-        } else {
-            /* SAR Sensors not enabled, act like V1_1 */
-            if (sarInfo.mIsVoiceCall) {
+        } else if (sarInfo.sarSapSupported && sarInfo.sarVoiceCallSupported) {
+            if (sarInfo.isVoiceCall) {
+                return android.hardware.wifi.V1_2.IWifiChip
+                        .TxPowerScenario.ON_HEAD_CELL_ON;
+            } else if (sarInfo.isWifiSapEnabled) {
+                return android.hardware.wifi.V1_2.IWifiChip
+                        .TxPowerScenario.ON_BODY_CELL_ON;
+            } else {
+                throw new IllegalArgumentException("bad scenario: no voice call/softAP active");
+            }
+        } else if (sarInfo.sarVoiceCallSupported) {
+            /* SAR Sensors and SoftAP not supported, act like V1_1 */
+            if (sarInfo.isVoiceCall) {
                 return android.hardware.wifi.V1_1.IWifiChip.TxPowerScenario.VOICE_CALL;
             } else {
                 throw new IllegalArgumentException("bad scenario: voice call not active");
             }
+        } else {
+            throw new IllegalArgumentException("Invalid case: voice call not supported");
         }
     }
 
@@ -2790,7 +2818,7 @@ public class WifiVendorHal {
                 if (sarInfo.setSarScenarioNeeded(halScenario)) {
                     status = iWifiChip.selectTxPowerScenario(halScenario);
                     if (ok(status)) {
-                        mLog.e("Setting SAR scenario to " + halScenario);
+                        mLog.d("Setting SAR scenario to " + halScenario);
                         return true;
                     } else {
                         mLog.e("Failed to set SAR scenario to " + halScenario);
@@ -2838,7 +2866,7 @@ public class WifiVendorHal {
                 if (sarInfo.setSarScenarioNeeded(halScenario)) {
                     status = iWifiChip.selectTxPowerScenario_1_2(halScenario);
                     if (ok(status)) {
-                        mLog.e("Setting SAR scenario to " + halScenario);
+                        mLog.d("Setting SAR scenario to " + halScenario);
                         return true;
                     } else {
                         mLog.e("Failed to set SAR scenario to " + halScenario);
