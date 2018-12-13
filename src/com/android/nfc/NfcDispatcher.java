@@ -70,6 +70,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 
+import android.util.StatsLog;
 /**
  * Dispatch of NFC events to start activities
  */
@@ -240,6 +241,7 @@ class NfcDispatcher {
                     ActivityManager.getCurrentUser());
             if (activities.size() > 0) {
                 context.startActivityAsUser(rootIntent, UserHandle.CURRENT);
+                StatsLog.write(StatsLog.NFC_TAG_OCCURRED, StatsLog.NFC_TAG_OCCURRED__TYPE__APP_LAUNCH);
                 return true;
             }
             return false;
@@ -251,6 +253,7 @@ class NfcDispatcher {
             if (activities.size() > 0) {
                 rootIntent.putExtra(NfcRootActivity.EXTRA_LAUNCH_INTENT, intentToStart);
                 context.startActivityAsUser(rootIntent, UserHandle.CURRENT);
+                StatsLog.write(StatsLog.NFC_TAG_OCCURRED, StatsLog.NFC_TAG_OCCURRED__TYPE__APP_LAUNCH);
                 return true;
             }
             return false;
@@ -306,16 +309,19 @@ class NfcDispatcher {
 
         if (tryOverrides(dispatch, tag, message, overrideIntent, overrideFilters,
                 overrideTechLists)) {
+            StatsLog.write(StatsLog.NFC_TAG_OCCURRED, StatsLog.NFC_TAG_OCCURRED__TYPE__APP_LAUNCH);
             return screenUnlocked ? DISPATCH_UNLOCK : DISPATCH_SUCCESS;
         }
 
         if (tryPeripheralHandover(message)) {
             if (DBG) Log.i(TAG, "matched BT HANDOVER");
+            StatsLog.write(StatsLog.NFC_TAG_OCCURRED, StatsLog.NFC_TAG_OCCURRED__TYPE__BT_PAIRING);
             return screenUnlocked ? DISPATCH_UNLOCK : DISPATCH_SUCCESS;
         }
 
         if (NfcWifiProtectedSetup.tryNfcWifiSetup(ndef, mContext)) {
             if (DBG) Log.i(TAG, "matched NFC WPS TOKEN");
+            StatsLog.write(StatsLog.NFC_TAG_OCCURRED, StatsLog.NFC_TAG_OCCURRED__TYPE__WIFI_CONNECT);
             return screenUnlocked ? DISPATCH_UNLOCK : DISPATCH_SUCCESS;
         }
 
@@ -331,6 +337,7 @@ class NfcDispatcher {
                 Log.e(TAG, "Dropping NFC intent in provisioning mode.");
                 return DISPATCH_FAIL;
             }
+            StatsLog.write(StatsLog.NFC_TAG_OCCURRED, StatsLog.NFC_TAG_OCCURRED__TYPE__PROVISION);
         }
 
         if (tryNdef(dispatch, message)) {
@@ -354,6 +361,7 @@ class NfcDispatcher {
         }
 
         if (DBG) Log.i(TAG, "no match");
+        StatsLog.write(StatsLog.NFC_TAG_OCCURRED, StatsLog.NFC_TAG_OCCURRED__TYPE__OTHERS);
         return DISPATCH_FAIL;
     }
 
@@ -554,6 +562,7 @@ class NfcDispatcher {
         if (dispatch.isWebIntent() && dispatch.hasIntentReceiver()) {
             if (DBG) Log.i(TAG, "matched Web link - prompting user");
             showWebLinkConfirmation(dispatch);
+            StatsLog.write(StatsLog.NFC_TAG_OCCURRED, StatsLog.NFC_TAG_OCCURRED__TYPE__URL);
             return true;
         }
 
