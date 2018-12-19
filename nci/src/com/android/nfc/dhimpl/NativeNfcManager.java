@@ -440,4 +440,8 @@ public class NativeNfcManager implements DeviceHost {
     private void notifyTransactionListeners(byte[] aid, byte[] data, String evtSrc) {
         mListener.onNfcTransactionEvent(aid, data, evtSrc);
     }
+
+    private void notifyEeUpdated() {
+        mListener.onEeUpdated();
+    }
 }
