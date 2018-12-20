@@ -85,8 +85,7 @@ LOCAL_JNI_SHARED_LIBRARIES := \
 	libexpat \
 	libgui \
 	libhardware \
-	libicui18n \
-	libicuuc \
+	libandroidicu \
 	liblzma \
 	libmedia \
 	libnativehelper \
