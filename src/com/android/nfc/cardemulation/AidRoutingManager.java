@@ -133,7 +133,7 @@ public class AidRoutingManager {
         return routeTableSize;
     }
 
-    void clearNfcRoutingTableLocked() {
+    private void clearNfcRoutingTableLocked() {
         for (Map.Entry<String, Integer> aidEntry : mRouteForAid.entrySet())  {
             String aid = aidEntry.getKey();
             if (aid.endsWith("*")) {
@@ -193,7 +193,7 @@ public class AidRoutingManager {
         return 0;
     }
 
-    public boolean configureRouting(HashMap<String, AidEntry> aidMap) {
+    public boolean configureRouting(HashMap<String, AidEntry> aidMap, boolean force) {
         boolean aidRouteResolved = false;
         HashMap<String, AidEntry> aidRoutingTableCache = new HashMap<String, AidEntry>(aidMap.size());
         ArrayList<Integer> seList = new ArrayList<Integer>();
@@ -231,7 +231,7 @@ public class AidRoutingManager {
         }
 
         synchronized (mLock) {
-            if (routeForAid.equals(mRouteForAid)) {
+            if (routeForAid.equals(mRouteForAid) && !force) {
                 if (DBG) Log.d(TAG, "Routing table unchanged, not updating");
                 return false;
             }

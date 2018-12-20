@@ -137,6 +137,7 @@ static bool sP2pEnabled = false;
 static bool sP2pActive = false;  // whether p2p was last active
 static bool sAbortConnlessWait = false;
 static jint sLfT3tMax = 0;
+static bool sRoutingInitialized = false;
 
 #define CONFIG_UPDATE_TECH_MASK (1 << 1)
 #define DEFAULT_TECH_MASK                                                  \
@@ -1052,7 +1053,8 @@ static jboolean nfcManager_doInitialize(JNIEnv* e, jobject o) {
     if (stat == NFA_STATUS_OK) {
       // sIsNfaEnabled indicates whether stack started successfully
       if (sIsNfaEnabled) {
-        RoutingManager::getInstance().initialize(getNative(e, o));
+        sRoutingInitialized =
+            RoutingManager::getInstance().initialize(getNative(e, o));
         nativeNfcTag_registerNdefTypeHandler();
         NfcTag::getInstance().initialize(getNative(e, o));
         PeerToPeer::getInstance().initialize();
@@ -1901,6 +1903,21 @@ static jint nfcManager_getAidTableSize(JNIEnv*, jobject) {
   return NFA_GetAidTableSize();
 }
 
+static jboolean nfcManager_doSetNfcSecure(JNIEnv* e, jobject o,
+                                          jboolean enable) {
+  RoutingManager& routingManager = RoutingManager::getInstance();
+  routingManager.setNfcSecure(enable);
+  bool rfEnabled = sRfEnabled;
+  if (sRoutingInitialized) {
+    routingManager.disableRoutingToHost();
+    if (rfEnabled) startRfDiscovery(false);
+    routingManager.updateRoutingTable();
+    routingManager.enableRoutingToHost();
+    routingManager.commitRouting();
+    if (rfEnabled) startRfDiscovery(true);
+  }
+  return true;
+}
 /*****************************************************************************
 **
 ** JNI functions for android-4.0.1_r1
@@ -1987,6 +2004,7 @@ static JNINativeMethod gMethods[] = {
 
     {"getAidTableSize", "()I", (void*)nfcManager_getAidTableSize},
 
+    {"doSetNfcSecure", "(Z)Z", (void*)nfcManager_doSetNfcSecure},
 };
 
 /*******************************************************************************

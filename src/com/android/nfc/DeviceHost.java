@@ -254,4 +254,6 @@ public interface DeviceHost {
     public void factoryReset();
 
     public void shutdown();
+
+    public boolean setNfcSecure(boolean enable);
 }

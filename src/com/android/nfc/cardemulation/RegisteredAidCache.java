@@ -775,10 +775,10 @@ public class RegisteredAidCache {
             resolvedAids.clear();
         }
 
-        updateRoutingLocked();
+        updateRoutingLocked(false);
     }
 
-    void updateRoutingLocked() {
+    void updateRoutingLocked(boolean force) {
         if (!mNfcEnabled) {
             if (DBG) Log.d(TAG, "Not updating routing table because NFC is off.");
             return;
@@ -853,7 +853,7 @@ public class RegisteredAidCache {
                 routingEntries.put(aid, aidType);
             }
         }
-        mRoutingManager.configureRouting(routingEntries);
+        mRoutingManager.configureRouting(routingEntries, force);
     }
 
     public void onServicesUpdated(int userId, List<ApduServiceInfo> services) {
@@ -895,7 +895,13 @@ public class RegisteredAidCache {
     public void onNfcEnabled() {
         synchronized (mLock) {
             mNfcEnabled = true;
-            updateRoutingLocked();
+            updateRoutingLocked(false);
+        }
+    }
+
+    public void onSecureNfcToggled() {
+        synchronized (mLock) {
+            updateRoutingLocked(true);
         }
     }
 
