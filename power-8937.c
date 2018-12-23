@@ -54,26 +54,32 @@ static int video_encode_hint_sent;
 static int current_power_profile = PROFILE_BALANCED;
 
 static int profile_high_performance[] = {
+    SCHED_BOOST_ON_V3, 0x1,
+    ALL_CPUS_PWR_CLPS_DIS_V3, 0x1,
     CPUS_ONLINE_MIN_BIG, 0x4,
-    CPUS_ONLINE_MIN_LITTLE, 0x4,
-    CPU0_MIN_FREQ_TURBO_MAX,
-    CPU4_MIN_FREQ_TURBO_MAX,
+    MIN_FREQ_BIG_CORE_0, 0xFFF,
+    MIN_FREQ_LITTLE_CORE_0, 0xFFF,
+    GPU_MIN_POWER_LEVEL, 0x1,
+    SCHED_PREFER_IDLE_DIS_V3, 0x1,
+    SCHED_SMALL_TASK, 0x1,
+    SCHED_MOSTLY_IDLE_NR_RUN, 0x1,
+    SCHED_MOSTLY_IDLE_LOAD, 0x1,
 };
 
 static int profile_power_save[] = {
-    CPUS_ONLINE_MAX_BIG, 0x0,
-    CPU0_MAX_FREQ_NONTURBO_MAX,
-    CPU4_MAX_FREQ_NONTURBO_MAX,
+    CPUS_ONLINE_MAX_BIG, 0x1,
+    MAX_FREQ_BIG_CORE_0, 0x3bf,
+    MAX_FREQ_LITTLE_CORE_0, 0x300,
 };
 
 static int profile_bias_power[] = {
-    CPU0_MAX_FREQ_NONTURBO_MAX,
-    CPU4_MAX_FREQ_NONTURBO_MAX,
+    MAX_FREQ_BIG_CORE_0, 0x4B0,
+    MAX_FREQ_LITTLE_CORE_0, 0x300,
 };
 
 static int profile_bias_performance[] = {
-    CPU0_MIN_FREQ_NONTURBO_MAX + 1,
-    CPU4_MIN_FREQ_NONTURBO_MAX + 1,
+    CPUS_ONLINE_MAX_BIG, 0x4,
+    MIN_FREQ_BIG_CORE_0, 0x540,
 };
 
 #ifdef INTERACTION_BOOST
