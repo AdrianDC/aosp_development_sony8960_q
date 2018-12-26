@@ -28,7 +28,6 @@
 #include "NfcJniUtil.h"
 #include "NfcTag.h"
 #include "PeerToPeer.h"
-#include "Pn544Interop.h"
 #include "PowerSwitch.h"
 #include "RoutingManager.h"
 #include "SyncEvent.h"
@@ -380,7 +379,7 @@ static void nfaConnectionCallback(uint8_t connEvent,
                                        __func__);
           }
         }
-      } else if (pn544InteropIsBusy() == false) {
+      } else {
         NfcTag::getInstance().connectionEventHandler(connEvent, eventData);
 
         // We know it is not activating for P2P.  If it activated in
@@ -1239,7 +1238,6 @@ void nfcManager_disableDiscovery(JNIEnv* e, jobject o) {
   tNFA_STATUS status = NFA_STATUS_OK;
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter;", __func__);
 
-  pn544InteropAbortNow();
   if (sDiscoveryEnabled == false) {
     DLOG_IF(INFO, nfc_debug_enabled)
         << StringPrintf("%s: already disabled", __func__);
@@ -1380,7 +1378,6 @@ static jboolean nfcManager_doDeinitialize(JNIEnv*, jobject) {
 
   sIsDisabling = true;
 
-  pn544InteropAbortNow();
   RoutingManager::getInstance().onNfccShutdown();
   PowerSwitch::getInstance().initialize(PowerSwitch::UNKNOWN_LEVEL);
   HciEventManager::getInstance().finalize();
