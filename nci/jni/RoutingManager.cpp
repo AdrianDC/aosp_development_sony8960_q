@@ -49,13 +49,17 @@ const JNINativeMethod RoutingManager::sMethods[] = {
      (void*)RoutingManager::
          com_android_nfc_cardemulation_doGetOffHostEseDestination},
     {"doGetAidMatchingMode", "()I",
-     (void*)
-         RoutingManager::com_android_nfc_cardemulation_doGetAidMatchingMode}};
+     (void*)RoutingManager::com_android_nfc_cardemulation_doGetAidMatchingMode},
+    {"doGetDefaultIsoDepRouteDestination", "()I",
+     (void*)RoutingManager::
+         com_android_nfc_cardemulation_doGetDefaultIsoDepRouteDestination}};
 
 static const int MAX_NUM_EE = 5;
 // SCBR from host works only when App is in foreground
 static const uint8_t SYS_CODE_PWR_STATE_HOST = 0x01;
 static const uint16_t DEFAULT_SYS_CODE = 0xFEFE;
+
+static const uint8_t AID_ROUTE_QUAL_PREFIX = 0x10;
 
 RoutingManager::RoutingManager() : mAidRoutingConfigured(false) {
   static const char fn[] = "RoutingManager::RoutingManager()";
@@ -101,6 +105,8 @@ RoutingManager::RoutingManager() : mAidRoutingConfigured(false) {
   mOffHostAidRoutingPowerState =
       NfcConfig::getUnsigned(NAME_OFFHOST_AID_ROUTE_PWR_STATE, 0x01);
 
+  mDefaultIsoDepRoute = NfcConfig::getUnsigned(NAME_DEFAULT_ISODEP_ROUTE, 0x0);
+
   memset(&mEeInfo, 0, sizeof(mEeInfo));
   mReceivedEeInfo = false;
   mSeTechMask = 0x00;
@@ -129,6 +135,7 @@ bool RoutingManager::initialize(nfc_jni_native_data* native) {
   }
 
   mRxDataBuffer.clear();
+  mSeTechMask = 0x00;
 
   if ((mDefaultOffHostRoute != 0) || (mDefaultFelicaRoute != 0)) {
     DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf(
@@ -222,6 +229,21 @@ bool RoutingManager::initialize(nfc_jni_native_data* native) {
     } else {
       LOG(ERROR) << StringPrintf("%s: Fail to register system code", fn);
     }
+
+    // Register zero lengthy Aid for default Aid Routing
+    if (mDefaultEe != mDefaultIsoDepRoute) {
+      uint8_t powerState =
+          (mDefaultEe != 0x00) ? mOffHostAidRoutingPowerState : 0x11;
+      nfaStat = NFA_EeAddAidRouting(mDefaultEe, 0, NULL, powerState,
+                                    AID_ROUTE_QUAL_PREFIX);
+      if (nfaStat == NFA_STATUS_OK) {
+        DLOG_IF(INFO, nfc_debug_enabled)
+            << StringPrintf("%s: Succeed to register zero length AID", fn);
+      } else {
+        LOG(ERROR) << StringPrintf("%s: failed to register zero length AID",
+                                   fn);
+      }
+    }
   }
   return true;
 }
@@ -251,20 +273,20 @@ void RoutingManager::enableRoutingToHost() {
         LOG(ERROR) << StringPrintf(
             "Fail to set default tech routing for Nfc-A/Nfc-F");
     }
-    // Default routing for IsoDep and T3T protocol
-    if (mIsScbrSupported)
-      protoMask = NFA_PROTOCOL_MASK_ISO_DEP;
-    else
-      protoMask = (NFA_PROTOCOL_MASK_ISO_DEP | NFA_PROTOCOL_MASK_T3T);
 
-    nfaStat = NFA_EeSetDefaultProtoRouting(
-        mDefaultEe, protoMask, 0, 0, protoMask, mDefaultEe ? protoMask : 0,
-        mDefaultEe ? protoMask : 0);
-    if (nfaStat == NFA_STATUS_OK)
-      mRoutingEvent.wait();
-    else
-      LOG(ERROR) << StringPrintf(
-          "Fail to set default proto routing for protocol: 0x%x", protoMask);
+    // Default routing for T3T protocol
+    if (!mIsScbrSupported) {
+      protoMask = NFA_PROTOCOL_MASK_T3T;
+
+      nfaStat = NFA_EeSetDefaultProtoRouting(
+          mDefaultEe, protoMask, 0, 0, protoMask, mDefaultEe ? protoMask : 0,
+          mDefaultEe ? protoMask : 0);
+      if (nfaStat == NFA_STATUS_OK)
+        mRoutingEvent.wait();
+      else
+        LOG(ERROR) << StringPrintf(
+            "Fail to set default proto routing for protocol: 0x%x", protoMask);
+    }
   } else {
     // Route Nfc-A to host if we don't have a SE
     techMask = NFA_TECHNOLOGY_MASK_A;
@@ -277,16 +299,6 @@ void RoutingManager::enableRoutingToHost() {
         LOG(ERROR) << StringPrintf(
             "Fail to set default tech routing for Nfc-A");
     }
-    // Default routing for IsoDep protocol
-    protoMask = NFA_PROTOCOL_MASK_ISO_DEP;
-    nfaStat = NFA_EeSetDefaultProtoRouting(
-        mDefaultEe, protoMask, 0, 0, protoMask, mDefaultEe ? protoMask : 0,
-        mDefaultEe ? protoMask : 0);
-    if (nfaStat == NFA_STATUS_OK)
-      mRoutingEvent.wait();
-    else
-      LOG(ERROR) << StringPrintf(
-          "Fail to set default proto routing for IsoDep");
 
     // Route Nfc-F to host if we don't have a SE
     techMask = NFA_TECHNOLOGY_MASK_F;
@@ -309,6 +321,29 @@ void RoutingManager::enableRoutingToHost() {
       else
         LOG(ERROR) << StringPrintf("Fail to set default proto routing for T3T");
     }
+  }
+  // Default routing for IsoDep protocol
+  protoMask = NFA_PROTOCOL_MASK_ISO_DEP;
+  if ((mSeTechMask & (NFA_TECHNOLOGY_MASK_A | NFA_TECHNOLOGY_MASK_B |
+                      NFA_TECHNOLOGY_MASK_F)) == 0) {
+    nfaStat = NFA_EeSetDefaultProtoRouting(NFC_DH_ID, protoMask, 0, 0,
+                                           protoMask, 0, 0);
+    if (nfaStat == NFA_STATUS_OK)
+      mRoutingEvent.wait();
+    else
+      LOG(ERROR) << StringPrintf(
+          "Fail to set default proto routing for IsoDep");
+
+  } else {
+    nfaStat = NFA_EeSetDefaultProtoRouting(
+        mDefaultIsoDepRoute, protoMask, mDefaultIsoDepRoute ? protoMask : 0, 0,
+        protoMask, mDefaultIsoDepRoute ? protoMask : 0,
+        mDefaultIsoDepRoute ? protoMask : 0);
+    if (nfaStat == NFA_STATUS_OK)
+      mRoutingEvent.wait();
+    else
+      LOG(ERROR) << StringPrintf(
+          "Fail to set default proto routing for IsoDep");
   }
 }
 
@@ -380,7 +415,7 @@ bool RoutingManager::addAidRouting(const uint8_t* aid, uint8_t aidLen,
                                    int route, int aidInfo) {
   static const char fn[] = "RoutingManager::addAidRouting";
   DLOG_IF(INFO, nfc_debug_enabled) << StringPrintf("%s: enter", fn);
-  uint8_t powerState = (route != 0x00) ? mOffHostAidRoutingPowerState : 0x01;
+  uint8_t powerState = (route != 0x00) ? mOffHostAidRoutingPowerState : 0x11;
   SyncEventGuard guard(mRoutingEvent);
   mAidRoutingConfigured = false;
   tNFA_STATUS nfaStat =
@@ -935,4 +970,9 @@ RoutingManager::com_android_nfc_cardemulation_doGetOffHostEseDestination(
 int RoutingManager::com_android_nfc_cardemulation_doGetAidMatchingMode(
     JNIEnv*) {
   return getInstance().mAidMatchingMode;
+}
+
+int RoutingManager::
+    com_android_nfc_cardemulation_doGetDefaultIsoDepRouteDestination(JNIEnv*) {
+  return getInstance().mDefaultIsoDepRoute;
 }

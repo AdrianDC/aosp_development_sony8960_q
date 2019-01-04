@@ -225,6 +225,8 @@ public interface DeviceHost {
 
     int getMaxTransceiveLength(int technology);
 
+    public int getAidTableSize();
+
     void setP2pInitiatorModes(int modes);
 
     void setP2pTargetModes(int modes);

@@ -331,6 +331,8 @@ public class NativeNfcManager implements DeviceHost {
 
     }
 
+    public native int getAidTableSize();
+
     private native void doSetP2pInitiatorModes(int modes);
     @Override
     public void setP2pInitiatorModes(int modes) {
