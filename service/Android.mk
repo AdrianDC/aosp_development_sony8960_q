@@ -31,7 +31,7 @@ LOCAL_SRC_FILES := $(call all-java-files-under, java) \
 	$(call all-logtags-files-under, java)
 
 LOCAL_JAVA_LIBRARIES := \
-	android.hidl.manager-V1.0-java \
+	android.hidl.manager-V1.2-java \
 	error_prone_annotations \
 	jsr305 \
 	services

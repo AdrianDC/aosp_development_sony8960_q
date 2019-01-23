@@ -49,8 +49,8 @@ import android.hardware.wifi.V1_0.IWifiStaIface;
 import android.hardware.wifi.V1_0.IfaceType;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
-import android.hidl.manager.V1_0.IServiceManager;
 import android.hidl.manager.V1_0.IServiceNotification;
+import android.hidl.manager.V1_2.IServiceManager;
 import android.os.Handler;
 import android.os.IHwBinder;
 import android.os.test.TestLooper;
@@ -72,6 +72,7 @@ import org.mockito.MockitoAnnotations;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -130,9 +131,8 @@ public class HalDeviceManagerTest {
                 anyLong())).thenReturn(true);
         when(mServiceManagerMock.registerForNotifications(anyString(), anyString(),
                 any(IServiceNotification.Stub.class))).thenReturn(true);
-        when(mServiceManagerMock.getTransport(
-                eq(IWifi.kInterfaceName), eq(HalDeviceManager.HAL_INSTANCE_NAME)))
-                .thenReturn(IServiceManager.Transport.HWBINDER);
+        when(mServiceManagerMock.listManifestByInterface(eq(IWifi.kInterfaceName)))
+                .thenReturn(new ArrayList(Arrays.asList("default")));
         when(mWifiMock.linkToDeath(any(IHwBinder.DeathRecipient.class), anyLong())).thenReturn(
                 true);
         when(mWifiMock.registerEventCallback(any(IWifiEventCallback.class))).thenReturn(mStatusOk);
@@ -509,9 +509,8 @@ public class HalDeviceManagerTest {
      */
     @Test
     public void testIsSupportedFalse() throws Exception {
-        when(mServiceManagerMock.getTransport(
-                eq(IWifi.kInterfaceName), eq(HalDeviceManager.HAL_INSTANCE_NAME)))
-                .thenReturn(IServiceManager.Transport.EMPTY);
+        when(mServiceManagerMock.listManifestByInterface(eq(IWifi.kInterfaceName)))
+                .thenReturn(new ArrayList());
         mInOrder = inOrder(mServiceManagerMock, mWifiMock);
         executeAndValidateInitializationSequence(false);
         assertFalse(mDut.isSupported());
@@ -2216,9 +2215,9 @@ public class HalDeviceManagerTest {
         mInOrder.verify(mServiceManagerMock).registerForNotifications(eq(IWifi.kInterfaceName),
                 eq(""), mServiceNotificationCaptor.capture());
 
-        // The service should already be up at this point.
-        mInOrder.verify(mServiceManagerMock).getTransport(eq(IWifi.kInterfaceName),
-                eq(HalDeviceManager.HAL_INSTANCE_NAME));
+        // If not using the lazy version of the IWifi service, the process should already be up at
+        // this point.
+        mInOrder.verify(mServiceManagerMock).listManifestByInterface(eq(IWifi.kInterfaceName));
 
         // verify: wifi initialization sequence if vendor HAL is supported.
         if (isSupported) {

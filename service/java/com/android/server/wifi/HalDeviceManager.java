@@ -32,8 +32,8 @@ import android.hardware.wifi.V1_0.IfaceType;
 import android.hardware.wifi.V1_0.WifiDebugRingBufferStatus;
 import android.hardware.wifi.V1_0.WifiStatus;
 import android.hardware.wifi.V1_0.WifiStatusCode;
-import android.hidl.manager.V1_0.IServiceManager;
 import android.hidl.manager.V1_0.IServiceNotification;
+import android.hidl.manager.V1_2.IServiceManager;
 import android.os.Handler;
 import android.os.HidlSupport.Mutable;
 import android.os.HwRemoteBinder;
@@ -173,6 +173,7 @@ public class HalDeviceManager {
      */
     public void stop() {
         stopWifi();
+        mWifi = null;
     }
 
     /**
@@ -562,7 +563,7 @@ public class HalDeviceManager {
      */
     protected IWifi getWifiServiceMockable() {
         try {
-            return IWifi.getService();
+            return IWifi.getService(true /* retry */);
         } catch (RemoteException e) {
             Log.e(TAG, "Exception getting IWifi service: " + e);
             return null;
@@ -670,8 +671,9 @@ public class HalDeviceManager {
                 return false;
             }
             try {
-                return (mServiceManager.getTransport(IWifi.kInterfaceName, HAL_INSTANCE_NAME)
-                        != IServiceManager.Transport.EMPTY);
+                List<String> wifiServices =
+                        mServiceManager.listManifestByInterface(IWifi.kInterfaceName);
+                return !wifiServices.isEmpty();
             } catch (RemoteException e) {
                 Log.wtf(TAG, "Exception while operating on IServiceManager: " + e);
                 return false;
@@ -1154,7 +1156,7 @@ public class HalDeviceManager {
 
     private boolean startWifi() {
         if (VDBG) Log.d(TAG, "startWifi");
-
+        initIWifiIfNecessary();
         synchronized (mLock) {
             try {
                 if (mWifi == null) {
