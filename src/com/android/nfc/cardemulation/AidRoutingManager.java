@@ -29,6 +29,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import android.util.StatsLog;
+
 public class AidRoutingManager {
 
     static final String TAG = "AidRoutingManager";
@@ -353,6 +355,7 @@ public class AidRoutingManager {
           if(aidRouteResolved == true) {
               commit(aidRoutingTableCache);
           } else {
+              StatsLog.write(StatsLog.NFC_ERROR_OCCURRED, StatsLog.NFC_ERROR_OCCURRED__TYPE__AID_OVERFLOW, 0, 0);
               Log.e(TAG, "RoutingTable unchanged because it's full, not updating");
           }
         }

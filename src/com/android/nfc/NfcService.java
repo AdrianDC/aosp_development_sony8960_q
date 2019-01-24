@@ -108,6 +108,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
 
+import android.util.StatsLog;
 
 public class NfcService implements DeviceHostListener {
     static final boolean DBG = false;
@@ -371,6 +372,7 @@ public class NfcService implements DeviceHostListener {
     public void onNfcTransactionEvent(byte[] aid, byte[] data, String seName) {
         byte[][] dataObj = {aid, data, seName.getBytes()};
         sendMessage(NfcService.MSG_TRANSACTION_EVENT, dataObj);
+        StatsLog.write(StatsLog.NFC_CARDEMULATION_OCCURRED, StatsLog.NFC_CARDEMULATION_OCCURRED__CATEGORY__OFFHOST, seName);
     }
 
     final class ReaderModeParams {
@@ -636,6 +638,7 @@ public class NfcService implements DeviceHostListener {
                 return true;
             }
             Log.i(TAG, "Enabling NFC");
+            StatsLog.write(StatsLog.NFC_STATE_CHANGED, StatsLog.NFC_STATE_CHANGED__STATE__ON);
             updateState(NfcAdapter.STATE_TURNING_ON);
 
             WatchDogThread watchDog = new WatchDogThread("enableInternal", INIT_WATCHDOG_MS);
@@ -697,6 +700,7 @@ public class NfcService implements DeviceHostListener {
                 return true;
             }
             Log.i(TAG, "Disabling NFC");
+            StatsLog.write(StatsLog.NFC_STATE_CHANGED, StatsLog.NFC_STATE_CHANGED__STATE__OFF);
             updateState(NfcAdapter.STATE_TURNING_OFF);
 
             /* Sometimes mDeviceHost.deinitialize() hangs, use a watch-dog.
@@ -1662,6 +1666,7 @@ public class NfcService implements DeviceHostListener {
                 mRoutingWakeLock.release();
             }
             Log.e(TAG, "Watchdog triggered, aborting.");
+            StatsLog.write(StatsLog.NFC_STATE_CHANGED, StatsLog.NFC_STATE_CHANGED__STATE__CRASH_RESTART);
             storeNativeCrashLogs();
             mDeviceHost.doAbort(getName());
         }
