@@ -93,7 +93,6 @@ LOCAL_JNI_SHARED_LIBRARIES := \
 	libnetutils \
 	libnl \
 	libpowermanager \
-	libprocessgroup \
 	libsonivox \
 	libstagefright_foundation \
 	libstdc++ \
