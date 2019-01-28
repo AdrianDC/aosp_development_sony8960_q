@@ -78,10 +78,12 @@ import android.provider.Settings;
 import android.se.omapi.ISecureElementService;
 import android.service.vr.IVrManager;
 import android.service.vr.IVrStateCallbacks;
+import android.text.TextUtils;
 import android.util.Log;
 import android.widget.Toast;
 
 import com.android.internal.logging.MetricsLogger;
+import com.android.internal.util.ArrayUtils;
 import com.android.nfc.DeviceHost.DeviceHostListener;
 import com.android.nfc.DeviceHost.LlcpConnectionlessSocket;
 import com.android.nfc.DeviceHost.LlcpServerSocket;
@@ -122,6 +124,8 @@ public class NfcService implements DeviceHostListener {
     static final boolean NFC_ON_DEFAULT = true;
     static final String PREF_NDEF_PUSH_ON = "ndef_push_on";
     static final boolean NDEF_PUSH_ON_DEFAULT = false;
+    static final String PREF_SECURE_NFC_ON = "secure_nfc_on";
+    static final boolean SECURE_NFC_ON_DEFAULT = true;
     static final String PREF_FIRST_BEAM = "first_beam";
     static final String PREF_FIRST_BOOT = "first_boot";
 
@@ -230,6 +234,7 @@ public class NfcService implements DeviceHostListener {
     int mScreenState;
     boolean mInProvisionMode; // whether we're in setup wizard and enabled NFC provisioning
     boolean mIsNdefPushEnabled;
+    boolean mIsSecureNfcEnabled;
     NfcDiscoveryParameters mCurrentDiscoveryParameters =
             NfcDiscoveryParameters.getNfcOffParameters();
 
@@ -275,6 +280,7 @@ public class NfcService implements DeviceHostListener {
     boolean mIsHceCapable;
     boolean mIsHceFCapable;
     boolean mIsBeamCapable;
+    boolean mIsSecureNfcCapable;
 
     private NfcDispatcher mNfcDispatcher;
     private PowerManager mPowerManager;
@@ -484,6 +490,12 @@ public class NfcService implements DeviceHostListener {
             mCardEmulationManager = new CardEmulationManager(mContext);
         }
         mForegroundUtils = ForegroundUtils.getInstance();
+
+        mIsSecureNfcCapable = mNfcAdapter.deviceSupportsNfcSecure();
+        mIsSecureNfcEnabled =
+            mPrefs.getBoolean(PREF_SECURE_NFC_ON, SECURE_NFC_ON_DEFAULT) &&
+            mIsSecureNfcCapable;
+        mDeviceHost.setNfcSecure(mIsSecureNfcEnabled);
 
         // Make sure this is only called when object construction is complete.
         ServiceManager.addService(SERVICE_NAME, mNfcAdapter);
@@ -913,6 +925,30 @@ public class NfcService implements DeviceHostListener {
         }
 
         @Override
+        public boolean isNfcSecureEnabled() throws RemoteException {
+            synchronized (NfcService.this) {
+                return mIsSecureNfcEnabled;
+            }
+        }
+
+        @Override
+        public boolean setNfcSecure(boolean enable) {
+            NfcPermissions.enforceAdminPermissions(mContext);
+            synchronized (NfcService.this) {
+                Log.i(TAG, "setting Secure NFC " + enable);
+                mPrefsEditor.putBoolean(PREF_SECURE_NFC_ON, enable);
+                mPrefsEditor.apply();
+                mIsSecureNfcEnabled = enable;
+                mBackupManager.dataChanged();
+                mDeviceHost.setNfcSecure(enable);
+            }
+            if (mIsHceCapable) {
+                mCardEmulationManager.onSecureNfcToggled();
+            }
+            return true;
+        }
+
+        @Override
         public boolean disableNdefPush() throws RemoteException {
             NfcPermissions.enforceAdminPermissions(mContext);
             synchronized (NfcService.this) {
@@ -1189,6 +1225,17 @@ public class NfcService implements DeviceHostListener {
             }
 
             applyRouting(false);
+        }
+
+        @Override
+        public boolean deviceSupportsNfcSecure() {
+            String skuList[] = mContext.getResources().getStringArray(
+                R.array.config_skuSupportsSecureNfc);
+            String sku = SystemProperties.get("ro.boot.hardware.sku");
+            if (TextUtils.isEmpty(sku) || !ArrayUtils.contains(skuList, sku)) {
+                return false;
+            }
+            return true;
         }
 
         private int computeLockscreenPollMask(int[] techList) {
@@ -2239,6 +2286,7 @@ public class NfcService implements DeviceHostListener {
 
                 case MSG_APPLY_SCREEN_STATE:
                     mScreenState = (Integer)msg.obj;
+                    Log.d(TAG, "MSG_APPLY_SCREEN_STATE " + mScreenState);
 
                     // If NFC is turning off, we shouldn't need any changes here
                     synchronized (NfcService.this) {
