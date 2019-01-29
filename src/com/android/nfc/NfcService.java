@@ -381,6 +381,11 @@ public class NfcService implements DeviceHostListener {
         StatsLog.write(StatsLog.NFC_CARDEMULATION_OCCURRED, StatsLog.NFC_CARDEMULATION_OCCURRED__CATEGORY__OFFHOST, seName);
     }
 
+    @Override
+    public void onEeUpdated() {
+        new ApplyRoutingTask().execute();
+    }
+
     final class ReaderModeParams {
         public int flags;
         public IAppCallback callback;
