@@ -86,6 +86,7 @@ LOCAL_JNI_SHARED_LIBRARIES := \
 	libgui \
 	libhardware \
 	libandroidicu \
+	libjsoncpp \
 	liblzma \
 	libmedia \
 	libnativehelper \
