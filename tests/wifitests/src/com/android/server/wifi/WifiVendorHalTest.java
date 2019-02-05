@@ -81,6 +81,7 @@ import android.hardware.wifi.V1_2.IWifiChipEventCallback.IfaceInfo;
 import android.hardware.wifi.V1_2.IWifiChipEventCallback.RadioModeInfo;
 import android.net.KeepalivePacketData;
 import android.net.MacAddress;
+import android.net.NattKeepalivePacketData;
 import android.net.apf.ApfCapabilities;
 import android.net.wifi.RttManager;
 import android.net.wifi.ScanResult;
@@ -1112,7 +1113,8 @@ public class WifiVendorHalTest {
         int slot = 13;
         int millis = 16000;
 
-        KeepalivePacketData kap = KeepalivePacketData.nattKeepalivePacket(src, 63000, dst, 4500);
+        KeepalivePacketData kap =
+                NattKeepalivePacketData.nattKeepalivePacket(src, 63000, dst, 4500);
 
         when(mIWifiStaIface.startSendingKeepAlivePackets(
                 anyInt(), any(), anyShort(), any(), any(), anyInt()
