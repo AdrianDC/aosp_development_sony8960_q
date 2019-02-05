@@ -49,6 +49,8 @@ import android.net.NetworkMisc;
 import android.net.NetworkRequest;
 import android.net.NetworkUtils;
 import android.net.RouteInfo;
+import android.net.SocketKeepalive;
+import android.net.SocketKeepalive.InvalidPacketException;
 import android.net.StaticIpConfiguration;
 import android.net.TrafficStats;
 import android.net.ip.IIpClient;
@@ -1305,27 +1307,25 @@ public class WifiStateMachine extends StateMachine {
     }
 
     private byte[] getDstMacForKeepalive(KeepalivePacketData packetData)
-            throws KeepalivePacketData.InvalidPacketException {
+            throws InvalidPacketException {
         try {
             InetAddress gateway = RouteInfo.selectBestRoute(
                     mLinkProperties.getRoutes(), packetData.dstAddress).getGateway();
             String dstMacStr = macAddressFromRoute(gateway.getHostAddress());
             return NativeUtil.macAddressToByteArray(dstMacStr);
         } catch (NullPointerException | IllegalArgumentException e) {
-            throw new KeepalivePacketData.InvalidPacketException(
-                    ConnectivityManager.PacketKeepalive.ERROR_INVALID_IP_ADDRESS);
+            throw new InvalidPacketException(SocketKeepalive.ERROR_INVALID_IP_ADDRESS);
         }
     }
 
     private static int getEtherProtoForKeepalive(KeepalivePacketData packetData)
-            throws KeepalivePacketData.InvalidPacketException {
+            throws InvalidPacketException {
         if (packetData.dstAddress instanceof Inet4Address) {
             return OsConstants.ETH_P_IP;
         } else if (packetData.dstAddress instanceof Inet6Address) {
             return OsConstants.ETH_P_IPV6;
         } else {
-            throw new KeepalivePacketData.InvalidPacketException(
-                    ConnectivityManager.PacketKeepalive.ERROR_INVALID_IP_ADDRESS);
+            throw new InvalidPacketException(SocketKeepalive.ERROR_INVALID_IP_ADDRESS);
         }
     }
 
@@ -1338,7 +1338,7 @@ public class WifiStateMachine extends StateMachine {
             packet = packetData.getPacket();
             dstMac = getDstMacForKeepalive(packetData);
             proto = getEtherProtoForKeepalive(packetData);
-        } catch (KeepalivePacketData.InvalidPacketException e) {
+        } catch (InvalidPacketException e) {
             return e.error;
         }
 
@@ -1347,9 +1347,9 @@ public class WifiStateMachine extends StateMachine {
         if (ret != 0) {
             loge("startWifiIPPacketOffload(" + slot + ", " + intervalSeconds +
                     "): hardware error " + ret);
-            return ConnectivityManager.PacketKeepalive.ERROR_HARDWARE_ERROR;
+            return SocketKeepalive.ERROR_HARDWARE_ERROR;
         } else {
-            return ConnectivityManager.PacketKeepalive.SUCCESS;
+            return SocketKeepalive.SUCCESS;
         }
     }
 
@@ -1357,9 +1357,9 @@ public class WifiStateMachine extends StateMachine {
         int ret = mWifiNative.stopSendingOffloadedPacket(mInterfaceName, slot);
         if (ret != 0) {
             loge("stopWifiIPPacketOffload(" + slot + "): hardware error " + ret);
-            return ConnectivityManager.PacketKeepalive.ERROR_HARDWARE_ERROR;
+            return SocketKeepalive.ERROR_HARDWARE_ERROR;
         } else {
-            return ConnectivityManager.PacketKeepalive.SUCCESS;
+            return SocketKeepalive.SUCCESS;
         }
     }
 
@@ -3470,14 +3470,12 @@ public class WifiStateMachine extends StateMachine {
                     deferMessage(message);
                     break;
                 case CMD_START_IP_PACKET_OFFLOAD:
-                    if (mNetworkAgent != null) mNetworkAgent.onPacketKeepaliveEvent(
-                            message.arg1,
-                            ConnectivityManager.PacketKeepalive.ERROR_INVALID_NETWORK);
-                    break;
+                    /* fall-through */
                 case CMD_STOP_IP_PACKET_OFFLOAD:
-                    if (mNetworkAgent != null) mNetworkAgent.onPacketKeepaliveEvent(
-                            message.arg1,
-                            ConnectivityManager.PacketKeepalive.ERROR_INVALID_NETWORK);
+                    if (mNetworkAgent != null) {
+                        mNetworkAgent.onSocketKeepaliveEvent(message.arg1,
+                                SocketKeepalive.ERROR_INVALID_NETWORK);
+                    }
                     break;
                 case CMD_START_RSSI_MONITORING_OFFLOAD:
                     messageHandlingStatus = MESSAGE_HANDLING_STATUS_DISCARD;
@@ -4475,7 +4473,7 @@ public class WifiStateMachine extends StateMachine {
                     int slot = message.arg1;
                     int ret = stopWifiIPPacketOffload(slot);
                     if (mNetworkAgent != null) {
-                        mNetworkAgent.onPacketKeepaliveEvent(slot, ret);
+                        mNetworkAgent.onSocketKeepaliveEvent(slot, ret);
                     }
                     break;
                 }
@@ -4623,13 +4621,13 @@ public class WifiStateMachine extends StateMachine {
         }
 
         @Override
-        protected void startPacketKeepalive(Message msg) {
+        protected void startSocketKeepalive(Message msg) {
             WifiStateMachine.this.sendMessage(
                     CMD_START_IP_PACKET_OFFLOAD, msg.arg1, msg.arg2, msg.obj);
         }
 
         @Override
-        protected void stopPacketKeepalive(Message msg) {
+        protected void stopSocketKeepalive(Message msg) {
             WifiStateMachine.this.sendMessage(
                     CMD_STOP_IP_PACKET_OFFLOAD, msg.arg1, msg.arg2, msg.obj);
         }
@@ -5477,7 +5475,7 @@ public class WifiStateMachine extends StateMachine {
                     KeepalivePacketData pkt = (KeepalivePacketData) message.obj;
                     int result = startWifiIPPacketOffload(slot, pkt, intervalSeconds);
                     if (mNetworkAgent != null) {
-                        mNetworkAgent.onPacketKeepaliveEvent(slot, result);
+                        mNetworkAgent.onSocketKeepaliveEvent(slot, result);
                     }
                     break;
                 }
