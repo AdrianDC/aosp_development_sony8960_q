@@ -1435,5 +1435,6 @@ public class WifiConnectivityManager {
         pw.println("WifiConnectivityManager - Log End ----");
         mOpenNetworkNotifier.dump(fd, pw, args);
         mCarrierNetworkNotifier.dump(fd, pw, args);
+        mCarrierNetworkConfig.dump(fd, pw, args);
     }
 }

@@ -1016,8 +1016,14 @@ public class RttServiceImpl extends IWifiRttManager.Stub {
             RangingRequest.Builder newRequestBuilder = new RangingRequest.Builder();
             for (ResponderConfig rttPeer : request.request.mRttPeers) {
                 if (rttPeer.peerHandle != null && rttPeer.macAddress == null) {
+                    byte[] mac = peerIdToMacMap.get(rttPeer.peerHandle.peerId);
+                    if (mac == null || mac.length != 6) {
+                        Log.e(TAG, "processReceivedAwarePeerMacAddresses: received an invalid MAC "
+                                + "address for peerId=" + rttPeer.peerHandle.peerId);
+                        continue;
+                    }
                     newRequestBuilder.addResponder(new ResponderConfig(
-                            MacAddress.fromBytes(peerIdToMacMap.get(rttPeer.peerHandle.peerId)),
+                            MacAddress.fromBytes(mac),
                             rttPeer.peerHandle, rttPeer.responderType, rttPeer.supports80211mc,
                             rttPeer.channelWidth, rttPeer.frequency, rttPeer.centerFreq0,
                             rttPeer.centerFreq1, rttPeer.preamble));
