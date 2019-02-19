@@ -177,6 +177,33 @@ static int resources_launch[] = {
     0x4201
 };
 
+static int process_activity_launch_hint(void *data)
+{
+    static int launch_handle = -1;
+    static int launch_mode = 0;
+
+    // release lock early if launch has finished
+    if (!data) {
+        if (CHECK_HANDLE(launch_handle)) {
+            release_request(launch_handle);
+            launch_handle = -1;
+        }
+        launch_mode = 0;
+        return HINT_HANDLED;
+    }
+
+    if (!launch_mode) {
+        launch_handle = interaction_with_handle(launch_handle, 5000,
+                ARRAY_SIZE(resources_launch), resources_launch);
+        if (!CHECK_HANDLE(launch_handle)) {
+            ALOGE("Failed to perform launch boost");
+            return HINT_NONE;
+        }
+        launch_mode = 1;
+    }
+    return HINT_HANDLED;
+}
+
 int power_hint_override(power_hint_t hint, void *data)
 {
     static struct timespec s_previous_boost_timespec;
@@ -226,10 +253,7 @@ int power_hint_override(power_hint_t hint, void *data)
             }
             return HINT_HANDLED;
         case POWER_HINT_LAUNCH:
-            duration = 2000;
-            interaction(duration, ARRAY_SIZE(resources_launch),
-                    resources_launch);
-            return HINT_HANDLED;
+            return process_activity_launch_hint(data);
         case POWER_HINT_VIDEO_ENCODE: /* Do nothing for encode case */
             return HINT_HANDLED;
         case POWER_HINT_VIDEO_DECODE: /* Do nothing for decode case */
