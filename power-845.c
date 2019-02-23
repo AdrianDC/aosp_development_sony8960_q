@@ -119,7 +119,7 @@ static int switch_mode(perf_mode_type_t mode) {
 
 static int process_perf_hint(void *data, perf_mode_type_t mode) {
     // enable
-    if (*(int32_t *)data) {
+    if (data) {
         ALOGI("Enable request for mode: 0x%x", mode);
         // check if mode is current mode
         if (current_mode & mode) {

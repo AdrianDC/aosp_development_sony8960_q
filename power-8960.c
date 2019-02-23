@@ -91,8 +91,9 @@ int get_number_of_profiles()
 }
 #endif
 
-static int set_power_profile(int profile)
+static int set_power_profile(void *data)
 {
+    int profile = data ? *((int*)data) : 0;
     int ret = -EINVAL;
     const char *profile_name = NULL;
 
@@ -138,7 +139,7 @@ static int set_power_profile(int profile)
 int power_hint_override(power_hint_t hint, void *data)
 {
     if (hint == POWER_HINT_SET_PROFILE) {
-        if (set_power_profile(*(int32_t *)data) < 0)
+        if (set_power_profile(data) < 0)
             ALOGE("Setting power profile failed. perfd not started?");
         return HINT_HANDLED;
     }
