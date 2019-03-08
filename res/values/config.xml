@@ -254,6 +254,12 @@
     <!-- Intent action to launch target emergency app. -->
     <string name="config_emergency_app_intent" translatable="false"></string>
 
+    <!-- Flag indicating if network query through TelephonyManager.requestNetworkScan() should be
+         disabled.
+         If set to true, it will send network query through Phone.getAvailableNetworks() directly
+         rather than attempt to query through TelephonyManager.requestNetworkScan() first. -->
+    <bool name="config_disable_TelephonyManager_network_scan">false</bool>
+
     <!-- The country list that shortcut view can be enabled. -->
     <string-array name="config_countries_to_enable_shortcut_view" translatable="false">
     </string-array>
