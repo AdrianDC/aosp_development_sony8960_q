@@ -2526,7 +2526,7 @@ public class NfcService implements DeviceHostListener {
                 }
             }
             int dispatchResult = mNfcDispatcher.dispatchTag(tag);
-            if (dispatchResult == NfcDispatcher.DISPATCH_FAIL) {
+            if (dispatchResult == NfcDispatcher.DISPATCH_FAIL && !mInProvisionMode) {
                 unregisterObject(tagEndpoint.getHandle());
                 if (mScreenState == ScreenStateHelper.SCREEN_STATE_ON_UNLOCKED) {
                     Toast.makeText(mContext,
