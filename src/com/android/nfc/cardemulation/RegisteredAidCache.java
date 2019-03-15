@@ -819,11 +819,11 @@ public class RegisteredAidCache {
                         CardEmulation.CATEGORY_PAYMENT)) {
                     aidType.isOnHost = true;
                 } else {
-                    aidType.isOnHost = resolveInfo.defaultService.isOnHost();
+                    aidType.isOnHost = resolveInfo.services.get(0).isOnHost();
                     if (!aidType.isOnHost) {
                         aidType.offHostSE =
-                                resolveInfo.defaultService.getOffHostSecureElement();
-                  }
+                                resolveInfo.services.get(0).getOffHostSecureElement();
+                    }
                 }
                 routingEntries.put(aid, aidType);
             } else if (resolveInfo.services.size() > 1) {
