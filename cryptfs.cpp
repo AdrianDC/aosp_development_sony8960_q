@@ -1169,7 +1169,7 @@ static int create_crypto_blk_dev(struct crypt_mnt_ftr* crypt_ftr, const unsigned
     }
 
     /* Ensure the dm device has been created before returning. */
-    if (android::vold::WaitForFile(crypto_blk_name, 1s) < 0) {
+    if (android::vold::WaitForFile(crypto_blk_name, 15s) < 0) {
         // WaitForFile generates a suitable log message
         goto errout;
     }
