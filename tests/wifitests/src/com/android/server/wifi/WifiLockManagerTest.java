@@ -518,6 +518,97 @@ public class WifiLockManagerTest {
     }
 
     /**
+     * Test when forcing hi-perf mode, that it overrides apps requests
+     * until it is no longer forced.
+     */
+    @Test
+    public void testForceHiPerf() throws Exception {
+        when(mWsm.setPowerSave(anyBoolean())).thenReturn(true);
+        InOrder inOrder = inOrder(mWsm);
+
+        acquireWifiLockSuccessful(WifiManager.WIFI_MODE_SCAN_ONLY, "",
+                mBinder, mWorkSource);
+        assertEquals(WifiManager.WIFI_MODE_SCAN_ONLY,
+                mWifiLockManager.getStrongestLockMode());
+        assertTrue(mWifiLockManager.forceHiPerfMode(true));
+        assertEquals(WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                mWifiLockManager.getStrongestLockMode());
+        inOrder.verify(mWsm).setPowerSave(eq(false));
+        assertTrue(mWifiLockManager.forceHiPerfMode(false));
+        assertEquals(WifiManager.WIFI_MODE_SCAN_ONLY,
+                mWifiLockManager.getStrongestLockMode());
+        inOrder.verify(mWsm).setPowerSave(eq(true));
+    }
+
+    /**
+     * Test when forcing hi-perf mode, and aquire/release of hi-perf locks
+     */
+    @Test
+    public void testForceHiPerfAcqRelHiPerf() throws Exception {
+        when(mWsm.setPowerSave(anyBoolean())).thenReturn(true);
+        InOrder inOrder = inOrder(mWsm);
+
+        acquireWifiLockSuccessful(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "",
+                mBinder, mWorkSource);
+        assertEquals(WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                mWifiLockManager.getStrongestLockMode());
+        inOrder.verify(mWsm).setPowerSave(eq(false));
+
+        assertTrue(mWifiLockManager.forceHiPerfMode(true));
+        assertEquals(WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                mWifiLockManager.getStrongestLockMode());
+        inOrder.verify(mWsm, never()).setPowerSave(anyBoolean());
+
+        releaseWifiLockSuccessful(mBinder);
+        assertEquals(WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                mWifiLockManager.getStrongestLockMode());
+        inOrder.verify(mWsm, never()).setPowerSave(anyBoolean());
+
+        assertTrue(mWifiLockManager.forceHiPerfMode(false));
+        assertEquals(WifiManager.WIFI_MODE_NO_LOCKS_HELD,
+                mWifiLockManager.getStrongestLockMode());
+        inOrder.verify(mWsm).setPowerSave(eq(true));
+    }
+
+    /**
+     * Test when trying to force hi-perf to true twice back to back
+     */
+    @Test
+    public void testForceHiPerfTwice() throws Exception {
+        when(mWsm.setPowerSave(anyBoolean())).thenReturn(true);
+        InOrder inOrder = inOrder(mWsm);
+
+        assertTrue(mWifiLockManager.forceHiPerfMode(true));
+        assertEquals(WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                mWifiLockManager.getStrongestLockMode());
+        inOrder.verify(mWsm).setPowerSave(eq(false));
+
+        assertTrue(mWifiLockManager.forceHiPerfMode(true));
+        assertEquals(WifiManager.WIFI_MODE_FULL_HIGH_PERF,
+                mWifiLockManager.getStrongestLockMode());
+        inOrder.verify(mWsm, never()).setPowerSave(anyBoolean());
+    }
+
+    /**
+     * Test when failure when forcing hi-perf mode
+     */
+    @Test
+    public void testForceHiPerfFailure() throws Exception {
+        when(mWsm.setPowerSave(anyBoolean())).thenReturn(false);
+        InOrder inOrder = inOrder(mWsm);
+
+        acquireWifiLockSuccessful(WifiManager.WIFI_MODE_SCAN_ONLY, "",
+                mBinder, mWorkSource);
+        assertEquals(WifiManager.WIFI_MODE_SCAN_ONLY,
+                mWifiLockManager.getStrongestLockMode());
+
+        assertFalse(mWifiLockManager.forceHiPerfMode(true));
+        assertEquals(WifiManager.WIFI_MODE_SCAN_ONLY,
+                mWifiLockManager.getStrongestLockMode());
+        inOrder.verify(mWsm).setPowerSave(eq(false));
+    }
+
+    /**
      * Verfies that dump() does not fail when no locks are held.
      */
     @Test

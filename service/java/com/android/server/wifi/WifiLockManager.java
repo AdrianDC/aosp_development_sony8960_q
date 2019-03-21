@@ -44,6 +44,9 @@ public class WifiLockManager {
     private final List<WifiLock> mWifiLocks = new ArrayList<>();
     private int mCurrentOpMode;
 
+    // For shell command support
+    private boolean mForceHiPerfMode = false;
+
     // some wifi lock statistics
     private int mFullHighPerfLocksAcquired;
     private int mFullHighPerfLocksReleased;
@@ -106,6 +109,11 @@ public class WifiLockManager {
      * @return int representing the currently held (highest power consumption) lock.
      */
     public synchronized int getStrongestLockMode() {
+        // First check if mode is forced to hi-perf
+        if (mForceHiPerfMode) {
+            return WifiManager.WIFI_MODE_FULL_HIGH_PERF;
+        }
+
         if (mWifiLocks.isEmpty()) {
             return WifiManager.WIFI_MODE_NO_LOCKS_HELD;
         }
@@ -175,6 +183,22 @@ public class WifiLockManager {
         } finally {
             Binder.restoreCallingIdentity(ident);
         }
+    }
+
+    /**
+     * Method Used for shell command support
+     *
+     * @param isEnabled True to force hi-perf mode, false to leave it up to acquired wifiLocks.
+     * @return True for success, false for failure (failure turns forcing mode off)
+     */
+    public boolean forceHiPerfMode(boolean isEnabled) {
+        mForceHiPerfMode = isEnabled;
+        if (!updateOpMode()) {
+            Slog.e(TAG, "Failed to force hi-perf mode, returning to normal mode");
+            mForceHiPerfMode = false;
+            return false;
+        }
+        return true;
     }
 
     private static boolean isValidLockMode(int lockMode) {

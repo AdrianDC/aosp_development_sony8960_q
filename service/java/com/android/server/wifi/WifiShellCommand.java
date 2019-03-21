@@ -41,10 +41,12 @@ import java.io.PrintWriter;
  */
 public class WifiShellCommand extends ShellCommand {
     private final WifiStateMachine mStateMachine;
+    private final WifiLockManager mWifiLockManager;
     private final IPackageManager mPM;
 
-    WifiShellCommand(WifiStateMachine stateMachine) {
+    WifiShellCommand(WifiStateMachine stateMachine, WifiLockManager wifiLockManager) {
         mStateMachine = stateMachine;
+        mWifiLockManager = wifiLockManager;
         mPM = AppGlobals.getPackageManager();
     }
 
@@ -99,6 +101,24 @@ public class WifiShellCommand extends ShellCommand {
                     pw.println("WifiStateMachine.mPollRssiIntervalMsecs = "
                             + mStateMachine.getPollRssiIntervalMsecs());
                     return 0;
+                case "force-hi-perf-mode": {
+                    boolean enabled;
+                    String nextArg = getNextArgRequired();
+                    if ("enabled".equals(nextArg)) {
+                        enabled = true;
+                    } else if ("disabled".equals(nextArg)) {
+                        enabled = false;
+                    } else {
+                        pw.println(
+                                "Invalid argument to 'force-hi-perf-mode' - must be 'enabled'"
+                                        + " or 'disabled'");
+                        return -1;
+                    }
+                    if (!mWifiLockManager.forceHiPerfMode(enabled)) {
+                        pw.println("Command execution failed");
+                    }
+                    return 0;
+                }
                 default:
                     return handleDefaultCommands(cmd);
             }
@@ -132,6 +152,8 @@ public class WifiShellCommand extends ShellCommand {
         pw.println("    Sets the interval between RSSI polls to <int> milliseconds.");
         pw.println("  get-poll-rssi-interval-msecs");
         pw.println("    Gets current interval between RSSI polls, in milliseconds.");
+        pw.println("  force-hi-perf-mode enabled|disabled");
+        pw.println("    Sets whether hi-perf mode is forced or left for normal operation.");
         pw.println();
     }
 }

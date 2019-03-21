@@ -2513,8 +2513,8 @@ public class WifiServiceImpl extends IWifiManager.Stub {
     @Override
     public void onShellCommand(FileDescriptor in, FileDescriptor out, FileDescriptor err,
             String[] args, ShellCallback callback, ResultReceiver resultReceiver) {
-        (new WifiShellCommand(mWifiStateMachine)).exec(this, in, out, err, args, callback,
-                resultReceiver);
+        (new WifiShellCommand(mWifiStateMachine, mWifiLockManager)).exec(this, in, out, err,
+                args, callback, resultReceiver);
     }
 
     @Override
