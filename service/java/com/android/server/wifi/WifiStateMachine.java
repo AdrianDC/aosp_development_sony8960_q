@@ -2832,7 +2832,7 @@ public class WifiStateMachine extends StateMachine {
         // power settings when we control suspend mode optimizations.
         // TODO: Remove this comment when the driver is fixed.
         setSuspendOptimizationsNative(SUSPEND_DUE_TO_DHCP, false);
-        mWifiNative.setPowerSave(mInterfaceName, false);
+        setPowerSave(false);
 
         // Update link layer stats
         getWifiLinkLayerStats();
@@ -2854,13 +2854,33 @@ public class WifiStateMachine extends StateMachine {
     void handlePostDhcpSetup() {
         /* Restore power save and suspend optimizations */
         setSuspendOptimizationsNative(SUSPEND_DUE_TO_DHCP, true);
-        mWifiNative.setPowerSave(mInterfaceName, true);
+        setPowerSave(true);
 
         p2pSendMessage(WifiP2pServiceImpl.BLOCK_DISCOVERY, WifiP2pServiceImpl.DISABLED);
 
         // Set the coexistence mode back to its default value
         mWifiNative.setBluetoothCoexistenceMode(
                 mInterfaceName, WifiNative.BLUETOOTH_COEXISTENCE_MODE_SENSE);
+    }
+
+    /**
+     * Set power save mode
+     *
+     * @param ps true to enable power save (default behavior)
+     *           false to disable power save.
+     * @return true for success, false for failure
+     */
+    public boolean setPowerSave(boolean ps) {
+        if (mInterfaceName != null) {
+            if (mVerboseLoggingEnabled) {
+                Log.d(TAG, "Setting power save for: " + mInterfaceName + " to: " + ps);
+            }
+            mWifiNative.setPowerSave(mInterfaceName, ps);
+        } else {
+            Log.e(TAG, "Failed to setPowerSave, interfaceName is null");
+            return false;
+        }
+        return true;
     }
 
     private static final long DIAGS_CONNECT_TIMEOUT_MILLIS = 60 * 1000;
@@ -3732,7 +3752,7 @@ public class WifiStateMachine extends StateMachine {
         mWifiNative.setSuspendOptimizations(mInterfaceName, mSuspendOptNeedsDisabled == 0
                 && mUserWantsSuspendOpt.get());
 
-        mWifiNative.setPowerSave(mInterfaceName, true);
+        setPowerSave(true);
 
         if (mP2pSupported) {
             p2pSendMessage(WifiStateMachine.CMD_ENABLE_P2P);

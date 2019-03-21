@@ -2581,4 +2581,38 @@ public class WifiStateMachineTest {
         verify(mWifiConfigManager).updateNetworkSelectionStatus(
                 FRAMEWORK_NETWORK_ID, NETWORK_SELECTION_ENABLE);
     }
+
+    /**
+     * Verify that when ordered to setPowerSave(true) while Interface is created,
+     * WifiNative is called with the right powerSave mode.
+     */
+    @Test
+    public void verifySetPowerSaveTrueSuccess() throws Exception {
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE, WIFI_IFACE_NAME);
+        assertTrue(mWsm.setPowerSave(true));
+        verify(mWifiNative).setPowerSave(WIFI_IFACE_NAME, true);
+    }
+
+    /**
+     * Verify that when ordered to setPowerSave(false) while Interface is created,
+     * WifiNative is called with the right powerSave mode.
+     */
+    @Test
+    public void verifySetPowerSaveFalseSuccess() throws Exception {
+        mWsm.setOperationalMode(WifiStateMachine.CONNECT_MODE, WIFI_IFACE_NAME);
+        assertTrue(mWsm.setPowerSave(false));
+        verify(mWifiNative).setPowerSave(WIFI_IFACE_NAME, false);
+    }
+
+    /**
+     * Verify that when interface is not created yet (InterfaceName is null),
+     * then setPowerSave() returns with error and no call in WifiNative happens.
+     */
+    @Test
+    public void verifySetPowerSaveFailure() throws Exception {
+        boolean powerSave = true;
+        mWsm.setOperationalMode(WifiStateMachine.DISABLED_MODE, null);
+        assertFalse(mWsm.setPowerSave(powerSave));
+        verify(mWifiNative, never()).setPowerSave(anyString(), anyBoolean());
+    }
 }
