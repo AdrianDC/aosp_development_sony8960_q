@@ -81,6 +81,7 @@ LOCAL_JNI_SHARED_LIBRARIES := \
 	libc++ \
 	libcamera_client \
 	libcamera_metadata \
+	libcgrouprc \
 	libcutils \
 	libexpat \
 	libgui \
