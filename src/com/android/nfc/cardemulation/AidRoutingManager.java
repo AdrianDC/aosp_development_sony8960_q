@@ -191,6 +191,8 @@ public class AidRoutingManager {
                     return mOffHostRouteUicc[index - 1] & 0xFF;
                 }
             }
+            if (mOffHostRouteEse == null && mOffHostRouteUicc == null)
+              return mDefaultOffHostRoute;
         } catch (NumberFormatException e) { }
         return 0;
     }
