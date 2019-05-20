@@ -126,6 +126,9 @@ int main(int argc, char** argv)
     // Boot to Recovery
     if (recoveryBoot)
     {
+        // Unmount /sbin to fix recovery boot with Magisk 19+
+        umount("/sbin");
+
         // Recovery boot
         write_string(BOOT_TXT, "RECOVERY BOOT", true);
         init_board.introduce_recovery();
