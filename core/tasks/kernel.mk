@@ -228,17 +228,17 @@ endif
 
 ifneq ($(USE_CCACHE),)
     # Detect if the system already has ccache installed to use instead of the prebuilt
-    ccache := $(shell which ccache)
+    _ccache := $(shell which ccache)
 
-    ifeq ($(ccache),)
-        ccache := $(ANDROID_BUILD_TOP)/prebuilts/misc/$(HOST_PREBUILT_TAG)/ccache/ccache
+    ifeq ($(_ccache),)
+        _ccache := $(ANDROID_BUILD_TOP)/prebuilts/misc/$(HOST_PREBUILT_TAG)/ccache/ccache
         # Check that the executable is here.
-        ccache := $(strip $(wildcard $(ccache)))
+        _ccache := $(strip $(wildcard $(_ccache)))
     endif
 endif
 
-KERNEL_CROSS_COMPILE := CROSS_COMPILE="$(ccache) $(KERNEL_TOOLCHAIN_PATH)"
-ccache =
+KERNEL_CROSS_COMPILE := CROSS_COMPILE="$(_ccache) $(KERNEL_TOOLCHAIN_PATH)"
+_ccache =
 
 define mv-modules
     mdpath=`find $(KERNEL_MODULES_OUT) -type f -name modules.order`;\
