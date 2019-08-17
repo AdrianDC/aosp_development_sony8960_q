@@ -1,7 +1,7 @@
 
 LOCAL_PATH := $(call my-dir)
 
-ifeq ($(filter flo deb,$(TARGET_DEVICE)),)
+ifeq ($(filter flo deb huashan mint hayabusa tsubasa,$(TARGET_DEVICE)),)
 include $(CLEAR_VARS)
 
 LOCAL_MODULE := gps.conf
