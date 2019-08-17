@@ -37,10 +37,12 @@ $(recovery_uncompressed_device_ramdisk): $(MKBOOTFS) $(ADBD) \
 	$(hide) cp $(recovery_uncompressed_device_ramdisk) $(recovery_uncompressed_ramdisk)
 
 recovery_ramdisk := $(PRODUCT_OUT)/ramdisk-recovery.img
-$(recovery_ramdisk): $(MINIGZIP) \
+recovery_ramdisk_device := $(PRODUCT_OUT)/ramdisk-recovery-device.img
+$(recovery_ramdisk_device): $(MINIGZIP) \
 		$(recovery_uncompressed_device_ramdisk)
 	@echo "----- Making compressed recovery ramdisk ------"
 	$(hide) $(MINIGZIP) < $(recovery_uncompressed_ramdisk) > $@
+	$(hide) cp -a $@ $(recovery_ramdisk)
 
 INSTALLED_BOOTIMAGE_TARGET := $(PRODUCT_OUT)/boot.img
 $(INSTALLED_BOOTIMAGE_TARGET): $(PRODUCT_OUT)/kernel \
@@ -77,7 +79,7 @@ $(INSTALLED_BOOTIMAGE_TARGET): $(PRODUCT_OUT)/kernel \
 
 INSTALLED_RECOVERYIMAGE_TARGET := $(PRODUCT_OUT)/recovery.img
 $(INSTALLED_RECOVERYIMAGE_TARGET): $(MKBOOTIMG) \
-		$(recovery_ramdisk) \
+		$(recovery_ramdisk_device) \
 		$(recovery_kernel)
 	@echo "----- Making recovery image ------"
 	$(hide) python $(MKELF) $(MKELF_ARGS) -o $@ $(PRODUCT_OUT)/kernel@0x80208000 $(PRODUCT_OUT)/ramdisk-recovery.img@0x81900000,ramdisk $(DEVICE_RPMBIN)@0x00020000,rpm $(DEVICE_CMDLINE)@cmdline
