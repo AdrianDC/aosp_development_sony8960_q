@@ -45,7 +45,6 @@ LOCAL_CFLAGS += \
 endif
 
 LOCAL_MODULE := init_sony
-LOCAL_MODULE_TAGS := optional
 
 LOCAL_MODULE_PATH := $(PRODUCT_OUT)/utilities
 LOCAL_UNSTRIPPED_PATH := $(PRODUCT_OUT)/symbols/utilities
