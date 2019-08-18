@@ -1,5 +1,5 @@
-type qmuxd, domain;
-type qmuxd_exec, exec_type, file_type;
+type qmuxd, domain, coredomain;
+type qmuxd_exec, system_file_type, exec_type, file_type;
 
 init_daemon_domain(qmuxd)
 

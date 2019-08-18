@@ -1,5 +1,5 @@
-type rmt, domain;
-type rmt_exec, exec_type, file_type;
+type rmt, domain, coredomain;
+type rmt_exec, system_file_type, exec_type, file_type;
 
 init_daemon_domain(rmt)
 
